@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { parse } from "yaml";
 import {
   existsSync,
   mkdirSync,
@@ -32,6 +33,20 @@ import {
   syntheticManifest,
   valid,
 } from "./fixtures.mjs";
+
+function checkoutCredentialsAreDisabled(source) {
+  const workflow = parse(source);
+  const jobs = Object.values(workflow?.jobs ?? {});
+  const checkoutSteps = jobs.flatMap(({ steps = [] }) =>
+    steps.filter(({ uses }) => /^actions\/checkout@/.test(uses ?? "")),
+  );
+  return (
+    checkoutSteps.length > 0 &&
+    checkoutSteps.every(
+      (step) => step.with?.["persist-credentials"] === false,
+    )
+  );
+}
 
 export function registerSuite({ check }) {
   check("unsafe generated reports are removed before retention", () => {
@@ -939,11 +954,24 @@ export function registerSuite({ check }) {
   );
   check("CI checkout does not persist credentials", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
-    const checkoutStep = workflow.split("      - name: Set up pnpm")[0];
     return (
-      checkoutStep.includes("uses: actions/checkout@v7") &&
-      checkoutStep.includes("persist-credentials: false") &&
-      !checkoutStep.includes("persist-credentials: true")
+      checkoutCredentialsAreDisabled(workflow) &&
+      !checkoutCredentialsAreDisabled(`
+jobs:
+  validate:
+    persist-credentials: false
+    steps:
+      - uses: actions/checkout@v7
+`) &&
+      !checkoutCredentialsAreDisabled(`
+jobs:
+  validate:
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+`)
     );
   });
   check("CI invokes the canonical verifier entrypoint directly", () => {
