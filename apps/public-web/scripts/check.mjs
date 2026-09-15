@@ -5,15 +5,34 @@ import { fileURLToPath } from 'node:url';
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const requiredFiles = [
   'src/index.html',
-  'src/app.js',
+  'src/main.jsx',
+  'src/i18n.js',
+  'src/locales/en.json',
+  'src/locales/fr.json',
+  'src/App.jsx',
+  'src/components/Layout.jsx',
+  'src/components/PropertyCard.jsx',
+  'src/components/StatusMessage.jsx',
+  'src/pages/MarketingPages.jsx',
+  'src/pages/PropertyPages.jsx',
+  'src/pages/AccountPages.jsx',
+  'src/pages/WorkspacePages.jsx',
+  'src/pages/ContentPages.jsx',
+  'src/pages/index.js',
+  'src/data/content.js',
+  'src/services/storage.js',
+  'src/services/mockApiService.js',
   'src/mock-api.js',
   'src/styles.css',
   'public/keyforta-app-icon.png',
-  'public/keyforta-hero.png',
-  'public/keyforta-logo-primary.svg',
-  'public/keyforta-logo-reversed.svg'
+  'public/keyforta-symbol.png',
+  'public/keyforta-logo-primary.png',
+  'public/keyforta-logo-reversed.png',
+  'vite.config.js'
 ];
 
 for (const relativePath of requiredFiles) await access(resolve(appRoot, relativePath));
-new Function(await readFile(resolve(appRoot, 'src/app.js'), 'utf8'));
-console.log(`Checked ${requiredFiles.length} public-web source files and JavaScript syntax.`);
+JSON.parse(await readFile(resolve(appRoot, 'src/locales/en.json'), 'utf8'));
+JSON.parse(await readFile(resolve(appRoot, 'src/locales/fr.json'), 'utf8'));
+new Function(await readFile(resolve(appRoot, 'src/mock-api.js'), 'utf8'));
+console.log(`Checked ${requiredFiles.length} public-web source files, locale JSON parsing, and JavaScript syntax.`);

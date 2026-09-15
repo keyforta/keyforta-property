@@ -6,6 +6,16 @@
   "description": "Keyforta platform administration console",
   "scripts": {
     "check": "node scripts/check.mjs",
-    "build": "node scripts/build.mjs"
+    "build": "vite build",
+    "dev": "vite --host 127.0.0.1 --port 3002"
+  },
+  "dependencies": {
+    "@fluentui/react-components": "^9.72.5",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.2",
+    "vite": "^7.1.5"
   }
 }

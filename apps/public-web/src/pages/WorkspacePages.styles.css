@@ -1,0 +1,430 @@
+/* Styles owned by pages/WorkspacePages.jsx. */
+.workspace-tabs {
+  max-width: 100%;
+  margin: 20px 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.workspace-page {
+  min-height: 65vh;
+}
+.workspace-top {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.workspace-top h1 {
+  font-size: clamp(2rem, 4vw, 3.7rem);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+  margin: 8px 0;
+}
+.workspace-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 18px;
+  background: #fff7e6;
+  border: 1px solid #efd7a2;
+  border-radius: 12px;
+  color: #725520;
+}
+.workspace-banner span {
+  font-size: 0.88rem;
+}
+.workspace-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 18px 0;
+}
+.workspace-stat {
+  padding: 20px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.workspace-stat span,
+.workspace-stat small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.workspace-stat strong {
+  display: block;
+  font-size: 1.65rem;
+  margin: 10px 0 4px;
+}
+.workspace-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.workspace-panel {
+  padding: 24px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+.workspace-panel h2 {
+  margin-top: 0;
+  font-size: 1.2rem;
+}
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.activity-row:first-of-type {
+  border-top: 0;
+}
+.activity-row > div {
+  flex: 1;
+}
+.activity-row strong {
+  font-size: 0.9rem;
+}
+.activity-row p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.activity-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--bone);
+  font-weight: 800;
+}
+.status-pill {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #fff1df;
+  color: #8a5c19;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.status-pill.teal {
+  background: #e1f2ea;
+  color: var(--success);
+}
+@media (max-width: 900px) {
+  .workspace-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+  .workspace-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .workspace-top .button {
+    width: 100%;
+  }
+}
+@media (max-width: 600px) {
+  .workspace-stats {
+    grid-template-columns: 1fr;
+  }
+  .workspace-banner {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .activity-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .activity-row > div {
+    min-width: calc(100% - 50px);
+  }
+  .activity-row .status-pill {
+    margin-left: 46px;
+  }
+}
+.status-pill,
+.workspace-stat strong {
+  font-family: "Instrument Sans", "Segoe UI", Arial, sans-serif;
+}
+.workspace-top h1 {
+  font-family: "Instrument Sans", "Segoe UI", Arial, sans-serif;
+  font-weight: 700;
+}
+.workspace-grid {
+  gap: 20px;
+}
+.workspace-panel,
+.workspace-stat {
+  background: #fffdf9;
+  border-color: var(--line);
+  box-shadow: 0 8px 24px rgba(23, 21, 28, 0.045);
+}
+.workspace-panel,
+.workspace-stat {
+  border-radius: 16px;
+}
+.workspace-panel,
+.workspace-stat {
+  padding: 26px;
+}
+.workspace-banner {
+  border-color: var(--line);
+  background: #fffdf9;
+}
+.workspace-banner {
+  background: #f6efe0;
+  border-color: #dfc9a7;
+  color: #6b512b;
+}
+.workspace-stat strong {
+  font-weight: 700;
+}
+.status-pill {
+  font-family: "Instrument Sans", "Segoe UI", Arial, sans-serif;
+}
+@media (max-width: 600px) {
+  .workspace-top h1 {
+    font-size: 2.25rem;
+  }
+  .workspace-panel,
+.workspace-stat {
+    padding: 22px;
+  }
+}
+.workspace-top h1 {
+  font-size: clamp(3rem, 4.5vw, 5rem);
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+}
+.workspace-panel,
+.workspace-stat {
+  box-shadow: none;
+}
+.workspace-panel,
+.workspace-stat {
+  border-color: var(--line);
+}
+@media (max-width: 900px) {
+  .workspace-top h1 {
+    font-size: clamp(2.8rem, 7vw, 4rem);
+  }
+}
+@media (max-width: 600px) {
+  .workspace-top h1 {
+    font-size: 2.65rem;
+  }
+}
+.workspace-panel,
+.workspace-stat {
+  background: #fff;
+  border-color: var(--line);
+}
+.activity-icon {
+  background: var(--logo-cream);
+}
+.status-pill.teal {
+  background: rgba(49, 112, 108, 0.14);
+  color: var(--logo-teal);
+}
+.status-pill {
+  background: rgba(195, 123, 78, 0.16);
+  color: var(--logo-aubergine);
+}
+.workspace-banner {
+  background: rgba(195, 123, 78, 0.12);
+  border-color: rgba(195, 123, 78, 0.38);
+  color: var(--logo-aubergine);
+}
+.workspace-panel,
+.workspace-stat {
+  border-radius: 4px 18px 18px 18px;
+}
+.workspace-top h1 {
+  max-width: 900px;
+}
+.workspace-grid {
+  gap: 16px;
+}
+.action-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.action-button {
+  min-height: 44px;
+}
+.action-status {
+  margin-top: 16px;
+}
+.api-contract-note {
+  margin: 24px 0;
+  padding: 18px 20px;
+  border-left: 4px solid var(--teal);
+  background: #fffdf9;
+  border-radius: 0 12px 12px 0;
+}
+.api-resource-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.api-resource {
+  min-width: 0;
+  padding: 22px;
+  background: #fffdf9;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.api-resource-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.api-resource-head h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+.api-resource-head p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.8rem;
+}
+.api-resource h3 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 20px 0 8px;
+}
+.api-fields {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.api-permissions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+.api-permissions span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px;
+  background: var(--parchment);
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.api-permissions strong {
+  color: var(--ink);
+}
+.api-crud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+.api-crud .button {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 0.82rem;
+}
+.api-status {
+  display: block;
+  margin-top: 12px;
+  min-height: 18px;
+  padding: 8px 10px;
+  background: var(--parchment);
+  color: var(--muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.api-status.show {
+  background: rgba(49, 112, 108, 0.12);
+  color: var(--teal);
+}
+@media (max-width: 900px) {
+  .api-resource-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .api-permissions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.workspace-module {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 24px 0 18px;
+  padding: 22px 24px;
+  border: 1px solid rgba(49, 112, 108, 0.3);
+  border-left: 4px solid var(--logo-teal);
+  border-radius: 4px 16px 16px 16px;
+  background: #fff;
+}
+.workspace-module .eyebrow {
+  margin-bottom: 6px;
+}
+.workspace-module h2 {
+  margin: 0 0 4px;
+  font-size: 1.45rem;
+}
+.workspace-module p:not(.eyebrow) {
+  margin: 0;
+  color: var(--muted);
+  max-width: 760px;
+}
+.module-chip {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: rgba(49, 112, 108, 0.12);
+  color: var(--logo-teal);
+  font:
+    700 0.78rem/1 "Instrument Sans",
+    "Segoe UI",
+    Arial,
+    sans-serif;
+}
+@media (max-width: 900px) {
+  .workspace-module {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+}
+.workspace-top h1 {
+  max-width: 800px;
+  font-size: clamp(2.25rem, 3vw, 3.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+}
+.workspace-top h1 {
+  max-width: 760px;
+}
+@media (max-width: 900px) {
+  .workspace-top h1 {
+    font-size: clamp(2.25rem, 5.4vw, 3.25rem);
+  }
+}
+@media (max-width: 600px) {
+  .workspace-top h1 {
+    font-size: 2.2rem;
+    line-height: 1.05;
+  }
+}

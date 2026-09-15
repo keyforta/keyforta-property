@@ -21,13 +21,15 @@ dist/              Generated public-web output consumed by Sites
 
 ## Development
 
-This repository uses pnpm workspaces. The public experience remains a dependency-light app while portal and admin surfaces are developed independently against shared contracts. `apps/public-web/src/mock-api.js` is the browser-local CRUD adapter and `docs/backend-integration-contract.md` is the contract to preserve when replacing it with HTTP APIs.
+This repository uses pnpm workspaces. The three web apps use React 19, Fluent UI React v9 (Fluent UI v2), and Vite while remaining independently deployable against shared contracts. `apps/public-web/src/mock-api.js` is the browser-local CRUD adapter and `docs/backend-integration-contract.md` is the contract to preserve when replacing it with HTTP APIs.
 
 ```bash
 pnpm check
 pnpm build
 pnpm dev
 ```
+
+`pnpm dev` serves the public site at `http://localhost:3000`. Use `pnpm dev:portal` for the portal at `http://localhost:3001`, `pnpm dev:admin` for the admin console at `http://localhost:3002`, or `pnpm dev:all` to run all three.
 
 The public deployment remains static until the production backend, authentication, live listings, verification workflows, payments, notifications, maintenance messaging, and finalized legal documents are connected.
 

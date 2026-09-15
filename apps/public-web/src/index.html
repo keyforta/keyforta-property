@@ -4,17 +4,10 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>KEYFORTA — Find and manage property with confidence</title>
   <meta name="description" content="Discover verified rental properties and manage rental relationships with clarity.">
-  <link rel="icon" href="/favicon.ico" sizes="any">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="icon" type="image/png" sizes="310x310" href="/keyforta-app-icon.png">
-  <link rel="apple-touch-icon" sizes="310x310" href="/keyforta-app-icon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/png" href="/keyforta-app-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <a class="skip-link" href="#app">Skip to content</a>
-  <header class="site-header"><div class="shell nav-wrap"><a class="brand" href="#home" aria-label="KEYFORTA home"><picture class="brand-picture"><source media="(max-width: 600px)" srcset="keyforta-symbol.svg"><img class="brand-primary" src="keyforta-logo-primary.svg" alt="KEYFORTA"></picture></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="main-nav" aria-label="Open navigation">Menu</button><nav id="main-nav" aria-label="Primary navigation"><a href="#properties" data-route="properties" data-i18n="nav_properties">Properties</a><a href="#how" data-route="how" data-i18n="nav_how">How it works</a><a href="#landlords" data-route="landlords" data-i18n="nav_landlords_short">Landlords</a><a href="#trust" data-route="trust" data-i18n="nav_trust">Trust & safety</a><a href="#voice" data-route="voice">AI voice</a><a href="#faq" data-route="faq">FAQ</a><a href="#contact" data-route="contact" data-i18n="contact">Contact</a><a href="#signin" data-route="signin" data-i18n="sign_in_short">Sign in</a><button class="language" id="language-toggle" type="button" aria-label="Switch to French">FR</button><button class="button small" data-open-access type="button" data-i18n="request_access">Request access</button></nav></div></header>
-  <main id="app" tabindex="-1" aria-label="Page content"></main>
-  <div id="footer-mount"></div>
-  <dialog id="access-dialog" aria-labelledby="access-title" aria-describedby="access-description"><div class="dialog-card"><button class="dialog-close" type="button" aria-label="Close">×</button><p class="eyebrow" data-i18n="early_access">Early access</p><h2 id="access-title" data-i18n="join_launch">Join the KEYFORTA launch</h2><p class="muted" id="access-description" data-i18n="access_intro">Choose how you plan to use the platform. This demo saves your request only in this browser until the backend is connected.</p><form id="access-form" class="form-grid"><input type="hidden" name="interest" id="access-interest"><label><span data-i18n="full_name">Full name</span><input name="name" autocomplete="name" required></label><label><span data-i18n="email">Email address</span><input name="email" type="email" autocomplete="email" required></label><label><span data-i18n="i_am">I am a</span><select name="role" required><option value="" data-i18n="select_one">Select one</option><option>Tenant</option><option>Landlord</option><option>Property manager</option><option>Independent maintenance operator</option></select></label><label><span data-i18n="location">City or country</span><input name="location" autocomplete="address-level2"></label><button class="button" type="submit" data-i18n="submit_request">Submit request</button><p class="form-status" role="status" aria-live="polite"></p></form></div></dialog>
-  <script src="mock-api.js"></script><script src="app.js"></script>
+  <div id="root"></div>
+  <script type="module" src="/main.jsx"></script>
 </body></html>

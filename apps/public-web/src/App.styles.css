@@ -1,0 +1,27 @@
+/* Styles owned by App.jsx. */
+.skip-link {
+  position: fixed;
+  left: 12px;
+  top: -80px;
+  z-index: 20;
+  background: var(--white);
+  padding: 12px;
+  color: var(--ink);
+}
+.skip-link:focus {
+  top: 12px;
+}
+.route-loading {
+  display: grid;
+  place-items: center;
+  min-height: 50vh;
+}
+.skip-link {
+  border: 2px solid var(--logo-teal);
+  border-radius: 4px;
+}
+.skip-link:focus-visible {
+  outline: 3px solid var(--logo-teal);
+  outline-offset: 4px;
+  border-radius: 4px;
+}

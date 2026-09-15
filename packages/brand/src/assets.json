@@ -11,25 +11,19 @@
   "minimumSymbolDigital": "16px",
   "noTagline": true,
   "assets": {
-    "primary": { "svg": "assets/keyforta-logo-primary.svg", "png": "assets/keyforta-logo-primary.png" },
+    "primary": { "svg": "assets/keyforta-logo-primary.svg" },
     "symbol": {
       "svg": "assets/keyforta-symbol.svg",
-      "png": "assets/keyforta-symbol.png",
       "monochromeSvg": "assets/keyforta-symbol-monochrome.svg",
-      "monochromePng": "assets/keyforta-symbol-monochrome.png",
-      "reversedSvg": "assets/keyforta-symbol-reversed.svg",
-      "reversedPng": "assets/keyforta-symbol-reversed.png"
+      "reversedSvg": "assets/keyforta-symbol-reversed.svg"
     },
     "wordmark": {
       "svg": "assets/keyforta-wordmark.svg",
-      "png": "assets/keyforta-wordmark.png",
       "monochromeSvg": "assets/keyforta-wordmark-monochrome.svg",
-      "monochromePng": "assets/keyforta-wordmark-monochrome.png",
-      "reversedSvg": "assets/keyforta-wordmark-reversed.svg",
-      "reversedPng": "assets/keyforta-wordmark-reversed.png"
+      "reversedSvg": "assets/keyforta-wordmark-reversed.svg"
     },
-    "monochrome": { "svg": "assets/keyforta-logo-monochrome.svg", "png": "assets/keyforta-logo-monochrome.png" },
-    "reversed": { "svg": "assets/keyforta-logo-reversed.svg", "png": "assets/keyforta-logo-reversed.png" },
-    "appIcon": { "svg": "assets/keyforta-app-icon.svg", "png": "assets/keyforta-app-icon.png" }
+    "monochrome": { "svg": "assets/keyforta-logo-monochrome.svg" },
+    "reversed": { "svg": "assets/keyforta-logo-reversed.svg" },
+    "appIcon": { "svg": "assets/keyforta-app-icon.svg" }
   }
 }

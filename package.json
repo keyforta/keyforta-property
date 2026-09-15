@@ -8,6 +8,10 @@
     "build": "pnpm --filter @keyforta/public-web build",
     "check": "pnpm --recursive run check",
     "dev": "pnpm --filter @keyforta/public-web dev",
+    "dev:public": "pnpm --filter @keyforta/public-web dev",
+    "dev:portal": "pnpm --filter @keyforta/portal-web dev",
+    "dev:admin": "pnpm --filter @keyforta/admin-web dev",
+    "dev:all": "pnpm --parallel --filter './apps/*-web' dev",
     "check:apps": "pnpm --recursive run check",
     "build:apps": "pnpm --recursive run build"
   }
