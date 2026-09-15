@@ -1,6 +1,7 @@
 node_modules/
 .sites-runtime/
 dist/.openai/
+harness/reports/
 keyforta-*.tar.gz
 upload/
 *.log
