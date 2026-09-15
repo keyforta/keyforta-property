@@ -91,6 +91,31 @@ function frozenControlCleanupIsPrivileged(source) {
   );
 }
 
+function isolatedValidationUsesProducerHome(source) {
+  const workflow = parse(source);
+  const producerSteps = Object.values(workflow?.jobs ?? {}).flatMap(
+    ({ steps = [] }) =>
+      steps.filter(
+        ({ run }) =>
+          run?.includes("sudo --preserve-env=") &&
+          run.includes('-u "$VALIDATION_USER" env'),
+      ),
+  );
+  const requiredEnvironment = [
+    'HOME="$VALIDATION_HOME"',
+    'XDG_CONFIG_HOME="$VALIDATION_HOME/.config"',
+    'XDG_CACHE_HOME="$VALIDATION_HOME/.cache"',
+    'XDG_DATA_HOME="$VALIDATION_HOME/.local/share"',
+    'XDG_STATE_HOME="$VALIDATION_HOME/.local/state"',
+  ];
+  return (
+    producerSteps.length > 0 &&
+    producerSteps.every(({ run }) =>
+      requiredEnvironment.every((entry) => run.includes(entry)),
+    )
+  );
+}
+
 export function registerSuite({ check }) {
   check("unsafe generated reports are removed before retention", () => {
     const reportDirectory = "harness/reports/self-test-retention-guard";
@@ -1102,6 +1127,11 @@ jobs:
   );
   check("runner privilege removes frozen retention controls", () =>
     frozenControlCleanupIsPrivileged(
+      readFileSync(".github/workflows/ci.yml", "utf8"),
+    ),
+  );
+  check("isolated CI producer uses only producer-owned home state", () =>
+    isolatedValidationUsesProducerHome(
       readFileSync(".github/workflows/ci.yml", "utf8"),
     ),
   );

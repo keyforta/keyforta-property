@@ -22,6 +22,7 @@ jobs:
       HARNESS_CONTRACT_MODE: ${{ github.event_name == 'pull_request' && 'required' || 'skip' }}
       HARNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
       VALIDATION_USER: keyforta-ci
+      VALIDATION_HOME: /home/keyforta-ci
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -59,17 +60,17 @@ jobs:
           sudo chown -R "$VALIDATION_USER:$VALIDATION_USER" "$GITHUB_WORKSPACE"
 
       - name: Install dependencies
-        run: sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="/home/$VALIDATION_USER" PATH="$PATH" pnpm install --frozen-lockfile
+        run: sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" pnpm install --frozen-lockfile
 
       - name: Validate repository
-        run: sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="/home/$VALIDATION_USER" PATH="$PATH" node harness/scripts/verify.mjs
+        run: sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" node harness/scripts/verify.mjs
 
       - name: Generate final commit evidence
         if: success() && github.event_name == 'pull_request'
         run: |
-          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="/home/$VALIDATION_USER" PATH="$PATH" node harness/scripts/generate-evidence.mjs
-          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="/home/$VALIDATION_USER" PATH="$PATH" pnpm verify:evidence
-          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="/home/$VALIDATION_USER" PATH="$PATH" EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=verify:evidence pnpm verify:transition
+          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" node harness/scripts/generate-evidence.mjs
+          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" pnpm verify:evidence
+          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=verify:evidence pnpm verify:transition
 
       - name: Seal generated reports
         if: always()
