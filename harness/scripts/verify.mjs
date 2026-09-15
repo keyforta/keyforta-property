@@ -1,5 +1,11 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, relative } from "node:path";
 import {
@@ -19,6 +25,7 @@ import {
   validateEvidenceManifest,
 } from "./edd-lib.mjs";
 import { runGates, skippedGateResults } from "./run-gates.mjs";
+import { secretPatternFindings } from "./secret-scan.mjs";
 
 function filesWithExtension(directory, extension) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -313,6 +320,34 @@ report.nextState = failed
     ? "blocked"
     : "changes-requested"
   : (contract?.workflowState ?? null);
+writeFileSync(
+  "harness/reports/verify-latest.json",
+  `${JSON.stringify(report, null, 2)}\n`,
+);
+const generatedReportFindings = secretPatternFindings(
+  filesWithExtension("harness/reports", ".json"),
+  readJson("harness/policies/repository-policy.json").forbiddenSecretPatterns,
+);
+if (generatedReportFindings.length) {
+  for (const file of new Set(generatedReportFindings.map(({ file }) => file))) {
+    unlinkSync(file);
+  }
+  failed = true;
+  report.status = "failed";
+  report.nextState =
+    contract?.repairCycle >= 3 ? "blocked" : "changes-requested";
+}
+report.results.push({
+  ...(generatedReportFindings.length
+    ? {
+        detail: generatedReportFindings
+          .map(({ file }) => `${file}: removed before artifact retention`)
+          .join("; "),
+      }
+    : {}),
+  name: "generated-report-secret-patterns",
+  status: generatedReportFindings.length ? "failed" : "passed",
+});
 writeFileSync(
   "harness/reports/verify-latest.json",
   `${JSON.stringify(report, null, 2)}\n`,

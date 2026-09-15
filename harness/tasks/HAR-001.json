@@ -83,9 +83,12 @@
   "allowedPaths": [
     ".gitignore",
     "docs/engineering/evidence/HAR-001.md",
+    "harness/graders/secrets.mjs",
     "harness/reports/",
     "harness/scripts/edd-lib.mjs",
+    "harness/scripts/secret-scan.mjs",
     "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+    "harness/scripts/verify.mjs",
     "harness/tasks/HAR-001.json"
   ],
   "declaredProtectedPaths": [],
@@ -143,14 +146,14 @@
     "harness/reports/evidence-HAR-001.json"
   ],
   "riskClassification": "medium",
-  "securityImpact": "No security control changes. Generated reports remain local or CI artifacts and must continue to exclude secrets and sensitive production data.",
+  "securityImpact": "Strengthens the existing secret control by applying the same forbidden patterns to generated JSON reports, deleting unsafe outputs, and failing verification before CI artifact retention.",
   "dataImpact": "No product or production data changes. Four generated synthetic verification reports are removed from version control.",
   "observabilityImpact": "Canonical verification reports remain available locally and as retained CI artifacts but are no longer committed source files. Evidence metadata records only tools declared by the workspace.",
   "rollbackConsiderations": "Revert HAR-001 to restore the prior tracked reports and ignore behavior. No runtime or production rollback is required.",
   "humanApprovalRequirements": [
     "Product-owner scope and prerequisite approval recorded in issue #3 and the approving Copilot session",
     "Independent architecture, security, and pull-request review before merge",
-    "No harness policy, schema, gate-outcome, product-runtime, or deployment changes"
+    "No harness policy, schema, product-runtime, or deployment changes"
   ],
   "repairCycle": 0
 }

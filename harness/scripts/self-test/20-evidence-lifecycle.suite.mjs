@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { databaseEnvironment, validateEvidence } from "../lib.mjs";
+import { secretPatternFindings } from "../secret-scan.mjs";
 import {
   buildEvidenceManifest,
   declaredToolVersions,
@@ -31,6 +32,17 @@ import {
 } from "./fixtures.mjs";
 
 export function registerSuite({ check }) {
+  check("generated reports containing secrets are rejected", () => {
+    const reportPath = "harness/reports/self-test-generated-secret.json";
+    writeFileSync(reportPath, '{"token":"HARNESS_TEST_SECRET"}\n');
+    try {
+      return (
+        secretPatternFindings([reportPath], ["HARNESS_TEST_SECRET"]).length === 1
+      );
+    } finally {
+      unlinkSync(reportPath);
+    }
+  });
   check("evidence records only declared tool versions", () => {
     const packageManifest = {
       packageManager: "pnpm@11.19.0",
