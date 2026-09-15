@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { parse } from "yaml";
 import {
   existsSync,
   mkdirSync,
@@ -36,6 +37,20 @@ import {
   syntheticManifest,
   valid,
 } from "./fixtures.mjs";
+
+function checkoutCredentialsAreDisabled(source) {
+  const workflow = parse(source);
+  const jobs = Object.values(workflow?.jobs ?? {});
+  const checkoutSteps = jobs.flatMap(({ steps = [] }) =>
+    steps.filter(({ uses }) => /^actions\/checkout@/.test(uses ?? "")),
+  );
+  return (
+    checkoutSteps.length > 0 &&
+    checkoutSteps.every(
+      (step) => step.with?.["persist-credentials"] === false,
+    )
+  );
+}
 
 export function registerSuite({ check }) {
   check("unsafe generated reports are removed before retention", () => {
@@ -1019,6 +1034,28 @@ export function registerSuite({ check }) {
       "HARNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}",
     ),
   );
+  check("CI checkout does not persist credentials", () => {
+    const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+    return (
+      checkoutCredentialsAreDisabled(workflow) &&
+      !checkoutCredentialsAreDisabled(`
+jobs:
+  validate:
+    persist-credentials: false
+    steps:
+      - uses: actions/checkout@v7
+`) &&
+      !checkoutCredentialsAreDisabled(`
+jobs:
+  validate:
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+`)
+    );
+  });
   check("CI invokes the canonical verifier entrypoint directly", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     return (
