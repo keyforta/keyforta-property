@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { readJson } from "./lib.mjs";
-import { guardGeneratedReports } from "./report-retention-guard.mjs";
+import { snapshotGeneratedReports } from "./report-retention-guard.mjs";
 
 const policy = readJson("harness/policies/repository-policy.json");
-const result = guardGeneratedReports(
-  "harness/reports",
+const result = snapshotGeneratedReports(
+  process.env.KEYFORTA_REPORT_SOURCE || "harness/reports",
+  process.env.KEYFORTA_REPORT_SNAPSHOT || "harness/retained-reports",
   policy.forbiddenSecretPatterns,
 );
 if (!result.safe) {

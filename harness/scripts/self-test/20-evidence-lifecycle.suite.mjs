@@ -5,12 +5,16 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { databaseEnvironment, readJson, validateEvidence } from "../lib.mjs";
-import { guardGeneratedReports } from "../report-retention-guard.mjs";
+import {
+  guardGeneratedReports,
+  snapshotGeneratedReports,
+} from "../report-retention-guard.mjs";
 import {
   buildEvidenceManifest,
   declaredToolVersions,
@@ -48,6 +52,51 @@ function checkoutCredentialsAreDisabled(source) {
   );
 }
 
+function retentionUsesTrustedWorkflow(validationSource, retentionSource) {
+  const validation = parse(validationSource);
+  const retention = parse(retentionSource);
+  const validationSteps = Object.values(validation?.jobs ?? {}).flatMap(
+    ({ steps = [] }) => steps,
+  );
+  const retentionJob = Object.values(retention?.jobs ?? {})[0];
+  const retentionSteps = retentionJob?.steps ?? [];
+  const checkout = retentionSteps.find(({ uses }) =>
+    /^actions\/checkout@/.test(uses ?? ""),
+  );
+  const download = retentionSteps.find(({ uses }) =>
+    /^actions\/download-artifact@/.test(uses ?? ""),
+  );
+  const scan = retentionSteps.find(
+    ({ name }) => name === "Scan and snapshot candidate evidence",
+  );
+  const upload = retentionSteps.find(({ uses }) =>
+    /^actions\/upload-artifact@/.test(uses ?? ""),
+  );
+  const candidateUpload = validationSteps.find(
+    ({ name }) => name === "Upload untrusted engineering evidence",
+  );
+  return (
+    retention?.on?.workflow_run?.workflows?.includes("CI") &&
+    retention?.permissions?.contents === "read" &&
+    retention?.permissions?.actions === "read" &&
+    retentionJob?.if === "github.event.workflow_run.event == 'pull_request'" &&
+    checkout?.with?.ref === "${{ github.sha }}" &&
+    checkout.with?.["persist-credentials"] === false &&
+    retentionSteps
+      .filter(({ uses }) => uses)
+      .every(({ uses }) => /@[0-9a-f]{40}$/.test(uses.split(" ")[0])) &&
+    download?.with?.["run-id"] === "${{ github.event.workflow_run.id }}" &&
+    download.with?.name ===
+      "untrusted-engineering-evidence-${{ github.event.workflow_run.head_sha }}" &&
+    scan?.run === "node harness/scripts/verify-reports.mjs" &&
+    upload?.with?.path === "${{ runner.temp }}/keyforta-evidence/" &&
+    candidateUpload?.with?.path === "harness/reports/" &&
+    !validationSteps.some(({ run = "" }) =>
+      run.includes("verify-reports.mjs"),
+    )
+  );
+}
+
 export function registerSuite({ check }) {
   check("unsafe generated reports are removed before retention", () => {
     const reportDirectory = "harness/reports/self-test-retention-guard";
@@ -63,6 +112,110 @@ export function registerSuite({ check }) {
         .forbiddenSecretPatterns,
     );
     return !result.safe && !existsSync(reportDirectory);
+  });
+  check("secret-bearing non-JSON reports produce no snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-text-snapshot-source";
+    const snapshotDirectory =
+      "harness/retained-reports/self-test-text-snapshot";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(
+      `${reportDirectory}/unsafe.txt`,
+      "API_" + "KEY=fakevalue123\n",
+    );
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      readJson("harness/policies/repository-policy.json")
+        .forbiddenSecretPatterns,
+    );
+    return (
+      !result.safe &&
+      !existsSync(reportDirectory) &&
+      !existsSync(snapshotDirectory)
+    );
+  });
+  check("UTF-16 and binary reports produce no snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-binary-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-binary";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(
+      `${reportDirectory}/unsafe.txt`,
+      Buffer.from("API_" + "KEY=fakevalue123\n", "utf16le"),
+    );
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      readJson("harness/policies/repository-policy.json")
+        .forbiddenSecretPatterns,
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("nested failure reports are retained in the snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-nested-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-nested";
+    mkdirSync(`${reportDirectory}/failures/HAR-007`, { recursive: true });
+    writeFileSync(
+      `${reportDirectory}/failures/HAR-007/failure.json`,
+      "{\"status\":\"failed\"}\n",
+    );
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    const copied = readFileSync(
+      `${snapshotDirectory}/failures/HAR-007/failure.json`,
+      "utf8",
+    );
+    rmSync(reportDirectory, { force: true, recursive: true });
+    rmSync(snapshotDirectory, { force: true, recursive: true });
+    return result.safe && copied === "{\"status\":\"failed\"}\n";
+  });
+  check("FIFO replacement races fail closed without blocking", () => {
+    const reportDirectory = "harness/reports/self-test-fifo-race-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-fifo-race";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(`${reportDirectory}/report.txt`, "safe evidence\n");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+      (file) => {
+        unlinkSync(file);
+        execFileSync("mkfifo", [file]);
+      },
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("each report entry is scanned independently", () => {
+    const reportDirectory = "harness/reports/self-test-independent-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-independent";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(
+      `${reportDirectory}/a-unsafe.txt`,
+      "API_" + "KEY=fakevalue123\n",
+    );
+    writeFileSync(`${reportDirectory}/z-safe.txt`, "safe evidence\n");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      readJson("harness/policies/repository-policy.json")
+        .forbiddenSecretPatterns,
+    );
+    return (
+      !result.safe &&
+      result.findingCount === 1 &&
+      result.fileCount === 1 &&
+      !existsSync(snapshotDirectory)
+    );
+  });
+  check("retention controls execute only from the trusted workflow", () => {
+    const validation = readFileSync(".github/workflows/ci.yml", "utf8");
+    const retention = readFileSync(
+      ".github/workflows/retain-engineering-evidence.yml",
+      "utf8",
+    );
+    return retentionUsesTrustedWorkflow(validation, retention);
   });
   check("unreadable generated reports fail closed", () => {
     const reportDirectory = "harness/reports/self-test-unreadable-reports";

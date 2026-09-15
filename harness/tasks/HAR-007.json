@@ -1,0 +1,169 @@
+{
+  "contractVersion": 2,
+  "taskId": "HAR-007",
+  "phase": "implementation",
+  "workArea": "governance-and-harness",
+  "title": "Trust report retention controls and close scanner race gaps",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/18",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/18",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/18",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "classification": "bugfix",
+  "workflowState": "implemented",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T22:05:17.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/18"]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-15T22:05:17.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-007.md"]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T22:05:17.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/18"],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/18",
+        "commitSha": "fed9726d854f1a7d72437cb6066347ae68d2e7df"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-15T22:05:17.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-007.md"]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T22:05:17.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-007.md"]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T22:12:00.000Z",
+      "evidenceReferences": [
+        ".github/workflows/retain-engineering-evidence.yml",
+        "harness/scripts/report-retention-guard.mjs",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-007.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T22:14:20.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-007.md"]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T22:14:21.000Z",
+      "evidenceReferences": [
+        ".github/workflows/retain-engineering-evidence.yml",
+        "harness/scripts/report-retention-guard.mjs",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-007.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-15T22:17:22.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-007.md"]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T22:17:23.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-007.md"]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "routingRuleId": "ROUTE-008",
+  "supportingReviewers": [
+    "Solution Architect",
+    "Security and Privacy Reviewer",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "HAR-003, HAR-005, and HAR-006 remain at their governed three-cycle limits",
+    "PR #13 must consume the trusted retention boundary after this prerequisite merges"
+  ],
+  "allowedPaths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/retain-engineering-evidence.yml",
+    "docs/engineering/evidence/HAR-007.md",
+    "harness/scripts/report-retention-guard.mjs",
+    "harness/scripts/secret-scan.mjs",
+    "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+    "harness/scripts/verify-reports.mjs",
+    "harness/tasks/HAR-007.json"
+  ],
+  "declaredProtectedPaths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/retain-engineering-evidence.yml"
+  ],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/18",
+    "docs/engineering/evidence/HAR-007.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-HAR-007-01",
+      "requirementReferences": ["https://github.com/keyforta/keyforta-property/issues/18"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    },
+    {
+      "id": "AC-HAR-007-02",
+      "requirementReferences": ["docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md",
+    "docs/engineering/evidence/HAR-007.md"
+  ],
+  "requiredScenarios": ["canonical-verification"],
+  "requiredCommands": ["pnpm harness:self-test", "pnpm verify:all"],
+  "requiredEvidence": [
+    "docs/engineering/evidence/HAR-007.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-HAR-007.json"
+  ],
+  "riskClassification": "critical",
+  "securityImpact": "Moves retention decisions to trusted default-branch code and closes ownership, blocking-open, and incomplete-scan defects.",
+  "dataImpact": "No product, personal, persistent, or production data changes.",
+  "observabilityImpact": "Separates untrusted validation from the trusted retained-evidence result.",
+  "rollbackConsiderations": "Reverting HAR-007 restores PR-controlled retention and the reported scanner race gaps.",
+  "humanApprovalRequirements": [
+    "Product-owner security bugfix and protected-workflow approval recorded in issue #18 and the approving Copilot session",
+    "Independent architecture, security, and pull-request review before merge",
+    "GitHub protected-branch controls remain authoritative",
+    "No harness policy, schema, product-runtime, data, infrastructure, or deployment changes"
+  ],
+  "repairCycle": 2
+}

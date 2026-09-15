@@ -53,16 +53,11 @@ jobs:
           pnpm verify:evidence
           EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=verify:evidence pnpm verify:transition
 
-      - name: Check generated reports for secrets
-        id: report-retention-guard
-        if: always()
-        run: pnpm verify:reports
-
-      - name: Retain engineering evidence
-        if: always() && steps.report-retention-guard.outcome == 'success'
+      - name: Upload untrusted engineering evidence
+        if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v6
         with:
-          name: engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          name: untrusted-engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}
           path: harness/reports/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
