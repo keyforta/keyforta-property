@@ -52,8 +52,13 @@ jobs:
           pnpm verify:evidence
           EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=verify:evidence pnpm verify:transition
 
-      - name: Retain engineering evidence
+      - name: Check generated reports for secrets
+        id: report-retention-guard
         if: always()
+        run: pnpm verify:reports
+
+      - name: Retain engineering evidence
+        if: always() && steps.report-retention-guard.outcome == 'success'
         uses: actions/upload-artifact@v6
         with:
           name: engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}

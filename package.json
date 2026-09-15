@@ -20,6 +20,7 @@
     "verify:all": "node harness/scripts/verify.mjs",
     "verify:classification": "node harness/scripts/verify-classification.mjs",
     "verify:evidence": "node harness/scripts/verify-evidence.mjs",
+    "verify:reports": "node harness/scripts/verify-reports.mjs",
     "verify:skills": "node harness/scripts/verify-skills.mjs",
     "verify:task": "node harness/scripts/validate-contract.mjs",
     "verify:transition": "node harness/scripts/verify-transition.mjs"
