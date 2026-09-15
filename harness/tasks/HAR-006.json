@@ -59,6 +59,22 @@
         "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
         "docs/engineering/evidence/HAR-006.md"
       ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T21:11:48.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-006.md"]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T21:11:49.000Z",
+      "evidenceReferences": [
+        ".github/workflows/ci.yml",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-006.md"
+      ]
     }
   ],
   "assignedAgent": "Harness and Evaluation Engineer",
@@ -126,7 +142,7 @@
     "harness/reports/evidence-HAR-006.json"
   ],
   "riskClassification": "high",
-  "securityImpact": "Grants only execute/traverse ACLs to the isolated producer on workspace parent directories, without list or write access.",
+  "securityImpact": "Runs the isolated producer from a dedicated /tmp checkout copy so it requires no runner-home traversal or sibling access.",
   "dataImpact": "No product, personal, persistent, or production data changes.",
   "observabilityImpact": "GitHub CI can reach the producer-owned workspace and complete canonical verification.",
   "rollbackConsiderations": "Reverting HAR-006 restores the observed workspace parent traversal failure.",
@@ -136,5 +152,5 @@
     "GitHub CI and protected-branch controls remain authoritative",
     "No harness policy, schema, product-runtime, data, infrastructure, or deployment changes"
   ],
-  "repairCycle": 0
+  "repairCycle": 1
 }

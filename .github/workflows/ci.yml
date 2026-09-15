@@ -23,6 +23,7 @@ jobs:
       HARNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
       VALIDATION_USER: keyforta-ci
       VALIDATION_HOME: /home/keyforta-ci
+      VALIDATION_WORKSPACE: /tmp/keyforta-workspace-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -57,20 +58,22 @@ jobs:
       - name: Create unprivileged validation user
         run: |
           sudo useradd --create-home --shell /bin/bash "$VALIDATION_USER"
-          workspace_parent="$(dirname "$GITHUB_WORKSPACE")"
-          work_root="$(dirname "$workspace_parent")"
-          runner_home="$(dirname "$work_root")"
-          sudo setfacl -m "u:$VALIDATION_USER:--x" "$runner_home" "$work_root" "$workspace_parent"
-          sudo chown -R "$VALIDATION_USER:$VALIDATION_USER" "$GITHUB_WORKSPACE"
+          sudo rm -rf -- "$VALIDATION_WORKSPACE"
+          sudo mkdir -p -- "$VALIDATION_WORKSPACE"
+          sudo cp -a -- "$GITHUB_WORKSPACE/." "$VALIDATION_WORKSPACE/"
+          sudo chown -R "$VALIDATION_USER:$VALIDATION_USER" "$VALIDATION_WORKSPACE"
 
       - name: Install dependencies
+        working-directory: ${{ env.VALIDATION_WORKSPACE }}
         run: sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" pnpm install --frozen-lockfile
 
       - name: Validate repository
+        working-directory: ${{ env.VALIDATION_WORKSPACE }}
         run: sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" node harness/scripts/verify.mjs
 
       - name: Generate final commit evidence
         if: success() && github.event_name == 'pull_request'
+        working-directory: ${{ env.VALIDATION_WORKSPACE }}
         run: |
           sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" node harness/scripts/generate-evidence.mjs
           sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" pnpm verify:evidence
@@ -84,8 +87,8 @@ jobs:
           sudo usermod --lock --expiredate 1 "$VALIDATION_USER" || true
           sudo pkill -KILL -u "$VALIDATION_USER" || true
           sudo rm -rf -- "$KEYFORTA_REPORT_SOURCE"
-          if [[ -e "$GITHUB_WORKSPACE/harness/reports" ]]; then
-            sudo mv -- "$GITHUB_WORKSPACE/harness/reports" "$KEYFORTA_REPORT_SOURCE"
+          if [[ -e "$VALIDATION_WORKSPACE/harness/reports" ]]; then
+            sudo mv -- "$VALIDATION_WORKSPACE/harness/reports" "$KEYFORTA_REPORT_SOURCE"
             sudo chown -R "$(id -u):$(id -g)" "$KEYFORTA_REPORT_SOURCE"
           fi
 
@@ -112,4 +115,4 @@ jobs:
         env:
           KEYFORTA_REPORT_SOURCE: ${{ runner.temp }}/keyforta-report-source-${{ github.run_id }}-${{ github.run_attempt }}
           KEYFORTA_REPORT_SNAPSHOT: ${{ runner.temp }}/keyforta-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-        run: sudo rm -rf -- "$KEYFORTA_REPORT_SOURCE" "$KEYFORTA_REPORT_SNAPSHOT" "$RUNNER_TEMP/keyforta-retention"
+        run: sudo rm -rf -- "$KEYFORTA_REPORT_SOURCE" "$KEYFORTA_REPORT_SNAPSHOT" "$RUNNER_TEMP/keyforta-retention" "$VALIDATION_WORKSPACE"

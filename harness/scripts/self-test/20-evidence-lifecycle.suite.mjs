@@ -124,25 +124,46 @@ function isolatedValidationUsesProducerHome(source) {
   );
 }
 
-function workspaceParentTraversalIsBounded(source) {
+function isolatedValidationWorkspaceIsBounded(source) {
   const workflow = parse(source);
+  const validationJob = Object.values(workflow?.jobs ?? {}).find(
+    ({ env }) => env?.VALIDATION_USER === "keyforta-ci",
+  );
   const steps = Object.values(workflow?.jobs ?? {}).flatMap(
     ({ steps = [] }) => steps,
   );
   const userStep = steps.find(
     ({ name }) => name === "Create unprivileged validation user",
   );
-  const commands = userStep?.run?.split("\n").map((line) => line.trim()) ?? [];
+  const producerSteps = steps.filter(({ run }) =>
+    run?.includes('-u "$VALIDATION_USER" env'),
+  );
+  const sealStep = steps.find(({ name }) => name === "Seal generated reports");
+  const cleanupStep = steps.find(
+    ({ name }) => name === "Remove retained evidence snapshot",
+  );
   return (
-    commands.includes('workspace_parent="$(dirname "$GITHUB_WORKSPACE")"') &&
-    commands.includes('work_root="$(dirname "$workspace_parent")"') &&
-    commands.includes('runner_home="$(dirname "$work_root")"') &&
-    commands.includes(
-      'sudo setfacl -m "u:$VALIDATION_USER:--x" "$runner_home" "$work_root" "$workspace_parent"',
+    validationJob?.env?.VALIDATION_WORKSPACE ===
+      "/tmp/keyforta-workspace-${{ github.run_id }}-${{ github.run_attempt }}" &&
+    userStep?.run?.includes(
+      'sudo cp -a -- "$GITHUB_WORKSPACE/." "$VALIDATION_WORKSPACE/"',
     ) &&
-    !userStep.run.includes("chmod o+x") &&
-    !userStep.run.includes("u:$VALIDATION_USER:r") &&
-    !userStep.run.includes("u:$VALIDATION_USER:w")
+    userStep.run.includes(
+      'sudo chown -R "$VALIDATION_USER:$VALIDATION_USER" "$VALIDATION_WORKSPACE"',
+    ) &&
+    !userStep.run.includes("setfacl") &&
+    !userStep.run.includes("chmod ") &&
+    !userStep.run.includes(
+      'chown -R "$VALIDATION_USER:$VALIDATION_USER" "$GITHUB_WORKSPACE"',
+    ) &&
+    producerSteps.length === 3 &&
+    producerSteps.every(
+      (step) => step["working-directory"] === "${{ env.VALIDATION_WORKSPACE }}",
+    ) &&
+    sealStep?.run?.includes(
+      '"$VALIDATION_WORKSPACE/harness/reports"',
+    ) &&
+    cleanupStep?.run?.includes('"$VALIDATION_WORKSPACE"')
   );
 }
 
@@ -1178,8 +1199,8 @@ jobs:
       )
     );
   });
-  check("isolated CI producer receives bounded workspace traversal", () =>
-    workspaceParentTraversalIsBounded(
+  check("isolated CI producer uses a bounded workspace copy", () =>
+    isolatedValidationWorkspaceIsBounded(
       readFileSync(".github/workflows/ci.yml", "utf8"),
     ),
   );
