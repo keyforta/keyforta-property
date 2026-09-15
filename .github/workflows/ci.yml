@@ -21,6 +21,7 @@ jobs:
     env:
       HARNESS_CONTRACT_MODE: ${{ github.event_name == 'pull_request' && 'required' || 'skip' }}
       HARNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+      VALIDATION_USER: keyforta-ci
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -39,37 +40,65 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - name: Freeze report retention control
+        run: |
+          mkdir -p "$RUNNER_TEMP/keyforta-retention/harness/scripts" "$RUNNER_TEMP/keyforta-retention/harness/policies"
+          cp harness/scripts/{lib,report-retention-guard,secret-scan,verify-reports}.mjs "$RUNNER_TEMP/keyforta-retention/harness/scripts/"
+          cp harness/policies/repository-policy.json "$RUNNER_TEMP/keyforta-retention/harness/policies/"
+          chmod -R a-w "$RUNNER_TEMP/keyforta-retention"
+
+      - name: Create unprivileged validation user
+        run: |
+          sudo useradd --create-home --shell /bin/bash "$VALIDATION_USER"
+          sudo chown -R "$VALIDATION_USER:$VALIDATION_USER" "$GITHUB_WORKSPACE"
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="/home/$VALIDATION_USER" PATH="$PATH" pnpm install --frozen-lockfile
 
       - name: Validate repository
-        run: node harness/scripts/verify.mjs
+        run: sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="/home/$VALIDATION_USER" PATH="$PATH" node harness/scripts/verify.mjs
 
       - name: Generate final commit evidence
         if: success() && github.event_name == 'pull_request'
         run: |
-          node harness/scripts/generate-evidence.mjs
-          pnpm verify:evidence
-          EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=verify:evidence pnpm verify:transition
+          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="/home/$VALIDATION_USER" PATH="$PATH" node harness/scripts/generate-evidence.mjs
+          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="/home/$VALIDATION_USER" PATH="$PATH" pnpm verify:evidence
+          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="/home/$VALIDATION_USER" PATH="$PATH" EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=verify:evidence pnpm verify:transition
+
+      - name: Seal generated reports
+        if: always()
+        env:
+          KEYFORTA_REPORT_SOURCE: ${{ runner.temp }}/keyforta-report-source-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          sudo usermod --lock --expiredate 1 "$VALIDATION_USER" || true
+          sudo pkill -KILL -u "$VALIDATION_USER" || true
+          sudo rm -rf -- "$KEYFORTA_REPORT_SOURCE"
+          if [[ -e "$GITHUB_WORKSPACE/harness/reports" ]]; then
+            sudo mv -- "$GITHUB_WORKSPACE/harness/reports" "$KEYFORTA_REPORT_SOURCE"
+            sudo chown -R "$(id -u):$(id -g)" "$KEYFORTA_REPORT_SOURCE"
+          fi
 
       - name: Check generated reports for secrets
         id: report-retention-guard
         if: always()
         env:
-          KEYFORTA_REPORT_SNAPSHOT: /var/lib/keyforta-evidence/${{ github.run_id }}-${{ github.run_attempt }}
-        run: sudo --preserve-env=KEYFORTA_REPORT_SNAPSHOT node harness/scripts/verify-reports.mjs
+          KEYFORTA_REPORT_SOURCE: ${{ runner.temp }}/keyforta-report-source-${{ github.run_id }}-${{ github.run_attempt }}
+          KEYFORTA_REPORT_SNAPSHOT: ${{ runner.temp }}/keyforta-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+        working-directory: ${{ runner.temp }}/keyforta-retention
+        run: node harness/scripts/verify-reports.mjs
 
       - name: Retain engineering evidence
         if: always() && steps.report-retention-guard.outcome == 'success'
         uses: actions/upload-artifact@v6
         with:
           name: engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}
-          path: /var/lib/keyforta-evidence/${{ github.run_id }}-${{ github.run_attempt }}/
+          path: ${{ runner.temp }}/keyforta-evidence-${{ github.run_id }}-${{ github.run_attempt }}/
           if-no-files-found: error
           retention-days: 30
 
       - name: Remove retained evidence snapshot
         if: always()
         env:
-          KEYFORTA_REPORT_SNAPSHOT: /var/lib/keyforta-evidence/${{ github.run_id }}-${{ github.run_attempt }}
-        run: sudo rm -rf -- "$KEYFORTA_REPORT_SNAPSHOT"
+          KEYFORTA_REPORT_SOURCE: ${{ runner.temp }}/keyforta-report-source-${{ github.run_id }}-${{ github.run_attempt }}
+          KEYFORTA_REPORT_SNAPSHOT: ${{ runner.temp }}/keyforta-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+        run: rm -rf -- "$KEYFORTA_REPORT_SOURCE" "$KEYFORTA_REPORT_SNAPSHOT" "$RUNNER_TEMP/keyforta-retention"

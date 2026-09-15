@@ -106,6 +106,24 @@
         "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
         "docs/engineering/evidence/HAR-003.md"
       ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T19:55:36.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-003.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T19:55:37.000Z",
+      "evidenceReferences": [
+        ".github/workflows/ci.yml",
+        "harness/scripts/verify-reports.mjs",
+        "docs/engineering/evidence/HAR-003.md"
+      ]
     }
   ],
   "assignedAgent": "Harness and Evaluation Engineer",
@@ -186,7 +204,7 @@
     "harness/reports/evidence-HAR-003.json"
   ],
   "riskClassification": "high",
-  "securityImpact": "Closes extension and replacement-race bypasses by anchoring traversal to an open directory descriptor, scanning exact no-follow file bytes, rejecting nested or unsafe entries, and uploading only a root-owned read-only snapshot.",
+  "securityImpact": "Closes extension and replacement-race bypasses by freezing the retention control, isolating and locking the report producer, moving reports to runner ownership, anchoring exact no-follow scanning to a directory descriptor, and uploading only a runner-owned read-only snapshot.",
   "dataImpact": "No product or production data changes. Unsafe generated evidence is removed before artifact retention.",
   "observabilityImpact": "Ordinary safe verification reports remain retained; unsafe report sets fail closed and are not uploaded.",
   "rollbackConsiderations": "Revert HAR-003 to restore JSON-only scanning. This reopens the documented retention bypass and is not recommended without replacing the control.",
@@ -197,5 +215,5 @@
     "GitHub CI and protected-branch controls remain authoritative",
     "No harness policy, schema, product-runtime, or deployment changes"
   ],
-  "repairCycle": 2
+  "repairCycle": 3
 }
