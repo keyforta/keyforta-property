@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   symlinkSync,
   unlinkSync,
@@ -9,7 +10,6 @@ import {
 } from "node:fs";
 import { databaseEnvironment, readJson, validateEvidence } from "../lib.mjs";
 import { guardGeneratedReports } from "../report-retention-guard.mjs";
-import { secretPatternFindings } from "../secret-scan.mjs";
 import {
   buildEvidenceManifest,
   declaredToolVersions,
@@ -50,7 +50,70 @@ export function registerSuite({ check }) {
     return !result.safe && !existsSync(reportDirectory);
   });
   check("unreadable generated reports fail closed", () => {
-    return secretPatternFindings(["harness/reports"], []).length === 1;
+    const reportDirectory = "harness/reports/self-test-unreadable-reports";
+    const nestedDirectory = `${reportDirectory}/nested`;
+    mkdirSync(nestedDirectory, { recursive: true });
+    writeFileSync(`${nestedDirectory}/report.json`, "{}\n");
+    const result = guardGeneratedReports(
+      reportDirectory,
+      [],
+      (directory, options) => {
+        if (directory === nestedDirectory) throw new Error("synthetic EACCES");
+        return readdirSync(directory, options);
+      },
+    );
+    return !result.safe && !existsSync(reportDirectory);
+  });
+  check("normalized artifact section bindings accept camelCase sections", () => {
+    const reference = "harness/reports/self-test-normalized-sections.md";
+    mkdirSync("harness/reports", { recursive: true });
+    try {
+      writeFileSync(
+        reference,
+        [
+          "# Synthetic evidence",
+          "## Commands",
+          "The canonical command passed.",
+          "## Tests",
+          "The focused tests passed.",
+          "## Known Failures",
+          "No known failures remain.",
+          "## Reason",
+          "A synthetic transition occurred.",
+          "## Actor",
+          "Harness self-test.",
+          "## Timestamp",
+          "2026-09-11T00:00:00.000Z.",
+          "## Evidence References",
+          "The synthetic evidence file.",
+        ].join("\n"),
+      );
+      const contract = { ...valid, requiredEvidence: [reference] };
+      const capturedAt = "2026-09-11T00:02:00.000Z";
+      const hash = sha256(reference);
+      const manifest = {
+        ...syntheticManifest(),
+        artifactRecords: [
+          {
+            capturedAt,
+            kind: "evidence-manifest",
+            reference,
+            sections: ["commands", "tests", "knownFailures"],
+            sha256: hash,
+          },
+          {
+            capturedAt,
+            kind: "state-change-record",
+            reference,
+            sections: ["reason", "actor", "timestamp", "evidenceReferences"],
+            sha256: hash,
+          },
+        ],
+      };
+      return validateArtifactRecords(manifest, contract).length === 0;
+    } finally {
+      if (existsSync(reference)) unlinkSync(reference);
+    }
   });
   check("evidence records only declared tool versions", () => {
     const packageManifest = {

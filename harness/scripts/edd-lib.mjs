@@ -25,7 +25,7 @@ const ARTIFACT_SECTION_BINDINGS = {
   "correction-record": ["bounded-correction", "repair-cycle"],
   "dependency-impact": ["dependency-impact"],
   "documentation-impact": ["documentation-impact"],
-  "evidence-manifest": ["commands", "tests", "knownfailures"],
+  "evidence-manifest": ["commands", "tests", "known-failures"],
   "failure-evidence": ["failure"],
   "follow-up-work": ["follow-up-work"],
   "implementation-plan": ["steps", "requirements", "tests"],
@@ -36,7 +36,12 @@ const ARTIFACT_SECTION_BINDINGS = {
   "requirements-analysis": ["requirements", "risks", "unknowns"],
   "rollback-record": ["rollback", "reason", "execution", "monitoring"],
   runbook: ["runbook"],
-  "state-change-record": ["reason", "actor", "timestamp", "evidencereferences"],
+  "state-change-record": [
+    "reason",
+    "actor",
+    "timestamp",
+    "evidence-references",
+  ],
   "technical-decision": ["design", "tradeoffs", "rollback"],
   "task-contract": [
     "scope",
