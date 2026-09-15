@@ -12,9 +12,16 @@ This documentation package is the backend implementation handoff for the KEYFORT
 6. [`keyforta-state-machines.md`](./keyforta-state-machines.md) — verification, application, lease, payment, maintenance, and document transitions.
 7. [`keyforta-acceptance-test-traceability.md`](./keyforta-acceptance-test-traceability.md) — requirement-to-test matrix.
 8. [`keyforta-legal-privacy-decision-register.md`](./keyforta-legal-privacy-decision-register.md) — DRC/legal/privacy policy decisions and approval gates.
-9. [`adr/`](./adr/) — accepted and proposed architecture decisions.
+9. [`adr/`](./adr/) — authoritative accepted and proposed architecture decisions.
+10. [`database/`](./database/) — authoritative PostgreSQL schema, RLS, reference-data migrations, and backup/retention runbook.
+11. [`product/`](./product/) — supporting product vision, role, scenario, and implementation-plan detail.
+12. [`architecture/`](./architecture/) — supporting system, security, integration, and Azure design detail.
+13. [`operations/`](./operations/) — runbooks, release checks, service objectives, and Azure bootstrap guidance.
+14. [`ai/`](./ai/) — AI system card, tool policy, and evaluation plan.
 
-10. [`database/`](./database/) — executable PostgreSQL schema, RLS, reference-data migrations, and backup/retention runbook.
+When supporting material conflicts with the numbered implementation contracts,
+`openapi.yaml`, `database/`, or `adr/`, the authoritative source controls and the
+conflict must remain in `engineering/REQUIREMENTS_GAPS.md` until approved.
 
 ## Implementation rule
 

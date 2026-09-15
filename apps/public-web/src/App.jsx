@@ -16,19 +16,19 @@ import {
   PropertiesPage,
   PropertyDetailPage,
   RentalApplicationPage,
+  ViewingRequestPage,
   TextContentPage,
 } from './pages/index.js';
 import { localizeProperty, properties } from './data/content.js';
-import { appendRow, getRows, setValue } from './services/storage.js';
-import { runCrud } from './services/mockApiService.js';
+import { appendRow } from './services/storage.js';
 
 const SignInPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.SignInPage })));
 const WorkspaceLoginPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.WorkspaceLoginPage })));
 const SignupPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.SignupPage })));
 const InviteManagerPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.InviteManagerPage })));
 const OfferServicesPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.OfferServicesPage })));
-const DemoApiPage = lazy(() => import('./pages/WorkspacePages.jsx').then((module) => ({ default: module.DemoApiPage })));
-const WorkspacePage = lazy(() => import('./pages/WorkspacePages.jsx').then((module) => ({ default: module.WorkspacePage })));
+const portalWebUrl = import.meta.env.VITE_PORTAL_WEB_URL || 'http://127.0.0.1:3001/';
+const workspaceRoles = ['tenant', 'landlord', 'manager', 'operator'];
 
 const routeMetadata = [
   { path: '/', handle: { name: 'home' } },
@@ -36,6 +36,7 @@ const routeMetadata = [
   { path: '/voice', handle: { name: 'voice' } },
   { path: '/properties', handle: { name: 'properties' } },
   { path: '/property/:propertyId', handle: { name: 'property' } },
+  { path: '/view/:propertyId', handle: { name: 'viewing' } },
   { path: '/apply/:propertyId', handle: { name: 'apply' } },
   { path: '/how', handle: { name: 'how' } },
   { path: '/landlords', handle: { name: 'landlords' } },
@@ -49,8 +50,7 @@ const routeMetadata = [
   { path: '/signup/:role', handle: { name: 'signup' } },
   { path: '/invite', handle: { name: 'invite' } },
   { path: '/offer-services', handle: { name: 'offer-services' } },
-  { path: '/demo/api', handle: { name: 'demo', id: 'api' } },
-  { path: '/demo/:role/:section?', handle: { name: 'demo' } },
+  { path: '/demo/:role/:section?', handle: { name: 'signin' } },
 ];
 
 function getPageTitle(routeInfo, lang, t) {
@@ -71,13 +71,14 @@ function getRouteInfo(pathname) {
   };
 }
 
-function isWorkspaceRoute(routeInfo) {
-  return routeInfo.name === 'demo' && routeInfo.id !== 'api' && ['tenant', 'landlord', 'manager', 'operator'].includes(routeInfo.id);
+function PropertyDetailRoute({ lang }) {
+  const { propertyId } = useParams();
+  return <PropertyDetailPage lang={lang} propertyId={propertyId} />;
 }
 
-function PropertyDetailRoute({ lang, onOpenAccess }) {
+function ViewingRoute({ lang, onSubmit }) {
   const { propertyId } = useParams();
-  return <PropertyDetailPage lang={lang} propertyId={propertyId} onOpenAccess={onOpenAccess} />;
+  return <ViewingRequestPage lang={lang} propertyId={propertyId} onSubmit={onSubmit} />;
 }
 
 function ApplyRoute({ lang, onSubmit }) {
@@ -95,17 +96,22 @@ function SignupRoute({ lang, onSubmit }) {
   return <SignupPage lang={lang} role={role} onSubmit={onSubmit} />;
 }
 
-function WorkspaceRoute({ lang, managerApplications, onAction }) {
-  const { role, section } = useParams();
-  return (
-    <WorkspacePage
-      lang={lang}
-      role={role}
-      section={section || 'dashboard'}
-      managerApplications={managerApplications}
-      onAction={(action) => onAction(action, role)}
-    />
-  );
+function getPortalUrl(role, email) {
+  const url = new URL(portalWebUrl);
+  url.searchParams.set('role', role);
+  if (email) url.searchParams.set('email', email);
+  return url.toString();
+}
+
+function PortalRedirectRoute() {
+  const { role } = useParams();
+
+  useEffect(() => {
+    if (workspaceRoles.includes(role)) window.location.replace(getPortalUrl(role));
+  }, [role]);
+
+  if (!workspaceRoles.includes(role)) return <Navigate to="/signin" replace />;
+  return <div className="page content-page shell route-loading"><Spinner label="Opening KEYFORTA portal" /></div>;
 }
 
 export default function App() {
@@ -126,10 +132,6 @@ export default function App() {
   const [voiceChoice, setVoiceChoice] = useState('');
   const [voiceVoices, setVoiceVoices] = useState([]);
   const [filters, setFilters] = useState({ area: '', beds: '', max: '', sort: 'recommended' });
-  const [apiStatuses, setApiStatuses] = useState({});
-
-  const workspaceRole = isWorkspaceRoute(routeInfo) ? routeInfo.id : null;
-  const workspaceSection = routeInfo.section || 'dashboard';
 
   function notify(message, intent = 'success') {
     dispatchToast(
@@ -177,8 +179,6 @@ export default function App() {
     setVoiceStatus('');
   }, [lang, t]);
 
-  const managerApplications = useMemo(() => getRows('kf-rental-applications'), [location.pathname]);
-
   function openAccess(interestValue) {
     setAccessInterest(interestValue || '');
     setAccessOpen(true);
@@ -194,20 +194,56 @@ export default function App() {
     requestAnimationFrame(() => window.scrollTo(0, scrollPosition));
   }
 
+  function handlePropertySearch(values) {
+    setFilters((state) => ({ ...state, ...values }));
+    navigate('/properties');
+  }
+
   function handleWorkspaceLogin(role, values) {
-    setValue('kf-demo-session', { role, email: values.email, createdAt: new Date().toISOString() });
-    navigate(`/demo/${role}`);
+    window.location.assign(getPortalUrl(role, values.email));
   }
 
   function handleSignup(values) {
-    appendRow('kf-signups', values);
-    const role = values.role === 'maintenance_operator' ? 'operator' : 'landlord';
-    navigate(`/login/${role}`);
+    const registration = {
+      ...values,
+      locale: lang,
+      ...(values.role === 'maintenance_operator'
+        ? {
+            services: values.services.split(',').map((value) => value.trim()).filter(Boolean),
+            coverage: values.coverage.split(',').map((value) => value.trim()).filter(Boolean),
+          }
+        : {}),
+    };
+    appendRow('kf-registration-requests', registration);
+    const message = t('status.registration_received');
+    notify(message);
+    return message;
   }
 
   function handleRentalApplication(values) {
-    appendRow('kf-rental-applications', { ...values, status: 'submitted_for_manager_review' });
+    const { propertyId, consent, occupants, monthlyIncome, ...answers } = values;
+    appendRow('kf-rental-applications', {
+      unitId: propertyId,
+      answers: {
+        ...answers,
+        occupants: Number(occupants),
+        monthlyIncome: Number(monthlyIncome),
+        consent: consent === 'on',
+      },
+      documentIds: [],
+    });
     const message = t('status.application_submitted');
+    notify(message);
+    return message;
+  }
+
+  function handleViewingRequest(values) {
+    appendRow('kf-viewing-requests', {
+      ...values,
+      locale: lang,
+      ...(values.preferredAt ? { preferredAt: new Date(values.preferredAt).toISOString() } : {}),
+    });
+    const message = t('status.viewing_requested');
     notify(message);
     return message;
   }
@@ -226,48 +262,20 @@ export default function App() {
     return message;
   }
 
-  function handleDemoFormSubmit(values) {
-    appendRow('kf-demo-submissions', values);
-    const message = t('status.saved_demo');
+  function handleContactSubmit(values) {
+    appendRow('kf-contact-requests', { ...values, locale: lang });
+    const message = t('status.contact_received');
     notify(message);
     return message;
   }
 
   function handleAccessSubmit(values) {
     const reference = `KF-${Date.now().toString(36).toUpperCase()}`;
-    appendRow('kf-access-requests', { ...values, reference });
+    appendRow('kf-access-requests', { ...values, locale: lang, reference });
     setAccessInterest(values.interest || '');
     const message = t('status.access_request_saved', { reference });
     notify(message);
     return message;
-  }
-
-  function handleCrud(resource, operation) {
-    try {
-      const result = runCrud(resource, operation);
-      const serialized = JSON.stringify(result);
-      const operationKey = operation === 'delete' ? 'remove' : operation;
-      const operationLabel = t(`api.${operationKey}`);
-      const resourceLabel = t(`api.resource_labels.${resource}`, { defaultValue: resource });
-      const payload = `${serialized.slice(0, 180)}${serialized.length > 180 ? '...' : ''}`;
-      const text = t('status.api_result', { operation: operationLabel, resource: resourceLabel, payload });
-      setApiStatuses((state) => ({ ...state, [resource]: text }));
-      notify(text);
-    } catch (error) {
-      const operationKey = operation === 'delete' ? 'remove' : operation;
-      const operationLabel = t(`api.${operationKey}`);
-      const resourceLabel = t(`api.resource_labels.${resource}`, { defaultValue: resource });
-      const text = t('status.api_error', { operation: operationLabel, resource: resourceLabel, message: error.message });
-      setApiStatuses((state) => ({ ...state, [resource]: text }));
-      notify(text, 'error');
-    }
-  }
-
-  function handleWorkspaceAction(action, role = 'unknown') {
-    appendRow('kf-workflow-events', { action, role, source: 'mock-ui' });
-    notify(t('status.workspace_action_saved'));
-    if (action === 'invite-manager') navigate('/invite');
-    if (action === 'offer-services') navigate('/offer-services');
   }
 
   function handleVoicePlay(event) {
@@ -308,47 +316,41 @@ export default function App() {
       </a>
       <Header
         lang={lang}
-        workspaceRole={workspaceRole}
-        workspaceSection={workspaceSection}
         menuOpen={menuOpen}
         onToggleLanguage={handleToggleLanguage}
         onOpenAccess={openAccess}
         onToggleMenu={() => setMenuOpen((value) => !value)}
         onCloseMenu={() => setMenuOpen(false)}
-        onSignOut={() => {
-          localStorage.removeItem('kf-demo-session');
-          navigate('/signin');
-        }}
       />
       <main id="app" ref={appRef} tabIndex={-1} aria-label={t('a11y.page_content')}>
         <Suspense fallback={<div className="page content-page shell route-loading"><Spinner label={t('common.loading')} /></div>}>
           <Routes>
-            <Route path="/" element={<HomePage lang={lang} voiceText={voiceText} voiceStatus={voiceStatus} voiceVoices={voiceVoices} voiceChoice={voiceChoice} onVoiceChoice={setVoiceChoice} onVoiceText={setVoiceText} onVoicePlay={handleVoicePlay} onVoiceStop={handleVoiceStop} onOpenAccess={openAccess} />} />
-            <Route path="/home" element={<HomePage lang={lang} voiceText={voiceText} voiceStatus={voiceStatus} voiceVoices={voiceVoices} voiceChoice={voiceChoice} onVoiceChoice={setVoiceChoice} onVoiceText={setVoiceText} onVoicePlay={handleVoicePlay} onVoiceStop={handleVoiceStop} onOpenAccess={openAccess} />} />
+            <Route path="/" element={<HomePage lang={lang} onSearch={handlePropertySearch} voiceText={voiceText} voiceStatus={voiceStatus} voiceVoices={voiceVoices} voiceChoice={voiceChoice} onVoiceChoice={setVoiceChoice} onVoiceText={setVoiceText} onVoicePlay={handleVoicePlay} onVoiceStop={handleVoiceStop} onOpenAccess={openAccess} />} />
+            <Route path="/home" element={<HomePage lang={lang} onSearch={handlePropertySearch} voiceText={voiceText} voiceStatus={voiceStatus} voiceVoices={voiceVoices} voiceChoice={voiceChoice} onVoiceChoice={setVoiceChoice} onVoiceText={setVoiceText} onVoicePlay={handleVoicePlay} onVoiceStop={handleVoiceStop} onOpenAccess={openAccess} />} />
             <Route path="/voice" element={<HomePage lang={lang} voiceRoute voiceText={voiceText} voiceStatus={voiceStatus} voiceVoices={voiceVoices} voiceChoice={voiceChoice} onVoiceChoice={setVoiceChoice} onVoiceText={setVoiceText} onVoicePlay={handleVoicePlay} onVoiceStop={handleVoiceStop} onOpenAccess={openAccess} />} />
             <Route path="/properties" element={<PropertiesPage lang={lang} filters={filters} onFilterChange={(name, value) => setFilters((state) => (name === 'reset' ? { area: '', beds: '', max: '', sort: 'recommended' } : { ...state, [name]: value }))} />} />
-            <Route path="/property/:propertyId" element={<PropertyDetailRoute lang={lang} onOpenAccess={openAccess} />} />
+            <Route path="/property/:propertyId" element={<PropertyDetailRoute lang={lang} />} />
+            <Route path="/view/:propertyId" element={<ViewingRoute lang={lang} onSubmit={handleViewingRequest} />} />
             <Route path="/apply/:propertyId" element={<ApplyRoute lang={lang} onSubmit={handleRentalApplication} />} />
-            <Route path="/how" element={<TextContentPage lang={lang} kind="how" onDemoFormSubmit={handleDemoFormSubmit} />} />
-            <Route path="/landlords" element={<TextContentPage lang={lang} kind="landlords" onDemoFormSubmit={handleDemoFormSubmit} />} />
-            <Route path="/trust" element={<TextContentPage lang={lang} kind="trust" onDemoFormSubmit={handleDemoFormSubmit} />} />
-            <Route path="/faq" element={<TextContentPage lang={lang} kind="faq" onDemoFormSubmit={handleDemoFormSubmit} />} />
-            <Route path="/contact" element={<TextContentPage lang={lang} kind="contact" onDemoFormSubmit={handleDemoFormSubmit} />} />
-            <Route path="/privacy" element={<TextContentPage lang={lang} kind="privacy" onDemoFormSubmit={handleDemoFormSubmit} />} />
-            <Route path="/terms" element={<TextContentPage lang={lang} kind="terms" onDemoFormSubmit={handleDemoFormSubmit} />} />
+            <Route path="/how" element={<TextContentPage lang={lang} kind="how" />} />
+            <Route path="/landlords" element={<TextContentPage lang={lang} kind="landlords" />} />
+            <Route path="/trust" element={<TextContentPage lang={lang} kind="trust" />} />
+            <Route path="/faq" element={<TextContentPage lang={lang} kind="faq" />} />
+            <Route path="/contact" element={<TextContentPage lang={lang} kind="contact" onContactSubmit={handleContactSubmit} />} />
+            <Route path="/privacy" element={<TextContentPage lang={lang} kind="privacy" />} />
+            <Route path="/terms" element={<TextContentPage lang={lang} kind="terms" />} />
             <Route path="/signin" element={<SignInPage lang={lang} />} />
             <Route path="/login/:role" element={<LoginRoute lang={lang} onSubmit={handleWorkspaceLogin} />} />
             <Route path="/signup/:role" element={<SignupRoute lang={lang} onSubmit={handleSignup} />} />
             <Route path="/invite" element={<InviteManagerPage lang={lang} onSubmit={handleInviteSubmit} />} />
             <Route path="/offer-services" element={<OfferServicesPage lang={lang} onSubmit={handleServicesSubmit} />} />
-            <Route path="/demo/api" element={<DemoApiPage lang={lang} statuses={apiStatuses} onCrud={handleCrud} />} />
-            <Route path="/demo/:role" element={<WorkspaceRoute lang={lang} managerApplications={managerApplications} onAction={handleWorkspaceAction} />} />
-            <Route path="/demo/:role/:section" element={<WorkspaceRoute lang={lang} managerApplications={managerApplications} onAction={handleWorkspaceAction} />} />
+            <Route path="/demo/:role" element={<PortalRedirectRoute />} />
+            <Route path="/demo/:role/:section" element={<PortalRedirectRoute />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Routes>
         </Suspense>
       </main>
-      {!workspaceRole && <Footer lang={lang} />}
+      <Footer lang={lang} />
       <AccessDialog lang={lang} open={accessOpen} interest={accessInterest} onClose={closeAccess} onSubmit={handleAccessSubmit} />
       <Toaster toasterId={toasterId} position="top-end" pauseOnHover />
     </>

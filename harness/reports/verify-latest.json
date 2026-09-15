@@ -1,0 +1,112 @@
+{
+  "completedAt": "2026-09-15T17:54:00.067Z",
+  "contract": null,
+  "results": [
+    {
+      "detail": "Contract-bound scope checks run on pull requests, not branch pushes.",
+      "name": "task-contract-and-policy",
+      "status": "skipped"
+    },
+    {
+      "detail": "Network advisory data is enforced in CI, not offline verification.",
+      "name": "dependency-audit",
+      "status": "skipped"
+    },
+    {
+      "detail": "No task contract is loaded for branch-push verification.",
+      "name": "contract-declarations",
+      "status": "skipped"
+    },
+    {
+      "command": "pnpm verify:agents",
+      "completedAt": "2026-09-15T17:53:43.008Z",
+      "exitCode": 0,
+      "name": "agent-governance",
+      "startedAt": "2026-09-15T17:53:42.359Z",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm verify:skills",
+      "completedAt": "2026-09-15T17:53:43.495Z",
+      "exitCode": 0,
+      "name": "agent-skills",
+      "startedAt": "2026-09-15T17:53:43.008Z",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm check",
+      "completedAt": "2026-09-15T17:53:44.467Z",
+      "exitCode": 0,
+      "name": "workspace-checks",
+      "startedAt": "2026-09-15T17:53:43.495Z",
+      "status": "passed"
+    },
+    {
+      "command": "node harness/graders/architecture.mjs",
+      "completedAt": "2026-09-15T17:53:44.543Z",
+      "exitCode": 0,
+      "name": "architecture-boundaries",
+      "startedAt": "2026-09-15T17:53:44.467Z",
+      "status": "passed"
+    },
+    {
+      "command": "node harness/graders/secrets.mjs",
+      "completedAt": "2026-09-15T17:53:44.733Z",
+      "exitCode": 0,
+      "name": "secret-patterns",
+      "startedAt": "2026-09-15T17:53:44.544Z",
+      "status": "passed"
+    },
+    {
+      "command": "node harness/graders/documentation.mjs",
+      "completedAt": "2026-09-15T17:53:44.873Z",
+      "exitCode": 0,
+      "name": "documentation-impact",
+      "startedAt": "2026-09-15T17:53:44.733Z",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm harness:self-test",
+      "completedAt": "2026-09-15T17:53:46.141Z",
+      "exitCode": 0,
+      "name": "harness-self-test",
+      "startedAt": "2026-09-15T17:53:44.873Z",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm build",
+      "completedAt": "2026-09-15T17:53:50.227Z",
+      "exitCode": 0,
+      "name": "production-build",
+      "startedAt": "2026-09-15T17:53:46.141Z",
+      "status": "passed"
+    },
+    {
+      "command": "az bicep build (6 files)",
+      "name": "infrastructure",
+      "status": "passed"
+    },
+    {
+      "detail": "No browser accessibility runner is installed; component semantics remain covered by review until an approved tool is added.",
+      "name": "accessibility",
+      "status": "skipped"
+    },
+    {
+      "detail": "DATABASE_URL absent; PostgreSQL tests report skipped through Vitest.",
+      "name": "database-integration-environment",
+      "status": "skipped"
+    },
+    {
+      "name": "required-evidence",
+      "status": "skipped"
+    },
+    {
+      "detail": "No task contract is loaded for branch-push verification.",
+      "name": "evidence-manifest",
+      "status": "skipped"
+    }
+  ],
+  "startedAt": "2026-09-15T17:53:42.354Z",
+  "status": "passed",
+  "nextState": null
+}

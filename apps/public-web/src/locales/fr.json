@@ -16,8 +16,8 @@
     "menu": "Menu",
     "sign_out": "Se deconnecter",
     "loading": "Chargement...",
-    "demo": "Demo",
-    "mock_data": "Donnees fictives"
+    "demo": "Espace",
+    "mock_data": "Donnees"
   },
   "roles": {
     "tenant": "Locataire",
@@ -39,12 +39,15 @@
     "bathroom_other": "{{count}} salles de bains"
   },
   "status": {
-    "application_submitted": "Candidature envoyee pour examen par le gestionnaire dans cette demo.",
-    "invitation_saved": "Invitation enregistree dans cette demo.",
-    "service_offer_saved": "Offre de services publiee dans cette demo.",
-    "access_request_saved": "Demande enregistree pour la demonstration. Reference {{reference}}. Rien n a ete envoye a un serveur.",
-    "saved_demo": "Enregistre dans ce navigateur pour la demonstration. Rien n a ete envoye a un serveur.",
-    "workspace_action_saved": "Action enregistree dans la demonstration. Cette interaction deviendra un appel API.",
+    "application_submitted": "Candidature envoyee pour examen par le gestionnaire.",
+    "viewing_requested": "Votre demande de visite a ete recue.",
+    "invitation_saved": "Invitation enregistree.",
+    "service_offer_saved": "Offre de services publiee.",
+    "access_request_saved": "Demande enregistree. Reference {{reference}}.",
+    "saved_demo": "Enregistre avec succes.",
+    "workspace_action_saved": "Action enregistree.",
+    "registration_received": "Votre demande d inscription a ete recue.",
+    "contact_received": "Votre message a ete recu.",
     "api_idle": "Les resultats des operations apparaitront ici.",
     "api_result": "{{operation}} {{resource}}: {{payload}}",
     "api_error": "{{operation}} {{resource}}: {{message}}"
@@ -57,7 +60,7 @@
   "nav_voice": "Voix IA",
   "faq_short": "FAQ",
   "request_access": "Demander acces",
-  "sign_in": "Connexion demo",
+  "sign_in": "Connexion",
   "sign_in_short": "Connexion",
   "footer_summary": "Informations claires. Dossiers fiables. Meilleures relations locatives.",
   "explore": "Explorer",
@@ -68,7 +71,7 @@
   "terms": "Conditions",
   "early_access": "Acces anticipe",
   "join_launch": "Rejoignez le lancement de KEYFORTA",
-  "access_intro": "Indiquez comment vous souhaitez utiliser la plateforme. Cette demo enregistre la demande uniquement dans ce navigateur jusqu a la connexion du backend.",
+  "access_intro": "Indiquez comment vous souhaitez utiliser la plateforme.",
   "full_name": "Nom complet",
   "email": "Adresse e-mail",
   "i_am": "Je suis",
@@ -77,7 +80,7 @@
   "submit_request": "Envoyer la demande",
   "voice_eyebrow": "Generateur de voix IA",
   "voice_title": "Donnez une voix aux informations immobilieres.",
-  "voice_intro": "Creez un apercu vocal a partir d une description, d une mise a jour de service ou d un message. Cette demo utilise votre navigateur et n envoie pas le texte a un serveur.",
+  "voice_intro": "Creez un apercu vocal a partir d une description, d une mise a jour de service ou d un message.",
   "voice_label": "Texte a lire",
   "voice_voice": "Voix",
   "voice_default": "Voix par defaut du navigateur",
@@ -100,11 +103,11 @@
       "quotes-reports": "Devis et rapports",
       "services": "Services"
     },
-    "demo_workspace": "Espace de demonstration",
-    "change_role": "Changer de role demo",
-    "banner": "Tous les dossiers ci-dessous sont synthetiques. Les services backend de production remplaceront cette vue. L acces operateur est limite a son profil et ses taches assignees.",
+    "demo_workspace": "Espace de travail",
+    "change_role": "Changer de role",
+    "banner": "L acces operateur est limite a son profil et ses taches assignees.",
     "selected_module": "Module selectionne",
-    "demo_view": "Vue demo",
+    "demo_view": "Vue de l espace",
     "manager": {
       "dynamic_panel_title": "Candidatures locatives",
       "dynamic_row_title_one": "{{count}} candidature en attente d examen",
@@ -146,15 +149,15 @@
         "subtitle": "Une vue ciblee des visites, paiements, demandes et messages.",
         "stats": [["Prochain loyer", "$400", "Du dans 8 jours"], ["Visite", "Demandee", "Appartement Riverside"], ["Demande ouverte", "1", "Inspection de la pompe a eau"]],
         "sections": [
-          {"title": "Activite a venir", "rows": [["viewing", "Demande de visite", "Appartement Riverside · Ngaliema", "En attente", ""], ["payment", "Rappel de loyer", "Loyer mensuel · Compte fictif", "Planifie", "teal"]]},
+          {"title": "Activite a venir", "rows": [["viewing", "Demande de visite", "Appartement Riverside · Ngaliema", "En attente", ""], ["payment", "Rappel de loyer", "Loyer mensuel · Compte locataire", "Planifie", "teal"]]},
           {"title": "Maintenance et messages", "rows": [["warning", "Inspection de la pompe a eau", "Soumise le 8 mai · Reponse du gestionnaire en attente", "Ouverte", ""], ["message", "Message du gestionnaire", "Nous confirmerons bientot l heure de la visite.", "Nouveau", "teal"]]}
         ]
       },
       "landlord": {
         "label": "Espace proprietaire",
         "title": "Suivez la sante de vos biens.",
-        "subtitle": "Une vue portefeuille fictive pour les annonces, l occupation, les paiements et la maintenance.",
-        "stats": [["Unites demo", "6", "Dans Kinshasa"], ["Occupation", "83 %", "5 unites sur 6"], ["Loyers enregistres", "$1 850", "Ce mois fictif"], ["Maintenance ouverte", "2", "A traiter"]],
+        "subtitle": "Une vue portefeuille pour les annonces, l occupation, les paiements et la maintenance.",
+        "stats": [["Unites", "6", "Dans Kinshasa"], ["Occupation", "83 %", "5 unites sur 6"], ["Loyers enregistres", "$1 850", "Ce mois"], ["Maintenance ouverte", "2", "A traiter"]],
         "sections": [
           {"title": "Activite du portefeuille", "rows": [["home", "Appartement Riverside", "Ngaliema · Visite demandee", "Active", "teal"], ["complete", "Residence avec cour", "Limete · Paiement du locataire enregistre", "Enregistre", "teal"]]},
           {"title": "File des operations", "rows": [["warning", "Inspection de la pompe a eau", "Attribuee au gestionnaire immobilier", "Ouverte", ""], ["add", "Nouveau brouillon de bien", "Examinez les details avant publication", "Brouillon", ""]]}
@@ -163,22 +166,22 @@
       "manager": {
         "label": "Espace gestionnaire immobilier",
         "title": "Coordonnez le travail derriere chaque logement.",
-        "subtitle": "Une vue operationnelle fictive des unites, participants, verifications, paiements et maintenances.",
-        "stats": [["Unites gerees", "14", "Portefeuille demo"], ["Occupation", "93 %", "13 unites sur 14"], ["File de verification", "3", "A examiner"], ["Ordres de travail ouverts", "4", "Sur 3 biens"]],
+        "subtitle": "Une vue operationnelle des unites, participants, verifications, paiements et maintenances.",
+        "stats": [["Unites gerees", "14", "Portefeuille attribue"], ["Occupation", "93 %", "13 unites sur 14"], ["File de verification", "3", "A examiner"], ["Ordres de travail ouverts", "4", "Sur 3 biens"]],
         "sections": [
           {"title": "File prioritaire", "rows": [["warning", "Examen de verification", "2 dossiers de proprietaires et 1 dossier de bien", "3 en attente", ""], ["viewing", "Coordination des visites", "Deux demandes necessitent une heure de rendez-vous", "Aujourd hui", "teal"]]},
-          {"title": "Operations recentes", "rows": [["payment", "Dossiers de paiement", "Cinq recus fictifs rapproches", "Termine", "teal"], ["message", "Messages des participants", "Un nouveau message de locataire necessite une reponse", "Nouveau", "teal"]]}
+          {"title": "Operations recentes", "rows": [["payment", "Dossiers de paiement", "Cinq recus rapproches", "Termine", "teal"], ["message", "Messages des participants", "Un nouveau message de locataire necessite une reponse", "Nouveau", "teal"]]}
         ]
       },
       "operator": {
         "label": "Espace operateur de maintenance independant",
         "title": "Faites avancer chaque tache assignee.",
-        "subtitle": "Une vue terrain fictive pour les ordres de travail, devis, visites, preuves et revenus.",
-        "stats": [["Taches assignees", "3", "Sur 2 biens"], ["Visites aujourd hui", "2", "Une arrivee confirmee"], ["Devis a examiner", "1", "A envoyer avant 17 h"], ["Revenus fictifs", "1 240 $", "Ce mois de demonstration"]],
+        "subtitle": "Une vue terrain pour les ordres de travail, devis, visites, preuves et revenus.",
+        "stats": [["Taches assignees", "3", "Sur 2 biens"], ["Visites aujourd hui", "2", "Une arrivee confirmee"], ["Devis a examiner", "1", "A envoyer avant 17 h"], ["Revenus", "1 240 $", "Ce mois"]],
         "sections": [
           {"title": "Ordres de travail assignes", "rows": [["warning", "Inspection de la pompe a eau", "Appartement Riverside · Ngaliema · Priorite elevee", "Assignee", ""], ["viewing", "Entretien du generateur", "Residence avec vue urbaine · Gombe · Visite a 14 h", "Planifiee", "teal"], ["complete", "Reparation de plomberie", "Maison familiale avec cour · Lingwala · Confirmation du client en attente", "A examiner", "teal"]]},
           {"title": "Devis et planning", "rows": [["payment", "Devis de la pompe a eau", "Estimation des materiaux et de la main-d oeuvre demandee par le gestionnaire", "A remettre aujourd hui", ""], ["clock", "Prochaine plage d arrivee", "Aujourd hui · 14 h-15 h · Client informe", "Confirmee", "teal"]]},
-          {"title": "Rapports terrain et preuves", "rows": [["add", "Rapport d achevement", "Ajoutez les travaux, materiaux, couts, photos et notes du client", "Pret", ""], ["complete", "Derniere tache terminee", "Reparation electrique · paiement fictif de 380 $ · recu disponible", "Enregistree", "teal"]]}
+          {"title": "Rapports terrain et preuves", "rows": [["add", "Rapport d achevement", "Ajoutez les travaux, materiaux, couts, photos et notes du client", "Pret", ""], ["complete", "Derniere tache terminee", "Reparation electrique · paiement de 380 $ · recu disponible", "Enregistree", "teal"]]}
         ]
       }
     }
@@ -221,19 +224,48 @@
     "intro": "Decouvrez des locations fiables et gardez les elements essentiels de la relation locative clairs, de la visite aux paiements mensuels.",
     "browse_properties": "Parcourir les biens",
     "hero_media_alt": "Immeubles d habitation a Kinshasa au coucher du soleil",
-    "public_preview": "Apercu public",
-    "public_preview_desc": "Les annonces, comptes, paiements et messages sont simules avec des donnees fictives.",
+    "hero_property": {
+      "label": "Bien a decouvrir",
+      "action": "Voir le bien"
+    },
+    "search": {
+      "label": "Rechercher les biens disponibles",
+      "area": "Quartier",
+      "any_area": "Tous les quartiers de Kinshasa",
+      "bedrooms": "Chambres",
+      "max_rent": "Loyer mensuel maximal",
+      "any": "Tous",
+      "action": "Trouver un logement"
+    },
+    "public_preview": "Plateforme immobiliere",
+    "public_preview_desc": "Explorez les annonces, comptes, paiements et messages.",
     "included_link": "Voir ce qui est inclus",
     "stats": {
-      "listings": ["Annonces fictives", "Explorez l experience future"],
-      "costs": ["Couts transparents", "Loyer et conditions affiches a l avance"],
-      "everyone": ["Pour tout le monde", "Locataires, proprietaires, gestionnaires et operateurs"],
-      "kinshasa": ["Kinshasa en premier", "Concu pour les realites locales"]
+      "label": "Pourquoi KEYFORTA",
+      "listings": ["Annonces immobilieres", "Comparez les logements avec quartier, prix, equipements et disponibilite clairement presentes avant toute demande de visite."],
+      "costs": ["Couts transparents", "Consultez le loyer, la garantie et les conditions essentielles avant de vous engager, avec moins de surprises."],
+      "everyone": ["Pour tout le monde", "Une experience connectee pour les locataires, proprietaires, gestionnaires immobiliers et prestataires de confiance."],
+      "kinshasa": ["Kinshasa en premier", "Concu autour de la facon dont Kinshasa loue, paie, verifie et gere les logements, sans processus generique importe."]
+    },
+    "proof": {
+      "eyebrow": "Collection actuelle",
+      "title": "Des choix reels. Des details utiles.",
+      "intro": "Explorez une collection grandissante a Kinshasa avec des informations pratiques deja associees a chaque logement.",
+      "homes": "biens prets a comparer",
+      "neighborhoods": "quartiers de Kinshasa representes",
+      "terms_value": "Affiches",
+      "terms": "loyer et garantie locative",
+      "viewings_value": "Pretes",
+      "viewings": "demandes de visite"
+    },
+    "partners": {
+      "eyebrow": "Reseau de partenaires",
+      "title": "Un reseau local pour un meilleur marche locatif."
     },
     "featured": {
       "eyebrow": "Biens a decouvrir",
       "title": "Commencez par l essentiel.",
-      "intro": "Explorez des annonces de demonstration avec disponibilite, indices de verification, conditions locatives et demandes de visite.",
+      "intro": "Explorez les annonces avec disponibilite, indices de verification, conditions locatives et demandes de visite.",
       "view_all": "Voir tous les biens"
     },
     "audience": {
@@ -241,32 +273,32 @@
       "title": "Une plateforme, quatre points de depart.",
       "intro": "Commencez par l etape de la location qui compte le plus pour vous.",
       "items": [
-        ["Trouver un logement", "Comparez les logements, comprenez le cout total et demandez une visite."],
-        ["Publier un bien", "Presentez clairement vos logements et preparez de meilleurs echanges avec les locataires."],
-        ["Gerer les locations", "Decouvrez un espace de demonstration pour les unites, contrats, paiements et maintenance."],
-        ["Intervenir sur le terrain", "Les operateurs peuvent suivre les ordres de travail, devis, visites et rapports."]
+        ["Trouver un logement", "Comparez les logements, comprenez le cout total et demandez une visite.", "Explorer les logements"],
+        ["Publier un bien", "Presentez clairement vos logements et preparez de meilleurs echanges avec les locataires.", "Rejoindre comme proprietaire"],
+        ["Gerer les locations", "Gerez les unites, contrats, paiements et maintenance dans un seul espace.", "Ouvrir votre espace"],
+        ["Intervenir sur le terrain", "Les operateurs peuvent suivre les ordres de travail, devis, visites et rapports.", "Rejoindre comme operateur"]
       ]
     },
     "standard": {
       "eyebrow": "Un standard partage",
       "title": "Un parcours locatif plus clair.",
-      "intro": "Le public peut deja voir le parcours essentiel pendant la connexion des services de production.",
+      "intro": "Suivez tout le parcours locatif, de la recherche a la gestion quotidienne.",
       "compare": ["Comparer", "Comparez les biens avec details pratiques, couts mensuels complets et disponibilite."],
       "verify": ["Verifier", "Voyez ce qui a ete soumis, verifie et ce qui necessite encore des preuves."],
       "track": ["Suivre", "Conservez paiements, recus, maintenance et echanges dans un dossier partage."],
-      "banner_title": "Apercu public complet",
-      "banner_body": "Les visiteurs peuvent explorer les annonces, les espaces par role et les apercus vocaux IA avec des donnees fictives locales."
+      "banner_title": "Une experience connectee",
+      "banner_body": "Explorez les annonces, les espaces par role et les outils vocaux IA en un seul endroit."
     },
     "preview": {
-      "eyebrow": "Apercu public complet",
-      "title": "Decouvrez le produit avant sa connexion.",
-      "intro": "La version publique presente le parcours essentiel pendant la connexion de vos services de production.",
+      "eyebrow": "Parcours locatif connecte",
+      "title": "Explorez le produit.",
+      "intro": "Suivez le parcours essentiel de la recherche a la gestion immobiliere.",
       "available_title": "Les visiteurs peuvent explorer",
       "available_items": [
-        "Annonces fictives, filtres, tri et pages de details",
+        "Annonces, filtres, tri et pages de details",
         "Disponibilites, couts, conditions et indices de verification",
         "Demandes de visite, d'interet et de contact",
-        "Espaces de demonstration locataire, proprietaire, gestionnaire et operateur",
+        "Espaces locataire, proprietaire, gestionnaire et operateur",
         "Apercus vocaux IA pour les biens et messages de service"
       ],
       "production_title": "Services de production a connecter",
@@ -275,7 +307,7 @@
         "Authentification, roles et preuves de verification",
         "Paiements, recus, notifications et e-mails",
         "Messages de maintenance et documents juridiques definitifs",
-        "Contrats API pour chaque action fictive de lecture et d'ecriture"
+        "Contrats API pour chaque action de lecture et d'ecriture"
       ],
       "cta_eyebrow": "Restez proche du lancement",
       "cta_title": "Contribuez a faconner la premiere version connectee.",
@@ -285,7 +317,7 @@
       "eyebrow": "Film de marque KEYFORTA",
       "title": "Une maniere plus claire de trouver et gerer son logement.",
       "intro": "Decouvrez la vision KEYFORTA: locations fiables, details pratiques et dossier partage.",
-      "note": "Bande sonore instrumentale · Apercu public",
+      "note": "Bande sonore instrumentale",
       "captions": "Sous-titres anglais",
       "description": "Un court film KEYFORTA presentant la recherche locative fiable, les couts clairs et les dossiers partages a Kinshasa."
     }
@@ -293,7 +325,7 @@
   "property_pages": {
     "discovery_eyebrow": "Recherche de biens",
     "find_title": "Trouvez un logement qui vous correspond.",
-    "discovery_intro": "Comparez des annonces de demonstration. Aucun bien affiche ici n est propose a la location en production.",
+    "discovery_intro": "Comparez les logements par lieu, prix, configuration, equipements et disponibilite.",
     "neighborhood": "Quartier",
     "placeholder_neighborhood": "ex. Ngaliema",
     "bedrooms": "Chambres",
@@ -305,32 +337,39 @@
     "sort_price_high": "Prix : du plus cher au moins cher",
     "apply_filters": "Appliquer les filtres",
     "reset": "Reinitialiser",
-    "results_count_one": "{{count}} bien de demonstration",
-    "results_count_other": "{{count}} biens de demonstration",
-    "no_results": "Aucun bien fictif ne correspond a ces filtres.",
+    "results_count_one": "{{count}} bien",
+    "results_count_other": "{{count}} biens",
+    "no_results": "Aucun bien ne correspond a ces filtres.",
     "back_to_properties": "Retour aux biens",
-    "demo_listing_label": "Annonce de demonstration:",
-    "demo_listing_notice": "Ce bien est une donnee fictive. Il ne peut pas etre reserve, loue ou paye sur KEYFORTA.",
+    "demo_listing_label": "Annonce immobiliere:",
+    "demo_listing_notice": "Confirmez la disponibilite avec le gestionnaire avant tout engagement.",
     "neighborhood_label": "quartier",
-    "mock_verification": "Verification fictive",
+    "mock_verification": "Verification",
     "about_home": "A propos de ce logement",
     "included": "Ce qui est inclus",
-    "verification_preview": "Apercu de la verification",
+    "verification_preview": "Verification",
     "ownership_pending": "Autorite de propriete : preuve de production en attente",
     "identity_checked": "Identite du participant : verifiee lors de l integration",
     "move_in_costs": "Couts indicatifs d installation",
     "monthly_rent": "Loyer mensuel",
     "example_deposit": "Depot indicatif ({{count}} mois)",
     "shown_before_commitment": "Affiche avant tout engagement",
-    "mock_figures": "Chiffres fictifs uniquement. Les conditions finales proviendront du contrat connecte.",
+    "mock_figures": "Confirmez les conditions finales dans le contrat de location.",
     "living_room": "salon",
     "kitchen": "cuisine",
     "request_viewing": "Demander une visite",
+    "viewing_eyebrow": "Visite du bien",
+    "viewing_title": "Visiter {{title}}.",
+    "viewing_intro": "Indiquez le moment souhaite et le gestionnaire vous contactera pour confirmer la disponibilite.",
+    "preferred_time": "Date et heure souhaitees",
+    "viewing_message": "Message (facultatif)",
+    "submit_viewing": "Envoyer la demande de visite",
+    "back_to_property": "Retour au bien",
     "apply_unit": "Deposer une candidature",
     "verification_link": "Comment fonctionne la verification",
     "application_eyebrow": "Candidature locative",
     "application_title": "Candidater pour {{title}}.",
-    "application_intro": "Completez ce dossier pour un examen par le gestionnaire. Cette demo enregistre la soumission seulement dans votre navigateur.",
+    "application_intro": "Completez ce dossier pour examen par le gestionnaire.",
     "phone": "Numero de telephone",
     "current_address": "Adresse actuelle",
     "occupants": "Nombre d occupants",
@@ -343,16 +382,16 @@
   },
   "account": {
     "signin": {
-      "eyebrow": "Acces demo",
+      "eyebrow": "Acces aux espaces",
       "title": "Choisissez votre espace KEYFORTA.",
-      "intro": "Explorez une experience par role. Cette demo n ouvre pas de compte et ne verifie aucun identifiant.",
-      "demo_eyebrow": "Explorer la demo",
-      "demo_title": "Apercu des espaces de travail",
-      "demo_intro": "Consultez les principaux parcours avant de creer ou de connecter votre compte.",
+      "intro": "Choisissez l espace correspondant a votre role.",
+      "demo_eyebrow": "Choisissez votre role",
+      "demo_title": "Ouvrir un espace",
+      "demo_intro": "Accedez aux outils et parcours disponibles pour votre role.",
       "account_eyebrow": "Creer un compte",
       "account_title": "Commencez selon votre role.",
       "account_intro": "Les gestionnaires rejoignent une organisation sur invitation d un proprietaire.",
-      "open_demo": "Ouvrir la demo",
+      "open_demo": "Continuer",
       "landlord_entry_title": "Je possede ou represente des biens",
       "landlord_entry_body": "Creez votre compte proprietaire pour ajouter des biens et inviter un gestionnaire.",
       "landlord_entry_action": "Creer un compte proprietaire",
@@ -371,14 +410,14 @@
       "manager_workspace": "Espace gestionnaire",
       "manager_workspace_desc": "Suivez unites, taches, verifications et activite des participants.",
       "operator_workspace": "Espace operateur de maintenance",
-      "operator_workspace_desc": "Gerez ordres de travail, devis, visites, rapports terrain et revenus fictifs."
+      "operator_workspace_desc": "Gerez ordres de travail, devis, visites, rapports terrain et revenus."
     },
     "login": {
       "title": "Connectez-vous pour continuer.",
-      "intro": "Utilisez le compte demo ci-dessous ou saisissez tout email valide.",
+      "intro": "Saisissez votre e-mail ou utilisez le compte de test ci-dessous.",
       "continue": "Continuer",
       "use": "Utiliser",
-      "demo_note": "Demo uniquement · Aucun mot de passe requis · Aucune donnee envoyee au serveur.",
+      "demo_note": "Aucun mot de passe n est requis sur le serveur de developpement.",
       "switch": "Choisir un autre espace"
     },
     "signup": {
@@ -392,7 +431,7 @@
       "service_coverage": "Couverture de service",
       "coverage_default": "Tout bien sur KEYFORTA",
       "company_name": "Entreprise ou nom du proprietaire",
-      "create": "Creer le compte",
+      "create": "Demander un compte",
       "back": "Retour aux espaces"
     },
     "invite": {
@@ -429,14 +468,7 @@
         "Parcours de visite et de candidature",
         "Suivi futur des paiements et de la maintenance"
       ],
-      "caps": ["Annonces", "Verification", "Paiements", "Maintenance"],
-      "form_title": "Publier un bien",
-      "form_intro": "Cette demande est locale a votre navigateur et ne publie aucun bien.",
-      "owner_name": "Nom du proprietaire ou de l entreprise",
-      "location": "Emplacement du bien",
-      "units": "Nombre d unites",
-      "about": "Parlez-nous du bien",
-      "submit": "Envoyer l interet pour ce bien"
+      "caps": ["Annonces", "Verification", "Paiements", "Maintenance"]
     },
     "how": {
       "eyebrow": "Fonctionnement",
@@ -466,7 +498,7 @@
       "principle_2_title": "Dossiers partages.",
       "principle_2_body": "Contrats, recus, demandes et echanges importants doivent etre conserves pour les participants appropries.",
       "principle_3_title": "Aucune fausse certitude.",
-      "principle_3_body": "Un document soumis n est pas equivalent a une affirmation verifiee. Les donnees fictives ne sont jamais une offre locative.",
+      "principle_3_body": "Un document soumis n est pas equivalent a une affirmation verifiee. Confirmez la disponibilite et les conditions avant tout engagement.",
       "stay_safe": "Restez prudent:",
       "stay_safe_body": "N envoyez jamais d argent sur la seule base d une annonce publique. Confirmez bien, destinataire et conditions ecrites via un canal de confiance."
     },
@@ -474,23 +506,23 @@
       "eyebrow": "Questions frequentes",
       "title": "Les reponses avant de commencer.",
       "items": [
-        ["Ces biens sont-ils disponibles?", "Non. Toutes les annonces actuelles sont fictives et servent a demontrer l experience publique future."],
-        ["Puis-je payer mon loyer via ce site?", "Pas encore. L apercu montre ou apparaitront paiements et recus, mais aucun argent n est collecte."],
+        ["Ces biens sont-ils disponibles?", "La disponibilite doit etre confirmee avec le gestionnaire avant tout engagement."],
+        ["Puis-je payer mon loyer via ce site?", "Pas encore. Aucun argent n est actuellement collecte via ce site."],
         ["Comment les biens seront-ils verifies?", "Le workflow connecte collectera les details du bien, l autorite de gestion/propriete et les preuves avant affichage d un statut de verification."],
         ["Un proprietaire peut-il lister plusieurs unites?", "Oui. La plateforme prevoit des biens a une ou plusieurs unites et un espace de gestion dedie."],
         ["KEYFORTA prend-il en charge le francais?", "Oui. L experience publique inclut un mode francais initial, avec couverture de traduction elargie prevue."],
         ["Comment les depots sont-ils geres?", "Les regles de depot seront precisees dans chaque contrat: montant, versement, retenues autorisees et restitution finale."],
         ["Les locataires recevront-ils des notifications?", "Le produit connecte prevoit mises a jour de visites, rappels de paiement, maintenance et notifications de compte importantes."],
-        ["Puis-je signaler un probleme?", "Oui. Utilisez la page contact pour tout sujet de securite dans cet apercu. Le produit connecte ajoutera un suivi de cas par participant."]
+        ["Puis-je signaler un probleme?", "Oui. Utilisez la page contact pour signaler tout sujet de securite."]
       ]
     },
     "contact": {
       "title": "Comment pouvons-nous vous aider?",
-      "intro": "Utilisez ce formulaire de demonstration pour questions generales, interet de lancement ou sujet de securite.",
+      "intro": "Utilisez ce formulaire pour toute question generale, interet de lancement ou sujet de securite.",
       "email": "Email",
       "market": "Marche initial",
       "market_value": "Kinshasa, Republique democratique du Congo",
-      "notice_title": "Note donnees fictives",
+      "notice_title": "Envoi des messages",
       "notice_body": "Les messages sont enregistres uniquement dans ce navigateur jusqu a la connexion de la livraison email.",
       "topic": "Sujet",
       "topic_general": "Question generale",
@@ -504,22 +536,22 @@
       "privacy_title": "Avis de confidentialite",
       "terms_title": "Conditions d utilisation",
       "draft_label": "Projet a relire:",
-      "draft_body": "Ce texte est un espace reserve apercu public et doit etre remplace par les clauses finales avant lancement commercial.",
+      "draft_body": "Ce texte doit etre remplace par les clauses finales avant le lancement commercial.",
       "privacy": {
         "collected_title": "Informations collectees",
-        "collected_body": "Cette demonstration peut stocker des entrees de formulaire, des demandes fictives et la langue dans votre navigateur. Rien n est transmis a un serveur KEYFORTA.",
+        "collected_body": "Ce site peut stocker les formulaires, demandes et preferences de langue dans votre navigateur. Rien n est actuellement transmis a un serveur KEYFORTA.",
         "storage_title": "Cookies et stockage local",
-        "storage_body": "La demo utilise le stockage local pour la langue et les formulaires fictifs. Le produit connecte publiera ses regles finales cookies, analytique et retention.",
+        "storage_body": "Le site utilise le stockage local pour la langue et les formulaires. Les regles finales sur les cookies, l analytique et la retention seront publiees avant le lancement en production.",
         "choices_title": "Vos choix",
         "choices_body": "Vous pouvez effacer ces informations via les parametres de votre navigateur. Les droits lies au compte seront decrits dans la version finale."
       },
       "terms": {
-        "demo_title": "Demonstration uniquement",
-        "demo_body": "Le site actuel presente des annonces fictives et des demonstrations front-end. Il ne cree pas de bail, ne reserve pas de bien, ne verifie pas une personne et ne traite aucun paiement.",
+        "demo_title": "Limites actuelles du service",
+        "demo_body": "Le site actuel ne cree pas de bail, ne reserve pas de bien, ne verifie pas une personne ou un bien et ne traite aucun paiement.",
         "acceptable_title": "Usage acceptable",
         "acceptable_body": "N abusez pas du site, n usurpez pas d identite, ne soumettez pas de contenu illegal et n interferez pas avec le service.",
-        "reliance_title": "Aucune confiance dans les annonces fictives",
-        "reliance_body": "Les informations affichees sont fictives et ne doivent pas servir a une decision locative ou financiere."
+        "reliance_title": "Confirmez les informations du bien",
+        "reliance_body": "Confirmez les informations, la disponibilite et les conditions avant toute decision locative ou financiere."
       }
     }
   },
@@ -528,6 +560,7 @@
     "voice": "Generateur de voix IA - KEYFORTA",
     "properties": "Biens - KEYFORTA",
     "property": "Detail du bien - KEYFORTA",
+    "viewing": "Demander une visite - KEYFORTA",
     "apply": "Candidature locative - KEYFORTA",
     "how": "Fonctionnement - KEYFORTA",
     "landlords": "Proprietaires et gestionnaires - KEYFORTA",
@@ -536,7 +569,7 @@
     "contact": "Contact - KEYFORTA",
     "privacy": "Avis de confidentialite - KEYFORTA",
     "terms": "Conditions d utilisation - KEYFORTA",
-    "signin": "Acces demo - KEYFORTA",
+    "signin": "Acces aux espaces - KEYFORTA",
     "login": "Connexion espace - KEYFORTA",
     "signup": "Creation de compte - KEYFORTA",
     "invite": "Invitation gestionnaire - KEYFORTA",

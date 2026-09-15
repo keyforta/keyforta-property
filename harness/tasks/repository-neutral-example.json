@@ -1,0 +1,77 @@
+{
+  "taskId": "ENG-001",
+  "title": "Validate repository engineering policy",
+  "businessObjectiveReference": "Repository engineering governance",
+  "issueReference": "synthetic://ENG-001",
+  "requirementReferences": ["AGENTS.md#engineering-loop"],
+  "classification": "configuration",
+  "workflowState": "implementation-ready",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Synthetic product owner",
+      "enteredAt": "2026-09-11T00:00:00.000Z",
+      "evidenceReferences": ["synthetic://proposal"]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Synthetic analyst",
+      "enteredAt": "2026-09-11T00:01:00.000Z",
+      "evidenceReferences": ["synthetic://analysis"]
+    },
+    {
+      "state": "approved",
+      "actor": "Synthetic product owner",
+      "enteredAt": "2026-09-11T00:02:00.000Z",
+      "evidenceReferences": ["synthetic://approval"],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "synthetic://approval",
+        "commitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Synthetic architect",
+      "enteredAt": "2026-09-11T00:03:00.000Z",
+      "evidenceReferences": ["synthetic://design"]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-11T00:04:00.000Z",
+      "evidenceReferences": ["harness/README.md"]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "supportingReviewers": ["Pull Request Reviewer"],
+  "dependencies": [],
+  "allowedPaths": ["harness/fixtures/", "harness/reports/"],
+  "declaredProtectedPaths": [],
+  "protectedPaths": [
+    "docs/product/",
+    "infra/postgres/migrations/",
+    "harness/policies/"
+  ],
+  "acceptanceCriteriaReferences": ["harness/README.md#self-test"],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-001",
+      "requirementReferences": ["AGENTS.md#engineering-loop"],
+      "testReferences": ["harness/scripts/self-test.mjs"]
+    }
+  ],
+  "technicalDecisionReferences": ["harness/README.md"],
+  "requiredScenarios": ["repository-neutral-self-test"],
+  "requiredCommands": ["pnpm harness:self-test"],
+  "requiredEvidence": ["harness/reports/verify-latest.json"],
+  "riskClassification": "low",
+  "securityImpact": "No authentication, authorization, secret, or production impact.",
+  "dataImpact": "Synthetic fixture only; no persistent or personal data.",
+  "observabilityImpact": "Produces local machine-readable verification evidence.",
+  "rollbackConsiderations": "Remove generated evidence; no runtime rollback required.",
+  "humanApprovalRequirements": ["Pull request review before merge"],
+  "repairCycle": 0
+}

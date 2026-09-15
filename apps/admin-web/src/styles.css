@@ -14,6 +14,7 @@ button {
   font: inherit;
   cursor: pointer;
   border: 0;
+  border-radius: 4px 10px 10px 10px !important;
 }
 .auth {
   min-height: 100vh;
@@ -154,13 +155,13 @@ button {
   grid-template-columns: repeat(4, 1fr);
   gap: 14px;
 }
-.metrics > div,
+.metrics > .metric,
 .panel {
   border: 1px solid #dce7df;
   background: #fff;
   border-radius: 17px;
 }
-.metrics > div {
+.metrics > .metric {
   padding: 20px;
 }
 .metrics span,
@@ -168,7 +169,7 @@ button {
   display: block;
   color: #687970;
 }
-.metrics b {
+.metrics strong {
   display: block;
   font-size: 1.8rem;
   margin: 10px 0 5px;
@@ -273,10 +274,10 @@ button {
   .metrics {
     gap: 9px;
   }
-  .metrics > div {
+  .metrics > .metric {
     padding: 14px;
   }
-  .metrics b {
+  .metrics strong {
     font-size: 1.4rem;
   }
   .row {

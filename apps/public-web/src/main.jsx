@@ -1,10 +1,23 @@
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
+import { keyfortaBrand } from '@keyforta/brand';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import './i18n.js';
 import App from './App.jsx';
 import './styles.css';
-import './mock-api.js';
+
+const { colors } = keyfortaBrand;
+const keyfortaTheme = {
+  ...webLightTheme,
+  colorBrandBackground: colors.aubergine,
+  colorBrandBackgroundHover: colors.aubergine,
+  colorBrandBackgroundPressed: colors.aubergine,
+  colorBrandBackgroundSelected: colors.aubergine,
+  colorBrandForeground1: colors.aubergine,
+  colorBrandForeground2: colors.aubergine,
+  colorBrandStroke1: colors.aubergine,
+  borderRadiusMedium: '10px',
+};
 
 function normalizeLegacyHashRoute() {
   const currentHash = window.location.hash || '';
@@ -54,7 +67,7 @@ normalizeLegacyHashRoute();
 window.history.scrollRestoration = 'manual';
 
 createRoot(document.querySelector('#root')).render(
-  <FluentProvider theme={webLightTheme} className="fluent-app-provider">
+  <FluentProvider theme={keyfortaTheme} className="fluent-app-provider">
     <HashRouter>
       <App />
     </HashRouter>

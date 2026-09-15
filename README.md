@@ -6,7 +6,7 @@ KEYFORTA is a Kinshasa-first property discovery and rental-management platform.
 
 ```text
 apps/public-web/  Public website and static Sites build
-apps/portal-web/   Authenticated tenant, landlord, manager, and technician portal
+apps/portal-web/   Authenticated tenant, landlord, manager, and maintenance operator portal
 apps/admin-web/    Platform administration console
 apps/api/           Planned modular-monolith backend boundary
 apps/jobs/          Planned asynchronous worker boundary
@@ -28,6 +28,22 @@ pnpm check
 pnpm build
 pnpm dev
 ```
+
+## Engineering harness
+
+The repository includes governed Copilot agents, reusable Agent Skills, task
+contracts, evidence gates, and deterministic verification under `.github/` and
+`harness/`.
+
+```bash
+pnpm verify:agents
+pnpm verify:skills
+pnpm harness:self-test
+HARNESS_CONTRACT_MODE=skip pnpm verify
+```
+
+Pull requests must include one active task contract under `harness/tasks/`.
+Canonical CI verification runs through `harness/scripts/verify.mjs`.
 
 `pnpm dev` serves the public site at `http://localhost:3000`. Use `pnpm dev:portal` for the portal at `http://localhost:3001`, `pnpm dev:admin` for the admin console at `http://localhost:3002`, or `pnpm dev:all` to run all three.
 

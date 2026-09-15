@@ -1,0 +1,228 @@
+{
+  "version": 2,
+  "orderedStates": [
+    "proposed",
+    "analyzed",
+    "approved",
+    "designed",
+    "implementation-ready",
+    "implemented",
+    "verification-ready",
+    "verified"
+  ],
+  "exceptionStates": ["blocked", "changes-requested", "rejected", "superseded"],
+  "nonWaivableGates": ["secret-patterns", "dependency-audit"],
+  "repairLoop": {
+    "maximumAutomatedCycles": 3
+  },
+  "pathRequirements": [
+    {
+      "prefixes": [
+        ".github/workflows/ci.yml",
+        "harness/graders/",
+        "harness/policies/",
+        "harness/schemas/",
+        "harness/scripts/"
+      ],
+      "artifacts": [],
+      "approvals": []
+    },
+    {
+      "prefixes": ["infra/postgres/migrations/"],
+      "artifacts": [],
+      "approvals": []
+    }
+  ],
+  "transitions": [
+    {
+      "from": "proposed",
+      "to": "analyzed",
+      "artifacts": ["requirements-analysis"],
+      "sections": ["requirements", "risks", "unknowns"],
+      "checks": ["verify:task"],
+      "approvals": []
+    },
+    {
+      "from": "analyzed",
+      "to": "approved",
+      "artifacts": ["task-contract"],
+      "sections": ["scope", "acceptanceCriteria", "humanApprovalRequirements"],
+      "checks": ["verify:task", "verify:classification"],
+      "approvals": []
+    },
+    {
+      "from": "approved",
+      "to": "designed",
+      "artifacts": ["technical-decision"],
+      "sections": ["design", "tradeoffs", "rollback"],
+      "checks": ["verify:task"],
+      "approvals": []
+    },
+    {
+      "from": "designed",
+      "to": "implementation-ready",
+      "artifacts": ["implementation-plan", "acceptance-test-map"],
+      "sections": ["steps", "requirements", "tests"],
+      "checks": ["verify:task", "verify:classification"],
+      "approvals": []
+    },
+    {
+      "from": "implementation-ready",
+      "to": "implemented",
+      "artifacts": ["changed-file-inventory"],
+      "sections": ["commit", "files", "traceability"],
+      "checks": ["verify:task", "verify:classification"],
+      "approvals": []
+    },
+    {
+      "from": "implemented",
+      "to": "verification-ready",
+      "artifacts": ["evidence-manifest"],
+      "sections": ["commands", "tests", "knownFailures"],
+      "checks": ["verify:task", "verify:classification", "verify:evidence"],
+      "approvals": []
+    },
+    {
+      "from": "verification-ready",
+      "to": "verified",
+      "artifacts": ["verification-report"],
+      "sections": [
+        "results",
+        "coverage",
+        "security",
+        "accessibility",
+        "architecture",
+        "infrastructure"
+      ],
+      "checks": ["verify:all"],
+      "approvals": []
+    },
+    {
+      "from": "changes-requested",
+      "to": "implemented",
+      "artifacts": ["failure-evidence", "correction-record"],
+      "sections": ["failure", "boundedCorrection", "repairCycle"],
+      "checks": ["verify:classification"],
+      "approvals": []
+    },
+    {
+      "from": "changes-requested",
+      "to": "blocked",
+      "artifacts": ["state-change-record"],
+      "sections": ["reason", "actor", "timestamp", "evidenceReferences"],
+      "checks": [],
+      "approvals": []
+    }
+  ],
+  "exceptionTransitions": {
+    "fromAnyActiveState": [
+      "blocked",
+      "changes-requested",
+      "rejected",
+      "superseded"
+    ],
+    "requiredArtifact": "state-change-record",
+    "requiredSections": ["reason", "actor", "timestamp", "evidenceReferences"]
+  },
+  "classificationRequirements": {
+    "feature": {
+      "artifacts": ["acceptance-test-map"],
+      "checks": ["unit-integration-contract-tests", "architecture-boundaries"],
+      "approvals": []
+    },
+    "bugfix": {
+      "artifacts": ["failure-evidence", "regression-test"],
+      "checks": ["unit-integration-contract-tests"],
+      "approvals": []
+    },
+    "refactor": {
+      "artifacts": ["behavior-equivalence-evidence"],
+      "checks": ["unit-integration-contract-tests", "architecture-boundaries"],
+      "approvals": []
+    },
+    "security": {
+      "artifacts": ["threat-model"],
+      "checks": ["secret-patterns", "dependency-audit"],
+      "approvals": []
+    },
+    "infrastructure": {
+      "artifacts": ["infrastructure-plan", "rollback-record"],
+      "checks": ["infrastructure"],
+      "approvals": []
+    },
+    "configuration": {
+      "artifacts": ["configuration-impact"],
+      "checks": ["production-build"],
+      "approvals": []
+    },
+    "documentation": {
+      "artifacts": ["documentation-impact"],
+      "checks": ["documentation-impact"],
+      "approvals": []
+    },
+    "dependency": {
+      "artifacts": ["dependency-impact"],
+      "checks": ["dependency-audit", "production-build"],
+      "approvals": []
+    },
+    "operational": {
+      "artifacts": ["runbook", "monitoring-plan", "rollback-record"],
+      "checks": ["production-build"],
+      "approvals": []
+    },
+    "emergency": {
+      "artifacts": ["incident-record", "rollback-record", "follow-up-work"],
+      "checks": ["verify:all"],
+      "approvals": []
+    }
+  },
+  "classificationPathRules": {
+    "feature": { "requiredPrefixes": ["apps/", "packages/"] },
+    "bugfix": { "requiredPrefixes": ["apps/", "packages/", "harness/"] },
+    "refactor": { "requiredPrefixes": ["apps/", "packages/", "harness/"] },
+    "configuration": {
+      "requiredPrefixes": [
+        ".github/",
+        "harness/",
+        "package.json",
+        "tsconfig",
+        "turbo.json"
+      ],
+      "forbiddenPrefixes": [
+        "apps/",
+        "packages/",
+        "infra/",
+        "docs/product/",
+        "pnpm-lock.yaml"
+      ]
+    },
+    "documentation": {
+      "allowedPrefixes": ["docs/", "README.md", "CONTRIBUTING.md"],
+      "forbiddenPrefixes": [
+        "apps/",
+        "packages/",
+        "infra/",
+        ".github/workflows/",
+        ".github/CODEOWNERS",
+        "harness/policies/",
+        "harness/schemas/"
+      ]
+    },
+    "infrastructure": { "requiredPrefixes": ["infra/", ".github/workflows/"] },
+    "dependency": { "requiredFiles": ["package.json", "pnpm-lock.yaml"] },
+    "security": {
+      "requiredPrefixes": [
+        "docs/security/",
+        "docs/engineering/",
+        "docs/architecture/",
+        "harness/"
+      ]
+    },
+    "operational": {
+      "requiredPrefixes": ["docs/operations/", ".github/workflows/", "infra/"]
+    },
+    "emergency": {
+      "requiredPrefixes": ["apps/", "packages/", "infra/", ".github/workflows/"]
+    }
+  }
+}

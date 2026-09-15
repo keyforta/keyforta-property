@@ -1,0 +1,201 @@
+{
+  "contractVersion": 2,
+  "taskId": "ENG-003",
+  "phase": "implementation",
+  "workArea": "governance-and-harness",
+  "title": "Govern the full product lifecycle agent system",
+  "businessObjectiveReference": "https://github.com/cmbuyamba/keyforta-property/issues/25",
+  "issueReference": "https://github.com/cmbuyamba/keyforta-property/issues/25",
+  "requirementReferences": [
+    "GOVAGENT-001@1",
+    "GOVAGENT-002@1",
+    "GOVAGENT-003@1",
+    "AGENTS.md",
+    "docs/engineering/AGENT_OPERATING_GUIDE.md",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "classification": "configuration",
+  "workflowState": "verification-ready",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-12T00:01:46.000Z",
+      "evidenceReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/25"
+      ]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-12T00:03:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/AGENT_OPERATING_GUIDE.md",
+        "docs/engineering/DEFERRED_AGENTS.md"
+      ]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-12T00:04:00.000Z",
+      "evidenceReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/25"
+      ],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/cmbuyamba/keyforta-property/issues/25",
+        "commitSha": "79da300dd5ea275c0d094e0c60e28f04c4c23fd2"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-12T00:06:00.000Z",
+      "evidenceReferences": ["docs/engineering/FULL_LIFECYCLE_AGENT_SYSTEM.md"]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-12T00:08:00.000Z",
+      "evidenceReferences": [
+        "harness/policies/agent-registry.json",
+        "harness/policies/agent-routing.json",
+        "harness/scripts/self-test.mjs"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-12T00:18:00.000Z",
+      "evidenceReferences": [
+        "harness/scripts/agent-lib.mjs",
+        "harness/scripts/verify-agents.mjs",
+        "docs/engineering/FULL_LIFECYCLE_AGENT_SYSTEM.md"
+      ]
+    },
+    {
+      "state": "verification-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-12T00:18:01.000Z",
+      "evidenceReferences": [
+        "harness/reports/self-test-latest.json",
+        "docs/engineering/VALIDATION_EVIDENCE.md"
+      ]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "routingRuleId": "ROUTE-008",
+  "supportingReviewers": [
+    "Product and Requirements Analyst",
+    "Solution Architect",
+    "Security and Privacy Reviewer",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": ["Merged ENG-002 engineering-system foundation at 79da300"],
+  "allowedPaths": [
+    ".github/agents/harness-evaluation-engineer.agent.md",
+    ".github/agents/mvp-orchestrator.agent.md",
+    ".github/agents/product-requirements.agent.md",
+    ".github/copilot-instructions.md",
+    ".github/prompts/",
+    "docs/engineering/AGENT_OPERATING_GUIDE.md",
+    "docs/engineering/DEFERRED_AGENTS.md",
+    "docs/engineering/ENGINEERING_GOVERNANCE.md",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md",
+    "docs/engineering/FULL_LIFECYCLE_AGENT_SYSTEM.md",
+    "docs/engineering/REQUIREMENTS_GAPS.md",
+    "docs/engineering/VALIDATION_EVIDENCE.md",
+    "harness/README.md",
+    "harness/handoffs/",
+    "harness/policies/agent-activation.json",
+    "harness/policies/agent-registry.json",
+    "harness/policies/agent-routing.json",
+    "harness/policies/evidence-gates.json",
+    "harness/requirements/",
+    "harness/schemas/agent-activation.schema.json",
+    "harness/schemas/agent-registry.schema.json",
+    "harness/schemas/handoff.schema.json",
+    "harness/schemas/requirement-lifecycle.schema.json",
+    "harness/schemas/routing-matrix.schema.json",
+    "harness/schemas/task-contract.schema.json",
+    "harness/scripts/agent-lib.mjs",
+    "harness/scripts/edd-lib.mjs",
+    "harness/scripts/lib.mjs",
+    "harness/scripts/self-test.mjs",
+    "harness/scripts/verify-agents.mjs",
+    "harness/scripts/verify.mjs",
+    "harness/tasks/full-lifecycle-agent-system.json",
+    "package.json"
+  ],
+  "declaredProtectedPaths": [
+    ".github/agents/",
+    ".github/copilot-instructions.md",
+    "harness/policies/",
+    "harness/schemas/"
+  ],
+  "protectedPaths": [
+    ".github/workflows/",
+    "docs/product/",
+    "apps/",
+    "packages/",
+    "infra/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "docs/engineering/AGENT_OPERATING_GUIDE.md",
+    "harness/README.md#verification"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-AGENT-001",
+      "requirementReferences": [
+        "GOVAGENT-001@1",
+        "GOVAGENT-002@1",
+        "GOVAGENT-003@1"
+      ],
+      "testReferences": ["harness/scripts/self-test.mjs"]
+    },
+    {
+      "id": "AC-AGENT-002",
+      "requirementReferences": [
+        "AGENTS.md",
+        "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+      ],
+      "testReferences": ["pnpm verify:all"]
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/engineering/AGENT_OPERATING_GUIDE.md",
+    "docs/engineering/DEFERRED_AGENTS.md",
+    "harness/policies/evidence-gates.json"
+  ],
+  "requiredScenarios": [
+    "repository-neutral-self-test",
+    "canonical-verification"
+  ],
+  "requiredCommands": [
+    "pnpm harness:self-test",
+    "pnpm verify:agents",
+    "pnpm verify:task",
+    "pnpm verify:classification",
+    "pnpm verify:all"
+  ],
+  "requiredEvidence": [
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-ENG-003.json",
+    "docs/engineering/VALIDATION_EVIDENCE.md"
+  ],
+  "riskClassification": "medium",
+  "securityImpact": "Adds deterministic agent-governance validation without changing authentication, authorization, secrets, or external GitHub controls.",
+  "dataImpact": "No runtime schema, production data, retention, or tenant-data changes.",
+  "observabilityImpact": "Adds repository-local lifecycle evidence only; no telemetry resources or numerical SLOs.",
+  "rollbackConsiderations": "Revert the focused governance commit; runtime applications and deployed infrastructure are unchanged.",
+  "humanApprovalRequirements": [
+    "Product-owner approval for lifecycle scope and future agent activation",
+    "Independent architecture, security, and pull request review",
+    "GitHub controls remain authoritative for approval, merge, and deployment",
+    "No merge or deployment by the implementing agent"
+  ],
+  "repairCycle": 0
+}

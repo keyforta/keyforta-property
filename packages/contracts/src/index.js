@@ -3,3 +3,14 @@ export const resources = ['organizations', 'profiles', 'memberships', 'invitatio
 export const maintenanceStatuses = ['submitted', 'triaged', 'assigned', 'accepted', 'scheduled', 'in_progress', 'completed', 'confirmed', 'reopened'];
 export const commands = ['createOrganization', 'inviteManager', 'acceptInvitation', 'submitRentalApplication', 'requestApplicationChanges', 'approveApplication', 'rejectApplication', 'createLeaseFromApplication', 'signLease', 'activateLease', 'generateCharges', 'recordPayment', 'allocatePayment', 'reconcilePayment', 'publishServiceOffer', 'triage', 'assign', 'accept', 'schedule', 'start', 'complete', 'confirm', 'reopen', 'approveQuote', 'rejectQuote', 'submitReport'];
 export const apiResponse = (data) => ({ data });
+
+export const publicWebOperations = Object.freeze({
+	listProperties: { method: 'GET', path: '/properties', authentication: 'anonymous' },
+	getProperty: { method: 'GET', path: '/properties/{propertyId}', authentication: 'anonymous' },
+	requestViewing: { method: 'POST', path: '/viewing-requests', authentication: 'anonymous' },
+	requestAccess: { method: 'POST', path: '/access-requests', authentication: 'anonymous' },
+	sendContactMessage: { method: 'POST', path: '/contact-requests', authentication: 'anonymous' },
+	submitRentalApplication: { method: 'POST', path: '/rental-applications', authentication: 'required' },
+	registerLandlord: { method: 'POST', path: '/auth/signup/landlords', authentication: 'anonymous' },
+	registerOperator: { method: 'POST', path: '/auth/signup/maintenance-operators', authentication: 'anonymous' },
+});

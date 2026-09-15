@@ -12,8 +12,7 @@
 .faq-list p {
   color: var(--muted);
 }
-.contact-grid,
-.landlord-grid {
+.contact-grid {
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;
   gap: 30px;
@@ -25,8 +24,7 @@
   padding: 30px;
 }
 @media (max-width: 900px) {
-  .contact-grid,
-.landlord-grid {
+  .contact-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -51,7 +49,7 @@
   border-radius: 999px;
   background: var(--bone);
   color: var(--teal);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 800;
 }
 .trust-steps {
@@ -94,7 +92,7 @@
 }
 .support-note span {
   color: var(--muted);
-  font-size: 0.87rem;
+  font-size: 1rem;
 }
 @media (max-width: 900px) {
   .trust-steps {
@@ -195,14 +193,13 @@
   width: 160px;
   height: 34px;
   margin-top: 20px;
-  background: url("keyforta-wordmark.png") left center/contain no-repeat;
+  background: url("/keyforta-wordmark.png") left center/contain no-repeat;
   opacity: 0.24;
 }
 .trust-steps {
   gap: 16px;
 }
-.contact-grid,
-.landlord-grid {
+.contact-grid {
   gap: 24px;
 }
 .trust-steps article .number {

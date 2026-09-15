@@ -9,6 +9,7 @@
     "dev": "vite --host 127.0.0.1 --port 3000"
   },
   "dependencies": {
+    "@keyforta/brand": "workspace:*",
     "@fluentui/react-components": "^9.72.5",
     "@fluentui/react-icons": "^2.0.341",
     "i18next": "^25.5.2",

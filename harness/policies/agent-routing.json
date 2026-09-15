@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "fallbackAgentId": "mvp-engineering-orchestrator",
+  "rules": [
+    {
+      "id": "ROUTE-001",
+      "phase": "discovery-and-requirements",
+      "workArea": "requirements",
+      "leadAgentId": "product-requirements-analyst",
+      "reviewerAgentIds": ["pull-request-reviewer"],
+      "requiredCapabilities": ["requirements-governance"],
+      "requiredReviewerCapabilities": ["independent-review"],
+      "humanGate": "product-owner-scope-approval"
+    },
+    {
+      "id": "ROUTE-002",
+      "phase": "design",
+      "workArea": "architecture",
+      "leadAgentId": "solution-architect",
+      "reviewerAgentIds": [
+        "security-privacy-reviewer",
+        "pull-request-reviewer"
+      ],
+      "requiredCapabilities": ["architecture"],
+      "requiredReviewerCapabilities": ["security-review", "independent-review"],
+      "humanGate": "architecture-decision-when-consequential"
+    },
+    {
+      "id": "ROUTE-003",
+      "phase": "design",
+      "workArea": "experience",
+      "leadAgentId": "ux-ui-product-designer",
+      "reviewerAgentIds": ["product-requirements-analyst", "qa-test-engineer"],
+      "requiredCapabilities": ["product-design"],
+      "requiredReviewerCapabilities": ["quality-assurance"],
+      "humanGate": "product-owner-flow-approval"
+    },
+    {
+      "id": "ROUTE-004",
+      "phase": "implementation",
+      "workArea": "web",
+      "leadAgentId": "frontend-engineer",
+      "reviewerAgentIds": ["qa-test-engineer", "pull-request-reviewer"],
+      "requiredCapabilities": ["implementation", "web"],
+      "requiredReviewerCapabilities": [
+        "quality-assurance",
+        "independent-review"
+      ],
+      "humanGate": "approved-task-contract"
+    },
+    {
+      "id": "ROUTE-005",
+      "phase": "implementation",
+      "workArea": "api-and-domain",
+      "leadAgentId": "backend-engineer",
+      "reviewerAgentIds": [
+        "security-privacy-reviewer",
+        "qa-test-engineer",
+        "pull-request-reviewer"
+      ],
+      "requiredCapabilities": ["implementation", "authorization"],
+      "requiredReviewerCapabilities": [
+        "security-review",
+        "quality-assurance",
+        "independent-review"
+      ],
+      "humanGate": "approved-task-contract"
+    },
+    {
+      "id": "ROUTE-006",
+      "phase": "implementation",
+      "workArea": "database",
+      "leadAgentId": "data-database-engineer",
+      "reviewerAgentIds": [
+        "security-privacy-reviewer",
+        "qa-test-engineer",
+        "pull-request-reviewer"
+      ],
+      "requiredCapabilities": ["implementation", "data-integrity"],
+      "requiredReviewerCapabilities": [
+        "security-review",
+        "quality-assurance",
+        "independent-review"
+      ],
+      "humanGate": "data-lifecycle-and-migration-approval-when-consequential"
+    },
+    {
+      "id": "ROUTE-007",
+      "phase": "implementation",
+      "workArea": "infrastructure-and-operations",
+      "leadAgentId": "azure-platform-sre-engineer",
+      "reviewerAgentIds": [
+        "solution-architect",
+        "security-privacy-reviewer",
+        "pull-request-reviewer"
+      ],
+      "requiredCapabilities": ["operational-readiness"],
+      "requiredReviewerCapabilities": [
+        "architecture",
+        "security-review",
+        "independent-review"
+      ],
+      "humanGate": "environment-and-deployment-approval"
+    },
+    {
+      "id": "ROUTE-008",
+      "phase": "implementation",
+      "workArea": "governance-and-harness",
+      "leadAgentId": "harness-evaluation-engineer",
+      "reviewerAgentIds": [
+        "solution-architect",
+        "security-privacy-reviewer",
+        "pull-request-reviewer"
+      ],
+      "requiredCapabilities": ["deterministic-verification"],
+      "requiredReviewerCapabilities": [
+        "architecture",
+        "security-review",
+        "independent-review"
+      ],
+      "humanGate": "protected-policy-approval"
+    },
+    {
+      "id": "ROUTE-009",
+      "phase": "verification",
+      "workArea": "quality",
+      "leadAgentId": "qa-test-engineer",
+      "reviewerAgentIds": ["pull-request-reviewer"],
+      "requiredCapabilities": ["quality-assurance"],
+      "requiredReviewerCapabilities": ["independent-review"],
+      "humanGate": "merge-readiness-review"
+    },
+    {
+      "id": "ROUTE-010",
+      "phase": "independent-review",
+      "workArea": "security-and-privacy",
+      "leadAgentId": "pull-request-reviewer",
+      "reviewerAgentIds": ["security-privacy-reviewer"],
+      "requiredCapabilities": ["independent-review"],
+      "requiredReviewerCapabilities": ["security-review"],
+      "humanGate": "security-authority-when-required"
+    },
+    {
+      "id": "ROUTE-011",
+      "phase": "documentation-and-readiness",
+      "workArea": "documentation",
+      "leadAgentId": "technical-writer-documentation-steward",
+      "reviewerAgentIds": ["pull-request-reviewer"],
+      "requiredCapabilities": ["documentation"],
+      "requiredReviewerCapabilities": ["independent-review"],
+      "humanGate": "product-owner-acceptance"
+    },
+    {
+      "id": "ROUTE-012",
+      "phase": "release-and-operation",
+      "workArea": "release-readiness-and-incidents",
+      "leadAgentId": "azure-platform-sre-engineer",
+      "reviewerAgentIds": [
+        "security-privacy-reviewer",
+        "qa-test-engineer",
+        "pull-request-reviewer"
+      ],
+      "requiredCapabilities": ["operational-readiness", "incident-support"],
+      "requiredReviewerCapabilities": [
+        "security-review",
+        "quality-assurance",
+        "independent-review"
+      ],
+      "humanGate": "explicit-human-dispatch"
+    }
+  ]
+}

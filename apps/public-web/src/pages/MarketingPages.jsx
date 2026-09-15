@@ -1,14 +1,91 @@
 import './MarketingPages.styles.css';
 import { Button, Field, Select, Textarea } from '@fluentui/react-components';
-import { Circle12Filled } from '@fluentui/react-icons';
+import {
+  ArrowRight20Regular,
+  BuildingHome20Regular,
+  Circle12Filled,
+  HomeMoney20Regular,
+  Location20Regular,
+  PeopleCommunity20Regular,
+} from '@fluentui/react-icons';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { properties } from '../data/content.js';
+import { localizeProperty, properties } from '../data/content.js';
 import { PropertyCard } from '../components/PropertyCard.jsx';
 import { StatusMessage } from '../components/StatusMessage.jsx';
 
+function HeroTypewriter({ label, messages }) {
+  const [reduceMotion, setReduceMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [messageIndex, setMessageIndex] = useState(0);
+  const [characterCount, setCharacterCount] = useState(() => (reduceMotion ? messages[0].title.length : 0));
+  const [isDeleting, setIsDeleting] = useState(false);
+  const messageSignature = messages.map(({ title }) => title).join('\0');
+  const message = messages[messageIndex];
+  const Icon = message.icon;
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setReduceMotion(mediaQuery.matches);
+    updatePreference();
+    mediaQuery.addEventListener('change', updatePreference);
+    return () => mediaQuery.removeEventListener('change', updatePreference);
+  }, []);
+
+  useEffect(() => {
+    setMessageIndex(0);
+    setCharacterCount(reduceMotion ? messages[0].title.length : 0);
+    setIsDeleting(false);
+  }, [messageSignature, reduceMotion]);
+
+  useEffect(() => {
+    if (reduceMotion) return undefined;
+
+    let delay = isDeleting ? 58 : 105;
+    if (!isDeleting && characterCount === message.title.length) delay = 4000;
+    if (isDeleting && characterCount === 0) delay = 450;
+
+    const timer = window.setTimeout(() => {
+      if (!isDeleting && characterCount === message.title.length) {
+        setIsDeleting(true);
+      } else if (isDeleting && characterCount === 0) {
+        setMessageIndex((current) => (current + 1) % messages.length);
+        setIsDeleting(false);
+      } else {
+        setCharacterCount((current) => current + (isDeleting ? -1 : 1));
+      }
+    }, delay);
+
+    return () => window.clearTimeout(timer);
+  }, [characterCount, isDeleting, message.title, messages.length, reduceMotion]);
+
+  return (
+    <aside className="hero-typewriter" aria-labelledby="hero-typewriter-title">
+      <h2 className="sr-only" id="hero-typewriter-title">{label}</h2>
+      <ul className="sr-only">
+        {messages.map(({ detail, key, title }) => <li key={key}>{title}: {detail}</li>)}
+      </ul>
+      <div className="hero-typewriter-content" aria-hidden="true">
+        <div className="hero-typewriter-kicker">
+          <span className="hero-typewriter-label"><Icon aria-hidden="true" />{label}</span>
+          <span>{String(messageIndex + 1).padStart(2, '0')} / {String(messages.length).padStart(2, '0')}</span>
+        </div>
+        <strong className="hero-typewriter-line" aria-hidden="true">
+          {message.title.slice(0, characterCount)}
+          <span className="hero-typewriter-cursor" />
+        </strong>
+        <p>{message.detail}</p>
+        <div className="hero-typewriter-progress" aria-hidden="true">
+          {messages.map(({ key }, index) => <span className={index === messageIndex ? 'active' : ''} key={key} />)}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 export function HomePage({
   lang,
+  onSearch,
   voiceRoute = false,
   voiceText,
   voiceStatus,
@@ -22,10 +99,40 @@ export function HomePage({
 }) {
   const { t } = useTranslation();
   const audienceItems = t('marketing.audience.items', { returnObjects: true, defaultValue: [] });
+  const audienceRoutes = ['/properties', '/signup/landlord', '/signin', '/signup/operator'];
+  const heroProperty = localizeProperty(properties[0], lang);
+  const neighborhoodCount = new Set(properties.map(({ area }) => area)).size;
+  const collectionProofs = [
+    [String(properties.length).padStart(2, '0'), t('marketing.proof.homes')],
+    [String(neighborhoodCount).padStart(2, '0'), t('marketing.proof.neighborhoods')],
+    [t('marketing.proof.terms_value'), t('marketing.proof.terms')],
+    [t('marketing.proof.viewings_value'), t('marketing.proof.viewings')],
+  ];
+  const mockPartners = [
+    ['MH', 'Motema Homes'],
+    ['BP', 'Bokoko Property'],
+    ['ES', 'Ebele Services'],
+    ['LF', 'Likita Finance'],
+    ['KL', 'Kimia Living'],
+  ];
+  const heroMessages = [
+    ['kinshasa', Location20Regular],
+    ['listings', BuildingHome20Regular],
+    ['costs', HomeMoney20Regular],
+    ['everyone', PeopleCommunity20Regular],
+  ].map(([key, icon]) => ({
+    key,
+    icon,
+    title: t(`marketing.stats.${key}.0`),
+    detail: t(`marketing.stats.${key}.1`),
+  }));
 
   return (
     <div className={`page${voiceRoute ? ' voice-page' : ''}`}>
-      <section className="shell hero">
+      <section
+        className="shell hero"
+        style={{ backgroundImage: `linear-gradient(90deg, rgba(31, 17, 36, .92) 0%, rgba(31, 17, 36, .68) 48%, rgba(31, 17, 36, .2) 100%), url("${heroProperty.image}")` }}
+      >
         <div className="hero-copy">
           <p className="eyebrow">{t('marketing.eyebrow')}</p>
           <h1>
@@ -43,38 +150,64 @@ export function HomePage({
             </Button>
           </div>
         </div>
-        <div className="hero-media" role="img" aria-label={t('marketing.hero_media_alt')}>
-          <img src="/keyforta-logo-reversed.png" alt="" aria-hidden="true" />
+        <div className="hero-media">
+          <HeroTypewriter label={t('marketing.stats.label')} messages={heroMessages} />
         </div>
       </section>
 
-      <section className="shell demo-banner">
-        <Circle12Filled className="status-dot" aria-hidden="true" />
-        <strong>{t('marketing.public_preview')}</strong>
-        <span>{t('marketing.public_preview_desc')}</span>
-        <Link to="/home#status">{t('marketing.included_link')}</Link>
-      </section>
-
-      <section className="shell stats">
-        <div className="stat">
-          <strong>{t('marketing.stats.listings.0')}</strong>
-          <span>{t('marketing.stats.listings.1')}</span>
-        </div>
-        <div className="stat">
-          <strong>{t('marketing.stats.costs.0')}</strong>
-          <span>{t('marketing.stats.costs.1')}</span>
-        </div>
-        <div className="stat">
-          <strong>{t('marketing.stats.everyone.0')}</strong>
-          <span>{t('marketing.stats.everyone.1')}</span>
-        </div>
-        <div className="stat">
-          <strong>{t('marketing.stats.kinshasa.0')}</strong>
-          <span>{t('marketing.stats.kinshasa.1')}</span>
+      <section className="inventory-proof" aria-labelledby="inventory-proof-title">
+        <div className="shell inventory-proof-layout">
+          <div className="inventory-proof-intro">
+            <p className="eyebrow">{t('marketing.proof.eyebrow')}</p>
+            <h2 id="inventory-proof-title">{t('marketing.proof.title')}</h2>
+            <p>{t('marketing.proof.intro')}</p>
+          </div>
+          <div className="inventory-proof-facts">
+            {collectionProofs.map(([value, label], index) => (
+              <div className="inventory-proof-fact" key={label}>
+                <span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                <strong>{value}</strong>
+                <p>{label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      <section className="section white">
+      <form
+        className="shell property-search-dock"
+        aria-label={t('marketing.search.label')}
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSearch(Object.fromEntries(new FormData(event.currentTarget)));
+        }}
+      >
+        <Field label={t('marketing.search.area')}>
+          <Select name="area" defaultValue="">
+            <option value="">{t('marketing.search.any_area')}</option>
+            {[...new Set(properties.map((item) => item.area))].map((area) => <option key={area} value={area}>{area}</option>)}
+          </Select>
+        </Field>
+        <Field label={t('marketing.search.bedrooms')}>
+          <Select name="beds" defaultValue="">
+            <option value="">{t('marketing.search.any')}</option>
+            <option value="1">1+</option>
+            <option value="2">2+</option>
+            <option value="3">3+</option>
+          </Select>
+        </Field>
+        <Field label={t('marketing.search.max_rent')}>
+          <Select name="max" defaultValue="">
+            <option value="">{t('marketing.search.any')}</option>
+            <option value="300">$300</option>
+            <option value="500">$500</option>
+            <option value="900">$900</option>
+          </Select>
+        </Field>
+        <Button className="button copper" type="submit">{t('marketing.search.action')}</Button>
+      </form>
+
+      <section className="section white featured-section">
         <div className="shell">
           <div className="section-head">
             <div>
@@ -107,6 +240,9 @@ export function HomePage({
                 <span className="number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                 <h3>{item[0]}</h3>
                 <p>{item[1]}</p>
+                <Link className="feature-action" to={audienceRoutes[index]}>
+                  {item[2]} <ArrowRight20Regular aria-hidden="true" />
+                </Link>
               </article>
             ))}
           </div>
@@ -123,9 +259,13 @@ export function HomePage({
             <p>{t('marketing.standard.intro')}</p>
           </div>
           <div className="feature-grid">
-            <article className="feature"><h3>{t('marketing.standard.compare.0')}</h3><p>{t('marketing.standard.compare.1')}</p></article>
-            <article className="feature"><h3>{t('marketing.standard.verify.0')}</h3><p>{t('marketing.standard.verify.1')}</p></article>
-            <article className="feature"><h3>{t('marketing.standard.track.0')}</h3><p>{t('marketing.standard.track.1')}</p></article>
+            {['compare', 'verify', 'track'].map((step, index) => (
+              <article className="feature" key={step}>
+                <span className="number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                <h3>{t(`marketing.standard.${step}.0`)}</h3>
+                <p>{t(`marketing.standard.${step}.1`)}</p>
+              </article>
+            ))}
           </div>
         </div>
       </section>
@@ -148,41 +288,6 @@ export function HomePage({
             <p id="video-description" className="sr-only">
               {t('marketing.video.description')}
             </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="section white" id="status">
-        <div className="shell">
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">{t('marketing.preview.eyebrow')}</p>
-              <h2>{t('marketing.preview.title')}</h2>
-            </div>
-            <p>{t('marketing.preview.intro')}</p>
-          </div>
-          <div className="status-grid">
-            <article className="status-panel">
-              <h3>{t('marketing.preview.available_title')}</h3>
-              <ul>
-                {t('marketing.preview.available_items', { returnObjects: true, defaultValue: [] }).map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            </article>
-            <article className="status-panel next">
-              <h3>{t('marketing.preview.production_title')}</h3>
-              <ul>
-                {t('marketing.preview.production_items', { returnObjects: true, defaultValue: [] }).map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            </article>
-          </div>
-          <div className="launch-cta">
-            <div>
-              <p className="eyebrow">{t('marketing.preview.cta_eyebrow')}</p>
-              <h3>{t('marketing.preview.cta_title')}</h3>
-            </div>
-            <Button className="button copper" onClick={() => onOpenAccess('')}>
-              {t('marketing.preview.cta_action')}
-            </Button>
           </div>
         </div>
       </section>
@@ -218,6 +323,25 @@ export function HomePage({
           </div>
         </div>
       </section>
+
+      {import.meta.env.DEV && (
+        <section className="partner-preview" aria-labelledby="partner-preview-title">
+          <div className="shell partner-preview-layout">
+            <div className="partner-preview-intro">
+              <p className="eyebrow">{t('marketing.partners.eyebrow')}</p>
+              <h2 id="partner-preview-title">{t('marketing.partners.title')}</h2>
+            </div>
+            <div className="partner-preview-logos">
+              {mockPartners.map(([mark, name]) => (
+                <div className="partner-preview-logo" key={name}>
+                  <span aria-hidden="true">{mark}</span>
+                  <strong>{name}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

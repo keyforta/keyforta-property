@@ -4,7 +4,6 @@ import {
   AccordionHeader,
   AccordionItem,
   AccordionPanel,
-  Badge,
   Button,
   Field,
   Input,
@@ -62,17 +61,6 @@ const useContactStyles = makeStyles({
   submit: {
     width: '100%',
     minHeight: '48px',
-    color: '#fff',
-    backgroundColor: 'var(--logo-aubergine)',
-    borderRadius: '12px',
-    ':hover': {
-      color: '#fff',
-      backgroundColor: 'var(--aubergine)',
-    },
-    ':active': {
-      color: '#fff',
-      backgroundColor: 'var(--logo-aubergine)',
-    },
   },
 });
 
@@ -80,49 +68,21 @@ function DemoFormStatus({ message }) {
   return <StatusMessage className="form-status show" intent="success" message={message} />;
 }
 
-function LandlordsSection({ lang, onDemoFormSubmit }) {
+function LandlordsSection({ lang }) {
   const { t } = useTranslation();
-  const [status, setStatus] = useState('');
   const bullets = t('content.landlords.bullets', { returnObjects: true, defaultValue: [] });
   const caps = t('content.landlords.caps', { returnObjects: true, defaultValue: [] });
 
   return (
-    <section className="page content-page shell">
-      <div className="landlord-grid">
-        <div>
-          <p className="eyebrow">{t('content.landlords.eyebrow')}</p>
-          <h1>{t('content.landlords.title')}</h1>
-          <p className="muted">{t('content.landlords.intro')}</p>
-          <ul>
-            {bullets.map((item) => <li key={item}>{item}</li>)}
-          </ul>
-          <div className="mini-capability-list">
-            {caps.map((item) => <span key={item}>{item}</span>)}
-          </div>
-        </div>
-
-        <div className="form-card">
-          <h2>
-            {t('content.landlords.form_title')} <Badge as="span" className="demo-label" appearance="tint" color="informative">{t('common.demo')}</Badge>
-          </h2>
-          <p className="muted">{t('content.landlords.form_intro')}</p>
-          <form
-            className="form-grid demo-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setStatus(onDemoFormSubmit(Object.fromEntries(new FormData(event.currentTarget))));
-              event.currentTarget.reset();
-            }}
-          >
-            <Field label={t('content.landlords.owner_name')}><Input name="name" required /></Field>
-            <Field label={t('email')}><Input name="email" type="email" required /></Field>
-            <Field label={t('content.landlords.location')}><Input name="location" required /></Field>
-            <Field label={t('content.landlords.units')}><Input name="units" type="number" min="1" required /></Field>
-            <Field label={t('content.landlords.about')}><Textarea name="message" /></Field>
-            <Button className="button" type="submit">{t('content.landlords.submit')}</Button>
-            <DemoFormStatus message={status} />
-          </form>
-        </div>
+    <section className="page content-page shell content-narrow">
+      <p className="eyebrow">{t('content.landlords.eyebrow')}</p>
+      <h1>{t('content.landlords.title')}</h1>
+      <p className="muted">{t('content.landlords.intro')}</p>
+      <ul>
+        {bullets.map((item) => <li key={item}>{item}</li>)}
+      </ul>
+      <div className="mini-capability-list">
+        {caps.map((item) => <span key={item}>{item}</span>)}
       </div>
     </section>
   );
@@ -212,7 +172,7 @@ function FaqSection({ lang }) {
   );
 }
 
-function ContactSection({ lang, onDemoFormSubmit }) {
+function ContactSection({ lang, onContactSubmit }) {
   const { t } = useTranslation();
   const styles = useContactStyles();
   const [status, setStatus] = useState('');
@@ -247,7 +207,7 @@ function ContactSection({ lang, onDemoFormSubmit }) {
             className={styles.form}
             onSubmit={(event) => {
               event.preventDefault();
-              setStatus(onDemoFormSubmit(Object.fromEntries(new FormData(event.currentTarget))));
+              setStatus(onContactSubmit(Object.fromEntries(new FormData(event.currentTarget))));
               event.currentTarget.reset();
             }}
           >
@@ -259,10 +219,10 @@ function ContactSection({ lang, onDemoFormSubmit }) {
             </Field>
             <Field className={styles.field} label={t('content.contact.topic')}>
               <Select className={styles.control} size="large" name="topic">
-                <option>{t('content.contact.topic_general')}</option>
-                <option>{t('content.contact.topic_tenant')}</option>
-                <option>{t('content.contact.topic_landlord')}</option>
-                <option>{t('content.contact.topic_report')}</option>
+                <option value="general">{t('content.contact.topic_general')}</option>
+                <option value="tenant_support">{t('content.contact.topic_tenant')}</option>
+                <option value="landlord_inquiry">{t('content.contact.topic_landlord')}</option>
+                <option value="safety_concern">{t('content.contact.topic_report')}</option>
               </Select>
             </Field>
             <Field className={styles.field} label={t('content.contact.message')}>
@@ -314,12 +274,12 @@ function LegalSection({ lang, kind }) {
   );
 }
 
-export function TextContentPage({ lang, kind, onDemoFormSubmit }) {
+export function TextContentPage({ lang, kind, onContactSubmit }) {
   if (kind === 'how') return <HowSection lang={lang} />;
-  if (kind === 'landlords') return <LandlordsSection lang={lang} onDemoFormSubmit={onDemoFormSubmit} />;
+  if (kind === 'landlords') return <LandlordsSection lang={lang} />;
   if (kind === 'trust') return <TrustSection lang={lang} />;
   if (kind === 'faq') return <FaqSection lang={lang} />;
-  if (kind === 'contact') return <ContactSection lang={lang} onDemoFormSubmit={onDemoFormSubmit} />;
+  if (kind === 'contact') return <ContactSection lang={lang} onContactSubmit={onContactSubmit} />;
   if (kind === 'privacy' || kind === 'terms') return <LegalSection lang={lang} kind={kind} />;
   return null;
 }

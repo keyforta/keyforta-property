@@ -10,6 +10,7 @@
     "dev": "vite --host 127.0.0.1 --port 3002"
   },
   "dependencies": {
+    "@keyforta/ui": "workspace:*",
     "@fluentui/react-components": "^9.72.5",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

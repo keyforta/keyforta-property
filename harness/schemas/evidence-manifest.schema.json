@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keyforta.dev/schemas/evidence-manifest.schema.json",
+  "title": "KEYFORTA evidence manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "taskId",
+    "requirementReferences",
+    "issueReference",
+    "classification",
+    "workflowState",
+    "commitSha",
+    "branch",
+    "changedFiles",
+    "responsibleAgent",
+    "toolVersions",
+    "runtimeVersions",
+    "commands",
+    "automatedChecks",
+    "testResults",
+    "coverageResults",
+    "securityFindings",
+    "accessibilityResults",
+    "architectureResults",
+    "infrastructureResults",
+    "artifactRecords",
+    "visualEvidence",
+    "knownFailures",
+    "waivers",
+    "rollback",
+    "traceability",
+    "repairCycle",
+    "timestamps"
+  ],
+  "properties": {
+    "taskId": { "type": "string", "pattern": "^[A-Z][A-Z0-9]+-[0-9]+$" },
+    "requirementReferences": { "$ref": "#/$defs/nonEmptyStrings" },
+    "issueReference": { "type": "string", "minLength": 1 },
+    "classification": { "$ref": "#/$defs/classification" },
+    "workflowState": { "$ref": "#/$defs/state" },
+    "commitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "branch": { "type": "string", "minLength": 1 },
+    "changedFiles": { "$ref": "#/$defs/nonEmptyStrings" },
+    "responsibleAgent": { "type": "string", "minLength": 1 },
+    "toolVersions": { "$ref": "#/$defs/versionMap" },
+    "runtimeVersions": { "$ref": "#/$defs/versionMap" },
+    "commands": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/commandResult" },
+      "minItems": 1
+    },
+    "automatedChecks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "evidenceReference"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "status": { "$ref": "#/$defs/status" },
+          "evidenceReference": { "type": "string", "minLength": 1 }
+        }
+      },
+      "minItems": 1
+    },
+    "testResults": { "$ref": "#/$defs/checkResult" },
+    "coverageResults": { "$ref": "#/$defs/checkResult" },
+    "securityFindings": { "$ref": "#/$defs/checkResult" },
+    "accessibilityResults": { "$ref": "#/$defs/checkResult" },
+    "architectureResults": { "$ref": "#/$defs/checkResult" },
+    "infrastructureResults": { "$ref": "#/$defs/checkResult" },
+    "artifactRecords": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "reference", "sha256", "capturedAt", "sections"],
+        "properties": {
+          "kind": { "type": "string", "minLength": 1 },
+          "reference": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "capturedAt": { "type": "string", "format": "date-time" },
+          "sections": { "$ref": "#/$defs/nonEmptyStrings" }
+        }
+      },
+      "minItems": 1
+    },
+    "visualEvidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "knownFailures": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "waivers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/waiver" }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["procedure", "validated", "evidenceReferences"],
+      "properties": {
+        "procedure": { "type": "string", "minLength": 1 },
+        "validated": { "type": "boolean" },
+        "evidenceReferences": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "traceability": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/trace" },
+      "minItems": 1
+    },
+    "repairCycle": { "type": "integer", "minimum": 0, "maximum": 3 },
+    "timestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generatedAt",
+        "verificationStartedAt",
+        "verificationCompletedAt"
+      ],
+      "properties": {
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "verificationStartedAt": { "type": "string", "format": "date-time" },
+        "verificationCompletedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "$defs": {
+    "classification": {
+      "enum": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "security",
+        "infrastructure",
+        "configuration",
+        "documentation",
+        "dependency",
+        "operational",
+        "emergency"
+      ]
+    },
+    "state": {
+      "enum": [
+        "proposed",
+        "analyzed",
+        "approved",
+        "designed",
+        "implementation-ready",
+        "implemented",
+        "verification-ready",
+        "verified",
+        "blocked",
+        "changes-requested",
+        "rejected",
+        "superseded"
+      ]
+    },
+    "status": { "enum": ["passed", "failed", "skipped", "not-applicable"] },
+    "nonEmptyStrings": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "versionMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 },
+      "minProperties": 1
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reference", "sha256", "capturedAt"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "reference": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "capturedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "commandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "exitCode", "startedAt", "completedAt"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "exitCode": { "type": "integer" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "outputReference": { "type": "string", "minLength": 1 }
+      }
+    },
+    "checkResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "artifactReferences"],
+      "properties": {
+        "status": { "$ref": "#/$defs/status" },
+        "summary": { "type": "string", "minLength": 1 },
+        "artifactReferences": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "severity", "status", "summary"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "status": { "enum": ["open", "resolved", "accepted-risk"] },
+        "summary": { "type": "string", "minLength": 1 }
+      }
+    },
+    "waiver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate",
+        "reason",
+        "risk",
+        "impact",
+        "approver",
+        "approvedAt",
+        "expiresAt",
+        "compensatingControls",
+        "followUpReference",
+        "pullRequestReference",
+        "commitSha"
+      ],
+      "properties": {
+        "gate": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "risk": { "type": "string", "minLength": 1 },
+        "impact": { "type": "string", "minLength": 1 },
+        "approver": { "type": "string", "minLength": 1 },
+        "approvedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "compensatingControls": { "$ref": "#/$defs/nonEmptyStrings" },
+        "followUpReference": { "type": "string", "minLength": 1 },
+        "pullRequestReference": { "type": "string", "minLength": 1 },
+        "commitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirementReference",
+        "issueReference",
+        "taskContractReference",
+        "technicalDecisionReferences",
+        "changedFiles",
+        "acceptanceCriterion",
+        "testReferences",
+        "verificationReferences"
+      ],
+      "properties": {
+        "requirementReference": { "type": "string", "minLength": 1 },
+        "issueReference": { "type": "string", "minLength": 1 },
+        "taskContractReference": { "type": "string", "minLength": 1 },
+        "technicalDecisionReferences": { "$ref": "#/$defs/nonEmptyStrings" },
+        "changedFiles": { "$ref": "#/$defs/nonEmptyStrings" },
+        "acceptanceCriterion": { "type": "string", "minLength": 1 },
+        "testReferences": { "$ref": "#/$defs/nonEmptyStrings" },
+        "verificationReferences": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

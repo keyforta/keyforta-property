@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keyforta.dev/schemas/requirement-lifecycle.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "states", "transitions", "requirements"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "states": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "transitions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "approvalGate", "evidenceRequired"],
+        "properties": {
+          "from": { "type": "string", "minLength": 1 },
+          "to": { "type": "string", "minLength": 1 },
+          "approvalGate": { "type": "string" },
+          "evidenceRequired": { "type": "boolean" }
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version",
+          "status",
+          "source",
+          "owner",
+          "evidenceReferences",
+          "history"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9]+-[0-9]{3}$" },
+          "version": { "type": "integer", "minimum": 1 },
+          "status": { "type": "string", "minLength": 1 },
+          "source": { "type": "string", "minLength": 1 },
+          "owner": { "type": "string", "minLength": 1 },
+          "evidenceReferences": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "supersedes": { "type": "string", "minLength": 1 },
+          "history": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "status",
+                "actor",
+                "enteredAt",
+                "evidenceReferences"
+              ],
+              "properties": {
+                "status": { "type": "string", "minLength": 1 },
+                "actor": { "type": "string", "minLength": 1 },
+                "enteredAt": { "type": "string", "format": "date-time" },
+                "evidenceReferences": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

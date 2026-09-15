@@ -1,0 +1,292 @@
+{
+  "contractVersion": 2,
+  "taskId": "ENG-005",
+  "phase": "implementation",
+  "workArea": "governance-and-harness",
+  "title": "Add repository-native GitHub Copilot Agent Skills",
+  "businessObjectiveReference": "https://github.com/cmbuyamba/keyforta-property/issues/30",
+  "issueReference": "https://github.com/cmbuyamba/keyforta-property/issues/30",
+  "requirementReferences": [
+    "https://github.com/cmbuyamba/keyforta-property/issues/30",
+    "docs/engineering/FULL_LIFECYCLE_AGENT_SYSTEM.md",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "classification": "dependency",
+  "workflowState": "verification-ready",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-11T22:15:00.000Z",
+      "evidenceReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-11T22:16:00.000Z",
+      "evidenceReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-11T22:17:00.000Z",
+      "evidenceReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/cmbuyamba/keyforta-property/issues/30",
+        "commitSha": "6517c52f4eb64321849167b23d5322fb280822ec"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-11T22:18:00.000Z",
+      "evidenceReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-11T22:19:00.000Z",
+      "evidenceReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-11T22:30:00.000Z",
+      "evidenceReferences": [
+        ".github/skills/discover-capabilities/SKILL.md",
+        "harness/scripts/skill-lib.mjs",
+        "harness/scripts/verify-skills.mjs"
+      ]
+    },
+    {
+      "state": "verification-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-11T22:31:00.000Z",
+      "evidenceReferences": [
+        "harness/reports/self-test-latest.json",
+        "docs/engineering/VALIDATION_EVIDENCE.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-12T03:38:12.708Z",
+      "evidenceReferences": [
+        "harness/reports/failures/ENG-005/2026-09-12T03-38-12.708Z.json"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-12T03:45:00.000Z",
+      "evidenceReferences": [
+        "harness/scripts/skill-lib.mjs",
+        "harness/scripts/self-test.mjs"
+      ]
+    },
+    {
+      "state": "verification-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-12T03:45:39.000Z",
+      "evidenceReferences": [
+        "harness/reports/self-test-latest.json",
+        "docs/engineering/VALIDATION_EVIDENCE.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Pull Request Reviewer",
+      "enteredAt": "2026-09-12T03:53:46.000Z",
+      "evidenceReferences": [
+        "harness/scripts/skill-lib.mjs",
+        "harness/scripts/self-test.mjs"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-12T03:53:46.000Z",
+      "evidenceReferences": [
+        "harness/scripts/skill-lib.mjs",
+        "harness/scripts/self-test.mjs"
+      ]
+    },
+    {
+      "state": "verification-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-12T03:53:46.000Z",
+      "evidenceReferences": [
+        "harness/reports/self-test-latest.json",
+        "docs/engineering/VALIDATION_EVIDENCE.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-12T03:59:59.000Z",
+      "evidenceReferences": [
+        "harness/scripts/skill-lib.mjs",
+        "harness/scripts/self-test.mjs"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-12T03:59:59.000Z",
+      "evidenceReferences": [
+        "harness/scripts/skill-lib.mjs",
+        "harness/scripts/self-test.mjs"
+      ]
+    },
+    {
+      "state": "verification-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-12T03:59:59.000Z",
+      "evidenceReferences": [
+        "harness/reports/self-test-latest.json",
+        "docs/engineering/VALIDATION_EVIDENCE.md"
+      ]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "routingRuleId": "ROUTE-008",
+  "supportingReviewers": [
+    "Solution Architect",
+    "Security and Privacy Reviewer",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "Merged ENG-003 lifecycle governance",
+    "Human-directed bounded continuation: https://github.com/cmbuyamba/keyforta-property/issues/30#issuecomment-5643394050"
+  ],
+  "allowedPaths": [
+    ".github/copilot-instructions.md",
+    ".github/skills/",
+    "docs/engineering/AGENT_SKILLS.md",
+    "docs/engineering/VALIDATION_EVIDENCE.md",
+    "harness/README.md",
+    "harness/scripts/agent-lib.mjs",
+    "harness/scripts/edd-lib.mjs",
+    "harness/scripts/self-test.mjs",
+    "harness/scripts/skill-lib.mjs",
+    "harness/scripts/verify-required-scenarios.mjs",
+    "harness/scripts/verify-skills.mjs",
+    "harness/scripts/verify.mjs",
+    "harness/tasks/copilot-agent-skills.json",
+    "package.json",
+    "pnpm-lock.yaml"
+  ],
+  "declaredProtectedPaths": [
+    ".github/copilot-instructions.md",
+    ".github/skills/",
+    "harness/scripts/"
+  ],
+  "protectedPaths": [
+    ".github/workflows/",
+    "harness/policies/",
+    "harness/schemas/",
+    "docs/product/",
+    "apps/",
+    "packages/",
+    "infra/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/cmbuyamba/keyforta-property/issues/30"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-SKILL-001",
+      "requirementReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ],
+      "testReferences": ["harness/scripts/self-test.mjs"]
+    },
+    {
+      "id": "AC-SKILL-002",
+      "requirementReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ],
+      "testReferences": ["harness/scripts/self-test.mjs"]
+    },
+    {
+      "id": "AC-SKILL-003",
+      "requirementReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ],
+      "testReferences": ["harness/scripts/self-test.mjs"]
+    },
+    {
+      "id": "AC-SKILL-004",
+      "requirementReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ],
+      "testReferences": ["harness/scripts/self-test.mjs"]
+    },
+    {
+      "id": "AC-SKILL-005",
+      "requirementReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ],
+      "testReferences": ["harness/scripts/self-test.mjs"]
+    },
+    {
+      "id": "AC-SKILL-006",
+      "requirementReferences": [
+        "https://github.com/cmbuyamba/keyforta-property/issues/30"
+      ],
+      "testReferences": [
+        "harness/scripts/verify.mjs",
+        "harness/scripts/verify-required-scenarios.mjs"
+      ]
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/engineering/FULL_LIFECYCLE_AGENT_SYSTEM.md",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "requiredScenarios": [
+    "valid-skill-discovery",
+    "incomplete-skill-rejection",
+    "unknown-agent-rejection",
+    "approval-bypass-rejection",
+    "production-deployment-rejection"
+  ],
+  "requiredCommands": [
+    "pnpm harness:self-test",
+    "pnpm verify:skills",
+    "pnpm verify:task",
+    "pnpm verify:classification",
+    "pnpm verify:all"
+  ],
+  "requiredEvidence": [
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-ENG-005.json",
+    "docs/engineering/VALIDATION_EVIDENCE.md"
+  ],
+  "riskClassification": "medium",
+  "securityImpact": "Adds deterministic validation for skill authority, agent references, approval gates, production restrictions, and canonical verification obligations.",
+  "dataImpact": "No runtime schema, production data, retention, or tenant-data changes.",
+  "observabilityImpact": "Adds repository-local skill validation evidence only; no telemetry or SLO changes.",
+  "rollbackConsiderations": "Revert the Agent Skills files and validator integration; runtime applications and infrastructure remain unchanged.",
+  "humanApprovalRequirements": [
+    "Product-owner approval for scope and acceptance",
+    "Independent architecture, security, and pull request review",
+    "GitHub controls remain authoritative for approval and merge",
+    "Explicit production-authority approval remains required for release",
+    "No product workflow, merge, deployment, or production action by the implementing agent"
+  ],
+  "repairCycle": 3
+}

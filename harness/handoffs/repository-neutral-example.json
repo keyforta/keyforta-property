@@ -1,0 +1,37 @@
+{
+  "handoffId": "HANDOFF-ENG-001-REVIEW",
+  "taskId": "ENG-001",
+  "fromAgentId": "harness-evaluation-engineer",
+  "toAgentId": "pull-request-reviewer",
+  "status": "ready",
+  "inputs": ["harness/tasks/repository-neutral-example.json"],
+  "expectedOutputs": [
+    {
+      "id": "independent-review",
+      "description": "Independent review findings and residual risks"
+    }
+  ],
+  "acceptanceCriteria": [
+    "reviewer is independent from the implementer",
+    "findings identify blockers separately from recommendations"
+  ],
+  "evidence": [],
+  "humanDecision": {
+    "required": true,
+    "gate": "GitHub required review before merge"
+  },
+  "history": [
+    {
+      "status": "proposed",
+      "actor": "harness-evaluation-engineer",
+      "enteredAt": "2026-09-11T00:04:00.000Z",
+      "evidenceReferences": ["harness/tasks/repository-neutral-example.json"]
+    },
+    {
+      "status": "ready",
+      "actor": "harness-evaluation-engineer",
+      "enteredAt": "2026-09-11T00:05:00.000Z",
+      "evidenceReferences": ["harness/tasks/repository-neutral-example.json"]
+    }
+  ]
+}

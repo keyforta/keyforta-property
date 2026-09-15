@@ -16,13 +16,10 @@ const requiredFiles = [
   'src/pages/MarketingPages.jsx',
   'src/pages/PropertyPages.jsx',
   'src/pages/AccountPages.jsx',
-  'src/pages/WorkspacePages.jsx',
   'src/pages/ContentPages.jsx',
   'src/pages/index.js',
   'src/data/content.js',
   'src/services/storage.js',
-  'src/services/mockApiService.js',
-  'src/mock-api.js',
   'src/styles.css',
   'public/keyforta-app-icon.png',
   'public/keyforta-symbol.png',
@@ -34,5 +31,4 @@ const requiredFiles = [
 for (const relativePath of requiredFiles) await access(resolve(appRoot, relativePath));
 JSON.parse(await readFile(resolve(appRoot, 'src/locales/en.json'), 'utf8'));
 JSON.parse(await readFile(resolve(appRoot, 'src/locales/fr.json'), 'utf8'));
-new Function(await readFile(resolve(appRoot, 'src/mock-api.js'), 'utf8'));
 console.log(`Checked ${requiredFiles.length} public-web source files, locale JSON parsing, and JavaScript syntax.`);

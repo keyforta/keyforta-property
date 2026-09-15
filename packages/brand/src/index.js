@@ -1,10 +1,10 @@
 export const keyfortaBrand = Object.freeze({
   name: 'KEYFORTA',
   colors: Object.freeze({
-    aubergine: '#2B1A30',
-    cream: '#F3EEE9',
-    copper: '#C37B4E',
-    teal: '#31706C'
+    aubergine: '#24162E',
+    mineralTeal: '#267C78',
+    burnishedCopper: '#C47A4A',
+    softBone: '#F3EEE7'
   }),
   fonts: Object.freeze({
     display: 'Instrument Sans',

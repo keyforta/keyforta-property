@@ -1,9 +1,9 @@
 /* Global foundations and styles shared across route modules. */
 :root {
-  --aubergine: #24162e;
-  --teal: #267c78;
-  --copper: #c47a4a;
-  --bone: #f3eee7;
+  --aubergine: var(--logo-aubergine);
+  --teal: var(--logo-teal);
+  --copper: var(--logo-copper);
+  --bone: var(--logo-cream);
   --ink: #24162e;
   --white: #fff;
   --muted: #675f6b;
@@ -13,6 +13,10 @@
 }
 * {
   box-sizing: border-box;
+}
+button,
+.button {
+  border-radius: 4px 10px 10px 10px !important;
 }
 html {
   scroll-behavior: smooth;
@@ -106,6 +110,11 @@ body {
   margin: 0;
   color: var(--muted);
 }
+.featured-section .section-head > p,
+.process-section .section-head > p {
+  max-width: 760px;
+  white-space: nowrap;
+}
 .cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -137,6 +146,39 @@ body {
 .feature p {
   color: var(--muted);
   margin: 0;
+}
+.audience-section .feature {
+  display: flex;
+  min-width: 0;
+  padding: 26px 24px;
+  flex-direction: column;
+}
+.audience-section .feature-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.audience-section .feature h3 {
+  font-size: 1.08rem;
+}
+.audience-section .feature p {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.feature-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: 24px;
+  color: var(--logo-aubergine);
+  font-weight: 750;
+  text-decoration: none;
+}
+.feature-action:hover {
+  color: var(--logo-teal);
+}
+.feature-action:focus-visible {
+  outline: 3px solid rgba(49, 112, 108, 0.42);
+  outline-offset: 4px;
 }
 .form-grid label {
   display: grid;
@@ -204,13 +246,21 @@ body {
   border: 1px solid var(--line);
   padding: 4px 8px;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   vertical-align: middle;
 }
 @media (max-width: 900px) {
+  .featured-section .section-head > p,
+  .process-section .section-head > p {
+    max-width: 520px;
+    white-space: normal;
+  }
   .cards,
 .feature-grid {
     grid-template-columns: 1fr 1fr;
+  }
+  .audience-section .feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 600px) {
@@ -227,6 +277,9 @@ body {
   }
   .cards,
 .feature-grid {
+    grid-template-columns: 1fr;
+  }
+  .audience-section .feature-grid {
     grid-template-columns: 1fr;
   }
   .form-card {
@@ -496,11 +549,11 @@ body {
   }
 }
 :root {
-  --logo-aubergine: #2b1a30;
+  --logo-aubergine: #24162e;
   --logo-purple: #3d1f44;
-  --logo-teal: #31706c;
-  --logo-copper: #c37b4e;
-  --logo-cream: #f3eee9;
+  --logo-teal: #267c78;
+  --logo-copper: #c47a4a;
+  --logo-cream: #f3eee7;
   --ink: var(--logo-aubergine);
   --hero-ink: var(--logo-aubergine);
   --aubergine: var(--logo-aubergine);
@@ -508,7 +561,7 @@ body {
   --copper: var(--logo-copper);
   --bone: var(--logo-cream);
   --parchment: var(--logo-cream);
-  --muted: rgba(43, 26, 48, 0.68);
+  --muted: #554b58;
   --line: rgba(43, 26, 48, 0.18);
   --success: var(--logo-teal);
   --shadow: 0 14px 36px rgba(43, 26, 48, 0.1);
@@ -516,6 +569,27 @@ body {
 body {
   background: var(--logo-cream);
   color: var(--logo-aubergine);
+}
+.fluent-app-provider.fluent-app-provider {
+  font-size: 1.125rem !important;
+  line-height: 1.55;
+}
+.fluent-app-provider .fui-Field__label,
+.fluent-app-provider .button,
+header nav a,
+footer a,
+footer p,
+.skip-link {
+  font-size: 1rem !important;
+}
+.section-head > p {
+  font-size: 1.125rem;
+  line-height: 1.55;
+}
+.feature p,
+.audience-section .feature p {
+  font-size: 1rem;
+  line-height: 1.55;
 }
 .text-link {
   color: var(--logo-teal);
@@ -594,7 +668,7 @@ body {
   right: 0;
   width: 150px;
   height: 54px;
-  background: url("keyforta-logo-monochrome.png") center/contain no-repeat;
+  background: url("/keyforta-logo-monochrome.png") center/contain no-repeat;
   opacity: 0.1;
   pointer-events: none;
 }

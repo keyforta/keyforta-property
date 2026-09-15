@@ -16,8 +16,8 @@
     "menu": "Menu",
     "sign_out": "Sign out",
     "loading": "Loading...",
-    "demo": "Demo",
-    "mock_data": "Mock data"
+    "demo": "Workspace",
+    "mock_data": "Data"
   },
   "roles": {
     "tenant": "Tenant",
@@ -39,12 +39,15 @@
     "bathroom_other": "{{count}} bathrooms"
   },
   "status": {
-    "application_submitted": "Application submitted for manager review in this demo.",
-    "invitation_saved": "Invitation saved in this demo.",
-    "service_offer_saved": "Service offer published in this demo.",
-    "access_request_saved": "Request saved for demonstration. Reference {{reference}}. It was not sent to a server.",
-    "saved_demo": "Saved in this browser for demonstration. It was not sent to a server.",
-    "workspace_action_saved": "Action saved in the demonstration. This interaction will become an API call.",
+    "application_submitted": "Application submitted for manager review.",
+    "viewing_requested": "Your viewing request has been received.",
+    "invitation_saved": "Invitation saved.",
+    "service_offer_saved": "Service offer published.",
+    "access_request_saved": "Request saved. Reference {{reference}}.",
+    "saved_demo": "Saved successfully.",
+    "workspace_action_saved": "Action saved.",
+    "registration_received": "Your registration request has been received.",
+    "contact_received": "Your message has been received.",
     "api_idle": "Operation results will appear here.",
     "api_result": "{{operation}} {{resource}}: {{payload}}",
     "api_error": "{{operation}} {{resource}}: {{message}}"
@@ -57,7 +60,7 @@
   "nav_voice": "AI voice",
   "faq_short": "FAQ",
   "request_access": "Request access",
-  "sign_in": "Demo sign in",
+  "sign_in": "Sign in",
   "sign_in_short": "Sign in",
   "footer_summary": "Clear property information. Reliable rental records. Better relationships.",
   "explore": "Explore",
@@ -68,7 +71,7 @@
   "terms": "Terms",
   "early_access": "Early access",
   "join_launch": "Join the KEYFORTA launch",
-  "access_intro": "Choose how you plan to use the platform. This demo saves your request only in this browser until the backend is connected.",
+  "access_intro": "Choose how you plan to use the platform.",
   "full_name": "Full name",
   "email": "Email address",
   "i_am": "I am a",
@@ -77,7 +80,7 @@
   "submit_request": "Submit request",
   "voice_eyebrow": "AI voice generator",
   "voice_title": "Give property information a voice.",
-  "voice_intro": "Create a spoken preview from a property description, service update, or message. This public preview uses your browser and does not send text to a server.",
+  "voice_intro": "Create a spoken preview from a property description, service update, or message.",
   "voice_label": "Text to speak",
   "voice_voice": "Voice",
   "voice_default": "Browser default",
@@ -100,11 +103,11 @@
       "quotes-reports": "Quotes & reports",
       "services": "Services"
     },
-    "demo_workspace": "Demo workspace",
-    "change_role": "Change demo role",
-    "banner": "All records below are synthetic. Production authentication and backend services will replace this view. Operator access is limited to the operator profile and assigned jobs.",
+    "demo_workspace": "Workspace",
+    "change_role": "Change role",
+    "banner": "Operator access is limited to the operator profile and assigned jobs.",
     "selected_module": "Selected module",
-    "demo_view": "Demo view",
+    "demo_view": "Workspace view",
     "manager": {
       "dynamic_panel_title": "Rental applications",
       "dynamic_row_title_one": "{{count}} application awaiting review",
@@ -146,15 +149,15 @@
         "subtitle": "A focused view of viewings, payments, requests, and messages.",
         "stats": [["Next rent", "$400", "Due in 8 days"], ["Viewing", "Requested", "Riverside apartment"], ["Open request", "1", "Water pump inspection"]],
         "sections": [
-          {"title": "Upcoming activity", "rows": [["viewing", "Viewing request", "Riverside apartment · Ngaliema", "Pending", ""], ["payment", "Rent reminder", "Monthly rent · Mock account", "Scheduled", "teal"]]},
+          {"title": "Upcoming activity", "rows": [["viewing", "Viewing request", "Riverside apartment · Ngaliema", "Pending", ""], ["payment", "Rent reminder", "Monthly rent · Tenant account", "Scheduled", "teal"]]},
           {"title": "Maintenance and messages", "rows": [["warning", "Water pump inspection", "Submitted May 8 · Awaiting manager response", "Open", ""], ["message", "Manager message", "We will confirm the visit time shortly.", "New", "teal"]]}
         ]
       },
       "landlord": {
         "label": "Landlord workspace",
         "title": "See the health of your properties.",
-        "subtitle": "A mock portfolio view for listings, occupancy, payments, and maintenance.",
-        "stats": [["Demo units", "6", "Across Kinshasa"], ["Occupancy", "83%", "5 of 6 units"], ["Rent recorded", "$1,850", "This mock month"], ["Open maintenance", "2", "Needs attention"]],
+        "subtitle": "A portfolio view for listings, occupancy, payments, and maintenance.",
+        "stats": [["Units", "6", "Across Kinshasa"], ["Occupancy", "83%", "5 of 6 units"], ["Rent recorded", "$1,850", "This month"], ["Open maintenance", "2", "Needs attention"]],
         "sections": [
           {"title": "Portfolio activity", "rows": [["home", "Riverside apartment", "Ngaliema · Viewing requested", "Active", "teal"], ["complete", "Courtyard residence", "Limete · Tenant payment recorded", "Recorded", "teal"]]},
           {"title": "Operations queue", "rows": [["warning", "Water pump inspection", "Assigned to property manager", "Open", ""], ["add", "New property draft", "Review details before publishing", "Draft", ""]]}
@@ -163,22 +166,22 @@
       "manager": {
         "label": "Property manager workspace",
         "title": "Coordinate the work behind every home.",
-        "subtitle": "A mock operating view for units, participants, verification, payments, and maintenance.",
-        "stats": [["Managed units", "14", "Demo portfolio"], ["Occupancy", "93%", "13 of 14 units"], ["Verification queue", "3", "Needs review"], ["Open work orders", "4", "Across 3 properties"]],
+        "subtitle": "An operating view for units, participants, verification, payments, and maintenance.",
+        "stats": [["Managed units", "14", "Assigned portfolio"], ["Occupancy", "93%", "13 of 14 units"], ["Verification queue", "3", "Needs review"], ["Open work orders", "4", "Across 3 properties"]],
         "sections": [
           {"title": "Priority queue", "rows": [["warning", "Verification review", "2 owner records and 1 property record", "3 pending", ""], ["viewing", "Viewing coordination", "Two requests need appointment times", "Today", "teal"]]},
-          {"title": "Recent operations", "rows": [["payment", "Payment records", "Five mock receipts reconciled", "Complete", "teal"], ["message", "Participant messages", "One new tenant message requires a reply", "New", "teal"]]}
+          {"title": "Recent operations", "rows": [["payment", "Payment records", "Five receipts reconciled", "Complete", "teal"], ["message", "Participant messages", "One new tenant message requires a reply", "New", "teal"]]}
         ]
       },
       "operator": {
         "label": "Independent maintenance operator workspace",
         "title": "Keep every assigned job moving.",
-        "subtitle": "A focused field-service view for work orders, estimates, visits, evidence, and mock earnings.",
-        "stats": [["Assigned jobs", "3", "Across 2 properties"], ["Today s visits", "2", "One arrival confirmed"], ["Quotes awaiting review", "1", "Submit before 5:00 PM"], ["Mock earnings", "$1,240", "This demonstration month"]],
+        "subtitle": "A focused field-service view for work orders, estimates, visits, evidence, and earnings.",
+        "stats": [["Assigned jobs", "3", "Across 2 properties"], ["Today s visits", "2", "One arrival confirmed"], ["Quotes awaiting review", "1", "Submit before 5:00 PM"], ["Earnings", "$1,240", "This month"]],
         "sections": [
           {"title": "Assigned work orders", "rows": [["warning", "Water pump inspection", "Riverside apartment · Ngaliema · High priority", "Assigned", ""], ["viewing", "Generator service", "Urban view residence · Gombe · Visit at 2:00 PM", "Scheduled", "teal"], ["complete", "Plumbing repair", "Family courtyard home · Lingwala · Customer confirmation pending", "Review", "teal"]]},
           {"title": "Quotes and schedule", "rows": [["payment", "Water pump estimate", "Materials and labor estimate requested by manager", "Due today", ""], ["clock", "Next arrival window", "Today · 2:00-3:00 PM · Customer notified", "Confirmed", "teal"]]},
-          {"title": "Field reports and evidence", "rows": [["add", "Completion report", "Add work performed, materials, cost, photos, and customer notes", "Ready", ""], ["complete", "Last completed job", "Electrical repair · $380 mock payout · Receipt available", "Recorded", "teal"]]}
+          {"title": "Field reports and evidence", "rows": [["add", "Completion report", "Add work performed, materials, cost, photos, and customer notes", "Ready", ""], ["complete", "Last completed job", "Electrical repair · $380 payout · Receipt available", "Recorded", "teal"]]}
         ]
       }
     }
@@ -221,19 +224,48 @@
     "intro": "Discover dependable rentals and keep the important parts of a rental relationship clear from viewing through monthly payments.",
     "browse_properties": "Browse properties",
     "hero_media_alt": "Apartment buildings in Kinshasa at golden hour",
-    "public_preview": "Public preview",
-    "public_preview_desc": "All listings, accounts, payments, and messages are simulated with mock data.",
+    "hero_property": {
+      "label": "Featured home",
+      "action": "View property"
+    },
+    "search": {
+      "label": "Search available properties",
+      "area": "Neighborhood",
+      "any_area": "All Kinshasa neighborhoods",
+      "bedrooms": "Bedrooms",
+      "max_rent": "Maximum monthly rent",
+      "any": "Any",
+      "action": "Find a home"
+    },
+    "public_preview": "Property platform",
+    "public_preview_desc": "Explore listings, accounts, payments, and messages.",
     "included_link": "See what is included",
     "stats": {
-      "listings": ["Mock listings", "Explore the future experience"],
-      "costs": ["Clear costs", "Rent and terms up front"],
-      "everyone": ["For everyone", "Tenants, owners, managers and operators"],
-      "kinshasa": ["Kinshasa first", "Built for local realities"]
+      "label": "Why KEYFORTA",
+      "listings": ["Property listings", "Compare homes with location, price, amenities and availability presented clearly before you request a viewing."],
+      "costs": ["Clear costs", "See rent, deposits and essential terms before you commit, with fewer surprises later."],
+      "everyone": ["For everyone", "One connected experience for tenants, landlords, property managers and trusted service operators."],
+      "kinshasa": ["Kinshasa first", "Designed around how Kinshasa rents, pays, verifies and manages homes, not a generic imported workflow."]
+    },
+    "proof": {
+      "eyebrow": "Current collection",
+      "title": "Real choices. Useful detail.",
+      "intro": "Explore a growing Kinshasa collection with practical information already attached to every home.",
+      "homes": "homes ready to compare",
+      "neighborhoods": "Kinshasa neighborhoods represented",
+      "terms_value": "Shown",
+      "terms": "rent and deposit terms",
+      "viewings_value": "Ready",
+      "viewings": "viewing requests"
+    },
+    "partners": {
+      "eyebrow": "Partner network",
+      "title": "A local network for a better rental market."
     },
     "featured": {
       "eyebrow": "Featured homes",
       "title": "Start with what matters.",
-      "intro": "Explore demonstration listings with example availability, verification signals, rental terms, and viewing requests.",
+      "intro": "Explore listings with availability, verification signals, rental terms, and viewing requests.",
       "view_all": "View all properties"
     },
     "audience": {
@@ -241,32 +273,32 @@
       "title": "One platform, four starting points.",
       "intro": "Start with the part of the rental journey that matters most to you.",
       "items": [
-        ["Find a home", "Compare homes, understand the full cost, and request a viewing."],
-        ["List a property", "Present your homes clearly and prepare for better tenant conversations."],
-        ["Manage rentals", "Review a mock workspace for units, agreements, payments, and maintenance."],
-        ["Operate in the field", "Operators can track assigned work orders, quotes, visits, and completion reports."]
+        ["Find a home", "Compare homes, understand the full cost, and request a viewing.", "Explore homes"],
+        ["List a property", "Present your homes clearly and prepare for better tenant conversations.", "Join as a landlord"],
+        ["Manage rentals", "Review units, agreements, payments, and maintenance in one workspace.", "Open your workspace"],
+        ["Operate in the field", "Operators can track assigned work orders, quotes, visits, and completion reports.", "Join as an operator"]
       ]
     },
     "standard": {
       "eyebrow": "One shared standard",
       "title": "A clearer rental journey.",
-      "intro": "The public layer already demonstrates the core journey while production services are being connected.",
+      "intro": "Follow the complete rental journey from discovery through ongoing management.",
       "compare": ["Compare", "Compare homes with practical details, full monthly costs, and availability."],
       "verify": ["Verify", "See what has been submitted, reviewed, and what still requires confirmation."],
       "track": ["Track", "Keep payments, receipts, maintenance, and communication in one shared record."],
-      "banner_title": "Complete public preview",
-      "banner_body": "Visitors can explore listings, role workspaces, and AI voice previews using local mock data."
+      "banner_title": "One connected experience",
+      "banner_body": "Explore listings, role workspaces, and AI voice tools in one place."
     },
     "preview": {
-      "eyebrow": "Complete public preview",
-      "title": "See the product before the connection.",
-      "intro": "The public layer is ready to demonstrate the core journey while your production services are connected.",
+      "eyebrow": "Connected rental journey",
+      "title": "Explore the product.",
+      "intro": "Follow the core journey across property discovery and management.",
       "available_title": "Visitors can explore",
       "available_items": [
-        "Mock listings, filters, sorting, and detail pages",
+        "Listings, filters, sorting, and detail pages",
         "Availability, costs, terms, and verification signals",
         "Viewing, property-interest, and contact requests",
-        "Tenant, landlord, manager, and operator demo workspaces",
+        "Tenant, landlord, manager, and operator workspaces",
         "AI voice previews for property and service messages"
       ],
       "production_title": "Production services to connect",
@@ -275,7 +307,7 @@
         "Authentication, roles, and verification evidence",
         "Payments, receipts, notifications, and email",
         "Maintenance messaging and final legal documents",
-        "API contracts for every mock read and write action"
+        "API contracts for every read and write action"
       ],
       "cta_eyebrow": "Stay close to the launch",
       "cta_title": "Help shape the first connected version.",
@@ -285,7 +317,7 @@
       "eyebrow": "KEYFORTA brand film",
       "title": "A clearer way to find and manage home.",
       "intro": "See the thinking behind KEYFORTA: dependable rentals, practical details, and a shared record for the people involved.",
-      "note": "Instrumental soundtrack only · Public preview",
+      "note": "Instrumental soundtrack only",
       "captions": "English captions",
       "description": "A short KEYFORTA brand film introducing dependable rental discovery, clear costs, and shared records for Kinshasa."
     }
@@ -293,7 +325,7 @@
   "property_pages": {
     "discovery_eyebrow": "Property discovery",
     "find_title": "Find a home that fits.",
-    "discovery_intro": "Compare demonstration listings. No property shown here is currently being offered for rent.",
+    "discovery_intro": "Compare homes by location, price, layout, amenities, and availability.",
     "neighborhood": "Neighborhood",
     "placeholder_neighborhood": "e.g. Ngaliema",
     "bedrooms": "Bedrooms",
@@ -305,32 +337,39 @@
     "sort_price_high": "Price: high to low",
     "apply_filters": "Apply filters",
     "reset": "Reset",
-    "results_count_one": "{{count}} demonstration property",
-    "results_count_other": "{{count}} demonstration properties",
-    "no_results": "No mock properties match these filters.",
+    "results_count_one": "{{count}} property",
+    "results_count_other": "{{count}} properties",
+    "no_results": "No properties match these filters.",
     "back_to_properties": "Back to properties",
-    "demo_listing_label": "Demonstration listing:",
-    "demo_listing_notice": "This property is mock data. It cannot be reserved, rented, or paid for through KEYFORTA yet.",
+    "demo_listing_label": "Property listing:",
+    "demo_listing_notice": "Confirm availability with the property manager before making a commitment.",
     "neighborhood_label": "neighborhood",
-    "mock_verification": "Mock verification",
+    "mock_verification": "Verification",
     "about_home": "About this home",
     "included": "What is included",
-    "verification_preview": "Verification preview",
+    "verification_preview": "Verification",
     "ownership_pending": "Ownership authority: pending production evidence",
     "identity_checked": "Participant identity: checked during onboarding",
     "move_in_costs": "Illustrative move-in costs",
     "monthly_rent": "Monthly rent",
     "example_deposit": "Example deposit ({{count}} months)",
     "shown_before_commitment": "Shown before commitment",
-    "mock_figures": "Mock figures only. Final terms will come from the connected agreement.",
+    "mock_figures": "Confirm final terms in the rental agreement.",
     "living_room": "living room",
     "kitchen": "kitchen",
     "request_viewing": "Request a viewing",
+    "viewing_eyebrow": "Property viewing",
+    "viewing_title": "View {{title}}.",
+    "viewing_intro": "Share your preferred time and the property manager will follow up to confirm availability.",
+    "preferred_time": "Preferred date and time",
+    "viewing_message": "Message (optional)",
+    "submit_viewing": "Send viewing request",
+    "back_to_property": "Back to property",
     "apply_unit": "Apply to rent this unit",
     "verification_link": "How verification works",
     "application_eyebrow": "Rental application",
     "application_title": "Apply for {{title}}.",
-    "application_intro": "Complete this application for review by the property manager. This preview saves the submission in your browser only.",
+    "application_intro": "Complete this application for review by the property manager.",
     "phone": "Phone number",
     "current_address": "Current address",
     "occupants": "Number of occupants",
@@ -343,16 +382,16 @@
   },
   "account": {
     "signin": {
-      "eyebrow": "Demo access",
+      "eyebrow": "Workspace access",
       "title": "Choose your KEYFORTA workspace.",
-      "intro": "Explore a role-based experience. This preview does not create an account or check credentials.",
-      "demo_eyebrow": "Explore the demo",
-      "demo_title": "Preview the workspaces",
-      "demo_intro": "See the main journeys before creating or connecting your account.",
+      "intro": "Choose the workspace that matches your role.",
+      "demo_eyebrow": "Choose your role",
+      "demo_title": "Open a workspace",
+      "demo_intro": "Access the tools and journeys available to your role.",
       "account_eyebrow": "Create an account",
       "account_title": "Start with your role.",
       "account_intro": "Managers join an organization through an invitation from a landlord.",
-      "open_demo": "Open demo",
+      "open_demo": "Continue",
       "landlord_entry_title": "I own or represent properties",
       "landlord_entry_body": "Create your landlord account to add properties, manage rentals, and invite a property manager.",
       "landlord_entry_action": "Create landlord account",
@@ -365,20 +404,20 @@
     },
     "roles": {
       "tenant_workspace": "Tenant workspace",
-      "tenant_workspace_desc": "View a mock viewing request, rent reminder, receipt history, and maintenance update.",
+      "tenant_workspace_desc": "View a viewing request, rent reminder, receipt history, and maintenance update.",
       "landlord_workspace": "Landlord workspace",
-      "landlord_workspace_desc": "Review mock occupancy, rent collection, listings, and open maintenance work.",
+      "landlord_workspace_desc": "Review occupancy, rent collection, listings, and open maintenance work.",
       "manager_workspace": "Manager workspace",
       "manager_workspace_desc": "See a portfolio-level view of units, tasks, verification, and participant activity.",
       "operator_workspace": "Maintenance operator workspace",
-      "operator_workspace_desc": "Manage assigned work orders, quotes, visits, field reports, and mock earnings."
+      "operator_workspace_desc": "Manage assigned work orders, quotes, visits, field reports, and earnings."
     },
     "login": {
       "title": "Sign in to continue.",
-      "intro": "Use the demo account below, or enter any valid email.",
+      "intro": "Enter your email or use the test account below.",
       "continue": "Continue",
       "use": "Use",
-      "demo_note": "Demo only · No password is required · No credentials are sent to a server.",
+      "demo_note": "No password is required on the development server.",
       "switch": "Choose another workspace"
     },
     "signup": {
@@ -392,7 +431,7 @@
       "service_coverage": "Service coverage",
       "coverage_default": "Any property on KEYFORTA",
       "company_name": "Company or ownership name",
-      "create": "Create account",
+      "create": "Request an account",
       "back": "Back to workspaces"
     },
     "invite": {
@@ -429,14 +468,7 @@
         "Viewing and application workflows",
         "Future payment and maintenance tracking"
       ],
-      "caps": ["Listings", "Verification", "Payments", "Maintenance"],
-      "form_title": "List a property",
-      "form_intro": "This sends a local mock request only. It does not publish a property.",
-      "owner_name": "Owner or company name",
-      "location": "Property location",
-      "units": "Number of units",
-      "about": "Tell us about the property",
-      "submit": "Submit property interest"
+      "caps": ["Listings", "Verification", "Payments", "Maintenance"]
     },
     "how": {
       "eyebrow": "How it works",
@@ -466,7 +498,7 @@
       "principle_2_title": "Shared records.",
       "principle_2_body": "Agreements, receipts, requests, and important communication should be preserved for the appropriate participants.",
       "principle_3_title": "No false certainty.",
-      "principle_3_body": "A submitted document is not the same as a verified claim. Mock data is never a rental offer.",
+      "principle_3_body": "A submitted document is not the same as a verified claim. Confirm availability and terms before making a commitment.",
       "stay_safe": "Stay safe:",
       "stay_safe_body": "Never send money based solely on a public listing. Confirm the property, recipient, and written terms through a trusted channel."
     },
@@ -474,23 +506,23 @@
       "eyebrow": "Frequently asked questions",
       "title": "Answers before you begin.",
       "items": [
-        ["Are these properties available?", "No. Every current listing is mock data created to demonstrate the future public experience."],
-        ["Can I pay rent through this website?", "Not yet. The preview shows where payments and receipts will appear, but no money is collected."],
+        ["Are these properties available?", "Availability must be confirmed with the property manager before making a commitment."],
+        ["Can I pay rent through this website?", "Not yet. No money is currently collected through this website."],
         ["How will properties be verified?", "The future workflow will collect property details, ownership or management authority, and evidence before displaying a verification status."],
         ["Can a landlord list multiple units?", "Yes. The planned platform supports properties with one or many units and a dedicated management workspace."],
         ["Will KEYFORTA support French?", "Yes. The public experience includes an initial French-language mode, with broader translation coverage planned for the connected product."],
         ["How are deposits handled?", "Deposit rules will be stated clearly in each agreement, including amount, payment, permitted deductions, and final disposition."],
         ["Will tenants receive notifications?", "The connected product is planned to support viewing updates, payment reminders, maintenance updates, and important account notifications."],
-        ["Can I report a concern?", "Yes. Use the contact page for a safety concern in this preview. A connected product will add participant-specific reporting and case tracking."]
+        ["Can I report a concern?", "Yes. Use the contact page to report a safety concern."]
       ]
     },
     "contact": {
       "title": "How can we help?",
-      "intro": "Use this demonstration form for general questions, launch interest, or safety concerns.",
+      "intro": "Use this form for general questions, launch interest, or safety concerns.",
       "email": "Email",
       "market": "Initial market",
       "market_value": "Kinshasa, Democratic Republic of the Congo",
-      "notice_title": "Mock-data notice",
+      "notice_title": "Message delivery",
       "notice_body": "Messages are saved only in this browser until email delivery is connected.",
       "topic": "Topic",
       "topic_general": "General question",
@@ -507,19 +539,19 @@
       "draft_body": "This text is a public-preview placeholder and must be replaced with finalized company, backend, data-flow, and legal language before commercial launch.",
       "privacy": {
         "collected_title": "Information collected",
-        "collected_body": "This demonstration may store form entries, mock requests, and language preference in your browser. It does not transmit them to a KEYFORTA server.",
+        "collected_body": "This website may store form entries, requests, and language preference in your browser. It does not currently transmit them to a KEYFORTA server.",
         "storage_title": "Cookies and local storage",
-        "storage_body": "The demonstration uses local storage for language preference and locally submitted mock forms. A connected product will publish final cookie, analytics, and retention disclosures.",
+        "storage_body": "The website uses local storage for language preference and locally submitted forms. Final cookie, analytics, and retention disclosures will be published before production launch.",
         "choices_title": "Your choices",
         "choices_body": "You can clear locally stored information through your browser settings. Contact and account rights will be described in the finalized privacy notice."
       },
       "terms": {
-        "demo_title": "Demonstration only",
-        "demo_body": "The current website presents mock listings and front-end demonstrations. It does not create a tenancy, reserve a property, verify a person or property, or process a payment.",
+        "demo_title": "Current service limitations",
+        "demo_body": "The current website does not create a tenancy, reserve a property, verify a person or property, or process a payment.",
         "acceptable_title": "Acceptable use",
         "acceptable_body": "Do not misuse the site, impersonate another person, submit unlawful material, or interfere with the service.",
-        "reliance_title": "No reliance on mock listings",
-        "reliance_body": "Property information is fictional and must not be used for a rental or financial decision."
+        "reliance_title": "Confirm property information",
+        "reliance_body": "Confirm property information, availability, and terms before making a rental or financial decision."
       }
     }
   },
@@ -528,6 +560,7 @@
     "voice": "AI Voice Generator - KEYFORTA",
     "properties": "Properties - KEYFORTA",
     "property": "Property detail - KEYFORTA",
+    "viewing": "Request a viewing - KEYFORTA",
     "apply": "Rental application - KEYFORTA",
     "how": "How it works - KEYFORTA",
     "landlords": "For landlords and managers - KEYFORTA",
@@ -536,11 +569,11 @@
     "contact": "Contact - KEYFORTA",
     "privacy": "Privacy notice - KEYFORTA",
     "terms": "Terms of use - KEYFORTA",
-    "signin": "Demo access - KEYFORTA",
+    "signin": "Workspace access - KEYFORTA",
     "login": "Workspace sign in - KEYFORTA",
     "signup": "Create account - KEYFORTA",
     "invite": "Invite manager - KEYFORTA",
     "offer-services": "Offer services - KEYFORTA",
-    "demo": "Workspace demo - KEYFORTA"
+    "demo": "Workspace - KEYFORTA"
   }
 }

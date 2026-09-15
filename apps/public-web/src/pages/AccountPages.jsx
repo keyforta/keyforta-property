@@ -68,12 +68,6 @@ export function SignInPage({ lang }) {
           </Link>
         </div>
       </section>
-      <section className="auth-footer-note">
-        <p>
-          <strong>{t('account.signin.production_label')}</strong> {t('account.signin.production_desc')}
-        </p>
-        <Link className="text-link" to="/demo/api">{t('account.signin.open_api')} <ArrowRight20Regular aria-hidden="true" /></Link>
-      </section>
     </section>
   );
 }
@@ -122,6 +116,7 @@ export function WorkspaceLoginPage({ lang, role, onSubmit }) {
 export function SignupPage({ lang, role, onSubmit }) {
   const { t } = useTranslation();
   const operator = role === 'operator';
+  const [status, setStatus] = useState('');
 
   return (
     <section className="page content-page shell auth-page">
@@ -134,7 +129,9 @@ export function SignupPage({ lang, role, onSubmit }) {
           id="signup-form"
           onSubmit={(event) => {
             event.preventDefault();
-            onSubmit(Object.fromEntries(new FormData(event.currentTarget)));
+            const form = event.currentTarget;
+            setStatus(onSubmit(Object.fromEntries(new FormData(form))));
+            form.reset();
           }}
         >
           <input type="hidden" name="role" value={operator ? 'maintenance_operator' : 'landlord'} readOnly />
@@ -150,6 +147,7 @@ export function SignupPage({ lang, role, onSubmit }) {
             <Field label={t('account.signup.company_name')}><Input name="organization" required /></Field>
           )}
           <Button className="button copper" type="submit">{t('account.signup.create')}</Button>
+          <StatusMessage className="form-status show" intent="success" message={status} />
         </form>
         <Link className="login-switch" to="/signin">{t('account.signup.back')}</Link>
       </div>

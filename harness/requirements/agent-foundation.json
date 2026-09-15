@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "states": [
+    "draft",
+    "proposed",
+    "approved",
+    "implemented",
+    "verified",
+    "accepted",
+    "released",
+    "deferred",
+    "superseded",
+    "rejected"
+  ],
+  "transitions": [
+    {
+      "from": "draft",
+      "to": "proposed",
+      "approvalGate": "",
+      "evidenceRequired": true
+    },
+    {
+      "from": "proposed",
+      "to": "approved",
+      "approvalGate": "product-owner",
+      "evidenceRequired": true
+    },
+    {
+      "from": "approved",
+      "to": "implemented",
+      "approvalGate": "",
+      "evidenceRequired": true
+    },
+    {
+      "from": "implemented",
+      "to": "verified",
+      "approvalGate": "",
+      "evidenceRequired": true
+    },
+    {
+      "from": "verified",
+      "to": "accepted",
+      "approvalGate": "product-owner",
+      "evidenceRequired": true
+    },
+    {
+      "from": "accepted",
+      "to": "released",
+      "approvalGate": "production-authority",
+      "evidenceRequired": true
+    },
+    {
+      "from": "proposed",
+      "to": "deferred",
+      "approvalGate": "product-owner",
+      "evidenceRequired": true
+    },
+    {
+      "from": "approved",
+      "to": "superseded",
+      "approvalGate": "product-owner",
+      "evidenceRequired": true
+    },
+    {
+      "from": "proposed",
+      "to": "rejected",
+      "approvalGate": "product-owner",
+      "evidenceRequired": true
+    }
+  ],
+  "requirements": [
+    {
+      "id": "GOVAGENT-001",
+      "version": 1,
+      "status": "approved",
+      "source": "https://github.com/cmbuyamba/keyforta-property/issues/25",
+      "owner": "product-owner",
+      "evidenceReferences": ["harness/tasks/full-lifecycle-agent-system.json"],
+      "history": [
+        {
+          "status": "proposed",
+          "actor": "Product owner",
+          "enteredAt": "2026-09-12T00:01:46.000Z",
+          "evidenceReferences": [
+            "https://github.com/cmbuyamba/keyforta-property/issues/25"
+          ]
+        },
+        {
+          "status": "approved",
+          "actor": "Product owner",
+          "enteredAt": "2026-09-12T00:04:00.000Z",
+          "evidenceReferences": [
+            "harness/tasks/full-lifecycle-agent-system.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOVAGENT-002",
+      "version": 1,
+      "status": "approved",
+      "source": "AGENTS.md#engineering-loop",
+      "owner": "product-owner",
+      "evidenceReferences": ["harness/tasks/full-lifecycle-agent-system.json"],
+      "history": [
+        {
+          "status": "proposed",
+          "actor": "Product owner",
+          "enteredAt": "2026-09-12T00:01:46.000Z",
+          "evidenceReferences": ["AGENTS.md#engineering-loop"]
+        },
+        {
+          "status": "approved",
+          "actor": "Product owner",
+          "enteredAt": "2026-09-12T00:04:00.000Z",
+          "evidenceReferences": [
+            "harness/tasks/full-lifecycle-agent-system.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GOVAGENT-003",
+      "version": 1,
+      "status": "approved",
+      "source": "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md#workflow",
+      "owner": "product-owner",
+      "evidenceReferences": ["harness/tasks/full-lifecycle-agent-system.json"],
+      "history": [
+        {
+          "status": "proposed",
+          "actor": "Product owner",
+          "enteredAt": "2026-09-12T00:01:46.000Z",
+          "evidenceReferences": [
+            "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md#workflow"
+          ]
+        },
+        {
+          "status": "approved",
+          "actor": "Product owner",
+          "enteredAt": "2026-09-12T00:04:00.000Z",
+          "evidenceReferences": [
+            "harness/tasks/full-lifecycle-agent-system.json"
+          ]
+        }
+      ]
+    }
+  ]
+}

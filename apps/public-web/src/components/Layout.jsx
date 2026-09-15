@@ -23,7 +23,7 @@ import {
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, matchPath, useLocation } from "react-router-dom";
-import { navRoutes, workspaceMenu } from "../data/content.js";
+import { navRoutes } from "../data/content.js";
 import { StatusMessage } from "./StatusMessage.jsx";
 
 const useLayoutStyles = makeStyles({
@@ -168,12 +168,27 @@ const useLayoutStyles = makeStyles({
     minHeight: "44px",
     color: "var(--ink)",
     fontFamily: '"Instrument Sans", "Segoe UI", Arial, sans-serif',
+    fontSize: "1rem",
     fontWeight: 600,
     backgroundColor: "transparent",
     borderTopColor: "var(--line)",
     borderRightColor: "var(--line)",
     borderBottomColor: "var(--line)",
     borderLeftColor: "var(--line)",
+    ":focus-visible": {
+      outlineStyle: "solid",
+      outlineWidth: "3px",
+      outlineColor: "rgba(49,112,108,.42)",
+      outlineOffset: "3px",
+    },
+  },
+  requestAccess: {
+    minHeight: "46px",
+    paddingRight: "22px",
+    paddingLeft: "22px",
+    fontFamily: '"Instrument Sans", "Segoe UI", Arial, sans-serif',
+    fontSize: "1rem",
+    fontWeight: 700,
     ":focus-visible": {
       outlineStyle: "solid",
       outlineWidth: "3px",
@@ -198,6 +213,12 @@ const useLayoutStyles = makeStyles({
     borderBottomColor: "rgba(255,255,255,.55)",
     borderLeftColor: "rgba(255,255,255,.55)",
     ":hover": { backgroundColor: "rgba(255,255,255,.12)" },
+    ":focus-visible": {
+      outlineStyle: "solid",
+      outlineWidth: "3px",
+      outlineColor: "var(--logo-teal)",
+      outlineOffset: "3px",
+    },
   },
   drawer: { backgroundColor: "var(--parchment)" },
   workspaceDrawer: {
@@ -222,6 +243,12 @@ const useLayoutStyles = makeStyles({
       borderRadius: "8px",
     },
     "& a.active": { color: "var(--logo-teal)", backgroundColor: "var(--bone)" },
+    "& a:focus-visible": {
+      outlineStyle: "solid",
+      outlineWidth: "3px",
+      outlineColor: "rgba(49,112,108,.42)",
+      outlineOffset: "3px",
+    },
     "& button": { width: "100%", marginTop: "8px" },
   },
   workspaceDrawerNav: {
@@ -397,16 +424,6 @@ const useLayoutStyles = makeStyles({
   dialogSubmit: {
     width: "100%",
     minHeight: "56px",
-    color: "#fff",
-    backgroundColor: "var(--logo-aubergine)",
-    borderTopLeftRadius: "5px",
-    borderTopRightRadius: "16px",
-    borderBottomRightRadius: "16px",
-    borderBottomLeftRadius: "16px",
-    ":hover": {
-      color: "#fff",
-      backgroundColor: "var(--aubergine)",
-    },
   },
   dialogClose: {
     position: "absolute",
@@ -467,106 +484,55 @@ function getNavActive(path, pathname) {
 
 export function Header({
   lang,
-  workspaceRole,
-  workspaceSection,
   menuOpen,
   onToggleLanguage,
   onOpenAccess,
   onToggleMenu,
   onCloseMenu,
-  onSignOut,
 }) {
   const { t } = useTranslation();
   const styles = useLayoutStyles();
   const location = useLocation();
-  const isWorkspace = Boolean(workspaceRole);
-  const roleLabel = workspaceRole ? t(`roles.${workspaceRole}`) : "";
   const accessRole =
     matchPath("/login/:role", location.pathname)?.params.role ||
     matchPath("/signup/:role", location.pathname)?.params.role ||
     "";
 
-  const workspaceLinks = isWorkspace
-    ? workspaceMenu[workspaceRole].map((key) => ({
-        key,
-        to:
-          key === "dashboard"
-            ? `/demo/${workspaceRole}`
-            : `/demo/${workspaceRole}/${key}`,
-        active: (workspaceSection || "dashboard") === key,
-      }))
-    : [];
-
   const navigationItems = (
     <>
-      {!isWorkspace &&
-        navRoutes.map(([path, key]) => (
-          <NavLink
-            key={path}
-            to={`/${path}`}
-            data-route={path}
-            className={getNavActive(path, location.pathname) ? "active" : ""}
-          >
-            {t(key, { defaultValue: path })}
-          </NavLink>
-        ))}
-      {isWorkspace && (
-        <span className={styles.workspaceContext}>{roleLabel}</span>
-      )}
-      {isWorkspace &&
-        workspaceLinks.map((item) => (
-          <NavLink
-            key={item.key}
-            to={item.to}
-            data-workspace-section={item.key}
-            className={item.active ? "active" : ""}
-            aria-current={item.active ? "page" : undefined}
-          >
-            {t(`workspace.menu.${item.key}`, { defaultValue: item.key })}
-          </NavLink>
-        ))}
+      {navRoutes.map(([path, key]) => (
+        <NavLink
+          key={path}
+          to={`/${path}`}
+          data-route={path}
+          className={getNavActive(path, location.pathname) ? "active" : ""}
+        >
+          {t(key, { defaultValue: path })}
+        </NavLink>
+      ))}
       <Button
-        className={mergeClasses(
-          styles.language,
-          isWorkspace && styles.workspaceControl,
-        )}
+        className={styles.language}
         onClick={onToggleLanguage}
       >
         {lang === "en" ? "FR" : "EN"}
       </Button>
-      {!isWorkspace && (
-        <Button
-          appearance="primary"
-          className="button small"
-          onClick={() => onOpenAccess(accessRole)}
-        >
-          {t("request_access")}
-        </Button>
-      )}
-      {isWorkspace && (
-        <Button className={styles.signOut} onClick={onSignOut}>
-          {t("common.sign_out")}
-        </Button>
-      )}
+      <Button
+        appearance="primary"
+        className={styles.requestAccess}
+        onClick={() => onOpenAccess(accessRole)}
+      >
+        {t("request_access")}
+      </Button>
     </>
   );
 
   return (
-    <header
-      className={mergeClasses(
-        styles.header,
-        isWorkspace && styles.workspaceHeader,
-      )}
-    >
+    <header className={styles.header}>
       <div className={mergeClasses("shell", styles.navWrap)}>
         <Link
           className={styles.brand}
-          to={isWorkspace ? `/demo/${workspaceRole}` : "/home"}
-          aria-label={
-            isWorkspace
-              ? t("a11y.role_workspace", { role: roleLabel })
-              : t("a11y.keyforta_home")
-          }
+          to="/home"
+          aria-label={t("a11y.keyforta_home")}
           onClick={onCloseMenu}
         >
           <picture>
@@ -579,10 +545,7 @@ export function Header({
           </picture>
         </Link>
         <Button
-          className={mergeClasses(
-            styles.menuButton,
-            isWorkspace && styles.workspaceMenuButton,
-          )}
+          className={styles.menuButton}
           icon={menuOpen ? <Dismiss24Regular /> : <Navigation24Regular />}
           aria-expanded={menuOpen}
           aria-controls="mobile-nav"
@@ -593,10 +556,7 @@ export function Header({
         />
         <nav
           id="main-nav"
-          className={mergeClasses(
-            styles.desktopNav,
-            isWorkspace && styles.workspaceNav,
-          )}
+          className={styles.desktopNav}
           aria-label={t("a11y.primary_navigation")}
           onClick={onCloseMenu}
         >
@@ -604,10 +564,7 @@ export function Header({
         </nav>
       </div>
       <OverlayDrawer
-        className={mergeClasses(
-          styles.drawer,
-          isWorkspace && styles.workspaceDrawer,
-        )}
+        className={styles.drawer}
         open={menuOpen}
         position="end"
         onOpenChange={(_, data) => {
@@ -625,16 +582,13 @@ export function Header({
               />
             }
           >
-            {isWorkspace ? roleLabel : "KEYFORTA"}
+            KEYFORTA
           </DrawerHeaderTitle>
         </DrawerHeader>
         <DrawerBody>
           <nav
             id="mobile-nav"
-            className={mergeClasses(
-              styles.drawerNav,
-              isWorkspace && styles.workspaceDrawerNav,
-            )}
+            className={styles.drawerNav}
             aria-label={t("a11y.primary_navigation")}
             onClick={onCloseMenu}
           >
@@ -787,8 +741,8 @@ export function AccessDialog({ lang, open, interest, onClose, onSubmit }) {
                   <option value="">{t("select_one")}</option>
                   <option value="tenant">{t("roles.tenant")}</option>
                   <option value="landlord">{t("roles.landlord")}</option>
-                  <option value="manager">{t("roles.manager")}</option>
-                  <option value="operator">{t("roles.operator")}</option>
+                  <option value="property_manager">{t("roles.manager")}</option>
+                  <option value="maintenance_operator">{t("roles.operator")}</option>
                 </Select>
               </Field>
               <Field className={styles.dialogField} label={t("location")}>

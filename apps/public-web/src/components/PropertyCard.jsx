@@ -30,6 +30,9 @@ const useStyles = makeStyles({
     textDecorationLine: "none",
     transitionProperty: "transform, box-shadow",
     transitionDuration: "200ms",
+    "&:hover img": {
+      transform: "scale(1.025)",
+    },
     ":focus-visible": {
       outlineColor: "rgba(49,112,108,.42)",
       outlineStyle: "solid",
@@ -50,25 +53,18 @@ const useStyles = makeStyles({
   },
   image: {
     position: "relative",
-    display: "grid",
-    placeItems: "center",
     height: "216px",
     overflow: "hidden",
-    backgroundImage: "linear-gradient(135deg, var(--teal), var(--aubergine))",
     "@media (max-width: 600px)": {
       height: "210px",
     },
   },
-  symbol: {
-    width: "74px",
-    height: "94px",
-    opacity: 0.78,
-  },
-  rotateQuarter: {
-    transform: "rotate(90deg)",
-  },
-  rotateHalf: {
-    transform: "rotate(180deg)",
+  photo: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    transitionProperty: "transform",
+    transitionDuration: "450ms",
   },
   badge: {
     position: "absolute",
@@ -80,7 +76,7 @@ const useStyles = makeStyles({
     paddingLeft: "10px",
     backgroundColor: "var(--logo-cream)",
     fontFamily: '"Instrument Sans", "Segoe UI", Arial, sans-serif',
-    fontSize: ".75rem",
+    fontSize: ".875rem",
     fontWeight: 700,
   },
   body: {
@@ -100,12 +96,12 @@ const useStyles = makeStyles({
   },
   priceUnit: {
     color: "var(--muted)",
-    fontSize: ".75rem",
+    fontSize: ".875rem",
     fontWeight: 500,
   },
   meta: {
     color: "var(--muted)",
-    fontSize: ".9rem",
+    fontSize: "1rem",
   },
   verification: {
     display: "flex",
@@ -116,7 +112,7 @@ const useStyles = makeStyles({
     marginBottom: 0,
     marginLeft: 0,
     color: "var(--success)",
-    fontSize: ".78rem",
+    fontSize: "1rem",
     fontWeight: 700,
   },
   checkmark: {
@@ -147,14 +143,11 @@ export function PropertyCard({ lang, item, position = 0 }) {
     >
       <div className={styles.image}>
         <img
-          className={mergeClasses(
-            styles.symbol,
-            variant === 1 && styles.rotateQuarter,
-            variant === 2 && styles.rotateHalf,
-          )}
-          src="/keyforta-symbol-reversed.png"
-          alt=""
-          aria-hidden="true"
+          className={styles.photo}
+          src={p.image}
+          alt={p.imageAlt}
+          loading={position < 3 ? "eager" : "lazy"}
+          fetchPriority={position === 0 ? "high" : "auto"}
         />
         <Badge className={styles.badge} appearance="filled" color="subtle">
           {p.available}

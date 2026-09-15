@@ -1,0 +1,66 @@
+name: Seed development data
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type synthetic-dev-data to populate the dev database
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: seed-development-data
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: dev
+    env:
+      RESOURCE_GROUP: rg-keyforta-dev-san
+    steps:
+      - name: Verify explicit authorization
+        env:
+          SEED_CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$SEED_CONFIRMATION" = "synthetic-dev-data"
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Apply synthetic development seed
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            execution=$(az containerapp job start \
+              --name caj-keyforta-dev-seed \
+              --resource-group "$RESOURCE_GROUP" \
+              --query name -o tsv)
+            for attempt in {1..60}; do
+              result=$(az containerapp job execution show \
+                --name caj-keyforta-dev-seed \
+                --job-execution-name "$execution" \
+                --resource-group "$RESOURCE_GROUP" \
+                --query properties.status -o tsv)
+              case "$result" in
+                Succeeded) break ;;
+                Failed) exit 1 ;;
+              esac
+              sleep 10
+            done
+            test "$result" = "Succeeded"
+            {
+              echo "## Development seed"
+              echo "- Job execution: \`$execution\`"
+              echo "- Result: $result"
+              echo "- Data classification: synthetic"
+            } >> "$GITHUB_STEP_SUMMARY"

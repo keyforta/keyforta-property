@@ -1,0 +1,127 @@
+{
+  "completedAt": "2026-09-15T17:21:42.998Z",
+  "contract": "harness/tasks/full-lifecycle-agent-system.json",
+  "results": [
+    {
+      "detail": "Network advisory data is enforced in CI, not offline verification.",
+      "name": "dependency-audit",
+      "status": "skipped"
+    },
+    {
+      "name": "contract-declarations",
+      "status": "passed"
+    },
+    {
+      "command": "node harness/scripts/check-policy.mjs",
+      "completedAt": "2026-09-15T17:21:42.997Z",
+      "exitCode": 1,
+      "name": "repository-policy",
+      "startedAt": "2026-09-15T17:21:42.844Z",
+      "status": "failed"
+    },
+    {
+      "command": "pnpm verify:task",
+      "detail": "Not run because repository-policy failed.",
+      "name": "task-contract",
+      "status": "skipped"
+    },
+    {
+      "command": "pnpm verify:classification",
+      "detail": "Not run because repository-policy failed.",
+      "name": "task-classification",
+      "status": "skipped"
+    },
+    {
+      "command": "pnpm verify:transition",
+      "detail": "Not run because repository-policy failed.",
+      "name": "workflow-transition",
+      "status": "skipped"
+    },
+    {
+      "command": "pnpm verify:agents",
+      "detail": "Not run because repository-policy failed.",
+      "name": "agent-governance",
+      "status": "skipped"
+    },
+    {
+      "command": "pnpm verify:skills",
+      "detail": "Not run because repository-policy failed.",
+      "name": "agent-skills",
+      "status": "skipped"
+    },
+    {
+      "command": "pnpm check",
+      "detail": "Not run because repository-policy failed.",
+      "name": "workspace-checks",
+      "status": "skipped"
+    },
+    {
+      "command": "node harness/graders/architecture.mjs",
+      "detail": "Not run because repository-policy failed.",
+      "name": "architecture-boundaries",
+      "status": "skipped"
+    },
+    {
+      "command": "node harness/graders/secrets.mjs",
+      "detail": "Not run because repository-policy failed.",
+      "name": "secret-patterns",
+      "status": "skipped"
+    },
+    {
+      "command": "node harness/graders/documentation.mjs",
+      "detail": "Not run because repository-policy failed.",
+      "name": "documentation-impact",
+      "status": "skipped"
+    },
+    {
+      "command": "pnpm harness:self-test",
+      "detail": "Not run because repository-policy failed.",
+      "name": "harness-self-test",
+      "status": "skipped"
+    },
+    {
+      "command": "node harness/scripts/verify-required-scenarios.mjs",
+      "detail": "Not run because repository-policy failed.",
+      "name": "required-scenarios",
+      "status": "skipped"
+    },
+    {
+      "command": "pnpm build",
+      "detail": "Not run because repository-policy failed.",
+      "name": "production-build",
+      "status": "skipped"
+    },
+    {
+      "command": "az bicep build",
+      "detail": "Not run because repository-policy failed.",
+      "name": "infrastructure",
+      "status": "skipped"
+    },
+    {
+      "detail": "No browser accessibility runner is installed; component semantics remain covered by review until an approved tool is added.",
+      "name": "accessibility",
+      "status": "skipped"
+    },
+    {
+      "command": "validate database environment",
+      "detail": "Not run because repository-policy failed.",
+      "name": "database-integration-environment",
+      "status": "skipped"
+    },
+    {
+      "command": "validate required evidence",
+      "detail": "Not run because repository-policy failed.",
+      "name": "required-evidence",
+      "status": "skipped"
+    },
+    {
+      "command": "generate and validate evidence manifest",
+      "detail": "Not run because repository-policy failed.",
+      "name": "evidence-manifest",
+      "status": "skipped"
+    }
+  ],
+  "startedAt": "2026-09-15T17:21:42.840Z",
+  "status": "failed",
+  "nextState": "changes-requested"
+}

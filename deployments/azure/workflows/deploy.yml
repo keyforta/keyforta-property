@@ -1,0 +1,450 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full commit SHA from main; defaults to the selected main revision
+        required: false
+        type: string
+      operation:
+        description: Preview first; bootstrap a fresh foundation or deploy a reviewed full plan
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - deploy-foundation
+          - deploy
+      plan_run_id:
+        description: Successful plan workflow run ID for this exact SHA; required for deploy
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: dev
+    env:
+      DBA_CLIENT_IP: ${{ vars.POSTGRES_DBA_CLIENT_IP }}
+      DBA_OBJECT_ID: ${{ vars.POSTGRES_DBA_OBJECT_ID }}
+      DBA_PRINCIPAL_NAME: ${{ vars.POSTGRES_DBA_PRINCIPAL_NAME }}
+      DBA_PRINCIPAL_TYPE: ${{ vars.POSTGRES_DBA_PRINCIPAL_TYPE || 'User' }}
+      DEPLOYMENT_SHA: ${{ inputs.commit_sha || github.sha }}
+      ENVIRONMENT: dev
+      RESOURCE_GROUP: rg-keyforta-dev-san
+    steps:
+      - name: Check out immutable revision
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ env.DEPLOYMENT_SHA }}
+
+      - name: Verify revision belongs to main
+        run: |
+          test "$(git rev-parse HEAD)" = "$DEPLOYMENT_SHA"
+          git fetch origin main
+          git merge-base --is-ancestor "$DEPLOYMENT_SHA" origin/main
+
+      - name: Verify deployment intent
+        if: inputs.operation != 'plan'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPERATION: ${{ inputs.operation }}
+          PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+        run: |
+          if ! [[ "$PLAN_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "Deployment requires the numeric run ID of a reviewed plan." >&2
+            exit 1
+          fi
+          run=$(gh run view "$PLAN_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json conclusion,event,workflowName)
+          test "$(jq -r '.conclusion' <<< "$run")" = "success"
+          test "$(jq -r '.event' <<< "$run")" = "workflow_dispatch"
+          test "$(jq -r '.workflowName' <<< "$run")" = "Deploy"
+          mkdir plan-evidence
+          gh run download "$PLAN_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "deployment-plan-$DEPLOYMENT_SHA" \
+            --dir plan-evidence
+          grep -Fx "commit_sha=$DEPLOYMENT_SHA" plan-evidence/deployment-plan.txt
+          grep -Fx "operation=plan" plan-evidence/deployment-plan.txt
+          grep -Fx "run_id=$PLAN_RUN_ID" plan-evidence/deployment-plan.txt
+          if [ "$OPERATION" = "deploy-foundation" ]; then
+            expected_scope=foundation
+          else
+            expected_scope=full
+          fi
+          grep -Fx "scope=$expected_scope" plan-evidence/deployment-plan.txt
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Preview foundation changes
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-foundation" \
+              --template-file infra/bicep/foundation.bicep \
+              --parameters "@infra/config/${ENVIRONMENT}.parameters.json" \
+              --parameters azureTenantId="${{ vars.AZURE_TENANT_ID }}"
+
+      - name: Determine deployment plan scope
+        id: foundation-state
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            if az deployment group show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-foundation" >/dev/null 2>&1; then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "PLAN_SCOPE=full" >> "$GITHUB_ENV"
+            else
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+              echo "PLAN_SCOPE=foundation" >> "$GITHUB_ENV"
+            fi
+
+      - name: Deploy foundation
+        if: inputs.operation == 'deploy' || inputs.operation == 'deploy-foundation'
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-foundation" \
+              --template-file infra/bicep/foundation.bicep \
+              --parameters "@infra/config/${ENVIRONMENT}.parameters.json" \
+              --parameters azureTenantId="${{ vars.AZURE_TENANT_ID }}"
+
+      - name: Load foundation outputs
+        if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            outputs=$(az deployment group show --resource-group "$RESOURCE_GROUP" --name "keyforta-${ENVIRONMENT}-foundation" --query properties.outputs -o json)
+            echo "REGISTRY_NAME=$(echo "$outputs" | jq -r '.registryName.value')" >> "$GITHUB_ENV"
+            echo "REGISTRY_SERVER=$(echo "$outputs" | jq -r '.registryLoginServer.value')" >> "$GITHUB_ENV"
+            echo "APP_ENVIRONMENT=$(echo "$outputs" | jq -r '.containerAppsEnvironmentName.value')" >> "$GITHUB_ENV"
+            echo "POSTGRES_SERVER=$(echo "$outputs" | jq -r '.postgresServerName.value')" >> "$GITHUB_ENV"
+            echo "API_IDENTITY=$(echo "$outputs" | jq -r '.apiIdentityName.value')" >> "$GITHUB_ENV"
+            echo "MIGRATION_IDENTITY=$(echo "$outputs" | jq -r '.migrationIdentityName.value')" >> "$GITHUB_ENV"
+            echo "MIGRATION_PRINCIPAL_ID=$(echo "$outputs" | jq -r '.migrationIdentityPrincipalId.value')" >> "$GITHUB_ENV"
+            echo "WEB_IDENTITY=$(echo "$outputs" | jq -r '.webIdentityName.value')" >> "$GITHUB_ENV"
+            echo "DOCUMENT_STORAGE_ACCOUNT=$(echo "$outputs" | jq -r '.documentStorageAccountName.value')" >> "$GITHUB_ENV"
+            echo "TENANT_APPLICATION_CONTAINER=$(echo "$outputs" | jq -r '.tenantApplicationContainerName.value')" >> "$GITHUB_ENV"
+
+      - name: Verify PostgreSQL DBA access configuration
+        if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
+        run: |
+          if [ -z "$DBA_CLIENT_IP" ] && [ -z "$DBA_OBJECT_ID" ] && [ -z "$DBA_PRINCIPAL_NAME" ]; then
+            exit 0
+          fi
+          test -n "$DBA_CLIENT_IP"
+          test -n "$DBA_OBJECT_ID"
+          test -n "$DBA_PRINCIPAL_NAME"
+          case "$DBA_PRINCIPAL_TYPE" in
+            User|Group) ;;
+            *) echo "POSTGRES_DBA_PRINCIPAL_TYPE must be User or Group" >&2; exit 1 ;;
+          esac
+
+      - name: Preview database access changes
+        if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-database-access" \
+              --template-file infra/bicep/database-access.bicep \
+              --parameters postgresServerName="$POSTGRES_SERVER" \
+                azureTenantId="${{ vars.AZURE_TENANT_ID }}" \
+                administratorObjectId="$MIGRATION_PRINCIPAL_ID" \
+                administratorPrincipalName="$MIGRATION_IDENTITY" \
+                dbaObjectId="$DBA_OBJECT_ID" \
+                dbaPrincipalName="$DBA_PRINCIPAL_NAME" \
+                dbaPrincipalType="$DBA_PRINCIPAL_TYPE" \
+                dbaClientIpAddress="$DBA_CLIENT_IP"
+
+      - name: Preview database job changes
+        if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-migration-job" \
+              --template-file infra/bicep/migration-job.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                migrationIdentityName="$MIGRATION_IDENTITY" \
+                apiIdentityName="$API_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-seed-job" \
+              --template-file infra/bicep/seed-job.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                migrationIdentityName="$MIGRATION_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
+
+      - name: Configure PostgreSQL Entra administrator
+        if: inputs.operation == 'deploy'
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-database-access" \
+              --template-file infra/bicep/database-access.bicep \
+              --parameters postgresServerName="$POSTGRES_SERVER" \
+                azureTenantId="${{ vars.AZURE_TENANT_ID }}" \
+                administratorObjectId="$MIGRATION_PRINCIPAL_ID" \
+                administratorPrincipalName="$MIGRATION_IDENTITY" \
+                dbaObjectId="$DBA_OBJECT_ID" \
+                dbaPrincipalName="$DBA_PRINCIPAL_NAME" \
+                dbaPrincipalType="$DBA_PRINCIPAL_TYPE" \
+                dbaClientIpAddress="$DBA_CLIENT_IP"
+
+      - name: Build and push immutable images
+        if: inputs.operation == 'deploy'
+        run: |
+          az acr login --name "$REGISTRY_NAME"
+
+          api_status=0
+          web_status=0
+          docker build --file deployments/azure/docker/api.Dockerfile --tag "$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" . &
+          api_pid=$!
+          docker build --file deployments/azure/docker/public-web.Dockerfile --tag "$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" . &
+          web_pid=$!
+
+          wait "$api_pid" || api_status=$?
+          wait "$web_pid" || web_status=$?
+
+          if [ "$api_status" -ne 0 ]; then
+            echo "::error title=API container build failed::docker build exited with status $api_status"
+          fi
+          if [ "$web_status" -ne 0 ]; then
+            echo "::error title=Web container build failed::docker build exited with status $web_status"
+          fi
+          test "$api_status" -eq 0
+          test "$web_status" -eq 0
+
+          docker push "$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
+          docker push "$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA"
+
+      - name: Deploy migration job
+        if: inputs.operation == 'deploy'
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-migration-job" \
+              --template-file infra/bicep/migration-job.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                migrationIdentityName="$MIGRATION_IDENTITY" \
+                apiIdentityName="$API_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
+
+      - name: Apply database migrations
+        if: inputs.operation == 'deploy'
+        run: |
+          execution=$(az containerapp job start \
+            --name "caj-keyforta-${ENVIRONMENT}-migration" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query name -o tsv)
+          for attempt in {1..60}; do
+            result=$(az containerapp job execution show \
+              --name "caj-keyforta-${ENVIRONMENT}-migration" \
+              --job-execution-name "$execution" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query properties.status -o tsv)
+            case "$result" in
+              Succeeded) exit 0 ;;
+              Failed) exit 1 ;;
+            esac
+            sleep 10
+          done
+          exit 1
+
+      - name: Deploy dormant development seed job
+        if: inputs.operation == 'deploy'
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-seed-job" \
+              --template-file infra/bicep/seed-job.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                migrationIdentityName="$MIGRATION_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
+
+      - name: Preview application changes
+        if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
+                webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                entraAuthorizationEndpoint="${{ vars.ENTRA_AUTHORIZATION_ENDPOINT }}" \
+                entraTokenEndpoint="${{ vars.ENTRA_TOKEN_ENDPOINT }}" \
+                entraClientId="${{ vars.ENTRA_CLIENT_ID }}" \
+                entraScopes="${{ vars.ENTRA_SCOPES }}" \
+                defaultOrganizationId="${{ vars.KEYFORTA_DEFAULT_ORGANIZATION_ID }}" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER"
+
+      - name: Deploy applications
+        if: inputs.operation == 'deploy'
+        uses: azure/CLI@v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
+                webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                entraAuthorizationEndpoint="${{ vars.ENTRA_AUTHORIZATION_ENDPOINT }}" \
+                entraTokenEndpoint="${{ vars.ENTRA_TOKEN_ENDPOINT }}" \
+                entraClientId="${{ vars.ENTRA_CLIENT_ID }}" \
+                entraScopes="${{ vars.ENTRA_SCOPES }}" \
+                defaultOrganizationId="${{ vars.KEYFORTA_DEFAULT_ORGANIZATION_ID }}" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER"
+
+      - name: Smoke test public BFF
+        if: inputs.operation == 'deploy'
+        run: |
+          fqdn=$(az containerapp show \
+            --name "ca-keyforta-${ENVIRONMENT}-web" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          web_url="https://${fqdn}"
+          curl --fail --retry 12 --retry-delay 10 "${web_url}/"
+          curl --fail --retry 12 --retry-delay 10 \
+            --header 'content-type: application/json' \
+            --data '{"advanceRentPeriods":1,"baseRentMinor":40000,"concessionBasisPoints":1000,"concessionPeriods":2,"currency":"USD","leaseStartDate":"2026-10-01","periods":12,"refundableGuaranteeMultiple":3}' \
+            "${web_url}/api/lease-schedules/preview"
+          curl --fail --retry 12 --retry-delay 10 \
+            "${web_url}/locations" > locations.html
+          grep -q "Logements disponibles" locations.html
+          ! grep -q "Service indisponible" locations.html
+          curl --fail --silent --show-error \
+            --dump-header login-headers.txt \
+            --output /dev/null \
+            "${web_url}/api/auth/login"
+          authorization_url=$(awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\r$/, ""); sub(/^[^:]+:[[:space:]]*/, ""); print; exit }' login-headers.txt)
+          node -e '
+            const [authorizationUrl, expectedCallback] = process.argv.slice(1);
+            const actualCallback = new URL(authorizationUrl).searchParams.get("redirect_uri");
+            if (actualCallback !== expectedCallback) {
+              throw new Error(`OAuth callback mismatch: expected ${expectedCallback}, received ${actualCallback}`);
+            }
+          ' "$authorization_url" "${web_url}/api/auth/callback"
+
+          {
+            echo "## Dev deployment"
+            echo "- Revision: \`${DEPLOYMENT_SHA}\`"
+            echo "- Web: ${web_url}"
+            echo "- Checks: home, lease preview, public catalogue, OAuth callback"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize deployment plan
+        if: inputs.operation == 'plan'
+        run: |
+          {
+            echo "## Dev deployment plan"
+            echo "- Revision: \`${DEPLOYMENT_SHA}\`"
+            echo "- Scope: \`${PLAN_SCOPE}\`"
+            if [ "$PLAN_SCOPE" = "foundation" ]; then
+              echo "- Result: foundation what-if completed; dependent resources require the foundation outputs"
+              echo "- Next: review this run, then dispatch operation=deploy-foundation for the same SHA and plan run ID"
+            else
+              echo "- Result: foundation, database jobs, and application what-if completed"
+              echo "- Next: review this run, then dispatch operation=deploy for the same SHA and plan run ID"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize foundation bootstrap
+        if: inputs.operation == 'deploy-foundation'
+        run: |
+          {
+            echo "## Dev foundation bootstrap"
+            echo "- Revision: \`${DEPLOYMENT_SHA}\`"
+            echo "- Result: foundation deployed"
+            echo "- Next: dispatch operation=plan again to review database jobs and applications"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve SHA-bound deployment plan evidence
+        if: inputs.operation == 'plan'
+        run: |
+          {
+            echo "commit_sha=$DEPLOYMENT_SHA"
+            echo "operation=plan"
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "scope=$PLAN_SCOPE"
+          } > deployment-plan.txt
+
+      - name: Upload deployment plan evidence
+        if: inputs.operation == 'plan'
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-plan-${{ env.DEPLOYMENT_SHA }}
+          path: deployment-plan.txt
+          if-no-files-found: error
+          retention-days: 30

@@ -1,6 +1,5 @@
 import './PropertyPages.styles.css';
 import {
-  Badge,
   Button,
   Field,
   Input,
@@ -80,12 +79,7 @@ const usePropertyPageStyles = makeStyles({
     alignSelf: "end",
     minWidth: "132px",
     minHeight: "44px",
-    color: "#fff",
-    backgroundColor: "var(--logo-aubergine)",
-    ":hover": {
-      color: "#fff",
-      backgroundColor: "var(--aubergine)",
-    },
+    fontSize: "1rem",
     "@media (max-width: 1200px)": {
       width: "100%",
     },
@@ -94,6 +88,7 @@ const usePropertyPageStyles = makeStyles({
     alignSelf: "end",
     minWidth: "108px",
     minHeight: "44px",
+    fontSize: "1rem",
     color: "var(--logo-aubergine)",
     backgroundColor: "transparent",
     borderTopColor: "var(--line)",
@@ -132,17 +127,7 @@ export function PropertiesPage({ lang, filters, onFilterChange }) {
     <section className="page content-page shell">
       <div className="section-head">
         <div>
-          <p className="eyebrow">
-            {t("property_pages.discovery_eyebrow")}{" "}
-            <Badge
-              as="span"
-              className="demo-label"
-              appearance="tint"
-              color="informative"
-            >
-              {t("common.mock_data")}
-            </Badge>
-          </p>
+          <p className="eyebrow">{t("property_pages.discovery_eyebrow")}</p>
           <h1>{t("property_pages.find_title")}</h1>
         </div>
         <p>{t("property_pages.discovery_intro")}</p>
@@ -258,7 +243,7 @@ export function PropertiesPage({ lang, filters, onFilterChange }) {
   );
 }
 
-export function PropertyDetailPage({ lang, propertyId, onOpenAccess }) {
+export function PropertyDetailPage({ lang, propertyId }) {
   const { t } = useTranslation();
   const p = localizeProperty(
     properties.find((item) => item.id === propertyId) || properties[0],
@@ -273,31 +258,19 @@ export function PropertyDetailPage({ lang, propertyId, onOpenAccess }) {
           <ArrowLeft20Regular aria-hidden="true" />{" "}
           {t("property_pages.back_to_properties")}
         </Link>
-        <div className="detail-photo" role="img" aria-label={p.title}>
-          <img src="/keyforta-logo-reversed.png" alt="" aria-hidden="true" />
+        <div className="detail-photo">
+          <img src={p.image} alt={p.imageAlt} />
         </div>
         <div className="content-narrow">
-          <StatusMessage
-            className="notice"
-            intent="warning"
-            title={t("property_pages.demo_listing_label")}
-            message={t("property_pages.demo_listing_notice")}
-          />
           <div className="detail-facts">
             <span>
-              <strong>{p.beds}</strong>{" "}
-              {t("property.bedroom", { count: p.beds })}
+              <strong>{t("property.bedroom", { count: p.beds })}</strong>
             </span>
             <span>
-              <strong>{p.baths}</strong>{" "}
-              {t("property.bathroom", { count: p.baths })}
+              <strong>{t("property.bathroom", { count: p.baths })}</strong>
             </span>
             <span>
               <strong>{p.area}</strong> {t("property_pages.neighborhood_label")}
-            </span>
-            <span>
-              <strong>{t("common.mock_data")}</strong>{" "}
-              {t("property_pages.mock_verification")}
             </span>
           </div>
           <h2>{t("property_pages.about_home")}</h2>
@@ -361,13 +334,12 @@ export function PropertyDetailPage({ lang, propertyId, onOpenAccess }) {
           {money(p.price, lang)} <small>{t("property.per_month")}</small>
         </p>
         <p>
-          {p.beds} {t("property.bedroom", { count: p.beds })} · {p.baths}{" "}
-          {t("property.bathroom", { count: p.baths })} · 1{" "}
+          {t("property.bedroom", { count: p.beds })} · {t("property.bathroom", { count: p.baths })} · 1{" "}
           {t("property_pages.living_room")} · 1 {t("property_pages.kitchen")}
         </p>
-        <Button className="button" onClick={() => onOpenAccess(p.title)}>
+        <Link className="button" to={`/view/${p.id}`}>
           {t("property_pages.request_viewing")}
-        </Button>
+        </Link>
         <Link
           className="button secondary application-link"
           to={`/apply/${p.id}`}
@@ -451,6 +423,56 @@ export function RentalApplicationPage({ lang, propertyId, onSubmit }) {
             message={status}
           />
         </form>
+      </div>
+    </section>
+  );
+}
+
+export function ViewingRequestPage({ lang, propertyId, onSubmit }) {
+  const { t } = useTranslation();
+  const property = properties.find((item) => item.id === propertyId) || properties[0];
+  const [status, setStatus] = useState("");
+
+  return (
+    <section className="page content-page shell auth-page">
+      <div className="application-card">
+        <p className="eyebrow">{t("property_pages.viewing_eyebrow")}</p>
+        <h1>{t("property_pages.viewing_title", { title: localizeProperty(property, lang).title })}</h1>
+        <p className="muted">{t("property_pages.viewing_intro")}</p>
+        <form
+          className="form-grid"
+          id="viewing-request-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            setStatus(onSubmit(Object.fromEntries(new FormData(form))));
+            form.reset();
+          }}
+        >
+          <input type="hidden" name="propertyId" value={property.id} readOnly />
+          <Field label={t("full_name")}>
+            <Input name="name" minLength={2} maxLength={120} required />
+          </Field>
+          <Field label={t("email")}>
+            <Input name="email" type="email" required />
+          </Field>
+          <Field label={t("property_pages.phone")}>
+            <Input name="phone" type="tel" maxLength={40} />
+          </Field>
+          <Field label={t("property_pages.preferred_time")}>
+            <Input name="preferredAt" type="datetime-local" />
+          </Field>
+          <Field label={t("property_pages.viewing_message")}>
+            <Textarea name="message" maxLength={1000} />
+          </Field>
+          <Button className="button copper" type="submit">
+            {t("property_pages.submit_viewing")}
+          </Button>
+          <StatusMessage className="form-status show" intent="success" message={status} />
+        </form>
+        <Link className="text-link" to={`/property/${property.id}`}>
+          <ArrowLeft20Regular aria-hidden="true" /> {t("property_pages.back_to_property")}
+        </Link>
       </div>
     </section>
   );
