@@ -90,7 +90,11 @@ export function registerSuite({ check }) {
       `${snapshotDirectory}/report.txt`,
       "utf8",
     );
-    return result.safe && result.fileCount === 1 && copied === "safe evidence\n";
+    const passed =
+      result.safe && result.fileCount === 1 && copied === "safe evidence\n";
+    rmSync(reportDirectory, { force: true, recursive: true });
+    rmSync(snapshotDirectory, { force: true, recursive: true });
+    return passed;
   });
   check("nested report directories fail closed", () => {
     const reportDirectory = "harness/reports/self-test-nested-source";
