@@ -1,0 +1,143 @@
+{
+  "contractVersion": 2,
+  "taskId": "HAR-002",
+  "phase": "implementation",
+  "workArea": "governance-and-harness",
+  "title": "Map workspace checks to bugfix test evidence",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/7",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/7",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/7",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "classification": "bugfix",
+  "workflowState": "implemented",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T19:25:48.000Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/7"
+      ]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-15T19:25:48.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-002.md"
+      ]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T19:25:48.000Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/7"
+      ],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/7",
+        "commitSha": "b1cbd5f384b222c36dba4578e8676ca5c31bb8f8"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-15T19:25:48.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-002.md"
+      ]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T19:25:48.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-002.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T19:28:01.000Z",
+      "evidenceReferences": [
+        "harness/scripts/edd-lib.mjs",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-002.md"
+      ]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "routingRuleId": "ROUTE-008",
+  "supportingReviewers": [
+    "Solution Architect",
+    "Security and Privacy Reviewer",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "KEYFORTA main baseline b1cbd5f384b222c36dba4578e8676ca5c31bb8f8"
+  ],
+  "allowedPaths": [
+    "docs/engineering/evidence/HAR-002.md",
+    "harness/scripts/edd-lib.mjs",
+    "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+    "harness/tasks/HAR-002.json"
+  ],
+  "declaredProtectedPaths": [],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/7",
+    "docs/engineering/evidence/HAR-002.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-HAR-002-01",
+      "requirementReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/7"
+      ],
+      "testReferences": [
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"
+      ]
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md",
+    "docs/engineering/evidence/HAR-002.md"
+  ],
+  "requiredScenarios": [
+    "canonical-verification"
+  ],
+  "requiredCommands": [
+    "pnpm verify:all"
+  ],
+  "requiredEvidence": [
+    "docs/engineering/evidence/HAR-002.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-HAR-002.json"
+  ],
+  "riskClassification": "medium",
+  "securityImpact": "Preserves fail-closed verification by mapping only a passing canonical workspace check to the required test-evidence alias.",
+  "dataImpact": "No product, personal, persistent, or production data changes.",
+  "observabilityImpact": "Generated evidence will expose the canonical workspace-check result as unit, integration, and contract test evidence.",
+  "rollbackConsiderations": "Revert HAR-002 to restore the prior evidence mapping. No runtime or data rollback is required.",
+  "humanApprovalRequirements": [
+    "Product-owner scope approval recorded in issue #7",
+    "Independent architecture, security, and pull-request review before merge",
+    "No harness policy, schema, product-runtime, or deployment changes"
+  ],
+  "repairCycle": 0
+}
