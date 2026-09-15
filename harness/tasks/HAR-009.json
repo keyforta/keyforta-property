@@ -1,0 +1,132 @@
+{
+  "contractVersion": 2,
+  "taskId": "HAR-009",
+  "phase": "implementation",
+  "workArea": "governance-and-harness",
+  "title": "Adopt trusted retention boundary in PR #13",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/21",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/21",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/21",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "classification": "security",
+  "workflowState": "implementation-ready",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T23:34:14.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/21"]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-15T23:34:14.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-009.md"]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T23:34:14.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/21"],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/21",
+        "commitSha": "eaf5b5a4652b41aa63dc4281bb1367414795aaf9"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-15T23:34:14.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-009.md"]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T23:34:14.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-009.md"]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "routingRuleId": "ROUTE-008",
+  "supportingReviewers": [
+    "Security and Privacy Reviewer",
+    "Solution Architect",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "PR #19 merge b49df918bf3b0467c5207cd402da3d50c67bd202",
+    "HAR-003, HAR-005, and HAR-006 remain unchanged at repair cycle 3"
+  ],
+  "allowedPaths": [
+    ".gitignore",
+    ".github/workflows/ci.yml",
+    "docs/engineering/evidence/HAR-003.md",
+    "docs/engineering/evidence/HAR-005.md",
+    "docs/engineering/evidence/HAR-006.md",
+    "docs/engineering/evidence/HAR-009.md",
+    "harness/scripts/report-retention-guard.mjs",
+    "harness/scripts/secret-scan.mjs",
+    "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+    "harness/scripts/verify-reports.mjs",
+    "harness/tasks/HAR-003.json",
+    "harness/tasks/HAR-005.json",
+    "harness/tasks/HAR-006.json",
+    "harness/tasks/HAR-009.json"
+  ],
+  "declaredProtectedPaths": [".github/workflows/ci.yml"],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/21",
+    "docs/engineering/evidence/HAR-009.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-HAR-009-01",
+      "requirementReferences": ["https://github.com/keyforta/keyforta-property/issues/21"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    },
+    {
+      "id": "AC-HAR-009-02",
+      "requirementReferences": ["docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md",
+    "docs/engineering/evidence/HAR-009.md"
+  ],
+  "requiredScenarios": ["canonical-verification"],
+  "requiredCommands": ["pnpm harness:self-test", "pnpm verify:all"],
+  "requiredEvidence": [
+    "docs/engineering/evidence/HAR-009.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-HAR-009.json"
+  ],
+  "riskClassification": "critical",
+  "securityImpact": "Moves PR #13 onto the protected trusted-retention boundary without extending exhausted task repair histories.",
+  "dataImpact": "No product, personal, persistent, or production data changes.",
+  "observabilityImpact": "PR #13 CI produces a bounded untrusted candidate for the protected workflow-run scanner.",
+  "rollbackConsiderations": "Reverting HAR-009 restores PR #13's stale PR-controlled retention implementation and unresolved review findings.",
+  "humanApprovalRequirements": [
+    "Product-owner security scope and protected-workflow approval recorded in issue #21 and the approving Copilot session",
+    "Independent architecture, security, and pull-request review before merge",
+    "GitHub CI and protected-branch controls remain authoritative",
+    "No changes to exhausted HAR-003, HAR-005, or HAR-006 task history"
+  ],
+  "repairCycle": 0
+}
