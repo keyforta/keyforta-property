@@ -3,6 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Backend API boundary for Keyforta modular-monolith domains",
-  "scripts": { "check": "node scripts/check.mjs", "build": "node scripts/build.mjs" }
+  "description": "Backend API boundary for KEYFORTA modular-monolith domains",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "pnpm test && pnpm typecheck && pnpm build",
+    "dev": "node --env-file-if-exists=.env.local --import tsx --watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "@fastify/cors": "11.3.0",
+    "@fastify/helmet": "13.1.1",
+    "@keyforta/contracts": "workspace:*",
+    "fastify": "5.12.3"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0"
+  }
 }
