@@ -132,6 +132,9 @@ function isolatedValidationWorkspaceIsBounded(source) {
   const packageCandidate = steps.find(
     ({ name }) => name === "Package untrusted engineering evidence",
   );
+  const uploadCandidate = steps.find(
+    ({ name }) => name === "Upload untrusted engineering evidence",
+  );
   const cleanup = steps.find(
     ({ name }) => name === "Remove validation workspace",
   );
@@ -148,6 +151,11 @@ function isolatedValidationWorkspaceIsBounded(source) {
     producerSteps.every(
       (step) => step["working-directory"] === "${{ env.VALIDATION_WORKSPACE }}",
     ) &&
+    stop &&
+    packageCandidate &&
+    uploadCandidate &&
+    steps.indexOf(stop) < steps.indexOf(packageCandidate) &&
+    steps.indexOf(packageCandidate) < steps.indexOf(uploadCandidate) &&
     stop?.run?.includes('sudo pkill -KILL -u "$VALIDATION_USER"') &&
     packageCandidate?.run?.includes(
       '--directory "$VALIDATION_WORKSPACE/harness" reports',
@@ -155,6 +163,19 @@ function isolatedValidationWorkspaceIsBounded(source) {
     !packageCandidate.run.includes("chown") &&
     !packageCandidate.run.includes("verify-reports.mjs") &&
     cleanup?.run?.includes('"$VALIDATION_WORKSPACE"')
+  );
+}
+
+function finalEvidenceIncludesCiAudit(source) {
+  const workflow = parse(source);
+  const steps = Object.values(workflow?.jobs ?? {}).flatMap(
+    ({ steps = [] }) => steps,
+  );
+  const evidence = steps.find(
+    ({ name }) => name === "Generate final commit evidence",
+  );
+  return evidence?.run?.includes(
+    "EDD_SATISFIED_CHECKS=dependency-audit,verify:evidence pnpm verify:transition",
   );
 }
 
@@ -1488,6 +1509,11 @@ jobs:
   );
   check("isolated CI producer hands off a bounded raw candidate", () =>
     isolatedValidationWorkspaceIsBounded(
+      readFileSync(".github/workflows/ci.yml", "utf8"),
+    ),
+  );
+  check("final CI evidence includes the successful dependency audit", () =>
+    finalEvidenceIncludesCiAudit(
       readFileSync(".github/workflows/ci.yml", "utf8"),
     ),
   );
