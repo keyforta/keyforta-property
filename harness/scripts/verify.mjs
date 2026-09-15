@@ -19,6 +19,7 @@ import {
   validateEvidenceManifest,
 } from "./edd-lib.mjs";
 import { runGates, skippedGateResults } from "./run-gates.mjs";
+import { guardGeneratedReports } from "./report-retention-guard.mjs";
 
 function filesWithExtension(directory, extension) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -325,6 +326,16 @@ if (failed && contract) {
     `${failureDirectory}/${failureName}.json`,
     `${JSON.stringify(report, null, 2)}\n`,
   );
+}
+const retention = guardGeneratedReports(
+  "harness/reports",
+  readJson("harness/policies/repository-policy.json").forbiddenSecretPatterns,
+);
+if (!retention.safe) {
+  console.error(
+    `\n[verify] FAILED - ${retention.findingCount} unsafe or unreadable generated-report finding(s); report artifacts removed`,
+  );
+  process.exit(1);
 }
 console.log(
   `\n[verify] ${report.status.toUpperCase()} - evidence: harness/reports/verify-latest.json`,

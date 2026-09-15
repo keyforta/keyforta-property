@@ -2,18 +2,22 @@ import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { databaseEnvironment, validateEvidence } from "../lib.mjs";
+import { databaseEnvironment, readJson, validateEvidence } from "../lib.mjs";
+import { guardGeneratedReports } from "../report-retention-guard.mjs";
 import {
   buildEvidenceManifest,
+  declaredToolVersions,
   dependencyArtifactRecords,
   effectiveEvidencePolicy,
   sha256,
   taskEvidenceReference,
+  transitionArtifactRecords,
   validateArtifactRecords,
   validateClassification,
   validateCurrentState,
@@ -30,6 +34,127 @@ import {
 } from "./fixtures.mjs";
 
 export function registerSuite({ check }) {
+  check("unsafe generated reports are removed before retention", () => {
+    const reportDirectory = "harness/reports/self-test-retention-guard";
+    mkdirSync(reportDirectory, { recursive: true });
+    const syntheticCredential = "API_" + "KEY=fakevalue123";
+    writeFileSync(
+      `${reportDirectory}/${syntheticCredential}.json`,
+      `${JSON.stringify({ status: "synthetic" })}\n`,
+    );
+    const result = guardGeneratedReports(
+      reportDirectory,
+      readJson("harness/policies/repository-policy.json")
+        .forbiddenSecretPatterns,
+    );
+    return !result.safe && !existsSync(reportDirectory);
+  });
+  check("unreadable generated reports fail closed", () => {
+    const reportDirectory = "harness/reports/self-test-unreadable-reports";
+    const nestedDirectory = `${reportDirectory}/nested`;
+    mkdirSync(nestedDirectory, { recursive: true });
+    writeFileSync(`${nestedDirectory}/report.json`, "{}\n");
+    const result = guardGeneratedReports(
+      reportDirectory,
+      [],
+      (directory, options) => {
+        if (directory === nestedDirectory) throw new Error("synthetic EACCES");
+        return readdirSync(directory, options);
+      },
+    );
+    return !result.safe && !existsSync(reportDirectory);
+  });
+  check("normalized artifact section bindings accept camelCase sections", () => {
+    const reference = "harness/reports/self-test-normalized-sections.md";
+    mkdirSync("harness/reports", { recursive: true });
+    try {
+      writeFileSync(
+        reference,
+        [
+          "# Synthetic evidence",
+          "## Commands",
+          "The canonical command passed.",
+          "## Tests",
+          "The focused tests passed.",
+          "## Known Failures",
+          "No known failures remain.",
+          "## Reason",
+          "A synthetic transition occurred.",
+          "## Actor",
+          "Harness self-test.",
+          "## Timestamp",
+          "2026-09-11T00:00:00.000Z.",
+          "## Evidence References",
+          "The synthetic evidence file.",
+        ].join("\n"),
+      );
+      const contract = { ...valid, requiredEvidence: [reference] };
+      const capturedAt = "2026-09-11T00:02:00.000Z";
+      const hash = sha256(reference);
+      const manifest = {
+        ...syntheticManifest(),
+        artifactRecords: [
+          {
+            capturedAt,
+            kind: "evidence-manifest",
+            reference,
+            sections: ["commands", "tests", "knownFailures"],
+            sha256: hash,
+          },
+          {
+            capturedAt,
+            kind: "state-change-record",
+            reference,
+            sections: ["reason", "actor", "timestamp", "evidenceReferences"],
+            sha256: hash,
+          },
+        ],
+      };
+      return validateArtifactRecords(manifest, contract).length === 0;
+    } finally {
+      if (existsSync(reference)) unlinkSync(reference);
+    }
+  });
+  check("evidence records only declared tool versions", () => {
+    const packageManifest = {
+      packageManager: "pnpm@11.19.0",
+      devDependencies: { turbo: "^2.5.6" },
+    };
+    const versions = declaredToolVersions(packageManifest);
+    return (
+      versions.packageManager === "pnpm@11.19.0" &&
+      versions.turbo === "^2.5.6" &&
+      !("typescript" in versions)
+    );
+  });
+  check("correction transitions emit their required artifacts", () => {
+    const reference = "docs/engineering/evidence/HAR-001.md";
+    const contract = {
+      ...valid,
+      taskId: "HAR-001",
+      classification: "configuration",
+      workflowState: "implemented",
+      stateHistory: [
+        { state: "changes-requested" },
+        { state: "implemented" },
+      ],
+      requiredEvidence: [reference],
+    };
+    const records = transitionArtifactRecords(
+      contract,
+      "2026-09-11T00:02:00.000Z",
+      evidencePolicy,
+    );
+    return (
+      records.length === 2 &&
+      records.some((record) => record.kind === "failure-evidence") &&
+      records.some((record) => record.kind === "correction-record") &&
+      validateArtifactRecords(
+        { ...syntheticManifest(), artifactRecords: records },
+        contract,
+      ).length === 0
+    );
+  });
   check("stale generated evidence is rejected", () => {
     const report = {
       completedAt: "2026-09-11T00:00:00.000Z",

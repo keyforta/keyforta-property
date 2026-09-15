@@ -1,0 +1,215 @@
+{
+  "contractVersion": 2,
+  "taskId": "HAR-001",
+  "phase": "implementation",
+  "workArea": "governance-and-harness",
+  "title": "Ignore generated harness evidence reports",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/3",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/3",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/3",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "classification": "configuration",
+  "workflowState": "implemented",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T18:22:22.000Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/3"
+      ]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-15T18:22:22.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T18:22:22.000Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/3"
+      ],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/3",
+        "commitSha": "ed6a8ca2c104d6b48c4df6d993facb6c34ef42c5"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-15T18:22:22.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T18:22:22.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T18:24:30.000Z",
+      "evidenceReferences": [
+        ".gitignore",
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Pull Request Reviewer",
+      "enteredAt": "2026-09-15T18:30:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T18:35:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T18:40:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T18:45:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T18:50:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T18:56:46.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "routingRuleId": "ROUTE-008",
+  "supportingReviewers": [
+    "Solution Architect",
+    "Security and Privacy Reviewer",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "KEYFORTA merge baseline ed6a8ca2c104d6b48c4df6d993facb6c34ef42c5"
+  ],
+  "allowedPaths": [
+    ".gitignore",
+    ".github/workflows/ci.yml",
+    "docs/engineering/evidence/HAR-001.md",
+    "harness/graders/secrets.mjs",
+    "harness/reports/",
+    "harness/scripts/edd-lib.mjs",
+    "harness/scripts/report-retention-guard.mjs",
+    "harness/scripts/secret-scan.mjs",
+    "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+    "harness/scripts/verify.mjs",
+    "harness/scripts/verify-reports.mjs",
+    "harness/tasks/HAR-001.json",
+    "package.json"
+  ],
+  "declaredProtectedPaths": [
+    ".github/workflows/ci.yml"
+  ],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/3",
+    "docs/engineering/evidence/HAR-001.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-HAR-001-01",
+      "requirementReferences": [
+        "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+      ],
+      "testReferences": [
+        "harness/scripts/check-policy.mjs"
+      ]
+    },
+    {
+      "id": "AC-HAR-001-02",
+      "requirementReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/3"
+      ],
+      "testReferences": [
+        "harness/scripts/verify.mjs"
+      ]
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md",
+    "docs/engineering/evidence/HAR-001.md"
+  ],
+  "requiredScenarios": [
+    "canonical-verification"
+  ],
+  "requiredCommands": [
+    "pnpm check",
+    "node harness/graders/architecture.mjs",
+    "pnpm build",
+    "pnpm verify:all"
+  ],
+  "requiredEvidence": [
+    "docs/engineering/evidence/HAR-001.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-HAR-001.json"
+  ],
+  "riskClassification": "medium",
+  "securityImpact": "Strengthens the existing secret control by applying the same forbidden patterns to generated JSON reports, deleting the complete evidence set on unsafe or unreadable output, failing verification, and blocking CI artifact retention.",
+  "dataImpact": "No product or production data changes. Four generated synthetic verification reports are removed from version control.",
+  "observabilityImpact": "Canonical verification reports remain available locally and as retained CI artifacts but are no longer committed source files. Evidence metadata records only tools declared by the workspace.",
+  "rollbackConsiderations": "Revert HAR-001 to restore the prior tracked reports and ignore behavior. No runtime or production rollback is required.",
+  "humanApprovalRequirements": [
+    "Product-owner scope and prerequisite approval recorded in issue #3 and the approving Copilot session",
+    "Product-owner security-control and protected-workflow approval recorded in issue #3 and the approving Copilot session",
+    "Independent architecture, security, and pull-request review before merge",
+    "GitHub CODEOWNERS and protected-branch controls remain authoritative",
+    "No harness policy, schema, product-runtime, or deployment changes"
+  ],
+  "repairCycle": 3
+}
