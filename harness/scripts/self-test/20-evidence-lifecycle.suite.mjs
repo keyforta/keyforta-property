@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { databaseEnvironment, readJson, validateEvidence } from "../lib.mjs";
+import { guardGeneratedReports } from "../report-retention-guard.mjs";
 import { secretPatternFindings } from "../secret-scan.mjs";
 import {
   buildEvidenceManifest,
@@ -32,21 +33,23 @@ import {
 } from "./fixtures.mjs";
 
 export function registerSuite({ check }) {
-  check("generated reports containing secrets are rejected", () => {
-    const reportPath = "harness/reports/self-test-generated-secret.json";
+  check("unsafe generated reports are removed before retention", () => {
+    const reportDirectory = "harness/reports/self-test-retention-guard";
+    mkdirSync(reportDirectory, { recursive: true });
     const syntheticCredential = "API_" + "KEY=fakevalue123";
-    writeFileSync(reportPath, `${JSON.stringify({ syntheticCredential })}\n`);
-    try {
-      return (
-        secretPatternFindings(
-          [reportPath],
-          readJson("harness/policies/repository-policy.json")
-            .forbiddenSecretPatterns,
-        ).length === 1
-      );
-    } finally {
-      unlinkSync(reportPath);
-    }
+    writeFileSync(
+      `${reportDirectory}/${syntheticCredential}.json`,
+      `${JSON.stringify({ status: "synthetic" })}\n`,
+    );
+    const result = guardGeneratedReports(
+      reportDirectory,
+      readJson("harness/policies/repository-policy.json")
+        .forbiddenSecretPatterns,
+    );
+    return !result.safe && !existsSync(reportDirectory);
+  });
+  check("unreadable generated reports fail closed", () => {
+    return secretPatternFindings(["harness/reports"], []).length === 1;
   });
   check("evidence records only declared tool versions", () => {
     const packageManifest = {

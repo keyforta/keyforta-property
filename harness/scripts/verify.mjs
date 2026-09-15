@@ -1,11 +1,5 @@
 #!/usr/bin/env node
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, relative } from "node:path";
 import {
@@ -25,7 +19,7 @@ import {
   validateEvidenceManifest,
 } from "./edd-lib.mjs";
 import { runGates, skippedGateResults } from "./run-gates.mjs";
-import { secretPatternFindings } from "./secret-scan.mjs";
+import { guardGeneratedReports } from "./report-retention-guard.mjs";
 
 function filesWithExtension(directory, extension) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -324,33 +318,6 @@ writeFileSync(
   "harness/reports/verify-latest.json",
   `${JSON.stringify(report, null, 2)}\n`,
 );
-const generatedReportFiles = filesWithExtension("harness/reports", ".json");
-const generatedReportFindings = secretPatternFindings(
-  generatedReportFiles,
-  readJson("harness/policies/repository-policy.json").forbiddenSecretPatterns,
-);
-if (generatedReportFindings.length) {
-  for (const file of generatedReportFiles) unlinkSync(file);
-  failed = true;
-  report.status = "failed";
-  report.nextState =
-    contract?.repairCycle >= 3 ? "blocked" : "changes-requested";
-}
-report.results.push({
-  ...(generatedReportFindings.length
-    ? {
-        detail: generatedReportFindings
-          .map(({ file }) => `${file}: removed before artifact retention`)
-          .join("; "),
-      }
-    : {}),
-  name: "generated-report-secret-patterns",
-  status: generatedReportFindings.length ? "failed" : "passed",
-});
-writeFileSync(
-  "harness/reports/verify-latest.json",
-  `${JSON.stringify(report, null, 2)}\n`,
-);
 if (failed && contract) {
   const failureDirectory = `harness/reports/failures/${contract.taskId}`;
   const failureName = report.completedAt.replaceAll(":", "-");
@@ -359,6 +326,16 @@ if (failed && contract) {
     `${failureDirectory}/${failureName}.json`,
     `${JSON.stringify(report, null, 2)}\n`,
   );
+}
+const retention = guardGeneratedReports(
+  "harness/reports",
+  readJson("harness/policies/repository-policy.json").forbiddenSecretPatterns,
+);
+if (!retention.safe) {
+  console.error(
+    `\n[verify] FAILED - ${retention.findingCount} unsafe or unreadable generated-report finding(s); report artifacts removed`,
+  );
+  process.exit(1);
 }
 console.log(
   `\n[verify] ${report.status.toUpperCase()} - evidence: harness/reports/verify-latest.json`,

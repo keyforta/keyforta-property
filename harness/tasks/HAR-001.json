@@ -68,6 +68,54 @@
         ".gitignore",
         "docs/engineering/evidence/HAR-001.md"
       ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Pull Request Reviewer",
+      "enteredAt": "2026-09-15T18:30:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T18:35:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T18:40:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T18:45:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T18:50:00.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T18:56:46.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
     }
   ],
   "assignedAgent": "Harness and Evaluation Engineer",
@@ -82,16 +130,22 @@
   ],
   "allowedPaths": [
     ".gitignore",
+    ".github/workflows/ci.yml",
     "docs/engineering/evidence/HAR-001.md",
     "harness/graders/secrets.mjs",
     "harness/reports/",
     "harness/scripts/edd-lib.mjs",
+    "harness/scripts/report-retention-guard.mjs",
     "harness/scripts/secret-scan.mjs",
     "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
     "harness/scripts/verify.mjs",
-    "harness/tasks/HAR-001.json"
+    "harness/scripts/verify-reports.mjs",
+    "harness/tasks/HAR-001.json",
+    "package.json"
   ],
-  "declaredProtectedPaths": [],
+  "declaredProtectedPaths": [
+    ".github/workflows/ci.yml"
+  ],
   "protectedPaths": [
     "AGENTS.md",
     ".github/",
@@ -146,14 +200,16 @@
     "harness/reports/evidence-HAR-001.json"
   ],
   "riskClassification": "medium",
-  "securityImpact": "Strengthens the existing secret control by applying the same forbidden patterns to generated JSON reports, deleting unsafe outputs, and failing verification before CI artifact retention.",
+  "securityImpact": "Strengthens the existing secret control by applying the same forbidden patterns to generated JSON reports, deleting the complete evidence set on unsafe or unreadable output, failing verification, and blocking CI artifact retention.",
   "dataImpact": "No product or production data changes. Four generated synthetic verification reports are removed from version control.",
   "observabilityImpact": "Canonical verification reports remain available locally and as retained CI artifacts but are no longer committed source files. Evidence metadata records only tools declared by the workspace.",
   "rollbackConsiderations": "Revert HAR-001 to restore the prior tracked reports and ignore behavior. No runtime or production rollback is required.",
   "humanApprovalRequirements": [
     "Product-owner scope and prerequisite approval recorded in issue #3 and the approving Copilot session",
+    "Product-owner security-control and protected-workflow approval recorded in issue #3 and the approving Copilot session",
     "Independent architecture, security, and pull-request review before merge",
+    "GitHub CODEOWNERS and protected-branch controls remain authoritative",
     "No harness policy, schema, product-runtime, or deployment changes"
   ],
-  "repairCycle": 0
+  "repairCycle": 3
 }
