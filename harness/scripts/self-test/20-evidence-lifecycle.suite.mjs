@@ -7,6 +7,7 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  truncateSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -55,6 +56,7 @@ function checkoutCredentialsAreDisabled(source) {
 function retentionUsesTrustedWorkflow(validationSource, retentionSource) {
   const validation = parse(validationSource);
   const retention = parse(retentionSource);
+  const validationJob = Object.values(validation?.jobs ?? {})[0];
   const validationSteps = Object.values(validation?.jobs ?? {}).flatMap(
     ({ steps = [] }) => steps,
   );
@@ -76,6 +78,8 @@ function retentionUsesTrustedWorkflow(validationSource, retentionSource) {
     ({ name }) => name === "Upload untrusted engineering evidence",
   );
   return (
+    validationJob?.env?.HARNESS_TASK_CONTRACT ===
+      "${{ github.event.pull_request.number == 19 && 'harness/tasks/HAR-008.json' || '' }}" &&
     retention?.on?.workflow_run?.workflows?.includes("CI") &&
     retention?.permissions?.contents === "read" &&
     retention?.permissions?.actions === "read" &&
@@ -213,6 +217,97 @@ export function registerSuite({ check }) {
       reportDirectory,
       snapshotDirectory,
       [],
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("report entry counts are bounded during enumeration", () => {
+    const reportDirectory = "harness/reports/self-test-entry-limit-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-entry-limit";
+    mkdirSync(reportDirectory, { recursive: true });
+    for (let index = 0; index <= 1_000; index += 1) {
+      writeFileSync(`${reportDirectory}/${String(index).padStart(4, "0")}.txt`, "x");
+    }
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("aggregate report bytes are bounded across failed files", () => {
+    const reportDirectory = "harness/reports/self-test-total-limit-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-total-limit";
+    mkdirSync(reportDirectory, { recursive: true });
+    for (let index = 0; index < 7; index += 1) {
+      const report = `${reportDirectory}/${index}.txt`;
+      writeFileSync(report, Buffer.alloc(70 * 1024, 0x61));
+    }
+    let consumedBytes = 0;
+    const extendedFiles = new Set();
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+      () => {},
+      (file, _fileBytes, aggregateBytes) => {
+        consumedBytes = aggregateBytes;
+        if (extendedFiles.has(file)) return;
+        extendedFiles.add(file);
+        truncateSync(file, 10 * 1024 * 1024 + 70 * 1024);
+      },
+    );
+    return (
+      !result.safe &&
+      consumedBytes === 50 * 1024 * 1024 + 1 &&
+      !existsSync(snapshotDirectory)
+    );
+  });
+  check("report directory depth is bounded", () => {
+    const reportDirectory = "harness/reports/self-test-depth-limit-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-depth-limit";
+    let nestedDirectory = reportDirectory;
+    for (let depth = 0; depth < 18; depth += 1) {
+      nestedDirectory = `${nestedDirectory}/nested`;
+    }
+    mkdirSync(nestedDirectory, { recursive: true });
+    writeFileSync(`${nestedDirectory}/report.txt`, "safe evidence\n");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("same-inode growth before open is bounded", () => {
+    const reportDirectory = "harness/reports/self-test-pre-open-growth-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-pre-open-growth";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(`${reportDirectory}/report.txt`, "x");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+      (file) => writeFileSync(file, Buffer.alloc(10 * 1024 * 1024 + 1), { flag: "a" }),
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("same-inode growth during chunked reads is bounded", () => {
+    const reportDirectory = "harness/reports/self-test-read-growth-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-read-growth";
+    const report = `${reportDirectory}/report.txt`;
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(report, Buffer.alloc(70 * 1024, 0x61));
+    let extended = false;
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+      () => {},
+      (file) => {
+        if (extended) return;
+        extended = true;
+        writeFileSync(file, Buffer.alloc(10 * 1024 * 1024, 0x61), { flag: "a" });
+      },
     );
     return !result.safe && !existsSync(snapshotDirectory);
   });

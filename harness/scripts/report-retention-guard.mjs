@@ -5,7 +5,8 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
-  readFileSync,
+  opendirSync,
+  readSync,
   readdirSync,
   rmSync,
   writeFileSync,
@@ -20,6 +21,7 @@ const MAX_REPORT_DEPTH = 16;
 const MAX_REPORT_FILES = 1_000;
 const MAX_REPORT_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_REPORT_TOTAL_BYTES = 50 * 1024 * 1024;
+const REPORT_READ_CHUNK_BYTES = 64 * 1024;
 
 function retainedEntries(directory, readDirectory, readMetadata) {
   return readDirectory(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -46,23 +48,26 @@ function openedDirectory(directory) {
     directory,
     constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
   );
-  const metadata = fstatSync(descriptor);
-  if (!metadata.isDirectory()) {
+  try {
+    const metadata = fstatSync(descriptor);
+    if (!metadata.isDirectory()) {
+      throw new Error("report source is not a directory");
+    }
+    const descriptorPath =
+      process.platform === "linux"
+        ? `/proc/self/fd/${descriptor}`
+        : directory;
+    if (
+      descriptorPath === directory &&
+      !sameIdentity(metadata, lstatSync(directory))
+    ) {
+      throw new Error("report directory identity changed");
+    }
+    return { descriptor, descriptorPath, metadata };
+  } catch (error) {
     closeSync(descriptor);
-    throw new Error("report source is not a directory");
+    throw error;
   }
-  const descriptorPath =
-    process.platform === "linux"
-      ? `/proc/self/fd/${descriptor}`
-      : directory;
-  if (
-    descriptorPath === directory &&
-    !sameIdentity(metadata, lstatSync(directory))
-  ) {
-    closeSync(descriptor);
-    throw new Error("report directory identity changed");
-  }
-  return { descriptor, descriptorPath, metadata };
 }
 
 function snapshotEntries(sourceDirectory) {
@@ -72,36 +77,42 @@ function snapshotEntries(sourceDirectory) {
     if (depth > MAX_REPORT_DEPTH) throw new Error("report depth limit exceeded");
     const opened = openedDirectory(directory);
     descriptors.push(opened.descriptor);
-    const entries = readdirSync(opened.descriptorPath, {
-      withFileTypes: true,
-    }).flatMap((entry) => {
-      visitedEntries += 1;
-      if (visitedEntries > MAX_REPORT_FILES) {
-        throw new Error("report file limit exceeded");
+    const directoryHandle = opendirSync(opened.descriptorPath);
+    const entries = [];
+    try {
+      let entry;
+      while ((entry = directoryHandle.readSync()) !== null) {
+        visitedEntries += 1;
+        if (visitedEntries > MAX_REPORT_FILES) {
+          throw new Error("report file limit exceeded");
+        }
+        const retainedPath = join(retainedDirectory, entry.name);
+        const openPath = join(opened.descriptorPath, entry.name);
+        const entryMetadata = lstatSync(openPath);
+        if (entryMetadata.isDirectory()) {
+          entries.push(...walk(openPath, retainedPath, depth + 1));
+          continue;
+        }
+        entries.push({
+          file: join(sourceDirectory, retainedPath),
+          metadata: entryMetadata,
+          openPath,
+          retainedPath,
+          unsafe:
+            !entryMetadata.isFile() ||
+            entryMetadata.size > MAX_REPORT_FILE_BYTES,
+        });
       }
-      const retainedPath = join(retainedDirectory, entry.name);
-      const openPath = join(opened.descriptorPath, entry.name);
-      const entryMetadata = lstatSync(openPath);
-      if (entryMetadata.isDirectory()) {
-        return walk(openPath, retainedPath, depth + 1);
+      if (
+        opened.descriptorPath === directory &&
+        !sameIdentity(opened.metadata, lstatSync(directory))
+      ) {
+        throw new Error("report directory identity changed");
       }
-      return [{
-        file: join(sourceDirectory, retainedPath),
-        metadata: entryMetadata,
-        openPath,
-        retainedPath,
-        unsafe:
-          !entryMetadata.isFile() ||
-          entryMetadata.size > MAX_REPORT_FILE_BYTES,
-      }];
-    });
-    if (
-      opened.descriptorPath === directory &&
-      !sameIdentity(opened.metadata, lstatSync(directory))
-    ) {
-      throw new Error("report directory identity changed");
+      return entries;
+    } finally {
+      directoryHandle.closeSync();
     }
-    return entries;
   };
   try {
     return { descriptors, entries: walk(sourceDirectory) };
@@ -114,6 +125,30 @@ function snapshotEntries(sourceDirectory) {
 function reportText(content) {
   if (content.includes(0)) throw new Error("report contains NUL bytes");
   return new TextDecoder("utf-8", { fatal: true }).decode(content);
+}
+
+function readBoundedReport(descriptor, maxBytes, afterReadChunk) {
+  const chunks = [];
+  const buffer = Buffer.allocUnsafe(
+    Math.min(REPORT_READ_CHUNK_BYTES, maxBytes + 1),
+  );
+  let totalBytes = 0;
+  while (true) {
+    const remainingBytes = maxBytes - totalBytes;
+    const bytesRead = readSync(
+      descriptor,
+      buffer,
+      0,
+      Math.min(buffer.length, remainingBytes + 1),
+      null,
+    );
+    if (bytesRead === 0) break;
+    totalBytes += bytesRead;
+    afterReadChunk(bytesRead, totalBytes);
+    if (totalBytes > maxBytes) throw new Error("report byte limit exceeded");
+    chunks.push(Buffer.from(buffer.subarray(0, bytesRead)));
+  }
+  return Buffer.concat(chunks, totalBytes);
 }
 
 export function guardGeneratedReports(
@@ -150,6 +185,7 @@ export function snapshotGeneratedReports(
   snapshotDirectory,
   patterns,
   beforeOpen = () => {},
+  afterReadChunk = () => {},
 ) {
   rmSync(snapshotDirectory, { force: true, recursive: true });
   let sourceDescriptors;
@@ -162,16 +198,8 @@ export function snapshotGeneratedReports(
     return { fileCount: 0, findingCount: 1, safe: false };
   }
   let findingCount = entries.filter(({ unsafe }) => unsafe).length;
-  const totalBytes = entries.reduce(
-    (total, { metadata }) => total + metadata.size,
-    0,
-  );
-  if (totalBytes > MAX_REPORT_TOTAL_BYTES) {
-    for (const descriptor of sourceDescriptors.reverse()) closeSync(descriptor);
-    rmSync(sourceDirectory, { force: true, recursive: true });
-    return { fileCount: 0, findingCount: findingCount + 1, safe: false };
-  }
   let fileCount = 0;
+  let totalBytes = 0;
   for (const entry of entries.filter(({ unsafe }) => !unsafe)) {
     let descriptor;
     try {
@@ -188,7 +216,21 @@ export function snapshotGeneratedReports(
       ) {
         throw new Error("file identity changed");
       }
-      const content = readFileSync(descriptor);
+      const remainingBytes = MAX_REPORT_TOTAL_BYTES - totalBytes;
+      if (
+        openedMetadata.size > MAX_REPORT_FILE_BYTES ||
+        openedMetadata.size > remainingBytes
+      ) {
+        throw new Error("report byte limit exceeded");
+      }
+      const content = readBoundedReport(
+        descriptor,
+        Math.min(MAX_REPORT_FILE_BYTES, remainingBytes),
+        (chunkBytes, bytesRead) => {
+          totalBytes += chunkBytes;
+          afterReadChunk(entry.file, bytesRead, totalBytes);
+        },
+      );
       const readMetadata = fstatSync(descriptor);
       if (
         readMetadata.size !== openedMetadata.size ||

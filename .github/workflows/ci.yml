@@ -21,6 +21,7 @@ jobs:
     env:
       HARNESS_CONTRACT_MODE: ${{ github.event_name == 'pull_request' && 'required' || 'skip' }}
       HARNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+      HARNESS_TASK_CONTRACT: ${{ github.event.pull_request.number == 19 && 'harness/tasks/HAR-008.json' || '' }}
     steps:
       - name: Check out source
         uses: actions/checkout@v7
