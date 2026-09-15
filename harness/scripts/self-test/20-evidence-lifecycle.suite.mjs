@@ -127,6 +127,35 @@ export function registerSuite({ check }) {
       !("typescript" in versions)
     );
   });
+  check("workspace checks supply fail-closed test evidence", () => {
+    const manifestFor = (status) =>
+      buildEvidenceManifest(
+        valid,
+        "harness/tasks/repository-neutral-example.json",
+        syntheticGit,
+        {
+          results: status ? [{ name: "workspace-checks", status }] : [],
+          startedAt: "2026-09-11T00:01:00.000Z",
+          status: "passed",
+        },
+        "2026-09-11T00:02:00.000Z",
+      );
+    const testAlias = (manifest) =>
+      manifest.automatedChecks.find(
+        (check) => check.name === "unit-integration-contract-tests",
+      );
+    const passed = manifestFor("passed");
+    const failed = manifestFor("failed");
+    const missing = manifestFor();
+    return (
+      testAlias(passed)?.status === "passed" &&
+      passed.testResults.status === "passed" &&
+      testAlias(failed)?.status === "failed" &&
+      failed.testResults.status === "failed" &&
+      testAlias(missing)?.status === "failed" &&
+      missing.testResults.status === "not-applicable"
+    );
+  });
   check("correction transitions emit their required artifacts", () => {
     const reference = "docs/engineering/evidence/HAR-001.md";
     const contract = {
