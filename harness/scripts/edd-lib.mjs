@@ -22,7 +22,7 @@ const ARTIFACT_SECTION_BINDINGS = {
   "behavior-equivalence-evidence": ["results"],
   "changed-file-inventory": ["commit", "files", "traceability"],
   "configuration-impact": ["scope", "results"],
-  "correction-record": ["boundedcorrection", "repaircycle"],
+  "correction-record": ["bounded-correction", "repair-cycle"],
   "dependency-impact": ["dependency-impact"],
   "documentation-impact": ["documentation-impact"],
   "evidence-manifest": ["commands", "tests", "knownfailures"],
@@ -38,7 +38,11 @@ const ARTIFACT_SECTION_BINDINGS = {
   runbook: ["runbook"],
   "state-change-record": ["reason", "actor", "timestamp", "evidencereferences"],
   "technical-decision": ["design", "tradeoffs", "rollback"],
-  "task-contract": ["scope", "acceptancecriteria", "humanapprovalrequirements"],
+  "task-contract": [
+    "scope",
+    "acceptance-criteria",
+    "human-approval-requirements",
+  ],
   "threat-model": ["threat-model"],
   "verification-report": [
     "results",
@@ -63,7 +67,11 @@ const STANDARD_HTML_TAGS = new Set(
 );
 
 function normalizeSection(value) {
-  return value.trim().toLowerCase().replaceAll(/[ _]+/g, "-");
+  return value
+    .trim()
+    .replaceAll(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase()
+    .replaceAll(/[ _]+/g, "-");
 }
 
 function markdownSections(content) {
@@ -172,6 +180,37 @@ export function classificationArtifactRecords(
   }));
 }
 
+export function transitionArtifactRecords(
+  contract,
+  generatedAt,
+  policy = effectiveEvidencePolicy(),
+) {
+  const reference = taskEvidenceReference(contract);
+  const previousState = contract.stateHistory?.at(-2)?.state;
+  const currentState = contract.stateHistory?.at(-1)?.state;
+  if (
+    !reference ||
+    !previousState ||
+    !currentState ||
+    previousState !== "changes-requested" ||
+    currentState !== "implemented" ||
+    currentState !== contract.workflowState
+  )
+    return [];
+  const transition = policy.transitions.find(
+    ({ from, to }) => from === previousState && to === currentState,
+  );
+  return (transition?.artifacts ?? []).map((kind) => ({
+    capturedAt: generatedAt,
+    kind,
+    reference,
+    sections: (transition.sections ?? []).filter((section) =>
+      ARTIFACT_SECTION_BINDINGS[kind]?.includes(normalizeSection(section)),
+    ),
+    sha256: sha256(reference),
+  }));
+}
+
 export function gitEvidenceContext(environment = process.env) {
   const run = (...args) =>
     execFileSync("git", args, { encoding: "utf8" }).trim();
@@ -228,6 +267,17 @@ export function buildEvidenceManifest(
   generatedAt,
 ) {
   const evidenceReference = taskEvidenceReference(contract);
+  const classificationRecords = classificationArtifactRecords(
+    contract,
+    generatedAt,
+  );
+  const classificationKinds = new Set(
+    classificationRecords.map(({ kind }) => kind),
+  );
+  const transitionRecords = transitionArtifactRecords(
+    contract,
+    generatedAt,
+  ).filter(({ kind }) => !classificationKinds.has(kind));
   const commandResults = report.results
     .filter((result) => result.command && Number.isInteger(result.exitCode))
     .map((result) => ({
@@ -300,7 +350,8 @@ export function buildEvidenceManifest(
         sections: ["scope", "acceptanceCriteria", "humanApprovalRequirements"],
         sha256: sha256(contractPath),
       },
-      ...classificationArtifactRecords(contract, generatedAt),
+      ...classificationRecords,
+      ...transitionRecords,
       ...(contract.workflowState === "verified" && evidenceReference
         ? [
             {
@@ -814,9 +865,11 @@ export function validateArtifactRecords(manifest, contract) {
           const taskContract = JSON.parse(content);
           presentSections = new Set([
             ...(taskContract.allowedPaths ? ["scope"] : []),
-            ...(taskContract.acceptanceCriteria ? ["acceptancecriteria"] : []),
+            ...(taskContract.acceptanceCriteria
+              ? ["acceptance-criteria"]
+              : []),
             ...(taskContract.humanApprovalRequirements
-              ? ["humanapprovalrequirements"]
+              ? ["human-approval-requirements"]
               : []),
           ]);
         } else {

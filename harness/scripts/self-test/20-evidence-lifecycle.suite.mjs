@@ -17,6 +17,7 @@ import {
   effectiveEvidencePolicy,
   sha256,
   taskEvidenceReference,
+  transitionArtifactRecords,
   validateArtifactRecords,
   validateClassification,
   validateCurrentState,
@@ -61,6 +62,34 @@ export function registerSuite({ check }) {
       versions.packageManager === "pnpm@11.19.0" &&
       versions.turbo === "^2.5.6" &&
       !("typescript" in versions)
+    );
+  });
+  check("correction transitions emit their required artifacts", () => {
+    const reference = "docs/engineering/evidence/HAR-001.md";
+    const contract = {
+      ...valid,
+      taskId: "HAR-001",
+      classification: "configuration",
+      workflowState: "implemented",
+      stateHistory: [
+        { state: "changes-requested" },
+        { state: "implemented" },
+      ],
+      requiredEvidence: [reference],
+    };
+    const records = transitionArtifactRecords(
+      contract,
+      "2026-09-11T00:02:00.000Z",
+      evidencePolicy,
+    );
+    return (
+      records.length === 2 &&
+      records.some((record) => record.kind === "failure-evidence") &&
+      records.some((record) => record.kind === "correction-record") &&
+      validateArtifactRecords(
+        { ...syntheticManifest(), artifactRecords: records },
+        contract,
+      ).length === 0
     );
   });
   check("stale generated evidence is rejected", () => {
