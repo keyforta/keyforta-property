@@ -1,0 +1,176 @@
+{
+  "contractVersion": 2,
+  "taskId": "OPS-003",
+  "phase": "implementation",
+  "workArea": "web",
+  "title": "Stop tracking generated distribution artifacts",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/9",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/9",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/9",
+    "AGENTS.md#engineering-loop",
+    "deployments/README.md"
+  ],
+  "classification": "bugfix",
+  "workflowState": "implemented",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T19:56:04.000Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/9"
+      ]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-15T19:57:50.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/OPS-003.md"
+      ]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T19:57:50.000Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/9#issuecomment-5687256353"
+      ],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/9#issuecomment-5687256353",
+        "commitSha": "96564adb30c4e4e74fa28113ab2e1dae5d7644bf"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-15T19:57:50.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/OPS-003.md"
+      ]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Frontend Engineer",
+      "enteredAt": "2026-09-15T19:57:50.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/OPS-003.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Frontend Engineer",
+      "enteredAt": "2026-09-15T19:59:17.000Z",
+      "evidenceReferences": [
+        ".gitignore",
+        "apps/public-web/scripts/check-dist-tracking.mjs",
+        "docs/engineering/evidence/OPS-003.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T20:00:35.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/OPS-003.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Frontend Engineer",
+      "enteredAt": "2026-09-15T20:00:35.000Z",
+      "evidenceReferences": [
+        "apps/public-web/scripts/check-dist-tracking.mjs",
+        "docs/engineering/evidence/OPS-003.md",
+        "harness/tasks/OPS-003.json"
+      ]
+    }
+  ],
+  "assignedAgent": "Frontend Engineer",
+  "routingRuleId": "ROUTE-004",
+  "supportingReviewers": [
+    "QA and Test Engineer",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "KEYFORTA main baseline 96564adb30c4e4e74fa28113ab2e1dae5d7644bf"
+  ],
+  "allowedPaths": [
+    ".gitignore",
+    "apps/admin-web/dist/",
+    "apps/portal-web/dist/",
+    "apps/public-web/scripts/check-dist-tracking.mjs",
+    "dist/",
+    "docs/engineering/evidence/OPS-003.md",
+    "harness/tasks/OPS-003.json",
+    "package.json"
+  ],
+  "declaredProtectedPaths": [],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/9",
+    "docs/engineering/evidence/OPS-003.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-OPS-003-01",
+      "requirementReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/9"
+      ],
+      "testReferences": [
+        "apps/public-web/scripts/check-dist-tracking.mjs"
+      ]
+    },
+    {
+      "id": "AC-OPS-003-02",
+      "requirementReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/9"
+      ],
+      "testReferences": [
+        "deployments/azure/docker/public-web.Dockerfile",
+        "deployments/azure/docker/api.Dockerfile"
+      ],
+      "manualVerification": "Build both deployment images from clean source, verify the public-web runtime HTML exists, and record whether the API runtime entrypoint exists without implementing it."
+    }
+  ],
+  "technicalDecisionReferences": [
+    "deployments/README.md",
+    "docs/engineering/evidence/OPS-003.md"
+  ],
+  "requiredScenarios": [
+    "canonical-verification"
+  ],
+  "requiredCommands": [
+    "pnpm verify:all"
+  ],
+  "requiredEvidence": [
+    "docs/engineering/evidence/OPS-003.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-OPS-003.json"
+  ],
+  "riskClassification": "low",
+  "securityImpact": "No authentication, authorization, secret, identity, or trust-boundary changes. Generated bundles are removed from source tracking.",
+  "dataImpact": "No persistence, tenant, personal, financial, or production data changes.",
+  "observabilityImpact": "Canonical checks report dist tracking deterministically; deployment verification records local image artifact outcomes without changing production telemetry.",
+  "rollbackConsiderations": "Revert OPS-003 to restore the prior ignore rule, tracked generated files, and root check command. No runtime, data, infrastructure, or deployment rollback is required.",
+  "humanApprovalRequirements": [
+    "Product-owner scope approval recorded in issue #9",
+    "Independent architecture, security, and pull-request review before merge",
+    "No production deployment or API runtime implementation in this task"
+  ],
+  "repairCycle": 1
+}
