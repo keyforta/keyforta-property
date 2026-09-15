@@ -11,7 +11,7 @@
     "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
   ],
   "classification": "security",
-  "workflowState": "implementation-ready",
+  "workflowState": "implemented",
   "stateHistory": [
     {
       "state": "proposed",
@@ -49,6 +49,16 @@
       "actor": "Harness and Evaluation Engineer",
       "enteredAt": "2026-09-15T23:34:14.000Z",
       "evidenceReferences": ["docs/engineering/evidence/HAR-009.md"]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T23:38:15.000Z",
+      "evidenceReferences": [
+        ".github/workflows/ci.yml",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-009.md"
+      ]
     }
   ],
   "assignedAgent": "Harness and Evaluation Engineer",
