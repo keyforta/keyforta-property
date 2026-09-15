@@ -937,6 +937,15 @@ export function registerSuite({ check }) {
       "HARNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}",
     ),
   );
+  check("CI checkout does not persist credentials", () => {
+    const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+    const checkoutStep = workflow.split("      - name: Set up pnpm")[0];
+    return (
+      checkoutStep.includes("uses: actions/checkout@v7") &&
+      checkoutStep.includes("persist-credentials: false") &&
+      !checkoutStep.includes("persist-credentials: true")
+    );
+  });
   check("CI invokes the canonical verifier entrypoint directly", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     return (
