@@ -113,6 +113,8 @@ body {
 .featured-section .section-head > p,
 .process-section .section-head > p {
   max-width: 760px;
+}
+.process-section .section-head > p {
   white-space: nowrap;
 }
 .cards {
