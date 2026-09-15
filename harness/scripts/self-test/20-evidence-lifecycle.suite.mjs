@@ -93,12 +93,13 @@ function frozenControlCleanupIsPrivileged(source) {
 
 function isolatedValidationUsesProducerHome(source) {
   const workflow = parse(source);
-  const producerSteps = Object.values(workflow?.jobs ?? {}).flatMap(
+  const validationUserCommands = Object.values(workflow?.jobs ?? {}).flatMap(
     ({ steps = [] }) =>
-      steps.filter(
-        ({ run }) =>
-          run?.includes("sudo --preserve-env=") &&
-          run.includes('-u "$VALIDATION_USER" env'),
+      steps.flatMap(({ run = "" }) =>
+        run
+          .split("\n")
+          .map((command) => command.trim())
+          .filter((command) => command.includes('-u "$VALIDATION_USER"')),
       ),
   );
   const requiredEnvironment = [
@@ -108,10 +109,17 @@ function isolatedValidationUsesProducerHome(source) {
     'XDG_DATA_HOME="$VALIDATION_HOME/.local/share"',
     'XDG_STATE_HOME="$VALIDATION_HOME/.local/state"',
   ];
+  const producerCommands = validationUserCommands.filter(
+    (command) => !command.startsWith("sudo pkill "),
+  );
   return (
-    producerSteps.length > 0 &&
-    producerSteps.every(({ run }) =>
-      requiredEnvironment.every((entry) => run.includes(entry)),
+    producerCommands.length === 5 &&
+    validationUserCommands.every(
+      (command) =>
+        command.startsWith("sudo pkill ") ||
+        (command.startsWith("sudo --preserve-env=") &&
+          command.includes('-u "$VALIDATION_USER" env ') &&
+          requiredEnvironment.every((entry) => command.includes(entry))),
     )
   );
 }
@@ -1130,11 +1138,24 @@ jobs:
       readFileSync(".github/workflows/ci.yml", "utf8"),
     ),
   );
-  check("isolated CI producer uses only producer-owned home state", () =>
-    isolatedValidationUsesProducerHome(
-      readFileSync(".github/workflows/ci.yml", "utf8"),
-    ),
-  );
+  check("isolated CI producer uses only producer-owned home state", () => {
+    const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+    return (
+      isolatedValidationUsesProducerHome(workflow) &&
+      !isolatedValidationUsesProducerHome(
+        workflow.replace(
+          ' XDG_CONFIG_HOME="$VALIDATION_HOME/.config"',
+          "",
+        ),
+      ) &&
+      !isolatedValidationUsesProducerHome(
+        workflow.replace(
+          "sudo --preserve-env=",
+          'sudo -u "$VALIDATION_USER" env ',
+        ),
+      )
+    );
+  });
   check("CI invokes the canonical verifier entrypoint directly", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     return (
