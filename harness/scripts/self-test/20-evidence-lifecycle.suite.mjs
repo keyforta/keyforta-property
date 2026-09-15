@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
@@ -76,6 +77,24 @@ export function registerSuite({ check }) {
   check("safe generated reports are copied to an isolated snapshot", () => {
     const reportDirectory = "harness/reports/self-test-snapshot-source";
     const snapshotDirectory = "harness/retained-reports/self-test-snapshot";
+    rmSync(reportDirectory, { force: true, recursive: true });
+    rmSync(snapshotDirectory, { force: true, recursive: true });
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(`${reportDirectory}/report.txt`, "safe evidence\n");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    const copied = readFileSync(
+      `${snapshotDirectory}/report.txt`,
+      "utf8",
+    );
+    return result.safe && result.fileCount === 1 && copied === "safe evidence\n";
+  });
+  check("nested report directories fail closed", () => {
+    const reportDirectory = "harness/reports/self-test-nested-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-nested";
     mkdirSync(`${reportDirectory}/nested`, { recursive: true });
     writeFileSync(`${reportDirectory}/nested/report.txt`, "safe evidence\n");
     const result = snapshotGeneratedReports(
@@ -83,11 +102,11 @@ export function registerSuite({ check }) {
       snapshotDirectory,
       [],
     );
-    const copied = readFileSync(
-      `${snapshotDirectory}/nested/report.txt`,
-      "utf8",
+    return (
+      !result.safe &&
+      !existsSync(reportDirectory) &&
+      !existsSync(snapshotDirectory)
     );
-    return result.safe && result.fileCount === 1 && copied === "safe evidence\n";
   });
   check("replacement races cannot enter the retained snapshot", () => {
     const reportDirectory = "harness/reports/self-test-race-source";

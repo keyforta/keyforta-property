@@ -5,7 +5,7 @@ import { snapshotGeneratedReports } from "./report-retention-guard.mjs";
 const policy = readJson("harness/policies/repository-policy.json");
 const result = snapshotGeneratedReports(
   "harness/reports",
-  "harness/retained-reports",
+  process.env.KEYFORTA_REPORT_SNAPSHOT || "harness/retained-reports",
   policy.forbiddenSecretPatterns,
 );
 if (!result.safe) {

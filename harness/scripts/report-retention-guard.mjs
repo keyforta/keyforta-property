@@ -10,7 +10,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import {
   secretPatternFindings,
   secretTextFindings,
@@ -30,6 +30,59 @@ function retainedEntries(directory, readDirectory, readMetadata) {
       ? retainedEntries(file, readDirectory, readMetadata)
       : [{ file, metadata, unsafe: false }];
   });
+}
+
+function sameIdentity(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function snapshotEntries(sourceDirectory) {
+  const descriptor = openSync(
+    sourceDirectory,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  const metadata = fstatSync(descriptor);
+  if (!metadata.isDirectory()) {
+    closeSync(descriptor);
+    throw new Error("report source is not a directory");
+  }
+  const descriptorPath =
+    process.platform === "linux"
+      ? `/proc/self/fd/${descriptor}`
+      : sourceDirectory;
+  if (
+    descriptorPath === sourceDirectory &&
+    !sameIdentity(metadata, lstatSync(sourceDirectory))
+  ) {
+    closeSync(descriptor);
+    throw new Error("report source identity changed");
+  }
+  try {
+    const entries = readdirSync(descriptorPath, { withFileTypes: true }).map(
+      (entry) => {
+        const retainedPath = entry.name;
+        const openPath = join(descriptorPath, retainedPath);
+        const entryMetadata = lstatSync(openPath);
+        return {
+          file: join(sourceDirectory, retainedPath),
+          metadata: entryMetadata,
+          openPath,
+          retainedPath,
+          unsafe: !entryMetadata.isFile(),
+        };
+      },
+    );
+    if (
+      descriptorPath === sourceDirectory &&
+      !sameIdentity(metadata, lstatSync(sourceDirectory))
+    ) {
+      throw new Error("report source identity changed");
+    }
+    return { descriptor, entries };
+  } catch (error) {
+    closeSync(descriptor);
+    throw error;
+  }
 }
 
 export function guardGeneratedReports(
@@ -68,9 +121,11 @@ export function snapshotGeneratedReports(
   beforeOpen = () => {},
 ) {
   rmSync(snapshotDirectory, { force: true, recursive: true });
+  let sourceDescriptor;
   let entries;
   try {
-    entries = retainedEntries(sourceDirectory, readdirSync, lstatSync);
+    ({ descriptor: sourceDescriptor, entries } =
+      snapshotEntries(sourceDirectory));
   } catch {
     rmSync(sourceDirectory, { force: true, recursive: true });
     return { fileCount: 0, findingCount: 1, safe: false };
@@ -82,7 +137,7 @@ export function snapshotGeneratedReports(
     try {
       beforeOpen(entry.file);
       descriptor = openSync(
-        entry.file,
+        entry.openPath,
         constants.O_RDONLY | constants.O_NOFOLLOW,
       );
       const openedMetadata = fstatSync(descriptor);
@@ -102,19 +157,18 @@ export function snapshotGeneratedReports(
       ) {
         throw new Error("file changed while being read");
       }
-      const retainedPath = relative(sourceDirectory, entry.file);
       findingCount += secretTextFindings(
-        retainedPath,
+        entry.retainedPath,
         content.toString("utf8"),
         patterns,
       ).length;
       if (findingCount) continue;
       const destination = join(
         snapshotDirectory,
-        retainedPath,
+        entry.retainedPath,
       );
       mkdirSync(dirname(destination), { recursive: true });
-      writeFileSync(destination, content, { mode: 0o600 });
+      writeFileSync(destination, content, { mode: 0o444 });
       fileCount += 1;
     } catch {
       findingCount += 1;
@@ -122,6 +176,7 @@ export function snapshotGeneratedReports(
       if (descriptor !== undefined) closeSync(descriptor);
     }
   }
+  closeSync(sourceDescriptor);
   if (findingCount) {
     rmSync(sourceDirectory, { force: true, recursive: true });
     rmSync(snapshotDirectory, { force: true, recursive: true });

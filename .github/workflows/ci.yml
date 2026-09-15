@@ -55,13 +55,21 @@ jobs:
       - name: Check generated reports for secrets
         id: report-retention-guard
         if: always()
-        run: pnpm verify:reports
+        env:
+          KEYFORTA_REPORT_SNAPSHOT: /var/lib/keyforta-evidence/${{ github.run_id }}-${{ github.run_attempt }}
+        run: sudo --preserve-env=KEYFORTA_REPORT_SNAPSHOT node harness/scripts/verify-reports.mjs
 
       - name: Retain engineering evidence
         if: always() && steps.report-retention-guard.outcome == 'success'
         uses: actions/upload-artifact@v6
         with:
           name: engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}
-          path: harness/retained-reports/
+          path: /var/lib/keyforta-evidence/${{ github.run_id }}-${{ github.run_attempt }}/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Remove retained evidence snapshot
+        if: always()
+        env:
+          KEYFORTA_REPORT_SNAPSHOT: /var/lib/keyforta-evidence/${{ github.run_id }}-${{ github.run_attempt }}
+        run: sudo rm -rf -- "$KEYFORTA_REPORT_SNAPSHOT"
