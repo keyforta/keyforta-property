@@ -309,6 +309,12 @@ export function buildEvidenceManifest(
       verificationReferences: ["harness/reports/verify-latest.json"],
     })),
   );
+  const workspaceCheck = resultFor(report, "workspace-checks");
+  const workspaceTestResult = checkResult(
+    report,
+    "workspace-checks",
+    "No workspace test result was produced.",
+  );
   return {
     accessibilityResults: checkResult(
       report,
@@ -321,6 +327,11 @@ export function buildEvidenceManifest(
         name: result.name,
         status: result.status,
       })),
+      {
+        evidenceReference: "harness/reports/verify-latest.json",
+        name: "unit-integration-contract-tests",
+        status: workspaceCheck?.status === "passed" ? "passed" : "failed",
+      },
       {
         evidenceReference: "harness/reports/verify-latest.json",
         name: "verify:task",
@@ -418,11 +429,7 @@ export function buildEvidenceManifest(
       "No security result was produced.",
     ),
     taskId: contract.taskId,
-    testResults: checkResult(
-      report,
-      "unit-integration-contract-tests",
-      "No test result was produced.",
-    ),
+    testResults: workspaceTestResult,
     timestamps: {
       generatedAt,
       verificationCompletedAt: generatedAt,
