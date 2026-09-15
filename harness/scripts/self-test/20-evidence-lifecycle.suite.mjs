@@ -124,6 +124,28 @@ function isolatedValidationUsesProducerHome(source) {
   );
 }
 
+function workspaceParentTraversalIsBounded(source) {
+  const workflow = parse(source);
+  const steps = Object.values(workflow?.jobs ?? {}).flatMap(
+    ({ steps = [] }) => steps,
+  );
+  const userStep = steps.find(
+    ({ name }) => name === "Create unprivileged validation user",
+  );
+  const commands = userStep?.run?.split("\n").map((line) => line.trim()) ?? [];
+  return (
+    commands.includes('workspace_parent="$(dirname "$GITHUB_WORKSPACE")"') &&
+    commands.includes('work_root="$(dirname "$workspace_parent")"') &&
+    commands.includes('runner_home="$(dirname "$work_root")"') &&
+    commands.includes(
+      'sudo setfacl -m "u:$VALIDATION_USER:--x" "$runner_home" "$work_root" "$workspace_parent"',
+    ) &&
+    !userStep.run.includes("chmod o+x") &&
+    !userStep.run.includes("u:$VALIDATION_USER:r") &&
+    !userStep.run.includes("u:$VALIDATION_USER:w")
+  );
+}
+
 export function registerSuite({ check }) {
   check("unsafe generated reports are removed before retention", () => {
     const reportDirectory = "harness/reports/self-test-retention-guard";
@@ -1156,6 +1178,11 @@ jobs:
       )
     );
   });
+  check("isolated CI producer receives bounded workspace traversal", () =>
+    workspaceParentTraversalIsBounded(
+      readFileSync(".github/workflows/ci.yml", "utf8"),
+    ),
+  );
   check("CI invokes the canonical verifier entrypoint directly", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     return (

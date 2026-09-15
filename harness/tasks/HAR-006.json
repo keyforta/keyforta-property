@@ -1,0 +1,140 @@
+{
+  "contractVersion": 2,
+  "taskId": "HAR-006",
+  "phase": "implementation",
+  "workArea": "governance-and-harness",
+  "title": "Allow isolated CI workspace traversal",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/16",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/16",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/16",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "classification": "bugfix",
+  "workflowState": "implemented",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T21:05:05.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/16"]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-15T21:05:05.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-006.md"]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T21:05:05.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/16"],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/16",
+        "commitSha": "fccd87b3a1c126bdd0fa1db306c147c2ce588cda"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-15T21:05:05.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-006.md"]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T21:05:05.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-006.md"]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T21:05:06.000Z",
+      "evidenceReferences": [
+        ".github/workflows/ci.yml",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-006.md"
+      ]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "routingRuleId": "ROUTE-008",
+  "supportingReviewers": [
+    "Solution Architect",
+    "Security and Privacy Reviewer",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "HAR-005 exact head fccd87b3a1c126bdd0fa1db306c147c2ce588cda",
+    "HAR-005 remains at its governed three-cycle limit"
+  ],
+  "allowedPaths": [
+    ".gitignore",
+    ".github/workflows/ci.yml",
+    "docs/engineering/evidence/HAR-003.md",
+    "docs/engineering/evidence/HAR-005.md",
+    "docs/engineering/evidence/HAR-006.md",
+    "harness/scripts/report-retention-guard.mjs",
+    "harness/scripts/secret-scan.mjs",
+    "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+    "harness/scripts/verify-reports.mjs",
+    "harness/tasks/HAR-003.json",
+    "harness/tasks/HAR-005.json",
+    "harness/tasks/HAR-006.json"
+  ],
+  "declaredProtectedPaths": [".github/workflows/ci.yml"],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/16",
+    "docs/engineering/evidence/HAR-006.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-HAR-006-01",
+      "requirementReferences": ["https://github.com/keyforta/keyforta-property/issues/16"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    },
+    {
+      "id": "AC-HAR-006-02",
+      "requirementReferences": ["docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md",
+    "docs/engineering/evidence/HAR-006.md"
+  ],
+  "requiredScenarios": ["canonical-verification"],
+  "requiredCommands": ["pnpm harness:self-test", "pnpm verify:all"],
+  "requiredEvidence": [
+    "docs/engineering/evidence/HAR-006.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-HAR-006.json"
+  ],
+  "riskClassification": "high",
+  "securityImpact": "Grants only execute/traverse ACLs to the isolated producer on workspace parent directories, without list or write access.",
+  "dataImpact": "No product, personal, persistent, or production data changes.",
+  "observabilityImpact": "GitHub CI can reach the producer-owned workspace and complete canonical verification.",
+  "rollbackConsiderations": "Reverting HAR-006 restores the observed workspace parent traversal failure.",
+  "humanApprovalRequirements": [
+    "Product-owner bugfix scope and protected-workflow approval recorded in issue #16 and the approving Copilot session",
+    "Independent architecture, security, and pull-request review before merge",
+    "GitHub CI and protected-branch controls remain authoritative",
+    "No harness policy, schema, product-runtime, data, infrastructure, or deployment changes"
+  ],
+  "repairCycle": 0
+}

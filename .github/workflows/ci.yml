@@ -57,6 +57,10 @@ jobs:
       - name: Create unprivileged validation user
         run: |
           sudo useradd --create-home --shell /bin/bash "$VALIDATION_USER"
+          workspace_parent="$(dirname "$GITHUB_WORKSPACE")"
+          work_root="$(dirname "$workspace_parent")"
+          runner_home="$(dirname "$work_root")"
+          sudo setfacl -m "u:$VALIDATION_USER:--x" "$runner_home" "$work_root" "$workspace_parent"
           sudo chown -R "$VALIDATION_USER:$VALIDATION_USER" "$GITHUB_WORKSPACE"
 
       - name: Install dependencies
