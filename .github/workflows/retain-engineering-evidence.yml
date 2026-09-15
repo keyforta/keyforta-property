@@ -27,18 +27,22 @@ jobs:
           ref: ${{ github.sha }}
 
       - name: Download untrusted engineering evidence
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: untrusted-engineering-evidence-${{ github.event.workflow_run.head_sha }}
-          path: ${{ runner.temp }}/keyforta-report-source
-          github-token: ${{ github.token }}
-          run-id: ${{ github.event.workflow_run.id }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          KEYFORTA_ARTIFACT_NAME: untrusted-engineering-evidence-${{ github.event.workflow_run.head_sha }}
+          KEYFORTA_ARTIFACT_RUN_ID: ${{ github.event.workflow_run.id }}
+          KEYFORTA_ARTIFACT_DESTINATION: ${{ runner.temp }}/keyforta-report-candidate.tar
+        run: python3 harness/scripts/download-report-candidate.py
 
       - name: Scan and snapshot candidate evidence
         env:
-          KEYFORTA_REPORT_SOURCE: ${{ runner.temp }}/keyforta-report-source
+          KEYFORTA_REPORT_SOURCE: ${{ runner.temp }}/keyforta-report-source/reports
           KEYFORTA_REPORT_SNAPSHOT: ${{ runner.temp }}/keyforta-evidence
-        run: node harness/scripts/verify-reports.mjs
+        run: |
+          python3 harness/scripts/extract-report-candidate.py \
+            "$RUNNER_TEMP/keyforta-report-candidate.tar" \
+            "$RUNNER_TEMP/keyforta-report-source"
+          node harness/scripts/verify-reports.mjs
 
       - name: Retain sanitized engineering evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -46,8 +50,9 @@ jobs:
           name: engineering-evidence-${{ github.event.workflow_run.head_sha }}
           path: ${{ runner.temp }}/keyforta-evidence/
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
 
       - name: Remove evidence directories
         if: always()
-        run: rm -rf -- "$RUNNER_TEMP/keyforta-report-source" "$RUNNER_TEMP/keyforta-evidence"
+        run: rm -rf -- "$RUNNER_TEMP/keyforta-report-candidate.tar" "$RUNNER_TEMP/keyforta-report-source" "$RUNNER_TEMP/keyforta-evidence"

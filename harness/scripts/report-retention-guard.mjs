@@ -43,7 +43,14 @@ function sameIdentity(left, right) {
   return left.dev === right.dev && left.ino === right.ino;
 }
 
-function openedDirectory(directory) {
+function productionDescriptorPath(descriptor) {
+  if (process.platform !== "linux") {
+    throw new Error("descriptor-rooted report scanning requires Linux");
+  }
+  return `/proc/self/fd/${descriptor}`;
+}
+
+function openedDirectory(directory, descriptorPathFor) {
   const descriptor = openSync(
     directory,
     constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
@@ -53,10 +60,7 @@ function openedDirectory(directory) {
     if (!metadata.isDirectory()) {
       throw new Error("report source is not a directory");
     }
-    const descriptorPath =
-      process.platform === "linux"
-        ? `/proc/self/fd/${descriptor}`
-        : directory;
+    const descriptorPath = descriptorPathFor(descriptor, directory);
     if (
       descriptorPath === directory &&
       !sameIdentity(metadata, lstatSync(directory))
@@ -70,12 +74,12 @@ function openedDirectory(directory) {
   }
 }
 
-function snapshotEntries(sourceDirectory) {
+function snapshotEntries(sourceDirectory, descriptorPathFor) {
   const descriptors = [];
   let visitedEntries = 0;
   const walk = (directory, retainedDirectory = "", depth = 0) => {
     if (depth > MAX_REPORT_DEPTH) throw new Error("report depth limit exceeded");
-    const opened = openedDirectory(directory);
+    const opened = openedDirectory(directory, descriptorPathFor);
     descriptors.push(opened.descriptor);
     const directoryHandle = opendirSync(opened.descriptorPath);
     const entries = [];
@@ -186,13 +190,14 @@ export function snapshotGeneratedReports(
   patterns,
   beforeOpen = () => {},
   afterReadChunk = () => {},
+  descriptorPathFor = productionDescriptorPath,
 ) {
   rmSync(snapshotDirectory, { force: true, recursive: true });
   let sourceDescriptors;
   let entries;
   try {
     ({ descriptors: sourceDescriptors, entries } =
-      snapshotEntries(sourceDirectory));
+      snapshotEntries(sourceDirectory, descriptorPathFor));
   } catch {
     rmSync(sourceDirectory, { force: true, recursive: true });
     return { fileCount: 0, findingCount: 1, safe: false };

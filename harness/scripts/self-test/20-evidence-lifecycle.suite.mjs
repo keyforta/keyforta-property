@@ -14,7 +14,7 @@ import {
 import { databaseEnvironment, readJson, validateEvidence } from "../lib.mjs";
 import {
   guardGeneratedReports,
-  snapshotGeneratedReports,
+  snapshotGeneratedReports as snapshotReports,
 } from "../report-retention-guard.mjs";
 import {
   buildEvidenceManifest,
@@ -38,6 +38,23 @@ import {
   syntheticManifest,
   valid,
 } from "./fixtures.mjs";
+
+function snapshotGeneratedReports(
+  sourceDirectory,
+  snapshotDirectory,
+  patterns,
+  beforeOpen,
+  afterReadChunk,
+) {
+  return snapshotReports(
+    sourceDirectory,
+    snapshotDirectory,
+    patterns,
+    beforeOpen,
+    afterReadChunk,
+    process.platform === "linux" ? undefined : (_descriptor, path) => path,
+  );
+}
 
 function checkoutCredentialsAreDisabled(source) {
   const workflow = parse(source);
@@ -65,8 +82,8 @@ function retentionUsesTrustedWorkflow(validationSource, retentionSource) {
   const checkout = retentionSteps.find(({ uses }) =>
     /^actions\/checkout@/.test(uses ?? ""),
   );
-  const download = retentionSteps.find(({ uses }) =>
-    /^actions\/download-artifact@/.test(uses ?? ""),
+  const download = retentionSteps.find(
+    ({ name }) => name === "Download untrusted engineering evidence",
   );
   const scan = retentionSteps.find(
     ({ name }) => name === "Scan and snapshot candidate evidence",
@@ -76,6 +93,9 @@ function retentionUsesTrustedWorkflow(validationSource, retentionSource) {
   );
   const candidateUpload = validationSteps.find(
     ({ name }) => name === "Upload untrusted engineering evidence",
+  );
+  const candidatePackage = validationSteps.find(
+    ({ name }) => name === "Package untrusted engineering evidence",
   );
   return (
     validationJob?.env?.HARNESS_TASK_CONTRACT ===
@@ -89,12 +109,19 @@ function retentionUsesTrustedWorkflow(validationSource, retentionSource) {
     retentionSteps
       .filter(({ uses }) => uses)
       .every(({ uses }) => /@[0-9a-f]{40}$/.test(uses.split(" ")[0])) &&
-    download?.with?.["run-id"] === "${{ github.event.workflow_run.id }}" &&
-    download.with?.name ===
+    download?.env?.KEYFORTA_ARTIFACT_RUN_ID ===
+      "${{ github.event.workflow_run.id }}" &&
+    download.env?.KEYFORTA_ARTIFACT_NAME ===
       "untrusted-engineering-evidence-${{ github.event.workflow_run.head_sha }}" &&
-    scan?.run === "node harness/scripts/verify-reports.mjs" &&
+    download.run === "python3 harness/scripts/download-report-candidate.py" &&
+    scan?.run?.includes("extract-report-candidate.py") &&
+    scan.run.includes("node harness/scripts/verify-reports.mjs") &&
     upload?.with?.path === "${{ runner.temp }}/keyforta-evidence/" &&
-    candidateUpload?.with?.path === "harness/reports/" &&
+    upload.with?.["include-hidden-files"] === true &&
+    candidatePackage?.run?.includes("tar --create") &&
+    !candidatePackage.run.includes("--dereference") &&
+    candidateUpload?.with?.path ===
+      "${{ runner.temp }}/keyforta-report-candidate.tar" &&
     !validationSteps.some(({ run = "" }) =>
       run.includes("verify-reports.mjs"),
     ) &&
@@ -161,10 +188,8 @@ export function registerSuite({ check }) {
     const reportDirectory = "harness/reports/self-test-nested-source";
     const snapshotDirectory = "harness/retained-reports/self-test-nested";
     mkdirSync(`${reportDirectory}/failures/HAR-007`, { recursive: true });
-    writeFileSync(
-      `${reportDirectory}/failures/HAR-007/failure.json`,
-      "{\"status\":\"failed\"}\n",
-    );
+    const content = Buffer.from('{"status":"café"}\n', "utf8");
+    writeFileSync(`${reportDirectory}/failures/HAR-007/failure.json`, content);
     const result = snapshotGeneratedReports(
       reportDirectory,
       snapshotDirectory,
@@ -172,11 +197,107 @@ export function registerSuite({ check }) {
     );
     const copied = readFileSync(
       `${snapshotDirectory}/failures/HAR-007/failure.json`,
-      "utf8",
     );
     rmSync(reportDirectory, { force: true, recursive: true });
     rmSync(snapshotDirectory, { force: true, recursive: true });
-    return result.safe && copied === "{\"status\":\"failed\"}\n";
+    return result.safe && copied.equals(content);
+  });
+  check("candidate archives preserve links for trusted rejection", () => {
+    const fixture = "harness/reports/self-test-candidate-archive";
+    const source = `${fixture}/source`;
+    const extracted = `${fixture}/extracted`;
+    const archive = `${fixture}/candidate.tar`;
+    mkdirSync(`${source}/reports`, { recursive: true });
+    writeFileSync(`${fixture}/outside.txt`, "outside evidence\n");
+    symlinkSync("../../outside.txt", `${source}/reports/link.txt`);
+    execFileSync("tar", ["--create", "--file", archive, "--directory", source, "reports"]);
+    let blocked = false;
+    try {
+      execFileSync("python3", [
+        "harness/scripts/extract-report-candidate.py",
+        archive,
+        extracted,
+      ]);
+    } catch {
+      blocked = true;
+    }
+    const passed = blocked && !existsSync(extracted);
+    rmSync(fixture, { force: true, recursive: true });
+    return passed;
+  });
+  check("candidate archive extraction preserves hidden multibyte bytes", () => {
+    const fixture = "harness/reports/self-test-candidate-exact";
+    const source = `${fixture}/source`;
+    const extracted = `${fixture}/extracted`;
+    const snapshot = `${fixture}/snapshot`;
+    const archive = `${fixture}/candidate.tar`;
+    const content = Buffer.from("café evidence\n", "utf8");
+    mkdirSync(`${source}/reports/.hidden`, { recursive: true });
+    writeFileSync(`${source}/reports/.hidden/report.txt`, content);
+    execFileSync("tar", ["--create", "--file", archive, "--directory", source, "reports"]);
+    execFileSync("python3", ["harness/scripts/extract-report-candidate.py", archive, extracted]);
+    const result = snapshotGeneratedReports(`${extracted}/reports`, snapshot, []);
+    const copied = readFileSync(`${snapshot}/.hidden/report.txt`);
+    rmSync(fixture, { force: true, recursive: true });
+    return result.safe && copied.equals(content);
+  });
+  check("duplicate candidate roots fail closed", () => {
+    const fixture = "harness/reports/self-test-candidate-duplicate-root";
+    const source = `${fixture}/source`;
+    const extracted = `${fixture}/extracted`;
+    const archive = `${fixture}/candidate.tar`;
+    mkdirSync(`${source}/reports`, { recursive: true });
+    execFileSync("tar", ["--create", "--file", archive, "--directory", source, "reports"]);
+    execFileSync("tar", ["--append", "--file", archive, "--directory", source, "reports"]);
+    let blocked = false;
+    try {
+      execFileSync("python3", ["harness/scripts/extract-report-candidate.py", archive, extracted]);
+    } catch {
+      blocked = true;
+    }
+    const passed = blocked && !existsSync(extracted);
+    rmSync(fixture, { force: true, recursive: true });
+    return passed;
+  });
+  check("candidate ZIP preflight rejects excessive entries", () => {
+    const script = [
+      "import importlib.util, pathlib, tempfile, zipfile",
+      "spec = importlib.util.spec_from_file_location('downloader', 'harness/scripts/download-report-candidate.py')",
+      "module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)",
+      "root = pathlib.Path(tempfile.mkdtemp()); archive = root / 'candidate.zip'",
+      "with zipfile.ZipFile(archive, 'w') as output: output.writestr('one', b'x'); output.writestr('two', b'y')",
+      "try: module.require_single_zip_entry(archive)",
+      "except ValueError: raise SystemExit(0)",
+      "raise SystemExit(1)",
+    ].join("\n");
+    execFileSync("python3", ["-B", "-c", script]);
+    return true;
+  });
+  check("candidate downloader strips auth on cross-host redirects", () => {
+    const script = [
+      "import importlib.util, urllib.request",
+      "spec = importlib.util.spec_from_file_location('downloader', 'harness/scripts/download-report-candidate.py')",
+      "module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)",
+      "handler = module.SafeRedirectHandler()",
+      "request = urllib.request.Request('https://api.github.com/source', headers={'Authorization': 'Bearer secret'})",
+      "redirected = handler.redirect_request(request, None, 302, 'Found', {}, 'https://signed.example/artifact')",
+      "raise SystemExit(1 if redirected.has_header('Authorization') else 0)",
+    ].join("\n");
+    execFileSync("python3", ["-B", "-c", script]);
+    return true;
+  });
+  check("candidate downloader strips auth on HTTPS downgrade", () => {
+    const script = [
+      "import importlib.util, urllib.request",
+      "spec = importlib.util.spec_from_file_location('downloader', 'harness/scripts/download-report-candidate.py')",
+      "module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)",
+      "handler = module.SafeRedirectHandler()",
+      "request = urllib.request.Request('https://api.github.com/source', headers={'Authorization': 'Bearer secret'})",
+      "redirected = handler.redirect_request(request, None, 302, 'Found', {}, 'http://api.github.com/artifact')",
+      "raise SystemExit(1 if redirected.has_header('Authorization') else 0)",
+    ].join("\n");
+    execFileSync("python3", ["-B", "-c", script]);
+    return true;
   });
   check("symlinked report roots produce no snapshot", () => {
     const targetDirectory = "harness/reports/self-test-root-link-target";

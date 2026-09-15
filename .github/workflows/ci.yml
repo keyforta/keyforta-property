@@ -54,11 +54,15 @@ jobs:
           pnpm verify:evidence
           EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=verify:evidence pnpm verify:transition
 
+      - name: Package untrusted engineering evidence
+        if: always() && github.event_name == 'pull_request'
+        run: tar --create --file "$RUNNER_TEMP/keyforta-report-candidate.tar" --directory harness reports
+
       - name: Upload untrusted engineering evidence
         if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v6
         with:
           name: untrusted-engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}
-          path: harness/reports/
+          path: ${{ runner.temp }}/keyforta-report-candidate.tar
           if-no-files-found: error
           retention-days: 1
