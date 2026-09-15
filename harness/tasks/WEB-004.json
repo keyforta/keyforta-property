@@ -103,6 +103,24 @@
         "harness/tasks/WEB-004.json",
         "docs/engineering/evidence/WEB-004.md"
       ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T19:02:02.646Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/actions/runs/35011015400",
+        "docs/engineering/evidence/WEB-004.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Frontend Engineer",
+      "enteredAt": "2026-09-15T19:03:43.000Z",
+      "evidenceReferences": [
+        "dist/index.html",
+        "docs/engineering/evidence/WEB-004.md"
+      ]
     }
   ],
   "assignedAgent": "Frontend Engineer",
@@ -117,6 +135,7 @@
   "allowedPaths": [
     "apps/public-web/src/styles.css",
     "apps/public-web/scripts/check.mjs",
+    "dist/",
     "docs/engineering/evidence/WEB-004.md",
     "harness/tasks/WEB-004.json"
   ],
@@ -173,5 +192,5 @@
     "Independent QA and pull-request review before merge",
     "No production deployment in this task"
   ],
-  "repairCycle": 2
+  "repairCycle": 3
 }
