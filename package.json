@@ -1,0 +1,14 @@
+{
+  "name": "keyforta",
+  "version": "0.1.0",
+  "private": true,
+  "description": "KEYFORTA property marketplace and management platform",
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "build": "pnpm --filter @keyforta/public-web build",
+    "check": "pnpm --recursive run check",
+    "dev": "pnpm --filter @keyforta/public-web dev",
+    "check:apps": "pnpm --recursive run check",
+    "build:apps": "pnpm --recursive run build"
+  }
+}

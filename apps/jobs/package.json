@@ -1,0 +1,8 @@
+{
+  "name": "@keyforta/jobs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Asynchronous jobs and transactional-outbox worker boundary",
+  "scripts": { "check": "node scripts/check.mjs", "build": "node scripts/build.mjs" }
+}

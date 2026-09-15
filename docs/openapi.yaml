@@ -1,0 +1,158 @@
+openapi: 3.1.0
+info:
+  title: KEYFORTA API
+  version: 1.0.0
+  description: Versioned contract for the multi-organization rental and property operations platform.
+servers:
+  - url: https://api.keyforta.com/api/v1
+  - url: http://localhost:3000/api/v1
+security:
+  - bearerAuth: []
+paths:
+  /me:
+    get:
+      tags: [Identity]
+      operationId: getCurrentProfile
+      responses: { '200': { $ref: '#/components/responses/Profile' } }
+  /organizations:
+    get:
+      tags: [Organizations]
+      operationId: listOrganizations
+      responses: { '200': { $ref: '#/components/responses/List' } }
+    post:
+      tags: [Organizations]
+      operationId: createOrganization
+      requestBody: { $ref: '#/components/requestBodies/Organization' }
+      responses: { '201': { $ref: '#/components/responses/Organization' } }
+  /organizations/{organizationId}:
+    get: { tags: [Organizations], operationId: getOrganization, parameters: [{ $ref: '#/components/parameters/OrganizationId' }], responses: { '200': { $ref: '#/components/responses/Organization' } } }
+    patch: { tags: [Organizations], operationId: updateOrganization, parameters: [{ $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/IfMatch' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Organization' } } }
+  /profiles:
+    get: { tags: [Identity], operationId: listProfiles, responses: { '200': { $ref: '#/components/responses/List' } } }
+  /profiles/{profileId}:
+    get: { tags: [Identity], operationId: getProfile, parameters: [{ $ref: '#/components/parameters/ProfileId' }], responses: { '200': { $ref: '#/components/responses/Profile' } } }
+    patch: { tags: [Identity], operationId: updateProfile, parameters: [{ $ref: '#/components/parameters/ProfileId' }, { $ref: '#/components/parameters/IfMatch' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Profile' } } }
+  /manager-invitations:
+    get: { tags: [Organizations], operationId: listManagerInvitations, responses: { '200': { $ref: '#/components/responses/List' } } }
+    post: { tags: [Organizations], operationId: inviteManager, requestBody: { $ref: '#/components/requestBodies/ManagerInvitation' }, responses: { '201': { $ref: '#/components/responses/Invitation' } } }
+  /manager-invitations/{invitationId}/accept:
+    post: { tags: [Organizations], operationId: acceptInvitation, parameters: [{ $ref: '#/components/parameters/InvitationId' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Invitation' } } }
+  /properties:
+    get: { tags: [Inventory], operationId: listProperties, parameters: [{ $ref: '#/components/parameters/Pagination' }], responses: { '200': { $ref: '#/components/responses/List' } } }
+    post: { tags: [Inventory], operationId: createProperty, requestBody: { $ref: '#/components/requestBodies/Property' }, responses: { '201': { $ref: '#/components/responses/Property' } } }
+  /properties/{propertyId}:
+    get: { tags: [Inventory], operationId: getProperty, parameters: [{ $ref: '#/components/parameters/PropertyId' }], responses: { '200': { $ref: '#/components/responses/Property' } } }
+    patch: { tags: [Inventory], operationId: updateProperty, parameters: [{ $ref: '#/components/parameters/PropertyId' }, { $ref: '#/components/parameters/IfMatch' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Property' } } }
+    delete: { tags: [Inventory], operationId: archiveProperty, parameters: [{ $ref: '#/components/parameters/PropertyId' }], responses: { '204': { description: Archived } } }
+  /units:
+    get: { tags: [Inventory], operationId: listUnits, parameters: [{ $ref: '#/components/parameters/Pagination' }], responses: { '200': { $ref: '#/components/responses/List' } } }
+    post: { tags: [Inventory], operationId: createUnit, requestBody: { $ref: '#/components/requestBodies/Unit' }, responses: { '201': { $ref: '#/components/responses/Unit' } } }
+  /units/{unitId}:
+    get: { tags: [Inventory], operationId: getUnit, parameters: [{ $ref: '#/components/parameters/UnitId' }], responses: { '200': { $ref: '#/components/responses/Unit' } } }
+    patch: { tags: [Inventory], operationId: updateUnit, parameters: [{ $ref: '#/components/parameters/UnitId' }, { $ref: '#/components/parameters/IfMatch' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Unit' } } }
+  /rental-applications:
+    get: { tags: [Leasing], operationId: listRentalApplications, responses: { '200': { $ref: '#/components/responses/List' } } }
+    post: { tags: [Leasing], operationId: submitRentalApplication, requestBody: { $ref: '#/components/requestBodies/RentalApplication' }, responses: { '201': { $ref: '#/components/responses/Application' } } }
+  /rental-applications/{applicationId}/{decision}:
+    post: { tags: [Leasing], operationId: decideRentalApplication, parameters: [{ $ref: '#/components/parameters/ApplicationId' }, { name: decision, in: path, required: true, schema: { type: string, enum: [approve, reject, request-changes] } }], requestBody: { $ref: '#/components/requestBodies/Decision' }, responses: { '200': { $ref: '#/components/responses/Application' } } }
+  /leases:
+    get: { tags: [Leasing], operationId: listLeases, responses: { '200': { $ref: '#/components/responses/List' } } }
+    post: { tags: [Leasing], operationId: createLease, requestBody: { $ref: '#/components/requestBodies/Lease' }, responses: { '201': { $ref: '#/components/responses/Lease' } } }
+  /leases/{leaseId}:
+    get: { tags: [Leasing], operationId: getLease, parameters: [{ $ref: '#/components/parameters/LeaseId' }], responses: { '200': { $ref: '#/components/responses/Lease' } } }
+    patch: { tags: [Leasing], operationId: updateLeaseDraft, parameters: [{ $ref: '#/components/parameters/LeaseId' }, { $ref: '#/components/parameters/IfMatch' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Lease' } } }
+  /leases/{leaseId}/{command}:
+    post: { tags: [Leasing], operationId: executeLeaseCommand, parameters: [{ $ref: '#/components/parameters/LeaseId' }, { name: command, in: path, required: true, schema: { type: string, enum: [sign, activate] } }], responses: { '200': { $ref: '#/components/responses/Lease' } } }
+  /charges:
+    get: { tags: [Finance], operationId: listCharges, responses: { '200': { $ref: '#/components/responses/List' } } }
+  /payments:
+    get: { tags: [Finance], operationId: listPayments, responses: { '200': { $ref: '#/components/responses/List' } } }
+    post: { tags: [Finance], operationId: recordPayment, requestBody: { $ref: '#/components/requestBodies/Payment' }, responses: { '201': { $ref: '#/components/responses/Payment' } } }
+  /payments/{paymentId}/reconcile:
+    post: { tags: [Finance], operationId: reconcilePayment, parameters: [{ $ref: '#/components/parameters/PaymentId' }, { $ref: '#/components/parameters/IdempotencyKey' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Payment' } } }
+  /service-offers:
+    get: { tags: [Maintenance], operationId: listServiceOffers, responses: { '200': { $ref: '#/components/responses/List' } } }
+    post: { tags: [Maintenance], operationId: publishServiceOffer, requestBody: { $ref: '#/components/requestBodies/ServiceOffer' }, responses: { '201': { $ref: '#/components/responses/ServiceOffer' } } }
+  /maintenance-requests:
+    get: { tags: [Maintenance], operationId: listMaintenanceRequests, responses: { '200': { $ref: '#/components/responses/List' } } }
+    post: { tags: [Maintenance], operationId: createMaintenanceRequest, requestBody: { $ref: '#/components/requestBodies/MaintenanceRequest' }, responses: { '201': { $ref: '#/components/responses/MaintenanceRequest' } } }
+  /maintenance-requests/{requestId}:
+    get: { tags: [Maintenance], operationId: getMaintenanceRequest, parameters: [{ $ref: '#/components/parameters/RequestId' }], responses: { '200': { $ref: '#/components/responses/MaintenanceRequest' } } }
+    patch: { tags: [Maintenance], operationId: updateMaintenanceRequest, parameters: [{ $ref: '#/components/parameters/RequestId' }, { $ref: '#/components/parameters/IfMatch' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/MaintenanceRequest' } } }
+  /maintenance-requests/{requestId}/{command}:
+    post: { tags: [Maintenance], operationId: executeMaintenanceCommand, parameters: [{ $ref: '#/components/parameters/RequestId' }, { name: command, in: path, required: true, schema: { type: string, enum: [triage, assign, accept, schedule, start, complete, confirm, reopen] } }, { $ref: '#/components/parameters/IfMatch' }, { $ref: '#/components/parameters/IdempotencyKey' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/MaintenanceRequest' } } }
+  /maintenance-requests/{requestId}/quotes: { post: { tags: [Maintenance], operationId: submitQuote, parameters: [{ $ref: '#/components/parameters/RequestId' }], requestBody: { $ref: '#/components/requestBodies/Quote' }, responses: { '201': { $ref: '#/components/responses/Quote' } } } }
+  /maintenance-quotes/{quoteId}/{decision}: { post: { tags: [Maintenance], operationId: decideQuote, parameters: [{ $ref: '#/components/parameters/QuoteId' }, { name: decision, in: path, required: true, schema: { type: string, enum: [approve, reject] } }], requestBody: { $ref: '#/components/requestBodies/Decision' }, responses: { '200': { $ref: '#/components/responses/Quote' } } } }
+  /maintenance-requests/{requestId}/reports: { post: { tags: [Maintenance], operationId: submitReport, parameters: [{ $ref: '#/components/parameters/RequestId' }], requestBody: { $ref: '#/components/requestBodies/Report' }, responses: { '201': { $ref: '#/components/responses/Report' } } } }
+  /documents:
+    get: { tags: [Communication], operationId: listDocuments, responses: { '200': { $ref: '#/components/responses/List' } } }
+    post: { tags: [Communication], operationId: createDocument, requestBody: { $ref: '#/components/requestBodies/Document' }, responses: { '201': { $ref: '#/components/responses/Document' } } }
+  /conversations: { get: { tags: [Communication], operationId: listConversations, responses: { '200': { $ref: '#/components/responses/List' } } } }
+  /conversations/{conversationId}/messages: { post: { tags: [Communication], operationId: sendMessage, parameters: [{ $ref: '#/components/parameters/ConversationId' }], requestBody: { $ref: '#/components/requestBodies/Message' }, responses: { '201': { $ref: '#/components/responses/Message' } } } }
+  /notifications: { get: { tags: [Communication], operationId: listNotifications, responses: { '200': { $ref: '#/components/responses/List' } } } }
+  /audit-events: { get: { tags: [Administration], operationId: listAuditEvents, responses: { '200': { $ref: '#/components/responses/List' } } } }
+components:
+  securitySchemes: { bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT } }
+  parameters:
+    Pagination: { name: cursor, in: query, schema: { type: string } }
+    IfMatch: { name: If-Match, in: header, schema: { type: string } }
+    IdempotencyKey: { name: Idempotency-Key, in: header, schema: { type: string, maxLength: 128 } }
+    OrganizationId: { name: organizationId, in: path, required: true, schema: { type: string } }
+    ProfileId: { name: profileId, in: path, required: true, schema: { type: string } }
+    InvitationId: { name: invitationId, in: path, required: true, schema: { type: string } }
+    PropertyId: { name: propertyId, in: path, required: true, schema: { type: string } }
+    UnitId: { name: unitId, in: path, required: true, schema: { type: string } }
+    ApplicationId: { name: applicationId, in: path, required: true, schema: { type: string } }
+    LeaseId: { name: leaseId, in: path, required: true, schema: { type: string } }
+    PaymentId: { name: paymentId, in: path, required: true, schema: { type: string } }
+    RequestId: { name: requestId, in: path, required: true, schema: { type: string } }
+    QuoteId: { name: quoteId, in: path, required: true, schema: { type: string } }
+    ConversationId: { name: conversationId, in: path, required: true, schema: { type: string } }
+  requestBodies:
+    Organization: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OrganizationInput' } } } }
+    ManagerInvitation: { required: true, content: { application/json: { schema: { type: object, required: [email, organizationId], properties: { email: { type: string, format: email }, organizationId: { type: string } } } } } }
+    Property: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PropertyInput' } } } }
+    Unit: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UnitInput' } } } }
+    RentalApplication: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RentalApplicationInput' } } } }
+    Lease: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LeaseInput' } } } }
+    Payment: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PaymentInput' } } } }
+    ServiceOffer: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ServiceOfferInput' } } } }
+    MaintenanceRequest: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MaintenanceRequestInput' } } } }
+    Quote: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/QuoteInput' } } } }
+    Report: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReportInput' } } } }
+    Document: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DocumentInput' } } } }
+    Message: { required: true, content: { application/json: { schema: { type: object, required: [body], properties: { body: { type: string }, attachmentIds: { type: array, items: { type: string } } } } } } }
+    Decision: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string }, note: { type: string } } } } } }
+    Patch: { required: true, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+  responses:
+    Profile: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Organization: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Invitation: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Property: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Unit: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Application: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Lease: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Payment: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    ServiceOffer: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    MaintenanceRequest: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Quote: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Report: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Document: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Message: { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    List: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ListEnvelope' } } } }
+  schemas:
+    Base: { type: object, required: [id, organizationId, createdAt, updatedAt, version], properties: { id: { type: string }, organizationId: { type: string }, createdAt: { type: string, format: date-time }, updatedAt: { type: string, format: date-time }, version: { type: integer } } }
+    Money: { type: object, required: [amount, currency], properties: { amount: { type: integer }, currency: { type: string, minLength: 3, maxLength: 3 } } }
+    Envelope: { type: object, required: [data, auditEventId], properties: { data: { type: object, additionalProperties: true }, auditEventId: { type: string } } }
+    ListEnvelope: { type: object, required: [items, total], properties: { items: { type: array, items: { type: object, additionalProperties: true } }, total: { type: integer }, nextCursor: { type: string, nullable: true } } }
+    OrganizationInput: { type: object, required: [name, timezone], properties: { name: { type: string }, timezone: { type: string } } }
+    PropertyInput: { type: object, required: [name, address, city], properties: { name: { type: string }, address: { type: string }, city: { type: string }, managerId: { type: string } } }
+    UnitInput: { type: object, required: [propertyId, label, type, bedrooms, bathrooms, monthlyRent], properties: { propertyId: { type: string }, label: { type: string }, type: { type: string }, bedrooms: { type: integer }, bathrooms: { type: number }, monthlyRent: { $ref: '#/components/schemas/Money' } } }
+    RentalApplicationInput: { type: object, required: [unitId, answers], properties: { unitId: { type: string }, answers: { type: object, additionalProperties: true }, documentIds: { type: array, items: { type: string } } } }
+    LeaseInput: { type: object, required: [unitId, tenantId, startDate, rent, deposit, termsVersion], properties: { unitId: { type: string }, tenantId: { type: string }, startDate: { type: string, format: date }, endDate: { type: string, format: date }, rent: { $ref: '#/components/schemas/Money' }, deposit: { $ref: '#/components/schemas/Money' }, termsVersion: { type: string } } }
+    PaymentInput: { type: object, required: [leaseId, amount, type, method], properties: { leaseId: { type: string }, amount: { $ref: '#/components/schemas/Money' }, type: { type: string }, method: { type: string }, reference: { type: string } } }
+    ServiceOfferInput: { type: object, required: [categories, serviceArea], properties: { categories: { type: array, items: { type: string } }, serviceArea: { type: array, items: { type: string } }, hourlyRate: { $ref: '#/components/schemas/Money' } } }
+    MaintenanceRequestInput: { type: object, required: [propertyId, title, description, category, priority], properties: { propertyId: { type: string }, unitId: { type: string }, title: { type: string }, description: { type: string }, category: { type: string }, priority: { type: string } } }
+    QuoteInput: { type: object, required: [laborAmount, materialsAmount, validUntil], properties: { laborAmount: { $ref: '#/components/schemas/Money' }, materialsAmount: { $ref: '#/components/schemas/Money' }, validUntil: { type: string, format: date-time } } }
+    ReportInput: { type: object, required: [workPerformed], properties: { workPerformed: { type: string }, materials: { type: array, items: { type: string } }, totalCost: { $ref: '#/components/schemas/Money' }, customerConfirmation: { type: boolean } } }
+    DocumentInput: { type: object, required: [ownerId, type, storageKey], properties: { ownerId: { type: string }, relatedType: { type: string }, relatedId: { type: string }, type: { type: string }, storageKey: { type: string } } }

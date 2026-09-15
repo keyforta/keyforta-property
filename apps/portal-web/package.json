@@ -1,0 +1,11 @@
+{
+  "name": "@keyforta/portal-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Authenticated tenant, landlord, property manager, and technician portal",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs"
+  }
+}

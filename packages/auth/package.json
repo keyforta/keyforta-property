@@ -1,0 +1,8 @@
+{
+  "name": "@keyforta/auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared authentication boundary and session conventions for Keyforta apps",
+  "exports": { ".": "./src/index.js" }
+}

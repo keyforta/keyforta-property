@@ -1,0 +1,35 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  apps/admin-web: {}
+
+  apps/api: {}
+
+  apps/jobs: {}
+
+  apps/portal-web: {}
+
+  apps/public-web: {}
+
+  packages/api-client:
+    dependencies:
+      '@keyforta/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
+  packages/auth: {}
+
+  packages/authorization: {}
+
+  packages/brand: {}
+
+  packages/contracts: {}
+
+  packages/ui: {}
