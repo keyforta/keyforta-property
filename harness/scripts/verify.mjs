@@ -324,14 +324,13 @@ writeFileSync(
   "harness/reports/verify-latest.json",
   `${JSON.stringify(report, null, 2)}\n`,
 );
+const generatedReportFiles = filesWithExtension("harness/reports", ".json");
 const generatedReportFindings = secretPatternFindings(
-  filesWithExtension("harness/reports", ".json"),
+  generatedReportFiles,
   readJson("harness/policies/repository-policy.json").forbiddenSecretPatterns,
 );
 if (generatedReportFindings.length) {
-  for (const file of new Set(generatedReportFindings.map(({ file }) => file))) {
-    unlinkSync(file);
-  }
+  for (const file of generatedReportFiles) unlinkSync(file);
   failed = true;
   report.status = "failed";
   report.nextState =

@@ -7,7 +7,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { databaseEnvironment, validateEvidence } from "../lib.mjs";
+import { databaseEnvironment, readJson, validateEvidence } from "../lib.mjs";
 import { secretPatternFindings } from "../secret-scan.mjs";
 import {
   buildEvidenceManifest,
@@ -34,10 +34,15 @@ import {
 export function registerSuite({ check }) {
   check("generated reports containing secrets are rejected", () => {
     const reportPath = "harness/reports/self-test-generated-secret.json";
-    writeFileSync(reportPath, '{"token":"HARNESS_TEST_SECRET"}\n');
+    const syntheticCredential = "API_" + "KEY=fakevalue123";
+    writeFileSync(reportPath, `${JSON.stringify({ syntheticCredential })}\n`);
     try {
       return (
-        secretPatternFindings([reportPath], ["HARNESS_TEST_SECRET"]).length === 1
+        secretPatternFindings(
+          [reportPath],
+          readJson("harness/policies/repository-policy.json")
+            .forbiddenSecretPatterns,
+        ).length === 1
       );
     } finally {
       unlinkSync(reportPath);
