@@ -10,8 +10,8 @@
     "https://github.com/keyforta/keyforta-property/issues/18",
     "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
   ],
-  "classification": "bugfix",
-  "workflowState": "implemented",
+  "classification": "security",
+  "workflowState": "blocked",
   "stateHistory": [
     {
       "state": "proposed",
@@ -89,6 +89,39 @@
       "actor": "Harness and Evaluation Engineer",
       "enteredAt": "2026-09-15T22:17:23.000Z",
       "evidenceReferences": ["docs/engineering/evidence/HAR-007.md"]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Copilot Pull Request Reviewer",
+      "enteredAt": "2026-09-15T22:26:23.000Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/pull/19#discussion_r4020750113",
+        "https://github.com/keyforta/keyforta-property/pull/19#discussion_r4020750141",
+        "https://github.com/keyforta/keyforta-property/pull/19#discussion_r4020750174",
+        "https://github.com/keyforta/keyforta-property/pull/19#discussion_r4020750200"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T22:28:18.000Z",
+      "evidenceReferences": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/retain-engineering-evidence.yml",
+        "harness/scripts/verify.mjs",
+        "harness/scripts/report-retention-guard.mjs",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-007.md"
+      ]
+    },
+    {
+      "state": "blocked",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T22:39:26.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-007.md",
+        "https://github.com/keyforta/keyforta-property/issues/20"
+      ]
     }
   ],
   "assignedAgent": "Harness and Evaluation Engineer",
@@ -103,12 +136,14 @@
     "PR #13 must consume the trusted retention boundary after this prerequisite merges"
   ],
   "allowedPaths": [
+    ".gitignore",
     ".github/workflows/ci.yml",
     ".github/workflows/retain-engineering-evidence.yml",
     "docs/engineering/evidence/HAR-007.md",
     "harness/scripts/report-retention-guard.mjs",
     "harness/scripts/secret-scan.mjs",
     "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+    "harness/scripts/verify.mjs",
     "harness/scripts/verify-reports.mjs",
     "harness/tasks/HAR-007.json"
   ],
@@ -165,5 +200,5 @@
     "GitHub protected-branch controls remain authoritative",
     "No harness policy, schema, product-runtime, data, infrastructure, or deployment changes"
   ],
-  "repairCycle": 2
+  "repairCycle": 3
 }

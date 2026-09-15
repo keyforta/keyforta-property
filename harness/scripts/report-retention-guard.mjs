@@ -16,6 +16,11 @@ import {
   secretTextFindings,
 } from "./secret-scan.mjs";
 
+const MAX_REPORT_DEPTH = 16;
+const MAX_REPORT_FILES = 1_000;
+const MAX_REPORT_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_REPORT_TOTAL_BYTES = 50 * 1024 * 1024;
+
 function retainedEntries(directory, readDirectory, readMetadata) {
   return readDirectory(directory, { withFileTypes: true }).flatMap((entry) => {
     const file = join(directory, entry.name);
@@ -62,24 +67,32 @@ function openedDirectory(directory) {
 
 function snapshotEntries(sourceDirectory) {
   const descriptors = [];
-  const walk = (directory, retainedDirectory = "") => {
+  let visitedEntries = 0;
+  const walk = (directory, retainedDirectory = "", depth = 0) => {
+    if (depth > MAX_REPORT_DEPTH) throw new Error("report depth limit exceeded");
     const opened = openedDirectory(directory);
     descriptors.push(opened.descriptor);
     const entries = readdirSync(opened.descriptorPath, {
       withFileTypes: true,
     }).flatMap((entry) => {
+      visitedEntries += 1;
+      if (visitedEntries > MAX_REPORT_FILES) {
+        throw new Error("report file limit exceeded");
+      }
       const retainedPath = join(retainedDirectory, entry.name);
       const openPath = join(opened.descriptorPath, entry.name);
       const entryMetadata = lstatSync(openPath);
       if (entryMetadata.isDirectory()) {
-        return walk(openPath, retainedPath);
+        return walk(openPath, retainedPath, depth + 1);
       }
       return [{
         file: join(sourceDirectory, retainedPath),
         metadata: entryMetadata,
         openPath,
         retainedPath,
-        unsafe: !entryMetadata.isFile(),
+        unsafe:
+          !entryMetadata.isFile() ||
+          entryMetadata.size > MAX_REPORT_FILE_BYTES,
       }];
     });
     if (
@@ -149,6 +162,15 @@ export function snapshotGeneratedReports(
     return { fileCount: 0, findingCount: 1, safe: false };
   }
   let findingCount = entries.filter(({ unsafe }) => unsafe).length;
+  const totalBytes = entries.reduce(
+    (total, { metadata }) => total + metadata.size,
+    0,
+  );
+  if (totalBytes > MAX_REPORT_TOTAL_BYTES) {
+    for (const descriptor of sourceDescriptors.reverse()) closeSync(descriptor);
+    rmSync(sourceDirectory, { force: true, recursive: true });
+    return { fileCount: 0, findingCount: findingCount + 1, safe: false };
+  }
   let fileCount = 0;
   for (const entry of entries.filter(({ unsafe }) => !unsafe)) {
     let descriptor;

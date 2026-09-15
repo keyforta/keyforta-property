@@ -93,6 +93,9 @@ function retentionUsesTrustedWorkflow(validationSource, retentionSource) {
     candidateUpload?.with?.path === "harness/reports/" &&
     !validationSteps.some(({ run = "" }) =>
       run.includes("verify-reports.mjs"),
+    ) &&
+    !readFileSync("harness/scripts/verify.mjs", "utf8").includes(
+      "report-retention-guard.mjs",
     )
   );
 }
@@ -170,6 +173,48 @@ export function registerSuite({ check }) {
     rmSync(reportDirectory, { force: true, recursive: true });
     rmSync(snapshotDirectory, { force: true, recursive: true });
     return result.safe && copied === "{\"status\":\"failed\"}\n";
+  });
+  check("symlinked report roots produce no snapshot", () => {
+    const targetDirectory = "harness/reports/self-test-root-link-target";
+    const reportDirectory = "harness/reports/self-test-root-link";
+    const snapshotDirectory = "harness/retained-reports/self-test-root-link";
+    mkdirSync(targetDirectory, { recursive: true });
+    writeFileSync(`${targetDirectory}/report.txt`, "safe evidence\n");
+    symlinkSync("self-test-root-link-target", reportDirectory);
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    rmSync(targetDirectory, { force: true, recursive: true });
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("nested symlinks produce no snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-nested-link-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-nested-link";
+    const target = "harness/reports/self-test-nested-link-target.txt";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(target, "safe evidence\n");
+    symlinkSync("../self-test-nested-link-target.txt", `${reportDirectory}/link`);
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    unlinkSync(target);
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("oversized reports produce no snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-oversized-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-oversized";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(`${reportDirectory}/large.txt`, Buffer.alloc(10 * 1024 * 1024 + 1));
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
   });
   check("FIFO replacement races fail closed without blocking", () => {
     const reportDirectory = "harness/reports/self-test-fifo-race-source";
@@ -1097,7 +1142,7 @@ export function registerSuite({ check }) {
   });
   check("CI evidence artifact uses evaluated pull request head SHA", () =>
     readFileSync(".github/workflows/ci.yml", "utf8").includes(
-      "engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}",
+      "untrusted-engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}",
     ),
   );
   check("CI scopes changed paths to the exact pull request base SHA", () =>
