@@ -11,7 +11,7 @@
     "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
   ],
   "classification": "configuration",
-  "workflowState": "implementation-ready",
+  "workflowState": "implemented",
   "stateHistory": [
     {
       "state": "proposed",
@@ -57,6 +57,15 @@
       "actor": "Harness and Evaluation Engineer",
       "enteredAt": "2026-09-15T18:22:22.000Z",
       "evidenceReferences": [
+        "docs/engineering/evidence/HAR-001.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T18:24:30.000Z",
+      "evidenceReferences": [
+        ".gitignore",
         "docs/engineering/evidence/HAR-001.md"
       ]
     }
