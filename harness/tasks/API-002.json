@@ -93,6 +93,7 @@
     "docs/adr/ADR-011-public-property-discovery-route.md",
     "docs/engineering/evidence/API-002.md",
     "docs/openapi.yaml",
+    "harness/reports/",
     "harness/tasks/API-002.json",
     "pnpm-lock.yaml"
   ],
