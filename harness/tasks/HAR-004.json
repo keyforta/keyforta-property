@@ -69,6 +69,22 @@
         "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
         "docs/engineering/evidence/HAR-004.md"
       ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T20:12:18.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-004.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T20:12:19.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-004.md"
+      ]
     }
   ],
   "assignedAgent": "Harness and Evaluation Engineer",
@@ -143,5 +159,5 @@
     "GitHub CI and protected-branch controls remain authoritative",
     "No harness policy, schema, product-runtime, data, or deployment changes"
   ],
-  "repairCycle": 0
+  "repairCycle": 1
 }
