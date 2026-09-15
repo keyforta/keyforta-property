@@ -52,6 +52,45 @@ function checkoutCredentialsAreDisabled(source) {
   );
 }
 
+function isolatedValidationToolingIsAccessible(source) {
+  const workflow = parse(source);
+  const steps = Object.values(workflow?.jobs ?? {}).flatMap(
+    ({ steps = [] }) => steps,
+  );
+  const setupSteps = steps.filter(({ uses }) =>
+    /^pnpm\/action-setup@/.test(uses ?? ""),
+  );
+  const sealStep = steps.find(({ name }) => name === "Seal pnpm installation");
+  return (
+    setupSteps.length > 0 &&
+    setupSteps.every(
+      (step) =>
+        step.id === "pnpm" &&
+        step.with?.dest ===
+          "/tmp/keyforta-pnpm-${{ github.run_id }}-${{ github.run_attempt }}",
+    ) &&
+    sealStep?.run?.includes(
+      'chmod -R u+rwX,go+rX,go-w -- "${{ steps.pnpm.outputs.dest }}"',
+    )
+  );
+}
+
+function frozenControlCleanupIsPrivileged(source) {
+  const workflow = parse(source);
+  const steps = Object.values(workflow?.jobs ?? {}).flatMap(
+    ({ steps = [] }) => steps,
+  );
+  const cleanup = steps.find(
+    ({ name }) => name === "Remove retained evidence snapshot",
+  );
+  return (
+    cleanup?.run?.trim().startsWith("sudo rm -rf --") &&
+    cleanup.run.includes('"$KEYFORTA_REPORT_SOURCE"') &&
+    cleanup.run.includes('"$KEYFORTA_REPORT_SNAPSHOT"') &&
+    cleanup.run.includes('"$RUNNER_TEMP/keyforta-retention"')
+  );
+}
+
 export function registerSuite({ check }) {
   check("unsafe generated reports are removed before retention", () => {
     const reportDirectory = "harness/reports/self-test-retention-guard";
@@ -1056,6 +1095,16 @@ jobs:
 `)
     );
   });
+  check("isolated CI producer can execute but not modify pnpm", () =>
+    isolatedValidationToolingIsAccessible(
+      readFileSync(".github/workflows/ci.yml", "utf8"),
+    ),
+  );
+  check("runner privilege removes frozen retention controls", () =>
+    frozenControlCleanupIsPrivileged(
+      readFileSync(".github/workflows/ci.yml", "utf8"),
+    ),
+  );
   check("CI invokes the canonical verifier entrypoint directly", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     return (

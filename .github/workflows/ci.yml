@@ -31,9 +31,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up pnpm
+        id: pnpm
         uses: pnpm/action-setup@v6
         with:
           version: 11.19.0
+          dest: /tmp/keyforta-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Seal pnpm installation
+        run: chmod -R u+rwX,go+rX,go-w -- "${{ steps.pnpm.outputs.dest }}"
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -102,4 +107,4 @@ jobs:
         env:
           KEYFORTA_REPORT_SOURCE: ${{ runner.temp }}/keyforta-report-source-${{ github.run_id }}-${{ github.run_attempt }}
           KEYFORTA_REPORT_SNAPSHOT: ${{ runner.temp }}/keyforta-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-        run: rm -rf -- "$KEYFORTA_REPORT_SOURCE" "$KEYFORTA_REPORT_SNAPSHOT" "$RUNNER_TEMP/keyforta-retention"
+        run: sudo rm -rf -- "$KEYFORTA_REPORT_SOURCE" "$KEYFORTA_REPORT_SNAPSHOT" "$RUNNER_TEMP/keyforta-retention"
