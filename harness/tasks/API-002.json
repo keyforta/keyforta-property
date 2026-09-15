@@ -87,6 +87,7 @@
     "Source revision 39eab863e83d684c113f16f33e0a3b92f9ee8188"
   ],
   "allowedPaths": [
+    ".gitignore",
     "apps/api/",
     "packages/contracts/",
     "docs/adr/ADR-011-public-property-discovery-route.md",

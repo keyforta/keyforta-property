@@ -1,5 +1,6 @@
 node_modules/
 .sites-runtime/
+apps/api/dist/
 dist/.openai/
 keyforta-*.tar.gz
 upload/
