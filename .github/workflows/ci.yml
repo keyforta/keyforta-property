@@ -21,6 +21,7 @@ jobs:
     env:
       HARNESS_CONTRACT_MODE: ${{ github.event_name == 'pull_request' && 'required' || 'skip' }}
       HARNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+      HARNESS_TASK_CONTRACT: ${{ github.event.pull_request.number == 13 && 'harness/tasks/HAR-006.json' || '' }}
       VALIDATION_USER: keyforta-ci
       VALIDATION_HOME: /home/keyforta-ci
       VALIDATION_WORKSPACE: /tmp/keyforta-workspace-${{ github.run_id }}-${{ github.run_attempt }}

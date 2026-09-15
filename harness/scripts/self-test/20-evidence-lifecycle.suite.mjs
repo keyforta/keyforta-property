@@ -167,6 +167,17 @@ function isolatedValidationWorkspaceIsBounded(source) {
   );
 }
 
+function stackedPullRequestContractIsExplicit(source) {
+  const workflow = parse(source);
+  const validationJob = Object.values(workflow?.jobs ?? {}).find(
+    ({ env }) => env?.VALIDATION_USER === "keyforta-ci",
+  );
+  return (
+    validationJob?.env?.HARNESS_TASK_CONTRACT ===
+    "${{ github.event.pull_request.number == 13 && 'harness/tasks/HAR-006.json' || '' }}"
+  );
+}
+
 export function registerSuite({ check }) {
   check("unsafe generated reports are removed before retention", () => {
     const reportDirectory = "harness/reports/self-test-retention-guard";
@@ -1201,6 +1212,11 @@ jobs:
   });
   check("isolated CI producer uses a bounded workspace copy", () =>
     isolatedValidationWorkspaceIsBounded(
+      readFileSync(".github/workflows/ci.yml", "utf8"),
+    ),
+  );
+  check("stacked PR explicitly selects its governing task contract", () =>
+    stackedPullRequestContractIsExplicit(
       readFileSync(".github/workflows/ci.yml", "utf8"),
     ),
   );
