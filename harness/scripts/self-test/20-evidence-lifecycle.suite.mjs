@@ -49,6 +49,27 @@ export function registerSuite({ check }) {
     );
     return !result.safe && !existsSync(reportDirectory);
   });
+  check("non-JSON generated reports cannot bypass retention scanning", () => {
+    const reportDirectory = "harness/reports/self-test-text-retention-guard";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(
+      `${reportDirectory}/unsafe.txt`,
+      "API_" + "KEY=fakevalue123\n",
+    );
+    const result = guardGeneratedReports(
+      reportDirectory,
+      readJson("harness/policies/repository-policy.json")
+        .forbiddenSecretPatterns,
+    );
+    return !result.safe && !existsSync(reportDirectory);
+  });
+  check("symlinked generated reports fail closed", () => {
+    const reportDirectory = "harness/reports/self-test-link-retention-guard";
+    mkdirSync(reportDirectory, { recursive: true });
+    symlinkSync("../self-test-latest.json", `${reportDirectory}/report-link`);
+    const result = guardGeneratedReports(reportDirectory, []);
+    return !result.safe && !existsSync(reportDirectory);
+  });
   check("unreadable generated reports fail closed", () => {
     const reportDirectory = "harness/reports/self-test-unreadable-reports";
     const nestedDirectory = `${reportDirectory}/nested`;

@@ -1,15 +1,20 @@
-import { readdirSync, rmSync } from "node:fs";
+import { lstatSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { secretPatternFindings } from "./secret-scan.mjs";
 
-function jsonFiles(directory, readDirectory) {
+function retainedEntries(directory, readDirectory, readMetadata) {
   return readDirectory(directory, { withFileTypes: true }).flatMap((entry) => {
     const file = join(directory, entry.name);
-    return entry.isDirectory()
-      ? jsonFiles(file, readDirectory)
-      : file.endsWith(".json")
-        ? [file]
-        : [];
+    const metadata = readMetadata(file);
+    if (
+      metadata.isSymbolicLink() ||
+      (!metadata.isDirectory() && !metadata.isFile())
+    ) {
+      return [{ file, unsafe: true }];
+    }
+    return metadata.isDirectory()
+      ? retainedEntries(file, readDirectory, readMetadata)
+      : [{ file, unsafe: false }];
   });
 }
 
@@ -17,10 +22,11 @@ export function guardGeneratedReports(
   directory,
   patterns,
   readDirectory = readdirSync,
+  readMetadata = lstatSync,
 ) {
-  let files;
+  let entries;
   try {
-    files = jsonFiles(directory, readDirectory);
+    entries = retainedEntries(directory, readDirectory, readMetadata);
   } catch {
     try {
       rmSync(directory, { force: true, recursive: true });
@@ -29,11 +35,14 @@ export function guardGeneratedReports(
     }
     return { fileCount: 0, findingCount: 1, safe: false };
   }
+  const files = entries.filter(({ unsafe }) => !unsafe).map(({ file }) => file);
   const findings = secretPatternFindings(files, patterns);
-  if (findings.length) rmSync(directory, { force: true, recursive: true });
+  const findingCount =
+    findings.length + entries.filter(({ unsafe }) => unsafe).length;
+  if (findingCount) rmSync(directory, { force: true, recursive: true });
   return {
     fileCount: files.length,
-    findingCount: findings.length,
-    safe: findings.length === 0,
+    findingCount,
+    safe: findingCount === 0,
   };
 }
