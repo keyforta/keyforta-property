@@ -10,6 +10,7 @@ import {
 import { databaseEnvironment, validateEvidence } from "../lib.mjs";
 import {
   buildEvidenceManifest,
+  declaredToolVersions,
   dependencyArtifactRecords,
   effectiveEvidencePolicy,
   sha256,
@@ -30,6 +31,18 @@ import {
 } from "./fixtures.mjs";
 
 export function registerSuite({ check }) {
+  check("evidence records only declared tool versions", () => {
+    const packageManifest = {
+      packageManager: "pnpm@11.19.0",
+      devDependencies: { turbo: "^2.5.6" },
+    };
+    const versions = declaredToolVersions(packageManifest);
+    return (
+      versions.packageManager === "pnpm@11.19.0" &&
+      versions.turbo === "^2.5.6" &&
+      !("typescript" in versions)
+    );
+  });
   check("stale generated evidence is rejected", () => {
     const report = {
       completedAt: "2026-09-11T00:00:00.000Z",

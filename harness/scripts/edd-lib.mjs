@@ -372,11 +372,7 @@ export function buildEvidenceManifest(
       verificationCompletedAt: generatedAt,
       verificationStartedAt: report.startedAt,
     },
-    toolVersions: {
-      packageManager: readJson("package.json").packageManager,
-      turbo: readJson("package.json").devDependencies.turbo,
-      typescript: readJson("package.json").devDependencies.typescript,
-    },
+    toolVersions: declaredToolVersions(readJson("package.json")),
     traceability,
     visualEvidence: [],
     waivers: [],
@@ -427,6 +423,16 @@ export function validateClassification(contract, paths, policy) {
       `${contract.classification} classification requires one of: ${rule.requiredFiles.join(", ")}`,
     );
   return errors;
+}
+
+export function declaredToolVersions(packageManifest) {
+  return Object.fromEntries(
+    Object.entries({
+      packageManager: packageManifest.packageManager,
+      turbo: packageManifest.devDependencies?.turbo,
+      typescript: packageManifest.devDependencies?.typescript,
+    }).filter(([, version]) => typeof version === "string" && version.length > 0),
+  );
 }
 
 export function validateStateHistory(contract, policy, now = new Date()) {
