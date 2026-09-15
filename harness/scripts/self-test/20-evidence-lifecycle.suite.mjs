@@ -9,7 +9,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { databaseEnvironment, readJson, validateEvidence } from "../lib.mjs";
-import { guardGeneratedReports } from "../report-retention-guard.mjs";
+import {
+  guardGeneratedReports,
+  snapshotGeneratedReports,
+} from "../report-retention-guard.mjs";
 import {
   buildEvidenceManifest,
   declaredToolVersions,
@@ -69,6 +72,41 @@ export function registerSuite({ check }) {
     symlinkSync("../self-test-latest.json", `${reportDirectory}/report-link`);
     const result = guardGeneratedReports(reportDirectory, []);
     return !result.safe && !existsSync(reportDirectory);
+  });
+  check("safe generated reports are copied to an isolated snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-snapshot-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-snapshot";
+    mkdirSync(`${reportDirectory}/nested`, { recursive: true });
+    writeFileSync(`${reportDirectory}/nested/report.txt`, "safe evidence\n");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    const copied = readFileSync(
+      `${snapshotDirectory}/nested/report.txt`,
+      "utf8",
+    );
+    return result.safe && result.fileCount === 1 && copied === "safe evidence\n";
+  });
+  check("replacement races cannot enter the retained snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-race-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-race";
+    const target = "harness/reports/self-test-race-target.txt";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(`${reportDirectory}/report.txt`, "safe evidence\n");
+    writeFileSync(target, "replacement evidence\n");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+      (file) => {
+        unlinkSync(file);
+        symlinkSync("../self-test-race-target.txt", file);
+      },
+    );
+    unlinkSync(target);
+    return !result.safe && !existsSync(snapshotDirectory);
   });
   check("unreadable generated reports fail closed", () => {
     const reportDirectory = "harness/reports/self-test-unreadable-reports";

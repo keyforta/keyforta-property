@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { readJson } from "./lib.mjs";
-import { guardGeneratedReports } from "./report-retention-guard.mjs";
+import { snapshotGeneratedReports } from "./report-retention-guard.mjs";
 
 const policy = readJson("harness/policies/repository-policy.json");
-const result = guardGeneratedReports(
+const result = snapshotGeneratedReports(
   "harness/reports",
+  "harness/retained-reports",
   policy.forbiddenSecretPatterns,
 );
 if (!result.safe) {

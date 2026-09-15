@@ -1,6 +1,6 @@
 {
   "contractVersion": 2,
-  "taskId": "HAR-002",
+  "taskId": "HAR-003",
   "phase": "implementation",
   "workArea": "governance-and-harness",
   "title": "Scan every retained harness report entry",
@@ -26,7 +26,7 @@
       "actor": "Product and Requirements Analyst",
       "enteredAt": "2026-09-15T19:25:17.000Z",
       "evidenceReferences": [
-        "docs/engineering/evidence/HAR-002.md"
+        "docs/engineering/evidence/HAR-003.md"
       ]
     },
     {
@@ -49,7 +49,7 @@
       "actor": "Solution Architect",
       "enteredAt": "2026-09-15T19:25:17.000Z",
       "evidenceReferences": [
-        "docs/engineering/evidence/HAR-002.md"
+        "docs/engineering/evidence/HAR-003.md"
       ]
     },
     {
@@ -57,7 +57,7 @@
       "actor": "Harness and Evaluation Engineer",
       "enteredAt": "2026-09-15T19:25:17.000Z",
       "evidenceReferences": [
-        "docs/engineering/evidence/HAR-002.md"
+        "docs/engineering/evidence/HAR-003.md"
       ]
     },
     {
@@ -67,7 +67,25 @@
       "evidenceReferences": [
         "harness/scripts/report-retention-guard.mjs",
         "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
-        "docs/engineering/evidence/HAR-002.md"
+        "docs/engineering/evidence/HAR-003.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T19:33:53.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/HAR-003.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T19:33:54.000Z",
+      "evidenceReferences": [
+        "harness/scripts/report-retention-guard.mjs",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-003.md"
       ]
     }
   ],
@@ -82,12 +100,18 @@
     "Merged HAR-001 baseline b1cbd5f384b222c36dba4578e8676ca5c31bb8f8"
   ],
   "allowedPaths": [
-    "docs/engineering/evidence/HAR-002.md",
+    ".gitignore",
+    ".github/workflows/ci.yml",
+    "docs/engineering/evidence/HAR-003.md",
     "harness/scripts/report-retention-guard.mjs",
+    "harness/scripts/secret-scan.mjs",
     "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
-    "harness/tasks/HAR-002.json"
+    "harness/scripts/verify-reports.mjs",
+    "harness/tasks/HAR-003.json"
   ],
-  "declaredProtectedPaths": [],
+  "declaredProtectedPaths": [
+    ".github/workflows/ci.yml"
+  ],
   "protectedPaths": [
     "AGENTS.md",
     ".github/",
@@ -101,11 +125,11 @@
   ],
   "acceptanceCriteriaReferences": [
     "https://github.com/keyforta/keyforta-property/issues/6",
-    "docs/engineering/evidence/HAR-002.md"
+    "docs/engineering/evidence/HAR-003.md"
   ],
   "acceptanceCriteria": [
     {
-      "id": "AC-HAR-002-01",
+      "id": "AC-HAR-003-01",
       "requirementReferences": [
         "https://github.com/keyforta/keyforta-property/issues/6"
       ],
@@ -114,7 +138,7 @@
       ]
     },
     {
-      "id": "AC-HAR-002-02",
+      "id": "AC-HAR-003-02",
       "requirementReferences": [
         "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
       ],
@@ -126,7 +150,7 @@
   ],
   "technicalDecisionReferences": [
     "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md",
-    "docs/engineering/evidence/HAR-002.md"
+    "docs/engineering/evidence/HAR-003.md"
   ],
   "requiredScenarios": [
     "canonical-verification"
@@ -138,20 +162,21 @@
     "pnpm verify:all"
   ],
   "requiredEvidence": [
-    "docs/engineering/evidence/HAR-002.md",
+    "docs/engineering/evidence/HAR-003.md",
     "harness/reports/verify-latest.json",
-    "harness/reports/evidence-HAR-002.json"
+    "harness/reports/evidence-HAR-003.json"
   ],
   "riskClassification": "high",
-  "securityImpact": "Closes a CI artifact-retention bypass by scanning every retained regular file and rejecting symlinks, special entries, unreadable entries, unsafe paths, and unsafe content.",
+  "securityImpact": "Closes extension and replacement-race bypasses by reading regular files with no-follow semantics, scanning the exact bytes copied to an isolated snapshot, rejecting unsafe entries, and uploading only that snapshot.",
   "dataImpact": "No product or production data changes. Unsafe generated evidence is removed before artifact retention.",
   "observabilityImpact": "Ordinary safe verification reports remain retained; unsafe report sets fail closed and are not uploaded.",
-  "rollbackConsiderations": "Revert HAR-002 to restore JSON-only scanning. This reopens the documented retention bypass and is not recommended without replacing the control.",
+  "rollbackConsiderations": "Revert HAR-003 to restore JSON-only scanning. This reopens the documented retention bypass and is not recommended without replacing the control.",
   "humanApprovalRequirements": [
     "Product-owner security scope approval recorded in issue #6 and the approving Copilot session",
+    "Product-owner immutable-snapshot and protected-workflow approval recorded in the approving Copilot session",
     "Independent architecture, security, and pull-request review before merge",
     "GitHub CI and protected-branch controls remain authoritative",
     "No harness policy, schema, product-runtime, or deployment changes"
   ],
-  "repairCycle": 0
+  "repairCycle": 1
 }
