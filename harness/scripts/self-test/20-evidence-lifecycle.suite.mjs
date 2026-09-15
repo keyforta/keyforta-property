@@ -109,6 +109,14 @@ function isolatedValidationUsesProducerHome(source) {
     'XDG_DATA_HOME="$VALIDATION_HOME/.local/share"',
     'XDG_STATE_HOME="$VALIDATION_HOME/.local/state"',
   ];
+  const requiredPreservedEnvironment = [
+    "CI",
+    "HARNESS_CONTRACT_MODE",
+    "HARNESS_BASE_REF",
+    "HARNESS_TASK_CONTRACT",
+    "GITHUB_HEAD_REF",
+    "GITHUB_REF_NAME",
+  ];
   const producerCommands = validationUserCommands.filter(
     (command) => !command.startsWith("sudo pkill "),
   );
@@ -119,6 +127,13 @@ function isolatedValidationUsesProducerHome(source) {
         command.startsWith("sudo pkill ") ||
         (command.startsWith("sudo --preserve-env=") &&
           command.includes('-u "$VALIDATION_USER" env ') &&
+          requiredPreservedEnvironment.every((entry) =>
+            command
+              .slice(0, command.indexOf(" -u "))
+              .split("=")[1]
+              .split(",")
+              .includes(entry),
+          ) &&
           requiredEnvironment.every((entry) => command.includes(entry))),
     )
   );
@@ -1207,6 +1222,9 @@ jobs:
           "sudo --preserve-env=",
           'sudo -u "$VALIDATION_USER" env ',
         ),
+      ) &&
+      !isolatedValidationUsesProducerHome(
+        workflow.replace("HARNESS_TASK_CONTRACT,", ""),
       )
     );
   });
