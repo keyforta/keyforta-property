@@ -400,6 +400,53 @@ esac
   }
 });
 
+test("public-web preconditions reject a present web app without an ingress FQDN", () => {
+  const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
+  const script = document.jobs.deploy.steps.find(
+    (step) => step.name === "Verify public-web domain preconditions",
+  )?.run;
+  assert.ok(script);
+
+  const directory = mkdtempSync(join(tmpdir(), "keyforta-web-fqdn-precondition-"));
+  try {
+    executable(
+      directory,
+      "az",
+      `#!/usr/bin/env bash
+case "$*" in
+  *"containerapp list"*"-api"*) exit 0 ;;
+  *properties.staticIp*) echo 192.0.2.10 ;;
+  *customDomainVerificationId*) echo verification-id ;;
+  *"containerapp list"*"-web"*) echo ca-keyforta-dev-web ;;
+  *"containerapp show"*"-web"*) exit 0 ;;
+  *) exit 1 ;;
+esac
+`,
+    );
+    executable(directory, "curl", "#!/usr/bin/env bash\necho called > \"$CALLED\"\n");
+    executable(directory, "dig", "#!/usr/bin/env bash\necho called > \"$CALLED\"\n");
+    const called = join(directory, "called");
+    const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        APP_ENVIRONMENT: "test-environment",
+        CALLED: called,
+        DEPLOYMENT_SCOPE: "full",
+        ENVIRONMENT: "dev",
+        PATH: `${directory}:${process.env.PATH}`,
+        RESOURCE_GROUP: "test-resource-group",
+        WEB_CANONICAL_HOST: "keyforta.com",
+        WEB_WWW_HOST: "www.keyforta.com",
+      },
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(existsSync(called), false);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("application Bicep uses managed certificates for both public web domains", () => {
   const template = readFileSync("infra/bicep/apps.bicep", "utf8");
   assert.match(template, /param bindWebCertificates bool/);

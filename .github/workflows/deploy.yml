@@ -270,6 +270,10 @@ jobs:
               --name "$web_app" \
               --resource-group "$RESOURCE_GROUP" \
               --query properties.configuration.ingress.fqdn -o tsv)
+            if [ -z "$web_fqdn" ]; then
+              echo "The existing web Container App has no ingress FQDN." >&2
+              exit 1
+            fi
           else
             default_domain=$(az containerapp env show \
               --name "$APP_ENVIRONMENT" \
