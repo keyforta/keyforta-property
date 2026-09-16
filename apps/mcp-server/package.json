@@ -17,6 +17,7 @@
     "@keyforta/contracts": "workspace:*",
     "@keyforta/types": "workspace:*",
     "fastify": "5.12.3",
+    "jose": "^6.2.12",
     "zod": "4.1.12"
   },
   "devDependencies": {

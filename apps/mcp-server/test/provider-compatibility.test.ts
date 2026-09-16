@@ -6,6 +6,16 @@ import {
   type TestServer,
 } from "./support.js";
 
+const protectedResourceMetadata = {
+  authorizationServers: [
+    "https://login.microsoftonline.com/synthetic-directory/v2.0",
+  ],
+  resource: "https://mcp.invalid",
+  resourceMetadataUrl:
+    "https://mcp.invalid/.well-known/oauth-protected-resource",
+  scopesSupported: ["https://mcp.invalid/mcp.tools.read"],
+};
+
 /**
  * Synthetic protocol-level fixtures for the Claude and ChatGPT remote MCP
  * connectors. They require no provider account, credential, or outbound model
@@ -44,12 +54,14 @@ describe("remote MCP connector compatibility", () => {
     async (fixture) => {
       const server = await createTestServer({
         allowedOrigins: ["https://chatgpt.com"],
+        protectedResourceMetadata,
       });
       servers.push(server);
 
       const baseHeaders = {
         ...authorizationHeaders(),
         ...fixture.requestHeaders,
+        host: "mcp.invalid",
         ...(fixture.origin ? { origin: fixture.origin } : {}),
       };
 
@@ -109,6 +121,12 @@ describe("remote MCP connector compatibility", () => {
           (tool) => tool.name,
         ),
       ).toEqual(["system.health"]);
+      expect(toolList.json().result.tools[0].securitySchemes).toEqual([
+        {
+          scopes: ["https://mcp.invalid/mcp.tools.read"],
+          type: "oauth2",
+        },
+      ]);
 
       const toolCall = await server.app.inject({
         headers: sessionHeaders,

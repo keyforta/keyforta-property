@@ -1,43 +1,19 @@
 import { buildMcpServer } from "./app.js";
-import { createStaticAuthenticator } from "./auth.js";
+import { loadMcpRuntimeConfiguration } from "./runtime-config.js";
 
-/**
- * Local development entrypoint. The MCP boundary is not approved for
- * production deployment or public ingress, so startup fails closed outside
- * local and test environments and without an explicitly provisioned
- * development credential.
- */
 async function start(): Promise<void> {
-  const environment = process.env.NODE_ENV ?? "";
-  if (!["development", "test"].includes(environment)) {
-    throw new Error(
-      "The KEYFORTA MCP server runs only with NODE_ENV=development or NODE_ENV=test.",
-    );
-  }
-
-  const developmentToken = process.env.MCP_DEVELOPMENT_ACCESS_TOKEN;
-  if (!developmentToken) {
-    throw new Error(
-      "Set MCP_DEVELOPMENT_ACCESS_TOKEN to a locally generated development credential.",
-    );
-  }
-
-  const allowedOrigins = (process.env.MCP_ALLOWED_ORIGINS ?? "")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter((origin) => origin.length > 0);
+  const configuration = loadMcpRuntimeConfiguration();
 
   const app = await buildMcpServer({
-    allowedOrigins,
+    ...configuration.serverDependencies,
     auditSink: (record) => {
       app.log.info(record, "mcp.request");
     },
-    authenticator: createStaticAuthenticator({ token: developmentToken }),
   });
 
   await app.listen({
-    host: process.env.MCP_HOST ?? "127.0.0.1",
-    port: Number.parseInt(process.env.MCP_PORT ?? "3100", 10),
+    host: configuration.host,
+    port: configuration.port,
   });
 }
 

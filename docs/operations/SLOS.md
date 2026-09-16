@@ -27,6 +27,9 @@ not customer commitments.
 | Document scan outcome          | 99% reach terminal status within 15 minutes | Rolling 7 days, scan-state age          |
 | Financial integrity            | Zero duplicate or unbalanced postings       | Continuous database invariant/audit     |
 | Organization isolation         | Zero confirmed cross-organization access    | Continuous incidents plus CI regression |
+| Synthetic MCP boundary         | Zero business-data or unapproved-tool exposure | Continuous audit plus registry tests  |
+| MCP dev availability           | 95% successful authenticated synthetic calls during approved test windows | Per activation window, MCP audit and ingress telemetry |
+| MCP containment                | Disable approved within 15 minutes          | Per exercise or incident, runbook evidence |
 
 For availability objectives, the proposed monthly error budget is the allowed
 failure fraction implied by the approved SLO. Exhaustion freezes risky releases

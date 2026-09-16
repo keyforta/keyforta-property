@@ -43,7 +43,7 @@ describe("MCP request authentication and isolation", () => {
   it("rejects unauthenticated requests with a sanitized challenge", async () => {
     const server = await startServer({ protectedResourceMetadata });
     const response = await server.app.inject({
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", host: "mcp.invalid" },
       method: "POST",
       payload: JSON.stringify({
         id: 1,
@@ -61,6 +61,28 @@ describe("MCP request authentication and isolation", () => {
     );
     expect(response.json().error.data.reason).toBe("missing_credential");
     expect(JSON.stringify(response.json())).not.toContain(syntheticCredential);
+  });
+
+  it("does not expose MCP through an unapproved hostname", async () => {
+    const server = await startServer({ protectedResourceMetadata });
+    const response = await server.app.inject({
+      headers: { ...authorizationHeaders(), host: "generated.azurecontainerapps.io" },
+      method: "POST",
+      payload: JSON.stringify({
+        id: 1,
+        jsonrpc: "2.0",
+        method: "initialize",
+        params: { protocolVersion: LATEST_PROTOCOL_VERSION },
+      }),
+      url: "/mcp",
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error.data.reason).toBe("unknown_resource");
+    expect(server.auditRecords.at(-1)).toMatchObject({
+      reason: "unapproved_hostname",
+      status: "denied",
+    });
   });
 
   it("rejects an invalid credential", async () => {
@@ -81,32 +103,32 @@ describe("MCP request authentication and isolation", () => {
     expect(response.json().error.data.reason).toBe("invalid_credential");
   });
 
-  it("denies a tool call without the required scope", async () => {
+  it("denies initialize without the required scope", async () => {
     const server = await startServer({
       authenticator: createStaticAuthenticator({
+        clientId: "synthetic-test-client",
         grantedScopes: ["mcp.metadata.read"],
         token: syntheticCredential,
       }),
     });
-    const { sessionId } = await initializeSession(server);
     const response = await server.app.inject({
-      headers: { ...authorizationHeaders(), "mcp-session-id": sessionId },
+      headers: authorizationHeaders(),
       method: "POST",
       payload: JSON.stringify({
-        id: 2,
+        id: 1,
         jsonrpc: "2.0",
-        method: "tools/call",
-        params: { name: "system.health" },
+        method: "initialize",
+        params: { protocolVersion: LATEST_PROTOCOL_VERSION },
       }),
       url: "/mcp",
     });
 
     expect(response.statusCode).toBe(403);
+    expect(response.headers["mcp-session-id"]).toBeUndefined();
     expect(response.json().error.data.reason).toBe("insufficient_scope");
     expect(server.auditRecords.at(-1)).toMatchObject({
       reason: "insufficient_scope",
       status: "denied",
-      toolName: "system.health",
     });
   });
 
@@ -140,6 +162,27 @@ describe("MCP request authentication and isolation", () => {
       expect(response.statusCode, origin).toBe(403);
       expect(response.json().error.data.reason).toBe("unsupported_origin");
     }
+
+    const unlistedClient = await startServer({
+      allowedNonBrowserClientIds: ["approved-connector-client"],
+      authenticator: createStaticAuthenticator({
+        clientId: "unlisted-connector-client",
+        token: syntheticCredential,
+      }),
+    });
+    const absentOrigin = await unlistedClient.app.inject({
+      headers: authorizationHeaders(),
+      method: "POST",
+      payload: JSON.stringify({
+        id: 1,
+        jsonrpc: "2.0",
+        method: "initialize",
+        params: { protocolVersion: LATEST_PROTOCOL_VERSION },
+      }),
+      url: "/mcp",
+    });
+    expect(absentOrigin.statusCode).toBe(403);
+    expect(absentOrigin.json().error.data.reason).toBe("unsupported_origin");
   });
 
   it("binds a session to its authenticated subject", async () => {
@@ -151,6 +194,7 @@ describe("MCP request authentication and isolation", () => {
             clientId: "synthetic-client-one",
             grantedScopes: ["mcp.tools.read"],
             principalReference: "synthetic-subject-1",
+            tenantId: "synthetic-tenant-1",
           };
         }
         if (token === otherCredential) {
@@ -158,12 +202,19 @@ describe("MCP request authentication and isolation", () => {
             clientId: "synthetic-client-two",
             grantedScopes: ["mcp.tools.read"],
             principalReference: "synthetic-subject-2",
+            tenantId: "synthetic-tenant-1",
           };
         }
         return null;
       },
     };
-    const server = await startServer({ authenticator });
+    const server = await startServer({
+      allowedNonBrowserClientIds: [
+        "synthetic-client-one",
+        "synthetic-client-two",
+      ],
+      authenticator,
+    });
     const { sessionId } = await initializeSession(server);
 
     const response = await server.app.inject({
@@ -244,9 +295,35 @@ describe("MCP request authentication and isolation", () => {
     expect(serializedAudit).not.toContain("synthetic-subject-1");
   });
 
+  it("generates correlation IDs instead of trusting client request IDs", async () => {
+    const server = await startServer();
+    const suppliedRequestId = "client-controlled-request-id";
+    const response = await server.app.inject({
+      headers: {
+        ...authorizationHeaders(),
+        "x-request-id": suppliedRequestId,
+      },
+      method: "POST",
+      payload: JSON.stringify({
+        id: 1,
+        jsonrpc: "2.0",
+        method: "initialize",
+        params: { protocolVersion: LATEST_PROTOCOL_VERSION },
+      }),
+      url: "/mcp",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["x-request-id"]).not.toBe(suppliedRequestId);
+    expect(server.auditRecords.at(-1)?.correlationId).toBe(
+      response.headers["x-request-id"],
+    );
+  });
+
   it("publishes protected resource metadata only when configured", async () => {
     const configured = await startServer({ protectedResourceMetadata });
     const metadata = await configured.app.inject({
+      headers: { host: "mcp.invalid" },
       method: "GET",
       url: "/.well-known/oauth-protected-resource/mcp",
     });

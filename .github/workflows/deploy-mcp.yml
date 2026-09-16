@@ -1,0 +1,476 @@
+name: Deploy MCP
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Full commit SHA from main; defaults to the selected main revision
+        required: false
+        type: string
+      operation:
+        description: Publish and preview, or deploy a reviewed MCP plan
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - deploy
+      plan_run_id:
+        description: Successful MCP plan run ID for this exact SHA; required for deploy
+        required: false
+        type: string
+      bind_certificate:
+        description: Bind the staged mcp.keyforta.com managed certificate
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: dev
+    concurrency:
+      group: deploy-mcp-dev
+      cancel-in-progress: false
+    env:
+      DEPLOYMENT_SHA: ${{ inputs.commit_sha || github.sha }}
+      ENVIRONMENT: dev
+      MCP_ALLOWED_CLIENT_IDS: ${{ vars.MCP_ALLOWED_CLIENT_IDS }}
+      MCP_ALLOWED_NON_BROWSER_CLIENT_IDS: ${{ vars.MCP_ALLOWED_NON_BROWSER_CLIENT_IDS }}
+      MCP_ALLOWED_ORIGINS: https://chatgpt.com
+      MCP_BIND_CERTIFICATE: ${{ inputs.bind_certificate }}
+      MCP_HOST_NAME: mcp.keyforta.com
+      MCP_REQUESTS_PER_MINUTE: "60"
+      MCP_REQUIRED_SCOPE: mcp.tools.read
+      MCP_RESOURCE_SCOPE: https://mcp.keyforta.com/mcp.tools.read
+      MCP_RESOURCE_URL: https://mcp.keyforta.com
+      RESOURCE_GROUP: rg-keyforta-dev-san
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Check out immutable revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ env.DEPLOYMENT_SHA }}
+
+      - name: Verify revision and configuration
+        env:
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$DEPLOYMENT_SHA"
+          git fetch origin main
+          git merge-base --is-ancestor "$DEPLOYMENT_SHA" origin/main
+          [[ "$DEPLOYMENT_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$AZURE_TENANT_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+          test -n "$MCP_ALLOWED_CLIENT_IDS"
+          test -z "$MCP_ALLOWED_NON_BROWSER_CLIENT_IDS"
+          echo "MCP_ENTRA_AUDIENCE=$MCP_RESOURCE_URL" >> "$GITHUB_ENV"
+          echo "MCP_ENTRA_ISSUER=https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0" >> "$GITHUB_ENV"
+          echo "MCP_ENTRA_JWKS_URI=https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys" >> "$GITHUB_ENV"
+          echo "MCP_ENTRA_TENANT_ID=$AZURE_TENANT_ID" >> "$GITHUB_ENV"
+
+      - name: Compute immutable source input
+        run: |
+          bicep_sha256=$(sha256sum infra/bicep/mcp.bicep | awk '{print $1}')
+          echo "BICEP_SHA256=$bicep_sha256" >> "$GITHUB_ENV"
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Load foundation outputs
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            outputs=$(az deployment group show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-foundation" \
+              --query properties.outputs -o json)
+            echo "APP_ENVIRONMENT=$(jq -r '.containerAppsEnvironmentName.value' <<< "$outputs")" >> "$GITHUB_ENV"
+            echo "REGISTRY_NAME=$(jq -r '.registryName.value' <<< "$outputs")" >> "$GITHUB_ENV"
+            echo "REGISTRY_SERVER=$(jq -r '.registryLoginServer.value' <<< "$outputs")" >> "$GITHUB_ENV"
+
+      - name: Compute immutable deployment inputs
+        run: |
+          parameters_sha256=$(
+            printf '%s\n' \
+              "allowed_client_ids=$MCP_ALLOWED_CLIENT_IDS" \
+              "allowed_non_browser_client_ids=$MCP_ALLOWED_NON_BROWSER_CLIENT_IDS" \
+              "allowed_origins=$MCP_ALLOWED_ORIGINS" \
+              "app_environment=$APP_ENVIRONMENT" \
+              "bind_certificate=$MCP_BIND_CERTIFICATE" \
+              "entra_audience=$MCP_ENTRA_AUDIENCE" \
+              "entra_issuer=$MCP_ENTRA_ISSUER" \
+              "entra_jwks_uri=$MCP_ENTRA_JWKS_URI" \
+              "entra_tenant_id=$MCP_ENTRA_TENANT_ID" \
+              "host_name=$MCP_HOST_NAME" \
+              "registry_name=$REGISTRY_NAME" \
+              "registry_server=$REGISTRY_SERVER" \
+              "requests_per_minute=$MCP_REQUESTS_PER_MINUTE" \
+              "required_scope=$MCP_REQUIRED_SCOPE" \
+              "resource_group=$RESOURCE_GROUP" \
+              "resource_scope=$MCP_RESOURCE_SCOPE" \
+              "source_revision=$DEPLOYMENT_SHA" \
+              "subscription_id=$AZURE_SUBSCRIPTION_ID" \
+              | sha256sum | awk '{print $1}'
+          )
+          echo "PARAMETERS_SHA256=$parameters_sha256" >> "$GITHUB_ENV"
+
+      - name: Verify deployment intent
+        if: inputs.operation == 'deploy'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+        run: |
+          [[ "$PLAN_RUN_ID" =~ ^[0-9]+$ ]]
+          run=$(gh run view "$PLAN_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json conclusion,event,workflowName)
+          test "$(jq -r '.conclusion' <<< "$run")" = "success"
+          test "$(jq -r '.event' <<< "$run")" = "workflow_dispatch"
+          test "$(jq -r '.workflowName' <<< "$run")" = "Deploy MCP"
+          mkdir plan-evidence
+          gh run download "$PLAN_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "mcp-deployment-plan-$DEPLOYMENT_SHA" \
+            --dir plan-evidence
+          evidence=plan-evidence/mcp-deployment-plan.txt
+          grep -Fx "commit_sha=$DEPLOYMENT_SHA" "$evidence"
+          grep -Fx "operation=plan" "$evidence"
+          grep -Fx "run_id=$PLAN_RUN_ID" "$evidence"
+          grep -Fx "bind_certificate=$MCP_BIND_CERTIFICATE" "$evidence"
+          grep -Fx "bicep_sha256=$BICEP_SHA256" "$evidence"
+          grep -Fx "parameters_sha256=$PARAMETERS_SHA256" "$evidence"
+          expected_what_if_sha256=$(sed -n 's/^what_if_sha256=//p' "$evidence")
+          [[ "$expected_what_if_sha256" =~ ^[0-9a-f]{64}$ ]]
+          test "$(sha256sum plan-evidence/mcp-what-if.json | awk '{print $1}')" = \
+            "$expected_what_if_sha256"
+          expected_sbom_sha256=$(sed -n 's/^sbom_sha256=//p' "$evidence")
+          expected_provenance_sha256=$(sed -n 's/^provenance_sha256=//p' "$evidence")
+          [[ "$expected_sbom_sha256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$expected_provenance_sha256" =~ ^[0-9a-f]{64}$ ]]
+          test "$(sha256sum plan-evidence/mcp-sbom.json | awk '{print $1}')" = \
+            "$expected_sbom_sha256"
+          test "$(sha256sum plan-evidence/mcp-provenance.json | awk '{print $1}')" = \
+            "$expected_provenance_sha256"
+          image_digest=$(sed -n 's/^image_digest=//p' "$evidence")
+          [[ "$image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "MCP_IMAGE_DIGEST=$image_digest" >> "$GITHUB_ENV"
+
+      - name: Verify MCP deployment preconditions
+        run: |
+          budget=$(az rest --method get --url \
+            "https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/providers/Microsoft.Consumption/budgets/keyforta-mcp-dev?api-version=2023-11-01")
+          jq -e '.properties.timeGrain == "Monthly" and .properties.amount <= 25' \
+            <<< "$budget" >/dev/null
+          jq -e \
+            '.properties.filter.dimensions.name == "ResourceGroupName" and (.properties.filter.dimensions.values | index("rg-keyforta-dev-san") != null)' \
+            <<< "$budget" >/dev/null
+          jq -e '[.properties.notifications[] | select(.enabled == true)] | length > 0' \
+            <<< "$budget" >/dev/null
+
+          if az identity show \
+            --name "id-keyforta-${ENVIRONMENT}-mcp" \
+            --resource-group "$RESOURCE_GROUP" >/dev/null 2>&1; then
+            principal_id=$(az identity show \
+              --name "id-keyforta-${ENVIRONMENT}-mcp" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query principalId -o tsv)
+            registry_id=$(az acr show --name "$REGISTRY_NAME" --query id -o tsv)
+            assignments=$(az role assignment list \
+              --assignee-object-id "$principal_id" \
+              --include-inherited \
+              --all \
+              --query '[].{role:roleDefinitionName,scope:scope}' \
+              --output json)
+            jq -e --arg registry_id "$registry_id" \
+              'length == 1 and all(.[]; .role == "AcrPull" and .scope == $registry_id)' \
+              <<< "$assignments" >/dev/null
+          fi
+
+          if [[ "$MCP_BIND_CERTIFICATE" == "true" ]]; then
+            mcp_fqdn=$(az containerapp show \
+              --name "ca-keyforta-${ENVIRONMENT}-mcp" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query properties.configuration.ingress.fqdn -o tsv)
+            test -n "$mcp_fqdn"
+            configured_cname=$(dig +short CNAME "$MCP_HOST_NAME" | sed 's/\.$//')
+            test "$configured_cname" = "$mcp_fqdn"
+          fi
+
+      - name: Configure BuildKit
+        if: inputs.operation == 'plan'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build and publish exact-SHA MCP image
+        if: inputs.operation == 'plan'
+        run: |
+          az acr login --name "$REGISTRY_NAME"
+          image_tag="$REGISTRY_SERVER/keyforta-mcp:$DEPLOYMENT_SHA"
+          docker buildx build \
+            --file deployments/azure/docker/mcp.Dockerfile \
+            --label "org.opencontainers.image.revision=$DEPLOYMENT_SHA" \
+            --provenance=mode=max \
+            --sbom=true \
+            --push \
+            --tag "$image_tag" .
+          image_digest=$(az acr repository show \
+            --name "$REGISTRY_NAME" \
+            --image "keyforta-mcp:$DEPLOYMENT_SHA" \
+            --query digest -o tsv)
+          [[ "$image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "MCP_IMAGE_DIGEST=$image_digest" >> "$GITHUB_ENV"
+
+      - name: Resolve immutable MCP image
+        run: |
+          test -n "$MCP_IMAGE_DIGEST"
+          az acr repository show \
+            --name "$REGISTRY_NAME" \
+            --image "keyforta-mcp@$MCP_IMAGE_DIGEST" >/dev/null
+          echo "MCP_IMAGE=$REGISTRY_SERVER/keyforta-mcp@$MCP_IMAGE_DIGEST" >> "$GITHUB_ENV"
+
+      - name: Verify MCP image attestations
+        if: inputs.operation == 'plan'
+        run: |
+          docker buildx imagetools inspect "$MCP_IMAGE" \
+            --format '{{json .SBOM}}' > mcp-sbom.json
+          docker buildx imagetools inspect "$MCP_IMAGE" \
+            --format '{{json .Provenance}}' > mcp-provenance.json
+          jq -e 'type == "object" and length > 0' mcp-sbom.json >/dev/null
+          jq -e 'type == "object" and length > 0' mcp-provenance.json >/dev/null
+
+      - name: Scan immutable MCP image
+        if: inputs.operation == 'plan'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.MCP_IMAGE }}
+          format: table
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+      - name: Preview MCP changes
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-mcp" \
+              --template-file infra/bicep/mcp.bicep \
+              --no-pretty-print \
+              --result-format FullResourcePayloads \
+              --output json \
+              --parameters environment="$ENVIRONMENT" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                mcpImage="$MCP_IMAGE" \
+                sourceRevision="$DEPLOYMENT_SHA" \
+                mcpHostName="$MCP_HOST_NAME" \
+                bindMcpCertificate="$MCP_BIND_CERTIFICATE" \
+                entraTenantId="$MCP_ENTRA_TENANT_ID" \
+                entraAudience="$MCP_ENTRA_AUDIENCE" \
+                entraIssuer="$MCP_ENTRA_ISSUER" \
+                entraJwksUri="$MCP_ENTRA_JWKS_URI" \
+                allowedClientIds="$MCP_ALLOWED_CLIENT_IDS" \
+                allowedNonBrowserClientIds="$MCP_ALLOWED_NON_BROWSER_CLIENT_IDS" \
+                allowedOrigins="$MCP_ALLOWED_ORIGINS" \
+                requiredScope="$MCP_REQUIRED_SCOPE" \
+                resourceScope="$MCP_RESOURCE_SCOPE" \
+                requestsPerMinute="$MCP_REQUESTS_PER_MINUTE" \
+              > mcp-what-if.json
+
+      - name: Verify reviewed MCP plan still applies
+        if: inputs.operation == 'deploy'
+        run: |
+          normalize_what_if() {
+            jq -S '{
+              changes: [
+                .changes[]
+                | {
+                    resourceId: (.resourceId | ascii_downcase),
+                    changeType,
+                    before,
+                    after,
+                    delta
+                  }
+              ] | sort_by(.resourceId)
+            }' "$1"
+          }
+          normalize_what_if plan-evidence/mcp-what-if.json > reviewed-what-if.json
+          normalize_what_if mcp-what-if.json > current-what-if.json
+          if ! diff -u reviewed-what-if.json current-what-if.json; then
+            echo "Resource group state drifted from the reviewed plan; run a new plan." >&2
+            exit 1
+          fi
+
+      - name: Deploy MCP revision
+        if: inputs.operation == 'deploy'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-mcp" \
+              --template-file infra/bicep/mcp.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                mcpImage="$MCP_IMAGE" \
+                sourceRevision="$DEPLOYMENT_SHA" \
+                mcpHostName="$MCP_HOST_NAME" \
+                bindMcpCertificate="$MCP_BIND_CERTIFICATE" \
+                entraTenantId="$MCP_ENTRA_TENANT_ID" \
+                entraAudience="$MCP_ENTRA_AUDIENCE" \
+                entraIssuer="$MCP_ENTRA_ISSUER" \
+                entraJwksUri="$MCP_ENTRA_JWKS_URI" \
+                allowedClientIds="$MCP_ALLOWED_CLIENT_IDS" \
+                allowedNonBrowserClientIds="$MCP_ALLOWED_NON_BROWSER_CLIENT_IDS" \
+                allowedOrigins="$MCP_ALLOWED_ORIGINS" \
+                requiredScope="$MCP_REQUIRED_SCOPE" \
+                resourceScope="$MCP_RESOURCE_SCOPE" \
+                requestsPerMinute="$MCP_REQUESTS_PER_MINUTE"
+
+      - name: Verify deployed MCP revision and RBAC
+        if: inputs.operation == 'deploy'
+        run: |
+          app_name="ca-keyforta-${ENVIRONMENT}-mcp"
+          revision_name="${app_name}--sha-${DEPLOYMENT_SHA:0:12}"
+          revision=$(az containerapp revision show \
+            --name "$app_name" \
+            --resource-group "$RESOURCE_GROUP" \
+            --revision "$revision_name" -o json)
+          test "$(jq -r '.properties.active' <<< "$revision")" = "true"
+          test "$(jq -r '.properties.healthState' <<< "$revision")" = "Healthy"
+          test "$(jq -r '.properties.template.containers[0].image' <<< "$revision")" = "$MCP_IMAGE"
+
+          if [[ "$MCP_BIND_CERTIFICATE" == "true" ]]; then
+            healthy_revisions=$(az containerapp revision list \
+              --name "$app_name" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?properties.healthState=='Healthy'] | length(@)" -o tsv)
+            test "$healthy_revisions" -ge 2
+          fi
+
+          az containerapp ingress traffic set \
+            --name "$app_name" \
+            --resource-group "$RESOURCE_GROUP" \
+            --revision-weight "$revision_name=100" >/dev/null
+          traffic_weight=$(az containerapp revision show \
+            --name "$app_name" \
+            --resource-group "$RESOURCE_GROUP" \
+            --revision "$revision_name" \
+            --query properties.trafficWeight -o tsv)
+          test "$traffic_weight" = "100"
+
+          principal_id=$(az identity show \
+            --name "id-keyforta-${ENVIRONMENT}-mcp" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query principalId -o tsv)
+          registry_id=$(az acr show --name "$REGISTRY_NAME" --query id -o tsv)
+          az role assignment list \
+            --assignee-object-id "$principal_id" \
+            --include-inherited \
+            --all \
+            --query '[].{role:roleDefinitionName,scope:scope}' \
+            --output json > mcp-role-assignments.json
+          jq -e --arg registry_id "$registry_id" \
+            'length == 1 and all(.[]; .role == "AcrPull" and .scope == $registry_id)' \
+            mcp-role-assignments.json >/dev/null
+
+      - name: Smoke test deployed MCP boundary
+        if: inputs.operation == 'deploy'
+        run: |
+          mcp_fqdn=$(az containerapp show \
+            --name "ca-keyforta-${ENVIRONMENT}-mcp" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          test -n "$mcp_fqdn"
+          mcp_url="https://${mcp_fqdn}"
+          curl --fail --retry 12 --retry-all-errors --retry-delay 10 "$mcp_url/health"
+          generated_status=$(curl --silent --show-error \
+            --output generated-host-denial.json \
+            --write-out '%{http_code}' \
+            --header 'content-type: application/json' \
+            --request POST \
+            --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
+            "$mcp_url/mcp")
+          test "$generated_status" = "404"
+          grep -F '"reason":"unknown_resource"' generated-host-denial.json
+
+          if [[ "$MCP_BIND_CERTIFICATE" != "true" ]]; then
+            exit 0
+          fi
+          status=$(curl --silent --show-error \
+            --dump-header mcp-headers.txt \
+            --output mcp-denial.json \
+            --write-out '%{http_code}' \
+            --header 'content-type: application/json' \
+            --request POST \
+            --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
+            "$MCP_RESOURCE_URL/mcp")
+          test "$status" = "401"
+          tr -d '\r' < mcp-headers.txt | grep -i '^www-authenticate: Bearer '
+          ! grep -qi 'authorization' mcp-denial.json
+
+      - name: Preserve SHA-bound MCP plan evidence
+        if: inputs.operation == 'plan'
+        run: |
+          what_if_sha256=$(sha256sum mcp-what-if.json | awk '{print $1}')
+          sbom_sha256=$(sha256sum mcp-sbom.json | awk '{print $1}')
+          provenance_sha256=$(sha256sum mcp-provenance.json | awk '{print $1}')
+          {
+            echo "commit_sha=$DEPLOYMENT_SHA"
+            echo "operation=plan"
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "bind_certificate=$MCP_BIND_CERTIFICATE"
+            echo "image_digest=$MCP_IMAGE_DIGEST"
+            echo "bicep_sha256=$BICEP_SHA256"
+            echo "parameters_sha256=$PARAMETERS_SHA256"
+            echo "what_if_sha256=$what_if_sha256"
+            echo "sbom_sha256=$sbom_sha256"
+            echo "provenance_sha256=$provenance_sha256"
+          } > mcp-deployment-plan.txt
+
+      - name: Preserve MCP deployment evidence
+        if: inputs.operation == 'deploy'
+        run: |
+          {
+            echo "commit_sha=$DEPLOYMENT_SHA"
+            echo "image_digest=$MCP_IMAGE_DIGEST"
+            echo "revision=ca-keyforta-${ENVIRONMENT}-mcp--sha-${DEPLOYMENT_SHA:0:12}"
+            echo "canonical_host=$MCP_HOST_NAME"
+          } > mcp-deployment-result.txt
+
+      - name: Upload MCP deployment plan evidence
+        if: inputs.operation == 'plan'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mcp-deployment-plan-${{ env.DEPLOYMENT_SHA }}
+          path: |
+            mcp-deployment-plan.txt
+            mcp-what-if.json
+            mcp-sbom.json
+            mcp-provenance.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload MCP deployment evidence
+        if: inputs.operation == 'deploy'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mcp-deployment-result-${{ env.DEPLOYMENT_SHA }}
+          path: |
+            mcp-deployment-result.txt
+            mcp-role-assignments.json
+          if-no-files-found: error
+          retention-days: 30

@@ -9,9 +9,11 @@ export const syntheticReadOnlyPrincipal: McpPrincipal = {
   clientId: "synthetic-test-client",
   grantedScopes: ["mcp.tools.read"],
   principalReference: "synthetic-subject-1",
+  tenantId: "synthetic-tenant-1",
 };
 
 export interface TestServerOptions {
+  allowedNonBrowserClientIds?: readonly string[];
   allowedOrigins?: readonly string[];
   requestsPerMinute?: number;
   authenticator?: McpAuthenticator;
@@ -32,6 +34,8 @@ export async function createTestServer(
 ): Promise<TestServer> {
   const auditRecords: McpAuditRecord[] = [];
   const app = await buildMcpServer({
+    allowedNonBrowserClientIds:
+      options.allowedNonBrowserClientIds ?? [syntheticReadOnlyPrincipal.clientId],
     allowedOrigins: options.allowedOrigins ?? [],
     auditSink: (record) => auditRecords.push(record),
     authenticator:
@@ -40,6 +44,7 @@ export async function createTestServer(
         clientId: syntheticReadOnlyPrincipal.clientId,
         grantedScopes: syntheticReadOnlyPrincipal.grantedScopes,
         principalReference: syntheticReadOnlyPrincipal.principalReference,
+        tenantId: syntheticReadOnlyPrincipal.tenantId,
         token: syntheticCredential,
       }),
     ...(options.now ? { now: options.now } : {}),

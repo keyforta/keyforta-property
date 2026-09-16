@@ -6,6 +6,8 @@ export interface McpPrincipal {
   readonly grantedScopes: readonly string[];
   /** Opaque reference to the authenticated subject; never a raw token. */
   readonly principalReference: string;
+  /** Validated identity-tenant identifier used only for authorization binding. */
+  readonly tenantId: string;
 }
 
 export interface McpAuthenticator {
@@ -21,6 +23,7 @@ export interface StaticAuthenticatorOptions {
   clientId?: string;
   grantedScopes?: readonly string[];
   principalReference?: string;
+  tenantId?: string;
   token: string;
 }
 
@@ -47,6 +50,7 @@ export function createStaticAuthenticator(
     clientId: options.clientId ?? "local-development-client",
     grantedScopes: options.grantedScopes ?? ["mcp.tools.read"],
     principalReference: options.principalReference ?? "local-development-subject",
+    tenantId: options.tenantId ?? "local-development-tenant",
   };
 
   return {

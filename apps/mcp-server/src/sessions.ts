@@ -3,15 +3,19 @@ import { randomBytes } from "node:crypto";
 import type { SupportedProtocolVersion } from "./protocol.js";
 
 export interface SessionBinding {
+  readonly clientId: string;
   readonly originKey: string;
   readonly protocolVersion: SupportedProtocolVersion;
   readonly subjectReference: string;
+  readonly tenantId: string;
 }
 
 export interface SessionMatch {
+  readonly clientId: string;
   readonly originKey: string;
   readonly protocolVersion?: SupportedProtocolVersion | undefined;
   readonly subjectReference: string;
+  readonly tenantId: string;
 }
 
 export interface McpSession extends SessionBinding {
@@ -56,8 +60,8 @@ const defaultMaxSessions = 64;
 
 /**
  * Ephemeral, single-replica session store. Sessions are opaque, bound to the
- * authenticated subject, origin class, and negotiated protocol version, and
- * expire on idle and absolute limits.
+ * authenticated tenant, subject, OAuth client, origin class, and negotiated
+ * protocol version, and expire on idle and absolute limits.
  */
 export function createSessionStore(
   options: SessionStoreOptions = {},
@@ -79,10 +83,12 @@ export function createSessionStore(
   };
 
   const matchesBinding = (session: McpSession, match: SessionMatch): boolean =>
+    session.clientId === match.clientId &&
     session.originKey === match.originKey &&
     (match.protocolVersion === undefined ||
       session.protocolVersion === match.protocolVersion) &&
-    session.subjectReference === match.subjectReference;
+    session.subjectReference === match.subjectReference &&
+    session.tenantId === match.tenantId;
 
   return {
     close(sessionId, match) {

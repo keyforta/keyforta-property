@@ -45,7 +45,6 @@ import { createSystemHealthTool } from "./tools/system-health.js";
 export const serviceName = "keyforta-mcp-server";
 export const serviceVersion = "0.1.0";
 
-const requestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const sessionIdPattern = /^[A-Za-z0-9_-]{16,128}$/;
 const mcpEndpointPath = "/mcp";
 
@@ -57,6 +56,8 @@ export interface ProtectedResourceMetadata {
 }
 
 export interface McpServerDependencies {
+  /** Authenticated OAuth clients allowed to omit the browser Origin header. */
+  allowedNonBrowserClientIds?: readonly string[];
   /** Exact browser origins allowed to reach the endpoint. */
   allowedOrigins?: readonly string[];
   /** Maximum requests per minute per source address. */
@@ -65,6 +66,7 @@ export interface McpServerDependencies {
   authenticator: McpAuthenticator;
   now?: () => Date;
   protectedResourceMetadata?: ProtectedResourceMetadata;
+  requiredScopes?: readonly string[];
   sessions?: SessionStore;
   tools?: ToolRegistry;
 }
@@ -119,7 +121,11 @@ export async function buildMcpServer(
   }
 
   const allowedOrigins = dependencies.allowedOrigins ?? [];
+  const allowedNonBrowserClientIds = new Set(
+    dependencies.allowedNonBrowserClientIds ?? [],
+  );
   const auditSink = dependencies.auditSink ?? (() => undefined);
+  const requiredScopes = dependencies.requiredScopes ?? ["mcp.tools.read"];
   const sessions = dependencies.sessions ?? createSessionStore();
   const tools =
     dependencies.tools ??
@@ -129,15 +135,27 @@ export async function buildMcpServer(
       ),
     ]);
 
+  const advertisedToolScopes = new Map<string, readonly string[]>();
+  for (const tool of tools.list()) {
+    const advertisedScopes = tool.requiredScopes.map((requiredScope) => {
+      if (!dependencies.protectedResourceMetadata) return requiredScope;
+      const advertisedScope =
+        dependencies.protectedResourceMetadata.scopesSupported.find(
+          (scope) => scope === requiredScope || scope.endsWith(`/${requiredScope}`),
+        );
+      if (!advertisedScope) {
+        throw new Error(
+          `Protected resource metadata does not advertise the ${requiredScope} scope required by ${tool.name}.`,
+        );
+      }
+      return advertisedScope;
+    });
+    advertisedToolScopes.set(tool.name, advertisedScopes);
+  }
+
   const app = Fastify({
     bodyLimit: 64 * 1024,
-    genReqId: (request) => {
-      const suppliedRequestId = request.headers["x-request-id"];
-      return typeof suppliedRequestId === "string" &&
-        requestIdPattern.test(suppliedRequestId)
-        ? suppliedRequestId
-        : randomUUID();
-    },
+    genReqId: () => randomUUID(),
     logger: process.env.NODE_ENV !== "test",
     requestTimeout: 30_000,
   });
@@ -190,9 +208,15 @@ export async function buildMcpServer(
     if (dependencies.protectedResourceMetadata) {
       parts.push(
         `resource_metadata="${dependencies.protectedResourceMetadata.resourceMetadataUrl}"`,
+        `scope="${dependencies.protectedResourceMetadata.scopesSupported.join(" ")}"`,
       );
     }
     return `${credentialScheme} ${parts.join(", ")}`;
+  };
+
+  const isApprovedHostname = (request: FastifyRequest): boolean => {
+    const metadata = dependencies.protectedResourceMetadata;
+    return !metadata || request.hostname === new URL(metadata.resource).hostname;
   };
 
   app.setErrorHandler((error, request, reply) => {
@@ -269,7 +293,7 @@ export async function buildMcpServer(
   ]) {
     app.get(metadataPath, async (request, reply) => {
       const metadata = dependencies.protectedResourceMetadata;
-      if (!metadata) {
+      if (!metadata || !isApprovedHostname(request)) {
         return reply
           .status(404)
           .send(
@@ -292,18 +316,30 @@ export async function buildMcpServer(
   }
 
   app.get(mcpEndpointPath, async (request, reply) =>
-    reply
-      .status(405)
-      .header("allow", "DELETE, POST")
-      .send(
-        jsonRpcError(
-          null,
-          JSON_RPC_ERROR_CODES.invalidRequest,
-          "Server-initiated streams are not supported.",
-          request.id,
-          "unsupported_method",
-        ),
-      ),
+    isApprovedHostname(request)
+      ? reply
+          .status(405)
+          .header("allow", "DELETE, POST")
+          .send(
+            jsonRpcError(
+              null,
+              JSON_RPC_ERROR_CODES.invalidRequest,
+              "Server-initiated streams are not supported.",
+              request.id,
+              "unsupported_method",
+            ),
+          )
+      : reply
+          .status(404)
+          .send(
+            jsonRpcError(
+              null,
+              JSON_RPC_ERROR_CODES.invalidRequest,
+              "The requested resource was not found.",
+              request.id,
+              "unknown_resource",
+            ),
+          ),
   );
 
   interface GuardContext {
@@ -321,9 +357,11 @@ export async function buildMcpServer(
       message: string,
       reason: string,
       challenge?: string,
+      clientId: string | null = null,
+      responseReason: string = reason,
     ): null => {
       emitAudit(request.id, {
-        clientId: null,
+        clientId,
         method: null,
         protocolVersion: null,
         reason,
@@ -334,11 +372,22 @@ export async function buildMcpServer(
       if (challenge) reply.header("www-authenticate", challenge);
       void reply
         .status(status)
-        .send(jsonRpcError(null, code, message, request.id, reason));
+        .send(jsonRpcError(null, code, message, request.id, responseReason));
       return null;
     };
 
     const originKey = resolveOriginKey(request.headers.origin, allowedOrigins);
+    if (!isApprovedHostname(request)) {
+      return deny(
+        404,
+        JSON_RPC_ERROR_CODES.invalidRequest,
+        "The requested resource was not found.",
+        "unapproved_hostname",
+        undefined,
+        null,
+        "unknown_resource",
+      );
+    }
     if (originKey === null) {
       return deny(
         403,
@@ -378,6 +427,34 @@ export async function buildMcpServer(
         "The credential was rejected.",
         "invalid_credential",
         challengeHeader("invalid_token"),
+      );
+    }
+
+    if (
+      originKey === "non-browser" &&
+      !allowedNonBrowserClientIds.has(principal.clientId)
+    ) {
+      return deny(
+        403,
+        JSON_RPC_ERROR_CODES.requestDenied,
+        "The request origin is not allowed.",
+        "unsupported_origin",
+        undefined,
+        principal.clientId,
+      );
+    }
+
+    const missingScope = requiredScopes.some(
+      (scope) => !principal.grantedScopes.includes(scope),
+    );
+    if (missingScope) {
+      return deny(
+        403,
+        JSON_RPC_ERROR_CODES.requestDenied,
+        "The credential does not grant MCP access.",
+        "insufficient_scope",
+        challengeHeader("insufficient_scope"),
+        principal.clientId,
       );
     }
 
@@ -553,9 +630,11 @@ export async function buildMcpServer(
       let sessionId: string;
       try {
         sessionId = sessions.open({
+          clientId: principal.clientId,
           originKey,
           protocolVersion: negotiatedProtocolVersion,
           subjectReference: principal.principalReference,
+          tenantId: principal.tenantId,
         }).id;
       } catch (error) {
         if (error instanceof SessionCapacityError) {
@@ -603,9 +682,11 @@ export async function buildMcpServer(
     }
 
     const lookup = sessions.touch(suppliedSessionId, {
+      clientId: principal.clientId,
       originKey,
       protocolVersion: requestedProtocolVersion,
       subjectReference: principal.principalReference,
+      tenantId: principal.tenantId,
     });
     if (!lookup.ok) {
       return deny(
@@ -644,6 +725,12 @@ export async function buildMcpServer(
             inputSchema: tool.inputJsonSchema,
             name: tool.name,
             outputSchema: tool.outputJsonSchema,
+            securitySchemes: [
+              {
+                scopes: advertisedToolScopes.get(tool.name) ?? [],
+                type: "oauth2",
+              },
+            ],
             title: tool.title,
           })),
         },
@@ -754,8 +841,10 @@ export async function buildMcpServer(
       typeof suppliedSessionId === "string" &&
       sessionIdPattern.test(suppliedSessionId) &&
       sessions.close(suppliedSessionId, {
+        clientId: guard.principal.clientId,
         originKey: guard.originKey,
         subjectReference: guard.principal.principalReference,
+        tenantId: guard.principal.tenantId,
       });
 
     emitAudit(request.id, {
