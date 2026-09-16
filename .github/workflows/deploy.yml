@@ -236,9 +236,11 @@ jobs:
               --name "$api_app" \
               --resource-group "$RESOURCE_GROUP" \
               --query properties.configuration.ingress.fqdn -o tsv)
-          fi
-          web_url="https://${WEB_CANONICAL_HOST}"
-          if [ -n "$api_fqdn" ]; then
+            if [ -z "$api_fqdn" ]; then
+              echo "The existing API Container App has no ingress FQDN." >&2
+              exit 1
+            fi
+            web_url="https://${WEB_CANONICAL_HOST}"
             api_url="https://${api_fqdn}"
             curl --fail --retry 12 --retry-delay 10 \
               --header "origin: ${web_url}" \
@@ -250,6 +252,7 @@ jobs:
             echo "The public-web deployment requires an existing API with canonical CORS." >&2
             exit 1
           fi
+          web_url="https://${WEB_CANONICAL_HOST}"
 
           static_ip=$(az containerapp env show \
             --name "$APP_ENVIRONMENT" \
