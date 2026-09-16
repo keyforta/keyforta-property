@@ -186,10 +186,11 @@ Database grants and RLS policy are applied by a migration identity, not by the
 runtime identity. The migration identity is configured as the PostgreSQL Entra
 administrator, runs only the manual migration job, and grants the API identity
 the restricted `keyforta_runtime` role. The migration maps that database login
-to the API managed identity's immutable object ID with a `pgaadauth` security
-label; it does not rely on a tenant-wide display-name lookup. Idempotent mapping
-checks read that label through `pg_roles` and `pg_seclabel`, which remain
-available when the optional `pgaadauth_list_principals` helper is absent.
+to the API managed identity's immutable object ID by transactionally creating a
+login role and attaching its `pgaadauth` security label. This documented direct
+label mechanism avoids optional server helper functions and does not rely on a
+tenant-wide display-name lookup. Idempotent mapping checks read that label
+through `pg_roles` and `pg_seclabel`.
 `DATABASE_AUTH=entra` selects the attached user-assigned identity explicitly
 from `AZURE_CLIENT_ID` and rejects missing or blank PostgreSQL access tokens.
 The API parses the passwordless Entra `DATABASE_URL` into explicit connection
