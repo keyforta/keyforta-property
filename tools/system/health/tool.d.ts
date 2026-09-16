@@ -1,10 +1,11 @@
 import type { z } from 'zod';
+import type { WidgetResourceDescriptor } from '@keyforta/types';
 
-export const healthResource: {
-  readonly uri: 'ui://keyforta/system/health';
-};
+export const healthResource: WidgetResourceDescriptor;
 export const healthDescription: string;
 export const healthInputSchema: z.ZodType;
+export const healthStructuredContentSchema: z.ZodType;
+export const healthWidgetDataSchema: z.ZodType;
 export const healthResultSchema: z.ZodType;
 export function createHealthTool(options?: {
   now?: () => string;

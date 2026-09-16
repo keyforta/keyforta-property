@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { buildMcpApp } from "../src/app.js";
 import { createToolRegistry } from "../src/registry.js";
+import { z } from "zod";
 
 const principal = {
   correlationId: "correlation-1",
@@ -65,4 +66,35 @@ test("registry rejects duplicate names and widget resources", () => {
     tool,
     { ...tool, name: "another" },
   ]), /Duplicate MCP widget resource URI/);
+});
+
+test("sanitizes unexpected tool failures as internal errors", async () => {
+  const app = await buildMcpApp({
+    authenticator: async () => principal,
+    registry: createToolRegistry([{
+      description: "Fails synthetically.",
+      execute: async () => { throw new Error("provider payload must not escape"); },
+      inputSchema: z.object({}).strict(),
+      name: "synthetic_failure",
+      resource: { uri: "ui://keyforta/system/failure" },
+      resultSchema: z.object({}).strict(),
+    }]),
+  });
+  try {
+    const response = await app.inject({
+      method: "POST",
+      payload: {
+        id: 1,
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: { arguments: {}, name: "synthetic_failure" },
+      },
+      url: "/mcp",
+    });
+    assert.equal(response.statusCode, 500);
+    assert.equal(response.body.includes("provider payload"), false);
+    assert.equal(response.json().error.code, -32603);
+  } finally {
+    await app.close();
+  }
 });

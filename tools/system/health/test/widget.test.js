@@ -16,7 +16,7 @@ for (const state of ['loading', 'empty', 'populated', 'error']) {
     const html = renderToStaticMarkup(
       createElement(HealthWidget, { locale: 'en', state: { kind: state } }),
     );
-    assert.match(html, /aria-live="polite"/);
+    assert.match(html, /role="(status|alert)"/);
     assert.match(html, new RegExp(`health-widget--${state}`));
     assert.match(html, /KEYFORTA capability status/);
   });

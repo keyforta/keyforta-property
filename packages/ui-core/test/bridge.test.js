@@ -31,3 +31,11 @@ test('only accepts strict versioned messages from the configured parent origin',
   }, (message) => received.push(message)), true);
   assert.deepEqual(received, [{ kind: 'host.locale', locale: 'fr', protocolVersion: 1 }]);
 });
+
+test('rejects configured origins with paths', () => {
+  assert.throws(() => createWidgetBridge({
+    origin: 'https://connector.example.test/path',
+    resourceUri: 'ui://keyforta/system/health',
+    window: { parent: {} },
+  }), /exact HTTPS host origin/);
+});

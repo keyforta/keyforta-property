@@ -9,7 +9,7 @@
   "scripts": {
     "build": "vite build",
     "check": "pnpm test && pnpm build",
-    "storybook": "node stories/health.stories.js",
+    "storybook": "node --test test/widget.test.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

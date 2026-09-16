@@ -16,7 +16,6 @@ export function HealthWidget({ locale, state }) {
   return createElement('section', {
     'aria-busy': state.kind === 'loading',
     'aria-describedby': 'health-description',
-    'aria-live': 'polite',
     className: `health-widget health-widget--${state.kind}`,
   },
   createElement('h1', { ref: heading, tabIndex: -1 }, strings.title),

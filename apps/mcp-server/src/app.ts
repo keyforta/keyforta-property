@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import { toolExecutionContextSchema } from "@keyforta/contracts";
 import { createHealthTool } from "@keyforta/system-health";
+import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
-import { z } from "zod";
+import { ZodError, z } from "zod";
 
 import { createToolRegistry, type ToolRegistry } from "./registry.js";
 
@@ -37,13 +38,18 @@ export async function buildMcpApp(
     logger: process.env.NODE_ENV !== "test",
     requestTimeout: 30_000,
   });
+  await app.register(rateLimit, { global: false });
 
   app.addHook("onSend", async (request, reply, payload) => {
     reply.header("x-request-id", request.id);
     return payload;
   });
 
-  app.post("/mcp", async (request, reply) => {
+  app.post("/mcp", {
+    config: {
+      rateLimit: { max: 60, timeWindow: "1 minute" },
+    },
+  }, async (request, reply) => {
     let context: unknown;
     try {
       context = toolExecutionContextSchema.parse(
@@ -102,7 +108,10 @@ export async function buildMcpApp(
       try {
         const result = await tool.execute(call.data.arguments ?? {}, context);
         return { id, jsonrpc: "2.0", result };
-      } catch {
+      } catch (error) {
+        if (!(error instanceof ZodError)) {
+          return reply.status(500).send(errorResponse(id, -32603, "Internal error"));
+        }
         return reply.status(400).send(errorResponse(id, -32602, "Tool input is invalid"));
       }
     }

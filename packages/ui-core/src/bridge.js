@@ -1,7 +1,13 @@
 import { hostToWidgetMessageSchema, widgetToHostMessageSchema } from '@keyforta/contracts';
 
 export function createWidgetBridge({ origin, resourceUri, window }) {
-  if (typeof origin !== 'string' || !origin.startsWith('https://')) {
+  let parsedOrigin;
+  try {
+    parsedOrigin = new URL(origin);
+  } catch {
+    throw new TypeError('Widget bridge requires an exact HTTPS host origin');
+  }
+  if (parsedOrigin.protocol !== 'https:' || parsedOrigin.origin !== origin) {
     throw new TypeError('Widget bridge requires an exact HTTPS host origin');
   }
 

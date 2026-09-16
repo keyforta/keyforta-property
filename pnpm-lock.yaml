@@ -92,6 +92,9 @@ importers:
 
   apps/mcp-server:
     dependencies:
+      '@fastify/rate-limit':
+        specifier: 10.3.0
+        version: 10.3.0
       '@keyforta/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
