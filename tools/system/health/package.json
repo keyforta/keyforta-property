@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    ".": "./tool.ts",
     "./widget": "./src/HealthWidget.tsx"
   },
   "scripts": {
@@ -14,9 +15,12 @@
   },
   "dependencies": {
     "@fluentui/react-components": "9.72.5",
+    "@keyforta/contracts": "workspace:*",
+    "@keyforta/types": "workspace:*",
     "@keyforta/ui-core": "workspace:*",
     "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "react-dom": "19.1.1",
+    "zod": "4.1.12"
   },
   "devDependencies": {
     "@keyforta/build-utils": "workspace:*",

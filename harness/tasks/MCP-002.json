@@ -1,0 +1,164 @@
+{
+  "contractVersion": 2,
+  "taskId": "MCP-002",
+  "phase": "implementation",
+  "workArea": "api-and-domain",
+  "title": "Run the standalone synthetic MCP server",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/17",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/17",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/17",
+    "docs/adr/ADR-012-standalone-mcp-service.md",
+    "docs/ai/TOOL_POLICY.md"
+  ],
+  "classification": "feature",
+  "workflowState": "implementation-ready",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-16T02:42:56Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/17"
+      ]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-16T02:42:57Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/17",
+        "docs/engineering/evidence/MCP-002.md"
+      ]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-16T02:42:58Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/17#issuecomment-5691151989"
+      ],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/17#issuecomment-5691151989",
+        "commitSha": "5b2d3775d7dc0a81ca867e3c489cdbd130ba5ddd"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-16T02:42:59Z",
+      "evidenceReferences": [
+        "docs/adr/ADR-012-standalone-mcp-service.md",
+        "docs/engineering/evidence/MCP-002.md"
+      ]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Backend Engineer",
+      "enteredAt": "2026-09-16T02:43:00Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/MCP-002.md"
+      ]
+    }
+  ],
+  "assignedAgent": "Backend Engineer",
+  "routingRuleId": "ROUTE-005",
+  "supportingReviewers": [
+    "Security and Privacy Reviewer",
+    "QA and Test Engineer",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "MCP-003 widget artifact commit 5b2d3775d7dc0a81ca867e3c489cdbd130ba5ddd",
+    "ADR-012 accepted in issue #17 comment 5688247402"
+  ],
+  "allowedPaths": [
+    "pnpm-lock.yaml",
+    "apps/mcp-server/",
+    "tools/system/health/package.json",
+    "tools/system/health/tool.ts",
+    "tools/system/health/tests/tool.test.ts",
+    "docs/engineering/evidence/MCP-002.md",
+    "harness/tasks/MCP-002.json"
+  ],
+  "declaredProtectedPaths": [],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "apps/api/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/17",
+    "docs/engineering/evidence/MCP-002.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-MCP-002-01",
+      "requirementReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/17"
+      ],
+      "testReferences": [
+        "apps/mcp-server/test/protocol.test.ts"
+      ]
+    },
+    {
+      "id": "AC-MCP-002-02",
+      "requirementReferences": [
+        "docs/adr/ADR-012-standalone-mcp-service.md"
+      ],
+      "testReferences": [
+        "apps/mcp-server/test/app.test.ts",
+        "apps/mcp-server/test/registry.test.ts"
+      ]
+    },
+    {
+      "id": "AC-MCP-002-03",
+      "requirementReferences": [
+        "docs/ai/TOOL_POLICY.md"
+      ],
+      "testReferences": [
+        "tools/system/health/tests/tool.test.ts",
+        "apps/mcp-server/test/app.test.ts"
+      ]
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/adr/ADR-012-standalone-mcp-service.md",
+    "docs/engineering/evidence/MCP-002.md"
+  ],
+  "requiredScenarios": [
+    "canonical-verification"
+  ],
+  "requiredCommands": [
+    "pnpm check",
+    "node harness/graders/architecture.mjs",
+    "pnpm build",
+    "pnpm verify:all"
+  ],
+  "requiredEvidence": [
+    "docs/engineering/evidence/MCP-002.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-MCP-002.json"
+  ],
+  "riskClassification": "high",
+  "securityImpact": "Adds an HTTP protocol boundary. Every MCP request requires an injected authenticator, origin enforcement, body and session limits, strict schemas, safe errors, and correlation. Production startup fails closed without the separately approved Entra implementation.",
+  "dataImpact": "Uses synthetic service metadata only. It has no database, private API, tenant, user, property, lease, payment, document, prompt, or provider-data access.",
+  "observabilityImpact": "Adds bounded request, denial, tool, result, protocol, session, and correlation events without tokens, prompts, arguments, results, or personal data.",
+  "rollbackConsiderations": "Remove apps/mcp-server, the synthetic tool runtime export, and their lockfile entries. No persisted data, identity registration, public endpoint, or cloud resource is affected.",
+  "humanApprovalRequirements": [
+    "Product Owner approval recorded in issue #17 comment 5691151989",
+    "Independent Security, QA, and pull-request review before merge",
+    "Separate approval before Entra, provider, ingress, infrastructure, credential, paid-service, or deployment work"
+  ],
+  "repairCycle": 0
+}
