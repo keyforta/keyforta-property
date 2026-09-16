@@ -26,8 +26,11 @@ test('returns a strict dual-layer synthetic health result', async () => {
   });
 });
 
-test('does not accept caller authority or oversize descriptions', async () => {
+test('rejects client-supplied authority fields', async () => {
   const tool = createHealthTool();
   await assert.rejects(() => tool.execute({ actorId: 'not-authority' }, context));
+});
+
+test('keeps its description within the byte budget', () => {
   assert.ok(new TextEncoder().encode(healthDescription).byteLength < 1024);
 });

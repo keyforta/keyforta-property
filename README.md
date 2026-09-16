@@ -15,7 +15,7 @@ packages/brand/    Shared KEYFORTA identity tokens and asset helpers
 packages/contracts/Shared API schemas, commands, and events
 packages/types/     Dependency-free shared TypeScript declarations
 packages/ui-core/   Isolated widget bridge and shared widget primitives
-packages/build-utils/Deterministic standalone widget build configuration
+packages/build-utils/ Deterministic standalone widget build configuration
 packages/api-client/Shared typed API client boundary
 packages/authorization/Shared role and permission vocabulary
 docs/              Mock-to-API resource, role, and workflow contract

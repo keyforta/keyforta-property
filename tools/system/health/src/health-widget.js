@@ -6,6 +6,7 @@ export function HealthWidget({ locale, state }) {
   const strings = stringsFor(locale);
   const heading = useRef(null);
   const descriptionId = useId();
+  const titleId = useId();
   useEffect(() => {
     if (state.kind === 'error') heading.current?.focus();
   }, [state.kind]);
@@ -17,9 +18,10 @@ export function HealthWidget({ locale, state }) {
   return createElement('section', {
     'aria-busy': state.kind === 'loading',
     'aria-describedby': descriptionId,
+    'aria-labelledby': titleId,
     className: `health-widget health-widget--${state.kind}`,
   },
-  createElement('h1', { ref: heading, tabIndex: -1 }, strings.title),
+  createElement('h1', { id: titleId, ref: heading, tabIndex: -1 }, strings.title),
   createElement('p', { id: descriptionId }, strings.description),
   createElement('output', { 'aria-label': strings.title, role: state.kind === 'error' ? 'alert' : 'status' }, text));
 }

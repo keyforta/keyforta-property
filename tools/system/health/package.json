@@ -13,7 +13,6 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@fluentui/react-components": "9.72.5",
     "@keyforta/build-utils": "workspace:*",
     "@keyforta/contracts": "workspace:*",
     "@keyforta/types": "workspace:*",

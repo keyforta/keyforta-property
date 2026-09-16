@@ -220,9 +220,6 @@ importers:
 
   tools/system/health:
     dependencies:
-      '@fluentui/react-components':
-        specifier: 9.72.5
-        version: 9.72.5(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(scheduler@0.28.0)
       '@keyforta/build-utils':
         specifier: workspace:*
         version: link:../../../packages/build-utils
