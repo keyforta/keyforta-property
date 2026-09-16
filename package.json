@@ -5,8 +5,8 @@
   "description": "KEYFORTA property marketplace and management platform",
   "packageManager": "pnpm@11.19.0",
   "scripts": {
-    "build": "pnpm --filter @keyforta/public-web build",
-    "check": "node apps/public-web/scripts/check-dist-tracking.mjs && pnpm --recursive run check",
+    "build": "turbo run build",
+    "check": "node apps/public-web/scripts/check-dist-tracking.mjs && turbo run check",
     "dev": "pnpm --filter @keyforta/public-web dev",
     "dev:public": "pnpm --filter @keyforta/public-web dev",
     "dev:portal": "pnpm --filter @keyforta/portal-web dev",
@@ -14,10 +14,16 @@
     "dev:all": "pnpm --parallel --filter './apps/*-web' dev",
     "check:apps": "pnpm --recursive run check",
     "build:apps": "pnpm --recursive run build",
+    "test": "turbo run test",
     "test:workflows": "node --test .github/tests/workflow-concurrency.test.mjs",
-    "verify": "pnpm check && pnpm test:workflows && pnpm audit --prod --audit-level high && pnpm build"
+    "turbo:build": "turbo run build",
+    "turbo:check": "turbo run check",
+    "turbo:test": "turbo run test",
+    "verify": "pnpm check && pnpm test && pnpm test:workflows && pnpm audit --prod --audit-level high && pnpm build"
   },
   "devDependencies": {
+    "turbo": "2.10.13",
+    "typescript": "5.9.3",
     "yaml": "^2.9.0"
   }
 }

@@ -3,5 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.js" }
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "scripts": {
+    "check": "pnpm test",
+    "test": "node --test test/mcp.test.js"
+  },
+  "dependencies": {
+    "@keyforta/types": "workspace:*",
+    "zod": "4.1.12"
+  }
 }

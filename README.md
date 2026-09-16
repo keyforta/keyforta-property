@@ -35,8 +35,8 @@ pnpm dev
 pnpm verify
 ```
 
-This runs workspace checks, deployment workflow tests, a production dependency
-audit, and the production build. CI also compiles every Bicep module.
+This runs workspace checks, product and deployment workflow tests, a production
+dependency audit, and production builds. CI also compiles every Bicep module.
 
 `pnpm dev` serves the public site at `http://localhost:3000`. Use `pnpm dev:portal` for the portal at `http://localhost:3001`, `pnpm dev:admin` for the admin console at `http://localhost:3002`, or `pnpm dev:all` to run all three.
 

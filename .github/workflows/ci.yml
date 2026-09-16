@@ -36,17 +36,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check workspace
-        run: pnpm check
-
-      - name: Test deployment workflows
-        run: pnpm test:workflows
-
-      - name: Audit production dependencies
-        run: pnpm audit --prod --audit-level high
-
-      - name: Build applications
-        run: pnpm build
+      - name: Validate repository
+        run: pnpm verify
 
       - name: Compile Bicep
         run: |

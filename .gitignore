@@ -1,4 +1,5 @@
 node_modules/
+.turbo/
 .sites-runtime/
 dist/
 keyforta-*.tar.gz
