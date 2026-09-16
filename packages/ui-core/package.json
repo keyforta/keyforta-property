@@ -1,0 +1,16 @@
+{
+  "name": "@keyforta/ui-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "check": "pnpm test",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@keyforta/contracts": "workspace:*"
+  }
+}

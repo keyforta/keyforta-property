@@ -1,0 +1,29 @@
+{
+  "name": "@keyforta/system-health",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./tool.js"
+  },
+  "scripts": {
+    "build": "vite build",
+    "check": "pnpm test && pnpm build",
+    "storybook": "node stories/health.stories.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@fluentui/react-components": "9.72.5",
+    "@keyforta/build-utils": "workspace:*",
+    "@keyforta/contracts": "workspace:*",
+    "@keyforta/types": "workspace:*",
+    "@keyforta/ui-core": "workspace:*",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "5.0.2",
+    "vite": "7.3.6"
+  }
+}
