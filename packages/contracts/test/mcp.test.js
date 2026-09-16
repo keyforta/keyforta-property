@@ -35,6 +35,7 @@ test('rejects unknown result fields', () => {
 test('rejects security and authority fields in every result channel', () => {
 	const forbiddenKeys = [
 		'accessToken',
+		'actorId',
 		'authorization',
 		'clientSecret',
 		'connectionString',
@@ -42,9 +43,11 @@ test('rejects security and authority fields in every result channel', () => {
 		'credential',
 		'organizationId',
 		'password',
+		'principalReference',
 		'refreshToken',
 		'secret',
 		'tenantId',
+		'userId',
 	];
 
 	for (const forbiddenKey of forbiddenKeys) {
@@ -71,6 +74,41 @@ test('enforces App SDK widget resource descriptors', () => {
 		...descriptor,
 		uri: 'skill://system/health/ui',
 	}).success, false);
+
+	for (const domain of [
+		'data:text/plain,unsafe',
+		'file:///tmp/unsafe',
+		'http://example.com',
+		'https://api.keyforta.com/path',
+		'javascript:alert(1)',
+	]) {
+		assert.equal(widgetResourceDescriptorSchema.safeParse({
+			...descriptor,
+			csp: { connectDomains: [domain], resourceDomains: [] },
+		}).success, false, domain);
+	}
+
+	assert.equal(widgetResourceDescriptorSchema.safeParse({
+		...descriptor,
+		csp: {
+			connectDomains: ['https://api.keyforta.com'],
+			resourceDomains: ['http://localhost:3000'],
+		},
+	}).success, true);
+});
+
+test('makes caller-provided result object schemas strict', () => {
+	const schema = createToolResultSchema({
+		structuredContentSchema: z.object({ status: z.literal('healthy') }),
+		widgetDataSchema: z.object({ checkedAt: z.string().datetime() }),
+	});
+	const structuredContentResult = structuredClone(validResult);
+	structuredContentResult.structuredContent.debug = true;
+	const widgetDataResult = structuredClone(validResult);
+	widgetDataResult._meta.widgetData.debug = true;
+
+	assert.equal(schema.safeParse(structuredContentResult).success, false);
+	assert.equal(schema.safeParse(widgetDataResult).success, false);
 });
 
 test('keeps raw tokens outside execution context', () => {

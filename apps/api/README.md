@@ -13,5 +13,9 @@ published, public-safe fields. The server uses synthetic development projections
 outside production; no production persistence adapter is configured in this
 slice.
 
+The property list accepts optional `city` and `cursor` filters, `limit` from 1
+through 100 (default 20), and `sort` values `created_at_desc` (default),
+`name_asc`, or `name_desc`.
+
 Run `pnpm --filter @keyforta/api test`, `typecheck`, and `build` from the
 repository root.

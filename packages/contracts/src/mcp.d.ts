@@ -29,6 +29,6 @@ export function createToolResultSchema<
 	TStructuredContent extends JsonObject,
 	TWidgetData extends JsonObject,
 >(schemas: {
-	structuredContentSchema: z.ZodType<TStructuredContent>;
-	widgetDataSchema: z.ZodType<TWidgetData>;
+	structuredContentSchema: z.ZodType<TStructuredContent> & z.ZodObject;
+	widgetDataSchema: z.ZodType<TWidgetData> & z.ZodObject;
 }): z.ZodType<ToolResult<TStructuredContent, TWidgetData>>;

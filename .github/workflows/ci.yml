@@ -40,5 +40,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit dependencies
+        run: pnpm audit --audit-level high
+
+      - name: Check secrets and architecture
+        run: |
+          node harness/graders/secrets.mjs
+          node harness/graders/architecture.mjs
+
       - name: Validate repository
         run: pnpm verify

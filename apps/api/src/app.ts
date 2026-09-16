@@ -32,13 +32,12 @@ function problem(
   details: unknown = {},
 ) {
   return {
-    code,
-    detail,
-    details,
-    status,
-    title,
-    traceId: requestId,
-    type: `https://api.keyforta.com/problems/${code.toLowerCase().replaceAll("_", "-")}`,
+    error: {
+      code,
+      details,
+      message: detail,
+      traceId: requestId,
+    },
   };
 }
 
@@ -58,7 +57,7 @@ export async function buildApp(
         ),
       );
       reply.raw.statusCode = 400;
-      reply.raw.setHeader("content-type", "application/problem+json; charset=utf-8");
+      reply.raw.setHeader("content-type", "application/json; charset=utf-8");
       reply.raw.setHeader("x-request-id", request.id);
       reply.raw.end(payload);
     },

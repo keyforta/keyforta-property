@@ -105,8 +105,11 @@ describe("KEYFORTA API runtime", () => {
     const body = response.json();
 
     expect(response.statusCode).toBe(404);
-    expect(body).toMatchObject({ code: "NOT_FOUND", traceId: expect.any(String) });
-    expect(response.headers["x-request-id"]).toBe(body.traceId);
+    expect(body.error).toMatchObject({
+      code: "NOT_FOUND",
+      traceId: expect.any(String),
+    });
+    expect(response.headers["x-request-id"]).toBe(body.error.traceId);
   });
 
   it("sanitizes and correlates malformed URLs", async () => {
@@ -120,12 +123,12 @@ describe("KEYFORTA API runtime", () => {
     const body = response.json();
 
     expect(response.statusCode).toBe(400);
-    expect(body).toMatchObject({
+    expect(body.error).toMatchObject({
       code: "VALIDATION_ERROR",
-      detail: "The request URL is invalid.",
+      message: "The request URL is invalid.",
       traceId: expect.any(String),
     });
-    expect(response.headers["x-request-id"]).toBe(body.traceId);
+    expect(response.headers["x-request-id"]).toBe(body.error.traceId);
     expect(response.body).not.toContain("FST_ERR_BAD_URL");
   });
 
@@ -161,7 +164,7 @@ describe("anonymous public property discovery", () => {
     });
 
     expect(response.statusCode).toBe(503);
-    expect(response.json()).toMatchObject({
+    expect(response.json().error).toMatchObject({
       code: "DEPENDENCY_UNAVAILABLE",
       traceId: expect.any(String),
     });
@@ -284,7 +287,7 @@ describe("anonymous public property discovery", () => {
       });
 
       expect(response.statusCode).toBe(404);
-      expect(response.json()).toMatchObject({ code: "NOT_FOUND" });
+      expect(response.json().error).toMatchObject({ code: "NOT_FOUND" });
     }
   });
 
@@ -301,7 +304,7 @@ describe("anonymous public property discovery", () => {
 
     for (const response of responses) {
       expect(response.statusCode).toBe(400);
-      expect(response.json()).toMatchObject({
+      expect(response.json().error).toMatchObject({
         code: "VALIDATION_ERROR",
         traceId: expect.any(String),
       });
@@ -320,7 +323,7 @@ describe("anonymous public property discovery", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toMatchObject({
+    expect(response.json().error).toMatchObject({
       code: "VALIDATION_ERROR",
       traceId: expect.any(String),
     });
@@ -346,11 +349,11 @@ describe("anonymous public property discovery", () => {
     const body = response.json();
 
     expect(response.statusCode).toBe(500);
-    expect(body).toMatchObject({
+    expect(body.error).toMatchObject({
       code: "INTERNAL_SERVER_ERROR",
       traceId: expect.any(String),
     });
-    expect(response.headers["x-request-id"]).toBe(body.traceId);
+    expect(response.headers["x-request-id"]).toBe(body.error.traceId);
     expect(response.body).not.toContain("private connection details");
   });
 });

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const forbiddenResultKeyFragments = [
 	'accessToken',
+	'actor',
 	'authorization',
 	'clientSecret',
 	'connectionString',
@@ -9,10 +10,12 @@ const forbiddenResultKeyFragments = [
 	'credential',
 	'organization',
 	'password',
+	'principal',
 	'refreshToken',
 	'secret',
 	'tenant',
 	'token',
+	'user',
 ];
 
 const normalizedForbiddenFragments = forbiddenResultKeyFragments.map((key) => key.toLowerCase());
@@ -44,6 +47,17 @@ export const toolTextContentSchema = z.object({
 	type: z.literal('text'),
 }).strict();
 
+const networkOriginSchema = z.string().url().superRefine((value, context) => {
+	const url = new URL(value);
+	const isLocalHttp = url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+	if ((url.protocol !== 'https:' && !isLocalHttp) || value !== url.origin) {
+		context.addIssue({
+			code: 'custom',
+			message: 'CSP domains must be HTTPS origins or local development HTTP origins',
+		});
+	}
+});
+
 export const widgetResourceDescriptorSchema = z.object({
 	accessibility: z.object({
 		descriptionKey: z.string().trim().min(1).max(128),
@@ -51,8 +65,8 @@ export const widgetResourceDescriptorSchema = z.object({
 	}).strict(),
 	contractVersion: z.literal(1),
 	csp: z.object({
-		connectDomains: z.array(z.string().url()).max(16),
-		resourceDomains: z.array(z.string().url()).max(16),
+		connectDomains: z.array(networkOriginSchema).max(16),
+		resourceDomains: z.array(networkOriginSchema).max(16),
 	}).strict(),
 	mimeType: z.literal('text/html+skybridge'),
 	uri: widgetResourceUriSchema,
@@ -133,20 +147,32 @@ const findForbiddenResultKey = (value, currentPath = []) => {
 	return undefined;
 };
 
-export const createToolResultSchema = ({ structuredContentSchema, widgetDataSchema }) => z.object({
-	_meta: z.object({
-		'openai/outputTemplate': widgetResourceUriSchema,
-		widgetData: widgetDataSchema,
-	}).strict(),
-	content: z.array(toolTextContentSchema).max(8),
-	structuredContent: structuredContentSchema,
-}).strict().superRefine((result, context) => {
-	const forbiddenPath = findForbiddenResultKey(result);
-	if (forbiddenPath) {
-		context.addIssue({
-			code: 'custom',
-			message: 'Tool result contains a prohibited security or authority field',
-			path: forbiddenPath,
-		});
+const strictObjectSchema = (schema, channel) => {
+	if (!(schema instanceof z.ZodObject)) {
+		throw new TypeError(`${channel} must be a Zod object schema`);
 	}
-});
+	return schema.strict();
+};
+
+export const createToolResultSchema = ({ structuredContentSchema, widgetDataSchema }) => {
+	const strictStructuredContentSchema = strictObjectSchema(structuredContentSchema, 'structuredContentSchema');
+	const strictWidgetDataSchema = strictObjectSchema(widgetDataSchema, 'widgetDataSchema');
+
+	return z.object({
+		_meta: z.object({
+			'openai/outputTemplate': widgetResourceUriSchema,
+			widgetData: strictWidgetDataSchema,
+		}).strict(),
+		content: z.array(toolTextContentSchema).max(8),
+		structuredContent: strictStructuredContentSchema,
+	}).strict().superRefine((result, context) => {
+		const forbiddenPath = findForbiddenResultKey(result);
+		if (forbiddenPath) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Tool result contains a prohibited security or authority field',
+				path: forbiddenPath,
+			});
+		}
+	});
+};
