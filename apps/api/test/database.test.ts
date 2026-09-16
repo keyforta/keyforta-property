@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Client } from "pg";
 
 import { createDatabasePool } from "../src/database.js";
 
@@ -43,10 +44,14 @@ describe("createDatabasePool", () => {
       { getToken },
     );
     const password = pool.options.password;
+    const client = new Client(pool.options);
 
     await expect((password as () => Promise<string>)()).resolves.toBe(
       "synthetic-access-token",
     );
+    expect(
+      (client as unknown as { password: unknown }).password,
+    ).toBeTypeOf("function");
     expect(getToken).toHaveBeenCalledWith(
       "https://ossrdbms-aad.database.windows.net/.default",
     );
