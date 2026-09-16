@@ -11,7 +11,7 @@
     "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
   ],
   "classification": "bugfix",
-  "workflowState": "implemented",
+  "workflowState": "blocked",
   "stateHistory": [
     {
       "state": "proposed",
@@ -86,6 +86,35 @@
       "actor": "Harness and Evaluation Engineer",
       "enteredAt": "2026-09-16T00:27:41.000Z",
       "evidenceReferences": ["docs/engineering/evidence/HAR-010.md"]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Pull Request Reviewer",
+      "enteredAt": "2026-09-16T00:38:40.000Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/pull/13#pullrequestreview-5217331073",
+        "docs/engineering/evidence/HAR-010.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-16T00:38:41.000Z",
+      "evidenceReferences": [
+        ".github/workflows/ci.yml",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-010.md"
+      ]
+    },
+    {
+      "state": "blocked",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-16T00:44:36.000Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/actions/runs/35040860980",
+        "https://github.com/keyforta/keyforta-property/pull/13#pullrequestreview-5217331073",
+        "docs/engineering/evidence/HAR-010.md"
+      ]
     }
   ],
   "assignedAgent": "Harness and Evaluation Engineer",
@@ -172,5 +201,5 @@
     "Exact-head GitHub CI and protected retention canary must pass",
     "No changes to HAR-003, HAR-005, HAR-006, or HAR-009 history"
   ],
-  "repairCycle": 2
+  "repairCycle": 3
 }
