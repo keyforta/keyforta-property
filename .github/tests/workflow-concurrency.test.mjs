@@ -82,6 +82,31 @@ test("deploy normalizes curl CRLF before matching the exact CORS origin", () => 
   assert.equal(result.status, 0);
 });
 
+test("deploy binds and verifies the canonical public web domains", () => {
+  const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
+  const steps = document.jobs.deploy.steps;
+  const preview = steps.find((step) => step.name === "Preview application changes");
+  const deploy = steps.find((step) => step.name === "Deploy applications");
+  const smoke = steps.find((step) => step.name === "Smoke test public applications");
+
+  assert.equal(document.jobs.deploy.env.WEB_CANONICAL_HOST, "keyforta.com");
+  assert.equal(document.jobs.deploy.env.WEB_WWW_HOST, "www.keyforta.com");
+  for (const step of [preview, deploy]) {
+    assert.match(step?.with?.inlineScript ?? "", /webCanonicalHostName="\$WEB_CANONICAL_HOST"/);
+    assert.match(step?.with?.inlineScript ?? "", /webWwwHostName="\$WEB_WWW_HOST"/);
+  }
+  assert.match(smoke?.run ?? "", /web_url="https:\/\/\$\{WEB_CANONICAL_HOST\}"/);
+  assert.match(smoke?.run ?? "", /location: \$\{web_url\}\//);
+});
+
+test("application Bicep uses managed certificates for both public web domains", () => {
+  const template = readFileSync("infra/bicep/apps.bicep", "utf8");
+  assert.match(template, /domainControlValidation: 'HTTP'[\s\S]*subjectName: webCanonicalHostName/);
+  assert.match(template, /domainControlValidation: 'CNAME'[\s\S]*subjectName: webWwwHostName/);
+  assert.match(template, /customDomains:[\s\S]*certificateId: webCanonicalCertificate\.id[\s\S]*certificateId: webWwwCertificate\.id/);
+  assert.match(template, /var webPublicBaseUrl = 'https:\/\/\$\{webCanonicalHostName\}'/);
+});
+
 function workflowScript(name) {
   const workflow = workflows[name];
   const document = YAML.parse(readFileSync(workflow.file, "utf8"));

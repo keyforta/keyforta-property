@@ -58,6 +58,8 @@ jobs:
       DEPLOYMENT_SCOPE: ${{ inputs.deployment_scope }}
       ENVIRONMENT: dev
       RESOURCE_GROUP: rg-keyforta-dev-san
+      WEB_CANONICAL_HOST: keyforta.com
+      WEB_WWW_HOST: www.keyforta.com
     steps:
       - name: Check out immutable revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -376,7 +378,9 @@ jobs:
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
-                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER"
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST"
 
       - name: Deploy applications
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'
@@ -401,23 +405,23 @@ jobs:
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
-                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER"
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST"
 
       - name: Smoke test public applications
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'
         run: |
-          app_domain=$(az containerapp env show \
-            --name "$APP_ENVIRONMENT" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query properties.defaultDomain -o tsv)
-          web_url="https://ca-keyforta-${ENVIRONMENT}-web.${app_domain}"
-            if [ "$DEPLOYMENT_SCOPE" != "api" ]; then
-            web_fqdn=$(az containerapp show \
-              --name "ca-keyforta-${ENVIRONMENT}-web" \
-              --resource-group "$RESOURCE_GROUP" \
-              --query properties.configuration.ingress.fqdn -o tsv)
-            web_url="https://${web_fqdn}"
-            curl --fail --retry 12 --retry-delay 10 "${web_url}/"
+          web_url="https://${WEB_CANONICAL_HOST}"
+          if [ "$DEPLOYMENT_SCOPE" != "api" ]; then
+            curl --fail --retry 12 --retry-all-errors --retry-delay 10 "${web_url}/"
+            curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 \
+              --head \
+              --dump-header www-headers.txt \
+              --output /dev/null \
+              "https://${WEB_WWW_HOST}/"
+            tr -d '\r' < www-headers.txt \
+              | grep -iFx "location: ${web_url}/"
           fi
           if [ "$DEPLOYMENT_SCOPE" != "public-web" ]; then
             api_fqdn=$(az containerapp show \
