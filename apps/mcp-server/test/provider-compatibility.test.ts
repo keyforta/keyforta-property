@@ -74,7 +74,7 @@ describe("remote MCP connector compatibility", () => {
         fixture.protocolVersion,
       );
       const sessionId = String(initialize.headers["mcp-session-id"]);
-      expect(sessionId).not.toBe("undefined");
+      expect(sessionId).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
 
       const sessionHeaders = {
         ...baseHeaders,

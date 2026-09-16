@@ -265,6 +265,33 @@ describe("MCP request authentication and isolation", () => {
     expect(missing.statusCode).toBe(404);
   });
 
+  it("rate limits repeated requests before dispatch", async () => {
+    const server = await startServer({ requestsPerMinute: 2 });
+    const payload = JSON.stringify({
+      id: 1,
+      jsonrpc: "2.0",
+      method: "initialize",
+      params: { protocolVersion: LATEST_PROTOCOL_VERSION },
+    });
+
+    const statusCodes: number[] = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await server.app.inject({
+        headers: authorizationHeaders(),
+        method: "POST",
+        payload,
+        url: "/mcp",
+      });
+      statusCodes.push(response.statusCode);
+    }
+
+    expect(statusCodes).toEqual([200, 200, 429]);
+    expect(server.auditRecords.at(-1)).toMatchObject({
+      reason: "rate_limited",
+      status: "denied",
+    });
+  });
+
   it("rejects unsupported media types and response formats", async () => {
     const server = await startServer();
 

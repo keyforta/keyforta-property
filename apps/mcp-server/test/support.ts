@@ -13,6 +13,7 @@ export const syntheticReadOnlyPrincipal: McpPrincipal = {
 
 export interface TestServerOptions {
   allowedOrigins?: readonly string[];
+  requestsPerMinute?: number;
   authenticator?: McpAuthenticator;
   now?: () => Date;
   protectedResourceMetadata?: Parameters<
@@ -42,6 +43,9 @@ export async function createTestServer(
         token: syntheticCredential,
       }),
     ...(options.now ? { now: options.now } : {}),
+    ...(options.requestsPerMinute
+      ? { requestsPerMinute: options.requestsPerMinute }
+      : {}),
     ...(options.protectedResourceMetadata
       ? { protectedResourceMetadata: options.protectedResourceMetadata }
       : {}),

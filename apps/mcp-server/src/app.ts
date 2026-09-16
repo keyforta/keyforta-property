@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import rateLimit from "@fastify/rate-limit";
 import Fastify, {
   type FastifyInstance,
   type FastifyReply,
@@ -58,6 +59,8 @@ export interface ProtectedResourceMetadata {
 export interface McpServerDependencies {
   /** Exact browser origins allowed to reach the endpoint. */
   allowedOrigins?: readonly string[];
+  /** Maximum requests per minute per remote client. */
+  requestsPerMinute?: number;
   auditSink?: McpAuditSink;
   authenticator: McpAuthenticator;
   now?: () => Date;
@@ -76,6 +79,12 @@ interface RequestOutcome {
   toolName: string | null;
 }
 
+/**
+ * A response is deliverable when the client accepts JSON. An absent `Accept`
+ * header is treated as permissive for non-browser connectors that omit it; a
+ * present header must allow JSON because this endpoint never opens a
+ * server-initiated stream.
+ */
 function acceptsJson(acceptHeader: string | undefined): boolean {
   if (typeof acceptHeader !== "string" || acceptHeader.trim() === "") {
     return true;
@@ -148,6 +157,11 @@ export async function buildMcpServer(
   );
   app.addContentTypeParser("*", { parseAs: "string" }, readRawBody);
 
+  await app.register(rateLimit, {
+    max: dependencies.requestsPerMinute ?? 120,
+    timeWindow: "1 minute",
+  });
+
   app.addHook("onSend", async (request, reply, payload) => {
     reply.header("x-request-id", request.id);
     return payload;
@@ -187,11 +201,17 @@ export async function buildMcpServer(
         ? error.statusCode
         : 500;
     const isClientError = statusCode >= 400 && statusCode < 500;
+    const reason =
+      statusCode === 429
+        ? "rate_limited"
+        : isClientError
+          ? "rejected_request"
+          : "unhandled_error";
     emitAudit(request.id, {
       clientId: null,
       method: null,
       protocolVersion: null,
-      reason: isClientError ? "rejected_request" : "unhandled_error",
+      reason,
       sessionId: null,
       status: isClientError ? "denied" : "error",
       toolName: null,
@@ -204,14 +224,18 @@ export async function buildMcpServer(
       .send(
         jsonRpcError(
           null,
-          isClientError
-            ? JSON_RPC_ERROR_CODES.invalidRequest
-            : JSON_RPC_ERROR_CODES.internalError,
-          isClientError
-            ? "The request was rejected."
-            : "The request could not be completed.",
+          statusCode === 429
+            ? JSON_RPC_ERROR_CODES.requestDenied
+            : isClientError
+              ? JSON_RPC_ERROR_CODES.invalidRequest
+              : JSON_RPC_ERROR_CODES.internalError,
+          statusCode === 429
+            ? "Too many requests were received."
+            : isClientError
+              ? "The request was rejected."
+              : "The request could not be completed.",
           request.id,
-          isClientError ? "rejected_request" : "unhandled_error",
+          reason,
         ),
       );
   });
@@ -451,7 +475,10 @@ export async function buildMcpServer(
     const { method } = parsedMessage.data;
     messageId = parsedMessage.data.id ?? null;
     const isNotification = method.startsWith("notifications/");
-    if (isNotification === (messageId !== null)) {
+    const misusedMessageId = isNotification
+      ? messageId !== null
+      : messageId === null;
+    if (misusedMessageId) {
       return deny(
         400,
         JSON_RPC_ERROR_CODES.invalidRequest,
@@ -462,22 +489,20 @@ export async function buildMcpServer(
     }
 
     const protocolVersionHeader = request.headers["mcp-protocol-version"];
-    if (
-      protocolVersionHeader !== undefined &&
-      !isSupportedProtocolVersion(protocolVersionHeader)
-    ) {
-      return deny(
-        400,
-        JSON_RPC_ERROR_CODES.invalidRequest,
-        "The MCP protocol version is not supported.",
-        "unsupported_protocol_version",
-        { method },
-        SUPPORTED_PROTOCOL_VERSIONS,
-      );
+    let requestedProtocolVersion: SupportedProtocolVersion | undefined;
+    if (protocolVersionHeader !== undefined) {
+      if (!isSupportedProtocolVersion(protocolVersionHeader)) {
+        return deny(
+          400,
+          JSON_RPC_ERROR_CODES.invalidRequest,
+          "The MCP protocol version is not supported.",
+          "unsupported_protocol_version",
+          { method },
+          SUPPORTED_PROTOCOL_VERSIONS,
+        );
+      }
+      requestedProtocolVersion = protocolVersionHeader;
     }
-    const requestedProtocolVersion = protocolVersionHeader as
-      | SupportedProtocolVersion
-      | undefined;
 
     const succeed = (
       result: unknown,

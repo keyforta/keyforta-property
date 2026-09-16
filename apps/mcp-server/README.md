@@ -32,6 +32,8 @@ Supported protocol versions are `2025-06-18` (latest) and `2025-03-26`.
 - The `system.health` tool returns synthetic service metadata. There is no
   database access, no outbound provider call, no write tool, and no tenant,
   lease, payment, document, maintenance, or person-related data.
+- A bounded per-client rate limit, body limit, and request timeout apply before
+  protocol dispatch.
 - Audit records contain correlation ID, client identity, protocol version,
   method, tool name, result status, denial reason, policy version, and a hashed
   session reference. They never contain credentials, prompts, arguments, or

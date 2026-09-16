@@ -13,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json"
   },
   "dependencies": {
+    "@fastify/rate-limit": "10.3.0",
     "@keyforta/contracts": "workspace:*",
     "@keyforta/types": "workspace:*",
     "fastify": "5.12.3",
