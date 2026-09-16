@@ -1,0 +1,182 @@
+{
+  "contractVersion": 2,
+  "taskId": "MCP-003",
+  "phase": "implementation",
+  "workArea": "web",
+  "title": "Build the synthetic MCP health widget",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/17",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/17",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/17",
+    "docs/adr/ADR-012-standalone-mcp-service.md"
+  ],
+  "classification": "feature",
+  "workflowState": "blocked",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-16T02:33:21Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/17"
+      ]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-16T02:33:22Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/17",
+        "docs/engineering/evidence/MCP-003.md"
+      ]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-16T02:33:23Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/17#issuecomment-5691152155"
+      ],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/17#issuecomment-5691152155",
+        "commitSha": "14711f9be77428ea325ac1c248931a85d621d086"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "UX UI Product Designer",
+      "enteredAt": "2026-09-16T02:33:24Z",
+      "evidenceReferences": [
+        "docs/adr/ADR-012-standalone-mcp-service.md",
+        "docs/engineering/evidence/MCP-003.md"
+      ]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Frontend Engineer",
+      "enteredAt": "2026-09-16T02:33:25Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/MCP-003.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Frontend Engineer",
+      "enteredAt": "2026-09-16T02:40:50Z",
+      "evidenceReferences": [
+        "packages/ui-core/src/index.ts",
+        "packages/build-utils/src/index.ts",
+        "tools/system/health/src/HealthWidget.tsx",
+        "tools/system/health/tests/widget.test.tsx",
+        "docs/engineering/evidence/MCP-003.md"
+      ]
+    },
+    {
+      "state": "blocked",
+      "actor": "Frontend Engineer",
+      "enteredAt": "2026-09-16T02:42:06Z",
+      "evidenceReferences": [
+        "harness/reports/verify-latest.json",
+        "docs/engineering/evidence/MCP-003.md"
+      ]
+    }
+  ],
+  "assignedAgent": "Frontend Engineer",
+  "routingRuleId": "ROUTE-004",
+  "supportingReviewers": [
+    "QA and Test Engineer",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "MCP-001 merged in commit 14711f9be77428ea325ac1c248931a85d621d086",
+    "ADR-012 accepted in issue #17 comment 5688247402"
+  ],
+  "allowedPaths": [
+    "package.json",
+    "pnpm-lock.yaml",
+    "packages/ui-core/",
+    "packages/build-utils/",
+    "tools/system/health/",
+    "docs/engineering/evidence/MCP-003.md",
+    "harness/tasks/MCP-003.json"
+  ],
+  "declaredProtectedPaths": [],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "apps/api/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/17",
+    "docs/engineering/evidence/MCP-003.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-MCP-003-01",
+      "requirementReferences": [
+        "https://github.com/keyforta/keyforta-property/issues/17"
+      ],
+      "testReferences": [
+        "tools/system/health/tests/widget.test.tsx"
+      ]
+    },
+    {
+      "id": "AC-MCP-003-02",
+      "requirementReferences": [
+        "docs/adr/ADR-012-standalone-mcp-service.md"
+      ],
+      "testReferences": [
+        "packages/ui-core/test/bridge.test.ts",
+        "tools/system/health/tests/widget.test.tsx"
+      ]
+    },
+    {
+      "id": "AC-MCP-003-03",
+      "requirementReferences": [
+        "docs/adr/ADR-012-standalone-mcp-service.md"
+      ],
+      "testReferences": [
+        "tools/system/health/tests/build.test.ts"
+      ]
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/adr/ADR-012-standalone-mcp-service.md",
+    "docs/engineering/evidence/MCP-003.md"
+  ],
+  "requiredScenarios": [
+    "canonical-verification"
+  ],
+  "requiredCommands": [
+    "pnpm check",
+    "node harness/graders/architecture.mjs",
+    "pnpm build",
+    "pnpm verify:all"
+  ],
+  "requiredEvidence": [
+    "docs/engineering/evidence/MCP-003.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-MCP-003.json"
+  ],
+  "riskClassification": "medium",
+  "securityImpact": "Adds a sandboxed presentation surface. The bridge must validate exact origins, sources, protocol versions, kinds, and payloads and must never transport credentials or authorization context.",
+  "dataImpact": "Uses synthetic health metadata only. No tenant, user, property, lease, payment, document, prompt, or model-provider data is permitted.",
+  "observabilityImpact": "Widget tests cover deterministic status and error announcements; no runtime telemetry service is added.",
+  "rollbackConsiderations": "Remove the widget, ui-core, and build-utils packages and their workspace dependencies. No persisted data or remote resource is affected.",
+  "humanApprovalRequirements": [
+    "Product Owner approval recorded in issue #17 comment 5691152155",
+    "Independent QA and pull-request review before merge",
+    "No identity, provider, infrastructure, ingress, credential, paid-service, or deployment work"
+  ],
+  "repairCycle": 0
+}
