@@ -96,6 +96,9 @@ must never be used for production or replaced with ad hoc database commands.
 ## Post-deployment verification
 
 - Verify the home page and `/locations` through the public web endpoint.
+- For public-web interface changes, verify English and French navigation,
+  responsive menu branding, property filters, localized heading wrapping, and
+  back-to-top keyboard behavior at phone, tablet, and desktop widths.
 - Verify `https://keyforta.com` serves the expected revision and
   `https://www.keyforta.com` redirects to the same apex path.
 - Verify the lease-schedule API returns the approved deterministic calculation.

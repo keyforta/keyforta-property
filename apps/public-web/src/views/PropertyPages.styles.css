@@ -1,4 +1,19 @@
 /* Styles owned by pages/PropertyPages.jsx. */
+.property-discovery-head h1 {
+  max-width: none;
+  white-space: nowrap;
+}
+@media (max-width: 1200px) {
+  .property-discovery-head {
+    align-items: start;
+    flex-direction: column;
+  }
+}
+@media (max-width: 900px) {
+  .property-discovery-head h1 {
+    white-space: normal;
+  }
+}
 .price {
   font-size: 1.35rem;
   font-weight: 800;

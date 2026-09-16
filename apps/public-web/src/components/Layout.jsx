@@ -14,8 +14,10 @@ import {
   mergeClasses,
   OverlayDrawer,
   Select,
+  Tooltip,
 } from "@fluentui/react-components";
 import {
+  ArrowUp24Regular,
   Dismiss20Regular,
   Dismiss24Regular,
   Navigation24Regular,
@@ -63,8 +65,8 @@ const useLayoutStyles = makeStyles({
     objectFit: "contain",
     "@media (max-width: 1200px)": { width: "178px" },
     "@media (max-width: 600px)": {
-      width: "42px",
-      height: "48px",
+      width: "156px",
+      height: "auto",
       maxHeight: "48px",
     },
   },
@@ -165,11 +167,16 @@ const useLayoutStyles = makeStyles({
   language: {
     display: "inline-flex",
     alignItems: "center",
+    width: "52px",
+    minWidth: "52px",
     minHeight: "44px",
+    paddingRight: 0,
+    paddingLeft: 0,
     color: "var(--ink)",
     fontFamily: '"Instrument Sans", "Segoe UI", Arial, sans-serif',
-    fontSize: "1rem",
+    fontSize: "1.35rem",
     fontWeight: 600,
+    lineHeight: 1,
     backgroundColor: "transparent",
     borderTopColor: "var(--line)",
     borderRightColor: "var(--line)",
@@ -183,11 +190,11 @@ const useLayoutStyles = makeStyles({
     },
   },
   requestAccess: {
-    minHeight: "46px",
-    paddingRight: "22px",
-    paddingLeft: "22px",
+    minHeight: "44px",
+    paddingRight: "12px",
+    paddingLeft: "12px",
     fontFamily: '"Instrument Sans", "Segoe UI", Arial, sans-serif',
-    fontSize: "1rem",
+    fontSize: "0.9rem",
     fontWeight: 700,
     ":focus-visible": {
       outlineStyle: "solid",
@@ -224,6 +231,13 @@ const useLayoutStyles = makeStyles({
   workspaceDrawer: {
     color: "var(--logo-cream)",
     backgroundColor: "var(--logo-aubergine)",
+  },
+  drawerLogo: {
+    display: "block",
+    width: "156px",
+    height: "auto",
+    maxHeight: "48px",
+    objectFit: "contain",
   },
   drawerNav: {
     display: "flex",
@@ -319,6 +333,35 @@ const useLayoutStyles = makeStyles({
     height: "34px",
     objectFit: "contain",
     "@media (max-width: 600px)": { display: "block" },
+  },
+  backToTop: {
+    position: "fixed",
+    right: "24px",
+    bottom: "24px",
+    zIndex: 9,
+    width: "48px",
+    minWidth: "48px",
+    height: "48px",
+    minHeight: "48px",
+    padding: 0,
+    color: "#fff",
+    backgroundColor: "var(--logo-aubergine)",
+    borderRadius: "50%",
+    boxShadow: "0 10px 28px rgba(36,22,46,.28)",
+    ":hover": {
+      color: "#fff",
+      backgroundColor: "var(--aubergine)",
+    },
+    ":focus-visible": {
+      outlineStyle: "solid",
+      outlineWidth: "3px",
+      outlineColor: "var(--logo-teal)",
+      outlineOffset: "3px",
+    },
+    "@media (max-width: 600px)": {
+      right: "16px",
+      bottom: "16px",
+    },
   },
   dialogBody: {
     position: "relative",
@@ -510,12 +553,18 @@ export function Header({
           {t(key, { defaultValue: path })}
         </NavLink>
       ))}
-      <Button
-        className={styles.language}
-        onClick={onToggleLanguage}
+      <Tooltip
+        content={t("common.switch_language")}
+        relationship="label"
       >
-        {lang === "en" ? "FR" : "EN"}
-      </Button>
+        <Button
+          aria-label={t("common.switch_language")}
+          className={styles.language}
+          onClick={onToggleLanguage}
+        >
+          <span aria-hidden="true">{lang === "en" ? "🇫🇷" : "🇺🇸"}</span>
+        </Button>
+      </Tooltip>
       <Button
         appearance="primary"
         className={styles.requestAccess}
@@ -535,14 +584,11 @@ export function Header({
           aria-label={t("a11y.keyforta_home")}
           onClick={onCloseMenu}
         >
-          <picture>
-            <source media="(max-width: 600px)" srcSet="keyforta-symbol.png" />
-            <img
-              className={styles.brandImage}
-              src="keyforta-logo-primary.png"
-              alt="KEYFORTA"
-            />
-          </picture>
+          <img
+            className={styles.brandImage}
+            src="keyforta-logo-primary.png"
+            alt="KEYFORTA"
+          />
         </Link>
         <Button
           className={styles.menuButton}
@@ -582,7 +628,11 @@ export function Header({
               />
             }
           >
-            KEYFORTA
+            <img
+              className={styles.drawerLogo}
+              src="keyforta-logo-primary.png"
+              alt="KEYFORTA"
+            />
           </DrawerHeaderTitle>
         </DrawerHeader>
         <DrawerBody>
@@ -650,6 +700,36 @@ export function Footer({ lang }) {
         </nav>
       </div>
     </footer>
+  );
+}
+
+export function BackToTop() {
+  const { t } = useTranslation();
+  const styles = useLayoutStyles();
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const updateVisibility = () => setVisible(window.scrollY > 400);
+    updateVisibility();
+    window.addEventListener("scroll", updateVisibility, { passive: true });
+    return () => window.removeEventListener("scroll", updateVisibility);
+  }, []);
+
+  if (!visible) return null;
+
+  const label = t("common.back_to_top");
+  return (
+    <Tooltip content={label} relationship="label">
+      <Button
+        aria-label={label}
+        className={styles.backToTop}
+        icon={<ArrowUp24Regular />}
+        onClick={() => {
+          const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+        }}
+      />
+    </Tooltip>
   );
 }
 

@@ -13,7 +13,9 @@
   },
   "common": {
     "close": "Close",
+    "back_to_top": "Back to top",
     "menu": "Menu",
+    "switch_language": "Switch to French",
     "sign_out": "Sign out",
     "loading": "Loading...",
     "demo": "Workspace",

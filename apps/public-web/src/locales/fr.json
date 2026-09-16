@@ -13,7 +13,9 @@
   },
   "common": {
     "close": "Fermer",
+    "back_to_top": "Retour en haut",
     "menu": "Menu",
+    "switch_language": "Passer en anglais",
     "sign_out": "Se deconnecter",
     "loading": "Chargement...",
     "demo": "Espace",

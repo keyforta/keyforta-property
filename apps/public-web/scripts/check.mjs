@@ -43,6 +43,19 @@ function assertFeaturedIntroWrappable(styles) {
   }
 }
 
+function assertHeroTypewriterInsets(styles) {
+  assert.match(
+    styles,
+    /@media \(max-width: 1100px\) \{(?:(?!@media)[\s\S])*?\.page > \.hero > \.hero-media \{[^}]*padding:\s*0 30px 30px;/,
+    'The tablet hero typewriter must have equal left, right, and bottom insets.'
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 600px\) \{(?:(?!@media)[\s\S])*?\.page > \.hero > \.hero-media \{[^}]*padding:\s*0 16px 16px;/,
+    'The phone hero typewriter must have equal left, right, and bottom insets.'
+  );
+}
+
 const requiredFiles = [
   'app/layout.jsx',
   'app/client-shell.jsx',
@@ -76,10 +89,67 @@ JSON.parse(await readFile(resolve(appRoot, 'src/locales/en.json'), 'utf8'));
 JSON.parse(await readFile(resolve(appRoot, 'src/locales/fr.json'), 'utf8'));
 const styles = await readFile(resolve(appRoot, 'src/styles.css'), 'utf8');
 assertFeaturedIntroWrappable(styles);
+const marketingStyles = await readFile(resolve(appRoot, 'src/views/MarketingPages.styles.css'), 'utf8');
+assertHeroTypewriterInsets(marketingStyles);
 assert.throws(
   () => assertFeaturedIntroWrappable(`${styles}\n${featuredIntroSelector} { white-space: nowrap; }`),
   /must remain wrappable/,
   'A later featured-intro override must not evade the wrapping regression.'
+);
+const layout = await readFile(resolve(appRoot, 'src/components/Layout.jsx'), 'utf8');
+const app = await readFile(resolve(appRoot, 'src/App.jsx'), 'utf8');
+assert.doesNotMatch(
+  layout,
+  /<source[^>]+keyforta-symbol\.png/,
+  'The phone header must keep using the primary PNG logo.'
+);
+assert.match(
+  layout,
+  /<DrawerHeaderTitle[\s\S]*?<img[\s\S]*?className=\{styles\.drawerLogo\}[\s\S]*?src="keyforta-logo-primary\.png"[\s\S]*?<\/DrawerHeaderTitle>/,
+  'The mobile drawer must use the primary PNG logo.'
+);
+assert.match(
+  layout,
+  /language:\s*\{[\s\S]*?width:\s*"52px"[\s\S]*?minWidth:\s*"52px"[\s\S]*?minHeight:\s*"44px"/,
+  'The language control must remain compact while preserving its touch target.'
+);
+assert.match(
+  layout,
+  /aria-label=\{t\("common\.switch_language"\)\}[\s\S]*?lang === "en" \? "🇫🇷" : "🇺🇸"/,
+  'The language control must show the flag for the target language.'
+);
+assert.match(
+  layout,
+  /requestAccess:\s*\{[\s\S]*?minHeight:\s*"44px"[\s\S]*?paddingRight:\s*"12px"[\s\S]*?paddingLeft:\s*"12px"/,
+  'The request-access control must remain compact while preserving its touch target.'
+);
+assert.match(
+  layout,
+  /export function BackToTop\(\)[\s\S]*?window\.scrollY > 400[\s\S]*?prefers-reduced-motion[\s\S]*?window\.scrollTo\(\{ top: 0/,
+  'Back to top must appear after scrolling and respect reduced-motion preferences.'
+);
+assert.match(app, /<BackToTop \/>/, 'Back to top must be mounted across public routes.');
+const propertyPages = await readFile(resolve(appRoot, 'src/views/PropertyPages.jsx'), 'utf8');
+const propertyStyles = await readFile(resolve(appRoot, 'src/views/PropertyPages.styles.css'), 'utf8');
+assert.doesNotMatch(
+  propertyPages,
+  /Filter20Regular|styles\.action|property_pages\.apply_filters/,
+  'Property filters apply immediately and must not render a redundant submit action.'
+);
+assert.match(
+  propertyPages,
+  /<Tooltip[\s\S]*?content=\{t\("property_pages\.reset"\)\}[\s\S]*?<Button[\s\S]*?aria-label=\{t\("property_pages\.reset"\)\}[\s\S]*?icon=\{<ArrowReset20Regular \/>\}[\s\S]*?\/>/,
+  'Reset must remain an accessible icon-only command with a tooltip.'
+);
+assert.match(
+  propertyStyles,
+  /\.property-discovery-head h1\s*\{[^}]*max-width:\s*none;[^}]*white-space:\s*nowrap;/,
+  'The property discovery title must remain on one line where space permits.'
+);
+assert.match(
+  propertyStyles,
+  /@media \(max-width: 900px\)[\s\S]*?\.property-discovery-head h1\s*\{[^}]*white-space:\s*normal;/,
+  'The property discovery title must wrap safely on small screens.'
 );
 assert.equal(getLegacyRouteUrl({ hash: '', search: '' }), null);
 assert.equal(getLegacyRouteUrl({ hash: '#/properties', search: '?city=Kinshasa' }), '/properties?city=Kinshasa');
