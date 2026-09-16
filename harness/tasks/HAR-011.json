@@ -1,0 +1,141 @@
+{
+  "contractVersion": 2,
+  "taskId": "HAR-011",
+  "phase": "implementation",
+  "workArea": "governance-and-harness",
+  "title": "Prove package guard ordering and blocked transition evidence",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/23",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/23",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/23",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "classification": "bugfix",
+  "workflowState": "implementation-ready",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-16T00:59:01.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/23"]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-16T00:59:01.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-011.md"]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-16T00:59:01.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/23"],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/23",
+        "commitSha": "95a972a159b32fe101031c8ec2851f1535786d21"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-16T00:59:01.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-011.md"]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-16T00:59:01.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-011.md"]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "routingRuleId": "ROUTE-008",
+  "supportingReviewers": [
+    "Security and Privacy Reviewer",
+    "Solution Architect",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "HAR-010 remains blocked at repair cycle 3",
+    "Copilot review https://github.com/keyforta/keyforta-property/pull/13#pullrequestreview-5217331073",
+    "Human-directed launcher regression commit 7f2751c5e954b4b59c3c332aece0083f05a06f7d"
+  ],
+  "allowedPaths": [
+    ".github/workflows/ci.yml",
+    "docs/engineering/evidence/HAR-003.md",
+    "docs/engineering/evidence/HAR-005.md",
+    "docs/engineering/evidence/HAR-006.md",
+    "docs/engineering/evidence/HAR-009.md",
+    "docs/engineering/evidence/HAR-010.md",
+    "docs/engineering/evidence/HAR-011.md",
+    "harness/scripts/edd-lib.mjs",
+    "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+    "harness/tasks/HAR-003.json",
+    "harness/tasks/HAR-005.json",
+    "harness/tasks/HAR-006.json",
+    "harness/tasks/HAR-009.json",
+    "harness/tasks/HAR-010.json",
+    "harness/tasks/HAR-011.json"
+  ],
+  "declaredProtectedPaths": [".github/workflows/ci.yml"],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/23",
+    "docs/engineering/evidence/HAR-011.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-HAR-011-01",
+      "requirementReferences": ["https://github.com/keyforta/keyforta-property/issues/23"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    },
+    {
+      "id": "AC-HAR-011-02",
+      "requirementReferences": ["https://github.com/keyforta/keyforta-property/issues/23"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    },
+    {
+      "id": "AC-HAR-011-03",
+      "requirementReferences": ["docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"],
+      "manualVerification": "Exact-head GitHub CI and the protected retention workflow pass for HAR-011."
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md",
+    "docs/engineering/evidence/HAR-011.md"
+  ],
+  "requiredScenarios": ["canonical-verification"],
+  "requiredCommands": ["pnpm harness:self-test", "pnpm verify:all"],
+  "requiredEvidence": [
+    "docs/engineering/evidence/HAR-011.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-HAR-011.json"
+  ],
+  "riskClassification": "critical",
+  "securityImpact": "Proves privileged candidate packaging rejects unsafe roots before tar traversal and makes terminal blocked-state evidence fail closed.",
+  "dataImpact": "No product, personal, persistent, or production data changes.",
+  "observabilityImpact": "Canonical reports can represent blocked transitions and identify the exact package-guard ordering assertions.",
+  "rollbackConsiderations": "Revert HAR-011 implementation and return PR #13 to draft at the HAR-010 blocked baseline; preserve all failed evidence.",
+  "humanApprovalRequirements": [
+    "Product-owner scope approval recorded in issue #23 and the governing Copilot session",
+    "Protected workflow changes require external GitHub approval",
+    "Independent security and pull-request review before merge",
+    "Exact-head GitHub CI and protected retention canary must pass",
+    "HAR-003, HAR-005, HAR-006, HAR-009, and HAR-010 histories remain unchanged"
+  ],
+  "repairCycle": 0
+}
