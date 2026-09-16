@@ -1,10 +1,15 @@
-import { DefaultAzureCredential, type TokenCredential } from "@azure/identity";
+import {
+  DefaultAzureCredential,
+  ManagedIdentityCredential,
+  type TokenCredential,
+} from "@azure/identity";
 import { Pool, type PoolConfig } from "pg";
 
 const postgresTokenScope =
   "https://ossrdbms-aad.database.windows.net/.default";
 
 export interface DatabaseConfiguration {
+  AZURE_CLIENT_ID?: string;
   DATABASE_AUTH?: string;
   DATABASE_URL?: string;
 }
@@ -18,7 +23,7 @@ export interface DatabaseClient {
 
 export function createDatabasePool(
   configuration: DatabaseConfiguration = process.env,
-  credential: TokenCredential = new DefaultAzureCredential(),
+  credential?: TokenCredential,
 ): Pool {
   if (!configuration.DATABASE_URL) {
     throw new Error("DATABASE_URL is required for PostgreSQL persistence.");
@@ -33,9 +38,14 @@ export function createDatabasePool(
   };
 
   if (configuration.DATABASE_AUTH === "entra") {
+    const tokenCredential =
+      credential ??
+      (configuration.AZURE_CLIENT_ID
+        ? new ManagedIdentityCredential(configuration.AZURE_CLIENT_ID)
+        : new DefaultAzureCredential());
     poolConfiguration.password = async () => {
-      const accessToken = await credential.getToken(postgresTokenScope);
-      if (!accessToken) {
+      const accessToken = await tokenCredential.getToken(postgresTokenScope);
+      if (!accessToken?.token.trim()) {
         throw new Error("Unable to acquire a PostgreSQL access token.");
       }
       return accessToken.token;

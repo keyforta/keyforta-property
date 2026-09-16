@@ -150,7 +150,7 @@ combination that can deploy the reviewed templates:
 
 For `dev`, the bootstrap resource group is `rg-keyforta-dev-san` and the
 federated subject is
-`repo:keyforta/keyforta-property:environment:dev`.
+`repo:keyforta@329171003/keyforta-property@1370148176:environment:dev`.
 Create the resource group before running the deployment workflow; the
 resource-group-scoped foundation template intentionally does not create it.
 
@@ -188,6 +188,8 @@ administrator, runs only the manual migration job, and grants the API identity
 the restricted `keyforta_runtime` role. The migration maps that database login
 to the API managed identity's immutable object ID with a `pgaadauth` security
 label; it does not rely on a tenant-wide display-name lookup.
+`DATABASE_AUTH=entra` selects the attached user-assigned identity explicitly
+from `AZURE_CLIENT_ID` and rejects missing or blank PostgreSQL access tokens.
 
 An approved DBA user or group may be configured as an additional Entra
 administrator. Direct access is limited to the exact public IP in
