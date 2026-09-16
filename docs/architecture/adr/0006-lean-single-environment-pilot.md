@@ -20,7 +20,7 @@ optional cost reductions.
 Operate one manually deployed `dev` environment in South Africa North during the
 private pilot. Provision only:
 
-- Azure Container Apps for the public web/BFF and internal API;
+- Azure Container Apps for the public web and API;
 - Azure Database for PostgreSQL Flexible Server on a burstable SKU with seven
   days of backups;
 - Azure Container Registry Basic;
@@ -34,7 +34,7 @@ security, or reliability requirement justifies them.
 
 Deployment remains manual from `main`, uses GitHub OIDC and immutable commit
 SHAs, runs database migrations before application rollout, and performs public
-BFF smoke tests. Customer authentication remains fail-closed until an External
+web and API smoke tests. Customer authentication remains fail-closed until an External
 ID tenant is configured; public schedule preview remains usable without AI or
 customer identity.
 

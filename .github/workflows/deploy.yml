@@ -330,11 +330,6 @@ jobs:
                 entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
-                entraAuthorizationEndpoint="${{ vars.ENTRA_AUTHORIZATION_ENDPOINT }}" \
-                entraTokenEndpoint="${{ vars.ENTRA_TOKEN_ENDPOINT }}" \
-                entraClientId="${{ vars.ENTRA_CLIENT_ID }}" \
-                entraScopes="${{ vars.ENTRA_SCOPES }}" \
-                defaultOrganizationId="${{ vars.KEYFORTA_DEFAULT_ORGANIZATION_ID }}" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER"
 
@@ -359,49 +354,56 @@ jobs:
                 entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
-                entraAuthorizationEndpoint="${{ vars.ENTRA_AUTHORIZATION_ENDPOINT }}" \
-                entraTokenEndpoint="${{ vars.ENTRA_TOKEN_ENDPOINT }}" \
-                entraClientId="${{ vars.ENTRA_CLIENT_ID }}" \
-                entraScopes="${{ vars.ENTRA_SCOPES }}" \
-                defaultOrganizationId="${{ vars.KEYFORTA_DEFAULT_ORGANIZATION_ID }}" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER"
 
-      - name: Smoke test public BFF
+      - name: Smoke test public applications
         if: inputs.operation == 'deploy'
         run: |
-          fqdn=$(az containerapp show \
+          web_fqdn=$(az containerapp show \
             --name "ca-keyforta-${ENVIRONMENT}-web" \
             --resource-group "$RESOURCE_GROUP" \
             --query properties.configuration.ingress.fqdn -o tsv)
-          web_url="https://${fqdn}"
+          api_fqdn=$(az containerapp show \
+            --name "ca-keyforta-${ENVIRONMENT}-api" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          web_url="https://${web_fqdn}"
+          api_url="https://${api_fqdn}"
           curl --fail --retry 12 --retry-delay 10 "${web_url}/"
           curl --fail --retry 12 --retry-delay 10 \
-            --header 'content-type: application/json' \
-            --data '{"advanceRentPeriods":1,"baseRentMinor":40000,"concessionBasisPoints":1000,"concessionPeriods":2,"currency":"USD","leaseStartDate":"2026-10-01","periods":12,"refundableGuaranteeMultiple":3}' \
-            "${web_url}/api/lease-schedules/preview"
-          curl --fail --retry 12 --retry-delay 10 \
-            "${web_url}/locations" > locations.html
-          grep -q "Logements disponibles" locations.html
-          ! grep -q "Service indisponible" locations.html
+            --header "origin: ${web_url}" \
+            --dump-header api-headers.txt \
+            "${api_url}/ready"
+          grep -iFx "access-control-allow-origin: ${web_url}" api-headers.txt
           curl --fail --silent --show-error \
-            --dump-header login-headers.txt \
-            --output /dev/null \
-            "${web_url}/api/auth/login"
-          authorization_url=$(awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\r$/, ""); sub(/^[^:]+:[[:space:]]*/, ""); print; exit }' login-headers.txt)
+            --header "origin: ${web_url}" \
+            "${api_url}/api/v1/properties?limit=1" > public-properties.json
           node -e '
-            const [authorizationUrl, expectedCallback] = process.argv.slice(1);
-            const actualCallback = new URL(authorizationUrl).searchParams.get("redirect_uri");
-            if (actualCallback !== expectedCallback) {
-              throw new Error(`OAuth callback mismatch: expected ${expectedCallback}, received ${actualCallback}`);
+            const response = JSON.parse(require("node:fs").readFileSync("public-properties.json", "utf8"));
+            if (!Array.isArray(response.items) || !Number.isInteger(response.total)) {
+              throw new Error("Public property response does not match its contract.");
             }
-          ' "$authorization_url" "${web_url}/api/auth/callback"
+            const forbidden = ["organizationId", "unitId", "ownerId", "managerId"];
+            for (const item of response.items) {
+              for (const field of forbidden) {
+                if (field in item) throw new Error(`Public property exposed ${field}.`);
+              }
+            }
+          '
+          curl --fail --silent --show-error \
+            --header "origin: https://denied.example.test" \
+            --dump-header denied-origin-headers.txt \
+            --output /dev/null \
+            "${api_url}/health"
+          ! grep -qi '^access-control-allow-origin:' denied-origin-headers.txt
 
           {
             echo "## Dev deployment"
             echo "- Revision: \`${DEPLOYMENT_SHA}\`"
             echo "- Web: ${web_url}"
-            echo "- Checks: home, lease preview, public catalogue, OAuth callback"
+            echo "- API: ${api_url}"
+            echo "- Checks: web home, database readiness, public projection, restricted browser origin"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize deployment plan

@@ -18,16 +18,16 @@ import {
   RentalApplicationPage,
   ViewingRequestPage,
   TextContentPage,
-} from './pages/index.js';
+} from './views/index.js';
 import { localizeProperty, properties } from './data/content.js';
 import { appendRow } from './services/storage.js';
 
-const SignInPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.SignInPage })));
-const WorkspaceLoginPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.WorkspaceLoginPage })));
-const SignupPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.SignupPage })));
-const InviteManagerPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.InviteManagerPage })));
-const OfferServicesPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.OfferServicesPage })));
-const portalWebUrl = import.meta.env.VITE_PORTAL_WEB_URL || 'http://127.0.0.1:3001/';
+const SignInPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.SignInPage })));
+const WorkspaceLoginPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.WorkspaceLoginPage })));
+const SignupPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.SignupPage })));
+const InviteManagerPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.InviteManagerPage })));
+const OfferServicesPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.OfferServicesPage })));
+const portalWebUrl = process.env.NEXT_PUBLIC_PORTAL_WEB_URL || 'http://127.0.0.1:3001/';
 const workspaceRoles = ['tenant', 'landlord', 'manager', 'operator'];
 
 const routeMetadata = [

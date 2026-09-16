@@ -5,7 +5,7 @@ Use the lowest deterministic layer that proves the risk.
 | Layer                | Responsibility                                                                          | Location / gate                                                            |
 | -------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Unit                 | Pure money, schedule, authorization, parsing, and failure boundaries                    | `packages/*/test`, `apps/*/test`; `pnpm test`                              |
-| Component/BFF        | Rendering helpers, request shaping, cookie/proxy behavior, loading/error/denied states  | `apps/public-web/test`; add a DOM runner only through approved tooling            |
+| Component            | Rendering helpers and loading, empty, error, and denied states                          | `apps/public-web/test`; add a DOM runner only through approved tooling            |
 | API contract         | Zod input/output compatibility and sanitized transport behavior                         | `packages/contracts`, `apps/api/test/app.test.ts`                          |
 | Database integration | Migrations, constraints, RLS, transactions, idempotency, immutability, cross-org denial | `apps/api/test/postgres.integration.test.ts`; CI PostgreSQL service        |
 | Architecture         | Domain dependency direction and package boundaries                                      | `pnpm check:architecture`, package tests, and review                        |

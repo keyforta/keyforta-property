@@ -349,8 +349,8 @@ The accepted initial product implementation is:
 - **Database:** Managed PostgreSQL with organization-scoped data and row-level security as defense in depth.
 - **Files:** Azure Blob Storage with private containers, short-lived access, malware scanning, and version metadata.
 - **Identity:** Microsoft Entra External ID for customer sign-up/sign-in; application roles and organization memberships remain in the product domain.
-- **Runtime:** Azure Container Apps with public web ingress, internal API
-  ingress, and a no-ingress worker.
+- **Runtime:** Azure Container Apps with public web and API ingress and a
+  no-ingress worker.
 - **Async work:** Transactional outbox plus Azure Service Bus and idempotent
   background consumers.
 - **Secrets:** Managed identities and Azure Key Vault; no production secrets in code, prompts, logs, or client bundles.

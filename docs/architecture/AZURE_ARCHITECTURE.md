@@ -17,10 +17,10 @@ flowchart TD
         Admin["Platform administrator"]
     end
     subgraph PublicEdge["Public application boundary"]
-        Web["Next.js web and BFF"]
+        Web["Next.js web"]
+        Api["Fastify API"]
     end
     subgraph PrivateApps["Private application boundary"]
-        Api["Fastify API"]
         AiGateway["Authorized AI gateway"]
     end
     subgraph DataServices["Private data services"]
@@ -39,8 +39,11 @@ flowchart TD
     Tenant -->|"HTTPS"| Web
     Landlord -->|"HTTPS"| Web
     Admin -->|"HTTPS"| Web
-    Web -->|"internal HTTPS"| Api
+    Tenant -->|"HTTPS API"| Api
+    Landlord -->|"HTTPS API"| Api
+    Admin -->|"HTTPS API"| Api
     Web -->|"sign in"| Identity
+    Api -->|"validate identity"| Identity
     Api -->|"authorized SQL"| Pg
     Api -->|"typed tools"| AiGateway
     AiGateway -->|"minimum context"| Models
@@ -54,10 +57,10 @@ flowchart TD
 
 | Layer            | Technology                          | Purpose                                        |
 | ---------------- | ----------------------------------- | ---------------------------------------------- |
-| Web              | Next.js and React                   | French-first responsive UI and same-origin BFF |
+| Web              | Next.js and React                   | French-first responsive UI                     |
 | API              | Fastify and Zod                     | Validation, authorization, orchestration       |
 | Domain           | Framework-free TypeScript           | Deterministic business rules                   |
-| Runtime          | Azure Container Apps                | Public web and internal API revisions          |
+| Runtime          | Azure Container Apps                | Public web and API revisions                   |
 | System of record | PostgreSQL Flexible Server          | Transactional, organization-scoped records     |
 | Identity         | Microsoft Entra External ID         | Customer authentication                        |
 | Observability    | Log Analytics                       | Bounded platform and application logs          |
@@ -74,11 +77,17 @@ asynchronous delivery, and AI providers remain deferred adapters. External
 identity and payment providers never establish KEYFORTA authorization or
 financial truth.
 
+The implemented public-discovery backend uses managed-identity PostgreSQL
+connections, security-definer listing functions, strict API projections, and a
+serialized visit-inquiry command. It does not expose organization or unit IDs.
+Protected-route bearer authentication and browser consumption of this API are
+separate, incomplete slices.
+
 ### Key Architectural Decisions
 
 - Use a modular monolith with separately scalable web, API, and worker processes.
-- Expose only the web application; all browser API traffic crosses a same-origin
-  BFF and is reauthorized by the internal API.
+- Expose the web application and API. Restrict browser access with exact-origin
+    CORS and independently authenticate and authorize every protected API request.
 - Use application authorization first and PostgreSQL RLS as defense in depth.
 - Keep AI behind narrow typed tools and preserve deterministic workflows when AI
   is unavailable.
@@ -91,9 +100,9 @@ financial truth.
 flowchart LR
     subgraph cPresentation["Presentation"]
         cPages["Next.js pages"]
-        cBff["BFF route handlers"]
     end
     subgraph cApplication["Application"]
+        cTransport["API transport"]
         cAuth["Authentication boundary"]
         cPolicy["Authorization policies"]
         cCommands["Commands and queries"]
@@ -117,8 +126,8 @@ flowchart LR
         cTelemetry["Telemetry adapter"]
     end
 
-    cPages -->|"same origin"| cBff
-    cBff -->|"session token"| cAuth
+    cPages -->|"HTTPS bearer or anonymous"| cTransport
+    cTransport -->|"token and input"| cAuth
     cAuth -->|"verified actor"| cPolicy
     cPolicy -->|"authorized context"| cCommands
     cCommands -->|"invoke"| cLease
@@ -132,7 +141,7 @@ flowchart LR
     cTools -->|"authorized query"| cCommands
     cTools -->|"grounded request"| cModels
     cIdentity -.->|"validates"| cAuth
-    cTelemetry -.->|"observes"| cBff
+    cTelemetry -.->|"observes"| cTransport
     cTelemetry -.->|"observes"| cCommands
     cTelemetry -.->|"observes"| cMessages
 ```
@@ -142,7 +151,7 @@ flowchart LR
 | Component               | Layer          | Responsibility                                       |
 | ----------------------- | -------------- | ---------------------------------------------------- |
 | Next.js pages           | Presentation   | Role-specific, mobile-first user workflows           |
-| BFF route handlers      | Presentation   | Session validation, proxying, response filtering     |
+| API transport           | Application    | CORS, input validation, correlation, safe projection |
 | Authentication boundary | Application    | Validate issuer, audience, subject, and token state  |
 | Authorization policies  | Application    | Resolve membership and record-level permissions      |
 | Commands and queries    | Application    | Validate, authorize, transact, version, and audit    |

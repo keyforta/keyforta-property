@@ -48,8 +48,7 @@ Deployment runs against a GitHub environment:
 5. Deploy foundation infrastructure before application infrastructure.
 6. Build and push web and API images tagged with the full commit SHA.
 7. Deploy Container Apps revisions referencing only SHA-tagged images.
-8. Verify API health from inside the trusted boundary and verify the public
-   same-origin BFF smoke path.
+8. Verify public web and API health and the API's exact allowed browser origin.
 9. Record deployment outputs and evidence without printing credentials.
 
 Production deployment does not use mutable tags such as `latest`. Rollback moves

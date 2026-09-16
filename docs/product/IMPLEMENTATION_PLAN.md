@@ -14,10 +14,35 @@ together.
 
 ## Delivery sequence
 
+### Foundation — Party, relationship, and jurisdiction policy
+
+**Status:** Implemented and locally verified on 2026-09-16. No DRC counsel
+approval has been provided, so counsel-dependent capabilities remain disabled.
+
+- Evolve the operational PostgreSQL migration lineage forward without replacing
+  or rewriting migrations already recorded in the deployment ledger.
+- Add parties and profiles without inferring identity, role, consent, or legal
+  facts that are absent from existing records.
+- Add immutable, versioned jurisdiction policies, owner/counsel approval
+  evidence, and effective activations.
+- Resolve policy by jurisdiction and capability with deny-by-default behavior
+  when evidence is missing, revoked, expired, or mismatched.
+- Keep public discovery and synthetic draft workflows compatible.
+
+**Requirements:** Legal register LEG-001 through LEG-020, PRD security and legal
+release boundaries, and the Governance & Audit context.
+
+**Exit evidence:** clean install and forward upgrade pass; prior migration
+checksums remain unchanged; counsel-required activation fails without both
+owner and counsel evidence; cross-organization access is denied; existing public
+discovery tests remain green.
+
 ### Current release — Public rental discovery
 
-**Status:** Implementation complete; pull request, CI, dev deployment, and
-operating-window evidence remain.
+**Status:** Public-discovery API, PostgreSQL persistence, filters, projection,
+visit-inquiry validation, and duplicate suppression are locally verified.
+Browser integration, pull request, CI, dev deployment, distributed abuse
+controls, and operating-window evidence remain.
 
 - Deliver a French-first rental-search homepage and controlled public
   catalogue.

@@ -1,6 +1,6 @@
 # Product Requirements
 
-**Status:** Draft for validation
+**Status:** Approved for implementation on 2026-09-16; commercial legal launch remains blocked by the DRC decision register
 
 ## Problem
 

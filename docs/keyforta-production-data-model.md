@@ -1,3 +1,9 @@
+Operational migration `0015_party_and_jurisdiction_policy_foundation.sql`
+introduces parties, identity profiles, effective membership dates, and nullable
+organization/property jurisdiction fields additively. Existing `users` and
+single-role membership columns remain compatibility fields while later slices
+migrate callers toward the target model. The backfill maps each existing user
+to a deterministic party but does not infer legal identity, consent,
 # KEYFORTA Production Data Model
 
 **Status:** Normative production logical/physical data design v2.0
@@ -91,7 +97,7 @@ Platform-scoped tables use `created_at`, `updated_at`, and actor columns but omi
 | `status` | text | `active`, `suspended`, `closed` |
 | `default_currency` | char(3) | `USD` or `CDF` initially |
 | `time_zone` | text | Valid IANA zone |
-| `jurisdiction_code` | text | `CD-KN` initially; policy-driven |
+| `jurisdiction_code` | text | Nullable until explicitly selected; policy-driven |
 | `policy_version` | text | Version of approved business/legal policy |
 | common audit columns | — | As applicable |
 
@@ -126,6 +132,27 @@ Constraints/indexes: effective range valid; exclusion constraint prevents prohib
 `id uuid PK`, `organization_id uuid FK`, `email citext`, `proposed_roles text[]`, `scope jsonb`, `token_digest text`, `status text`, `expires_at timestamptz`, `accepted_at timestamptz`, `invited_by uuid FK parties`, timestamps.
 
 Constraints/indexes: token digest unique; accepted/revoked invitations cannot be reused; index `(organization_id, status, expires_at)`; never store raw invitation token.
+
+Operational migration `0015_party_and_jurisdiction_policy_foundation.sql`
+introduces parties, identity profiles, effective membership dates, and nullable
+organization/property jurisdiction fields additively. Existing `users` and
+single-role membership columns remain compatibility fields while later slices
+migrate callers toward the target model. The backfill maps each existing user
+to a deterministic party but does not infer legal identity, consent,
+verification, expanded roles, or jurisdiction.
+
+### `jurisdiction_policy_versions`, approval evidence, and activations
+
+Jurisdiction policy versions contain a capability key, jurisdiction code,
+monotonic version, typed JSON rule payload, counsel-approval requirement,
+creator, and creation time. Approval evidence records the policy-owner or
+qualified-counsel role, approver, source reference, optional evidence hash, and
+approval time. Revocations and effective-dated activations are append-only.
+
+The active-policy resolver returns no policy when an activation is absent or
+outside its effective interval, required evidence is missing or mismatched, or
+referenced evidence has been revoked. Operational migrations never seed a
+jurisdiction, legal conclusion, consent, or approval evidence.
 
 ## 5. Relationships and inventory
 

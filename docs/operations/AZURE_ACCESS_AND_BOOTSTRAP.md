@@ -32,7 +32,8 @@ Set these environment variables:
 | `POSTGRES_DBA_PRINCIPAL_NAME` | Approved DBA Entra principal name          |
 | `POSTGRES_DBA_PRINCIPAL_TYPE` | `User` or `Group`; defaults to `User`      |
 
-The deployment workflow also consumes these non-secret application variables:
+Customer identity bootstrap will require these non-secret application values;
+the deployment workflow does not currently inject browser identity settings:
 
 | Variable                           | Purpose                                 |
 | ---------------------------------- | --------------------------------------- |
@@ -41,9 +42,9 @@ The deployment workflow also consumes these non-secret application variables:
 | `ENTRA_JWKS_URI`                   | External ID signing-key endpoint        |
 | `ENTRA_AUTHORIZATION_ENDPOINT`     | OIDC authorization endpoint             |
 | `ENTRA_TOKEN_ENDPOINT`             | OIDC token endpoint                     |
-| `ENTRA_CLIENT_ID`                  | Public web/BFF application registration |
+| `ENTRA_CLIENT_ID`                  | Public browser application registration |
 | `ENTRA_SCOPES`                     | OIDC and KEYFORTA API scopes            |
-| `KEYFORTA_DEFAULT_ORGANIZATION_ID` | Pilot organization selected by the BFF  |
+| `KEYFORTA_DEFAULT_ORGANIZATION_ID` | Pilot organization configuration        |
 
 `AZURE_TENANT_ID` identifies the directory that owns Azure resources and
 managed identities. External ID issuer and endpoint values may belong to a
@@ -149,7 +150,7 @@ combination that can deploy the reviewed templates:
 
 For `dev`, the bootstrap resource group is `rg-keyforta-dev-san` and the
 federated subject is
-`repo:cmbuyamba@49167707/keyforta-property@1363123012:environment:dev`.
+`repo:keyforta/keyforta-property:environment:dev`.
 Create the resource group before running the deployment workflow; the
 resource-group-scoped foundation template intentionally does not create it.
 
@@ -161,8 +162,8 @@ Bicep resource inventory is stable. Do not grant runtime identities `Contributor
 
 Provision separate identities for:
 
-- Public web and BFF
-- Internal API
+- Public web
+- Public API
 - PostgreSQL application access
 - PostgreSQL migration administration
 - Deployment automation
@@ -214,7 +215,7 @@ adapter is implemented but cannot authenticate users until an identity
 administrator completes these steps:
 
 1. Create or select an External ID external tenant.
-2. Register the public web/BFF and internal API applications.
+2. Register the public browser and API applications.
 3. Configure local-account methods suitable for the DRC pilot.
 4. Configure redirect and logout URIs for each environment.
 5. Define API scopes and token audiences.
@@ -281,7 +282,7 @@ require separate explicit approval.
    privilege expansion.
 6. Verify immutable image SHA and successful CI evidence.
 7. Approve the GitHub environment deployment.
-8. Run health, BFF, authorization, and tenant-isolation smoke tests.
+8. Run web/API health, CORS, authorization, and tenant-isolation smoke tests.
 9. Preserve deployment evidence and verify rollback readiness.
 
 ## Break-glass and Secrets

@@ -68,7 +68,7 @@ communication, recovery, evidence preservation, and follow-up actions.
 
 ## Deployment and migration failure
 
-1. Stop promotion when `what-if`, image build, migration job, or BFF smoke test
+1. Stop promotion when `what-if`, image build, migration job, or application smoke test
    fails. Do not route traffic to an unvalidated revision.
 2. Preserve the workflow run, commit SHA, deployment operations, migration-job
    execution, and Container Apps logs without copying tokens or connection data.
@@ -77,4 +77,4 @@ communication, recovery, evidence preservation, and follow-up actions.
 4. Database changes use forward corrective migrations. Restore only through an
    approved recovery decision when forward correction cannot preserve data.
 5. Re-run the migration job; already recorded migration filenames are skipped.
-   Then repeat health and same-origin BFF schedule-preview smoke checks.
+   Then repeat web health, API health, CORS, and schedule-preview smoke checks.

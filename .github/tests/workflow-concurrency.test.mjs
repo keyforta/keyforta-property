@@ -14,7 +14,7 @@ import YAML from "yaml";
 
 const workflows = {
   deploy: {
-    file: "deployments/azure/workflows/deploy.yml",
+    file: ".github/workflows/deploy.yml",
     job: "deploy",
     step: "Build and push immutable images",
   },

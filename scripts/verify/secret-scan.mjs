@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const forbiddenPatterns = [
@@ -24,7 +24,7 @@ function repositoryFiles() {
     { encoding: "utf8" },
   )
     .split("\n")
-    .filter(Boolean);
+    .filter((file) => file && existsSync(file));
 }
 
 export function scanSecrets(files) {

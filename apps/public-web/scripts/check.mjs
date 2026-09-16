@@ -22,7 +22,9 @@ function assertFeaturedIntroWrappable(styles) {
 }
 
 const requiredFiles = [
-  'src/index.html',
+  'app/layout.jsx',
+  'app/client-shell.jsx',
+  'app/[[...path]]/page.jsx',
   'src/main.jsx',
   'src/i18n.js',
   'src/locales/en.json',
@@ -31,11 +33,11 @@ const requiredFiles = [
   'src/components/Layout.jsx',
   'src/components/PropertyCard.jsx',
   'src/components/StatusMessage.jsx',
-  'src/pages/MarketingPages.jsx',
-  'src/pages/PropertyPages.jsx',
-  'src/pages/AccountPages.jsx',
-  'src/pages/ContentPages.jsx',
-  'src/pages/index.js',
+  'src/views/MarketingPages.jsx',
+  'src/views/PropertyPages.jsx',
+  'src/views/AccountPages.jsx',
+  'src/views/ContentPages.jsx',
+  'src/views/index.js',
   'src/data/content.js',
   'src/services/storage.js',
   'src/styles.css',
@@ -43,7 +45,7 @@ const requiredFiles = [
   'public/keyforta-symbol.png',
   'public/keyforta-logo-primary.png',
   'public/keyforta-logo-reversed.png',
-  'vite.config.js'
+  'next.config.mjs'
 ];
 
 for (const relativePath of requiredFiles) await access(resolve(appRoot, relativePath));
@@ -56,4 +58,4 @@ assert.throws(
   /must remain wrappable/,
   'A later featured-intro override must not evade the wrapping regression.'
 );
-console.log(`Checked ${requiredFiles.length} public-web source files, locale JSON parsing, JavaScript syntax, and responsive featured-intro wrapping.`);
+console.log(`Checked ${requiredFiles.length} public-web files, locale JSON parsing, and responsive featured-intro wrapping.`);

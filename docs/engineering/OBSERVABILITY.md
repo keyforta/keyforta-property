@@ -8,7 +8,7 @@ instrumentation that is not present.
 - Emit structured request start/end and sanitized failure events with timestamp,
   environment, release SHA, service, route template, method, status class,
   duration, and server-generated correlation ID.
-- Propagate W3C `traceparent` across web BFF, API, database, Blob, identity, and
+- Propagate W3C `traceparent` across browser requests, API, database, Blob, identity, and
   provider adapters when OpenTelemetry is introduced.
 - Measure request rate, duration, error ratio, dependency duration/failure,
   readiness, migration outcome, document-scan state age, payment idempotency

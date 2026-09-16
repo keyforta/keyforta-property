@@ -1,10 +1,11 @@
+"use client";
+
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { keyfortaBrand } from '@keyforta/brand';
-import { createRoot } from 'react-dom/client';
+import { useEffect } from 'react';
 import { HashRouter } from 'react-router-dom';
 import './i18n.js';
 import App from './App.jsx';
-import './styles.css';
 
 const { colors } = keyfortaBrand;
 const keyfortaTheme = {
@@ -63,13 +64,17 @@ function normalizeLegacyHashRoute() {
   window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${normalized}`);
 }
 
-normalizeLegacyHashRoute();
-window.history.scrollRestoration = 'manual';
+export default function ClientApp() {
+  useEffect(() => {
+    normalizeLegacyHashRoute();
+    window.history.scrollRestoration = 'manual';
+  }, []);
 
-createRoot(document.querySelector('#root')).render(
-  <FluentProvider theme={keyfortaTheme} className="fluent-app-provider">
-    <HashRouter>
-      <App />
-    </HashRouter>
-  </FluentProvider>,
-);
+  return (
+    <FluentProvider theme={keyfortaTheme} className="fluent-app-provider">
+      <HashRouter>
+        <App />
+      </HashRouter>
+    </FluentProvider>
+  );
+}

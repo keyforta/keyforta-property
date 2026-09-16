@@ -2,34 +2,59 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { buildApp } from "../src/app.js";
 import { createMemoryPublicPropertyGateway } from "../src/properties/gateway.js";
+import { createMemoryPublicViewingRequestGateway } from "../src/properties/viewing-gateway.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
 const propertyRecords = [
   {
     address: "10 Market Street",
+    amenities: ["Water"],
+    availableFrom: "2026-10-01",
+    bathrooms: 1,
+    bedrooms: 2,
     city: "Kinshasa",
     createdAt: "2026-09-01T09:00:00.000Z",
+    currency: "USD",
+    district: "Gombe",
     id: "property_alpha_01",
     imageUrl: "/images/property-alpha.jpg",
+    imageUrls: ["/images/property-alpha.jpg"],
+    monthlyRentMinor: "40000",
     name: "Alpha Residence",
     published: true,
     summary: "Synthetic public property fixture.",
   },
   {
     address: "20 River Road",
+    amenities: ["Parking"],
+    availableFrom: "2026-10-15",
+    bathrooms: 2,
+    bedrooms: 3,
     city: "Kinshasa",
     createdAt: "2026-09-02T09:00:00.000Z",
+    currency: "USD",
+    district: "Limete",
     id: "property_bravo_02",
+    imageUrls: ["/images/property-bravo.jpg"],
+    monthlyRentMinor: "65000",
     name: "Bravo Court",
     published: true,
     summary: "Second synthetic public property fixture.",
   },
   {
     address: "30 Private Avenue",
+    amenities: ["Private"],
+    availableFrom: "2026-11-01",
+    bathrooms: 1,
+    bedrooms: 1,
     city: "Kinshasa",
     createdAt: "2026-09-03T09:00:00.000Z",
+    currency: "USD",
+    district: "Ngaliema",
     id: "property_private_03",
+    imageUrls: ["/images/private.jpg"],
+    monthlyRentMinor: "25000",
     name: "Unpublished Property",
     published: false,
     summary: "This fixture must never leave the gateway.",
@@ -41,6 +66,28 @@ afterEach(async () => {
 });
 
 describe("KEYFORTA API runtime", () => {
+  it("allows only the configured browser origin", async () => {
+    const app = await buildApp({ corsOrigin: "https://web.example.test" });
+    apps.push(app);
+
+    const allowed = await app.inject({
+      headers: { origin: "https://web.example.test" },
+      method: "GET",
+      url: "/health",
+    });
+    const denied = await app.inject({
+      headers: { origin: "https://attacker.example.test" },
+      method: "GET",
+      url: "/health",
+    });
+
+    expect(allowed.headers["access-control-allow-origin"]).toBe(
+      "https://web.example.test",
+    );
+    expect(denied.headers["access-control-allow-origin"]).toBeUndefined();
+    expect(allowed.headers["access-control-allow-credentials"]).toBeUndefined();
+  });
+
   it("reports process health with a correlation ID", async () => {
     const app = await buildApp();
     apps.push(app);
@@ -186,9 +233,17 @@ describe("anonymous public property discovery", () => {
       items: [
         {
           address: "10 Market Street",
+          amenities: ["Water"],
+          availableFrom: "2026-10-01",
+          bathrooms: 1,
+          bedrooms: 2,
           city: "Kinshasa",
+          currency: "USD",
+          district: "Gombe",
           id: "property_alpha_01",
           imageUrl: "/images/property-alpha.jpg",
+          imageUrls: ["/images/property-alpha.jpg"],
+          monthlyRentMinor: "40000",
           name: "Alpha Residence",
           summary: "Synthetic public property fixture.",
         },
@@ -216,8 +271,16 @@ describe("anonymous public property discovery", () => {
     expect(response.json()).toEqual({
       data: {
         address: "20 River Road",
+        amenities: ["Parking"],
+        availableFrom: "2026-10-15",
+        bathrooms: 2,
+        bedrooms: 3,
         city: "Kinshasa",
+        currency: "USD",
+        district: "Limete",
         id: "property_bravo_02",
+        imageUrls: ["/images/property-bravo.jpg"],
+        monthlyRentMinor: "65000",
         name: "Bravo Court",
         summary: "Second synthetic public property fixture.",
       },
@@ -234,8 +297,16 @@ describe("anonymous public property discovery", () => {
     };
     const publicProperty = {
       address: "40 Boundary Road",
+      amenities: ["Water"],
+      availableFrom: "2026-10-01",
+      bathrooms: 1,
+      bedrooms: 1,
       city: "Kinshasa",
+      currency: "USD",
+      district: "Bandalungwa",
       id: "property_boundary_04",
+      imageUrls: ["/images/boundary.jpg"],
+      monthlyRentMinor: "30000",
       name: "Boundary Residence",
       summary: "Synthetic boundary fixture.",
     };
@@ -355,5 +426,91 @@ describe("anonymous public property discovery", () => {
     });
     expect(response.headers["x-request-id"]).toBe(body.error.traceId);
     expect(response.body).not.toContain("private connection details");
+  });
+});
+
+describe("anonymous public viewing requests", () => {
+  const publicViewingRequests = createMemoryPublicViewingRequestGateway(
+    new Set(["property_alpha_01"]),
+  );
+
+  it("accepts a validated inquiry without creating an application", async () => {
+    const app = await buildApp({ publicViewingRequests });
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { "x-request-id": "viewing-request-01" },
+      method: "POST",
+      payload: {
+        email: "visitor@example.test",
+        locale: "fr",
+        name: "Visiteur Test",
+        phone: "+243 000 000 000",
+        preferredAt: "2026-10-02T10:00:00.000Z",
+        propertyId: "property_alpha_01",
+      },
+      url: "/api/v1/viewing-requests",
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toEqual({
+      data: { reference: "viewing-request-01", status: "accepted" },
+      meta: { requestId: "viewing-request-01" },
+    });
+  });
+
+  it("rejects a filled bot field and unknown public listing", async () => {
+    const app = await buildApp({ publicViewingRequests });
+    apps.push(app);
+
+    const basePayload = {
+      email: "visitor@example.test",
+      name: "Visiteur Test",
+      propertyId: "property_alpha_01",
+    };
+    const botResponse = await app.inject({
+      method: "POST",
+      payload: { ...basePayload, website: "https://automated.example.test" },
+      url: "/api/v1/viewing-requests",
+    });
+    const missingResponse = await app.inject({
+      method: "POST",
+      payload: { ...basePayload, propertyId: "property_missing_99" },
+      url: "/api/v1/viewing-requests",
+    });
+
+    expect(botResponse.statusCode).toBe(400);
+    expect(botResponse.json().error.code).toBe("VALIDATION_ERROR");
+    expect(missingResponse.statusCode).toBe(404);
+    expect(missingResponse.json().error.code).toBe("NOT_FOUND");
+  });
+
+  it("rate limits repeated inquiry writes with a stable error", async () => {
+    const app = await buildApp({
+      publicViewingRequests,
+      viewingRequestRateLimitMax: 1,
+    });
+    apps.push(app);
+    const payload = {
+      email: "visitor@example.test",
+      name: "Visiteur Test",
+      propertyId: "property_alpha_01",
+    };
+
+    const accepted = await app.inject({
+      method: "POST",
+      payload,
+      url: "/api/v1/viewing-requests",
+    });
+    const limited = await app.inject({
+      method: "POST",
+      payload: { ...payload, email: "rotated@example.test" },
+      url: "/api/v1/viewing-requests",
+    });
+
+    expect(accepted.statusCode).toBe(202);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.headers["retry-after"]).toBeDefined();
+    expect(limited.json().error.code).toBe("RATE_LIMITED");
   });
 });

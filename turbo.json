@@ -9,17 +9,19 @@
     "@keyforta/public-web#build": {
       "cache": false,
       "dependsOn": ["^build"],
-      "env": ["VITE_PORTAL_WEB_URL"],
+      "env": ["NEXT_PUBLIC_PORTAL_WEB_URL"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.test.*", "!**/test/**"],
-      "outputs": []
+      "outputs": [".next/**", "!.next/cache/**"]
     },
     "check": {
       "dependsOn": ["^check"],
+      "env": ["TEST_DATABASE_URL"],
       "inputs": ["$TURBO_DEFAULT$"],
       "outputs": []
     },
     "test": {
       "dependsOn": ["^build"],
+      "env": ["TEST_DATABASE_URL"],
       "inputs": ["$TURBO_DEFAULT$"],
       "outputs": ["coverage/**"]
     },
