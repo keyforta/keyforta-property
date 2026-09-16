@@ -171,7 +171,7 @@ jobs:
         run: |
           budget=$(az rest --method get --url \
             "https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/providers/Microsoft.Consumption/budgets/keyforta-mcp-dev?api-version=2023-11-01")
-          jq -e '.properties.amount <= 25' <<< "$budget" >/dev/null
+jq -e '.properties.timeGrain == "Monthly" and .properties.amount <= 25' <<< "$budget" >/dev/null
           jq -e \
             '.properties.filter.dimensions.name == "ResourceGroupName" and (.properties.filter.dimensions.values | index("rg-keyforta-dev-san") != null)' \
             <<< "$budget" >/dev/null
