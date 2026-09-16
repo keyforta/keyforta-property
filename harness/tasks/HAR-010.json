@@ -1,0 +1,139 @@
+{
+  "contractVersion": 2,
+  "taskId": "HAR-010",
+  "phase": "implementation",
+  "workArea": "governance-and-harness",
+  "title": "Preserve governed environment through cgroup launcher",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/22",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/22",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/22",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "classification": "bugfix",
+  "workflowState": "implementation-ready",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-16T00:10:16.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/22"]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-16T00:10:16.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-010.md"]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-16T00:10:16.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/22"],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/22",
+        "commitSha": "633652d092f3a7db6e053128da2b560684c9c16e"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-16T00:10:16.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-010.md"]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-16T00:10:16.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-010.md"]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "routingRuleId": "ROUTE-008",
+  "supportingReviewers": [
+    "Security and Privacy Reviewer",
+    "Solution Architect",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "HAR-009 remains blocked at repair cycle 3",
+    "GitHub failure evidence https://github.com/keyforta/keyforta-property/actions/runs/35038390831",
+    "PR #19 merge b49df918bf3b0467c5207cd402da3d50c67bd202"
+  ],
+  "allowedPaths": [
+    ".github/workflows/ci.yml",
+    "docs/engineering/evidence/HAR-003.md",
+    "docs/engineering/evidence/HAR-005.md",
+    "docs/engineering/evidence/HAR-006.md",
+    "docs/engineering/evidence/HAR-009.md",
+    "docs/engineering/evidence/HAR-010.md",
+    "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+    "harness/tasks/HAR-003.json",
+    "harness/tasks/HAR-005.json",
+    "harness/tasks/HAR-006.json",
+    "harness/tasks/HAR-009.json",
+    "harness/tasks/HAR-010.json"
+  ],
+  "declaredProtectedPaths": [".github/workflows/ci.yml"],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/22",
+    "docs/engineering/evidence/HAR-010.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-HAR-010-01",
+      "requirementReferences": ["https://github.com/keyforta/keyforta-property/issues/22"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    },
+    {
+      "id": "AC-HAR-010-02",
+      "requirementReferences": ["https://github.com/keyforta/keyforta-property/issues/22"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"],
+      "manualVerification": "Exact-head GitHub Ubuntu CI confirms HAR-010 selection survives the cgroup launcher."
+    },
+    {
+      "id": "AC-HAR-010-03",
+      "requirementReferences": ["docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"],
+      "manualVerification": "The protected workflow_run retains only its sanitized trusted snapshot."
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md",
+    "docs/engineering/evidence/HAR-010.md"
+  ],
+  "requiredScenarios": ["canonical-verification"],
+  "requiredCommands": ["pnpm harness:self-test", "pnpm verify:all"],
+  "requiredEvidence": [
+    "docs/engineering/evidence/HAR-010.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-HAR-010.json"
+  ],
+  "riskClassification": "critical",
+  "securityImpact": "Preserves explicit governed CI inputs across the root cgroup launcher without broad environment inheritance or weakening producer containment.",
+  "dataImpact": "No product, personal, persistent, or production data changes.",
+  "observabilityImpact": "Exact-head CI and trusted retention reports identify HAR-010 and preserve failed launcher evidence.",
+  "rollbackConsiderations": "Revert HAR-010 implementation changes and return PR #13 to draft blocked state; retain run 35038390831 and subsequent failures for diagnosis.",
+  "humanApprovalRequirements": [
+    "Product-owner scope approval recorded in issue #22 and the governing Copilot session",
+    "Protected workflow changes require external GitHub approval",
+    "Independent architecture, security, and pull-request review before merge",
+    "Exact-head GitHub CI and protected retention canary must pass",
+    "No changes to HAR-003, HAR-005, HAR-006, or HAR-009 history"
+  ],
+  "repairCycle": 0
+}
