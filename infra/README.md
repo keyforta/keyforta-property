@@ -53,14 +53,31 @@ only under `.github/workflows/`.
 
 ## Deployment rules
 
+The deployment workflow uses a SHA-bound, scope-bound plan:
+
+| Scope        | Reconciled resources |
+| ------------ | -------------------- |
+| `postgres`   | PostgreSQL Entra access, migration image and job, forward migrations |
+| `api`        | API image and Container App only |
+| `public-web` | Public-web image and Container App only |
+| `full`       | PostgreSQL, API, public web, and dormant development seed-job definition |
+
+The `portal-web`, `admin-web`, and `mcp` names are reserved in the workflow but
+fail before Azure sign-in because those applications do not yet have approved
+container images and Azure resource definitions. A `postgres` deployment uses
+the API image as its checksummed migration runner but does not deploy the API
+Container App. PostgreSQL server provisioning remains part of the foundation;
+the component scope does not create another server.
+
 - Do not deploy or destroy resources without reviewed `what-if` output and
   explicit environment approval.
 - Run the deployment workflow with `operation=plan` first. A fresh resource
   group produces a foundation-only artifact that can authorize only
   `operation=deploy-foundation`; run `operation=plan` again afterward. Review
-  the resulting full plan for that exact SHA, then dispatch `operation=deploy`
-  with its workflow run ID. Deployment validates the SHA-bound, scope-bound
-  plan artifact and is never the default operation.
+  the resulting component plan for that exact SHA, then dispatch
+  `operation=deploy` with the same scope and its workflow run ID. Deployment
+  validates the SHA-bound, scope-bound plan artifact and is never the default
+  operation.
 - Expose the web application and API publicly. Restrict browser API access to
   the configured web origin and enforce authentication and authorization in the API.
 - Use managed identities and Azure RBAC. Do not use registry admin credentials,
@@ -77,6 +94,10 @@ only under `.github/workflows/`.
   both the administrator and firewall rule through a separately reviewed,
   recorded operation when access ends.
 - Deploy only the `dev` environment during the private pilot.
+- Prefer the narrowest scope. Scoped reconciliation adds no standing resources,
+  although selected image builds and migration job executions retain their
+  normal transient cost. Roll applications back to a previously reviewed
+  immutable SHA; correct schema defects with a reviewed forward migration.
 - Do not add general document storage, Key Vault, Service Bus, workers, HA, or production
   resources without a reviewed requirement and cost estimate.
 
