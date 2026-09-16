@@ -10,7 +10,7 @@
     "check": "pnpm test",
     "test": "node --test test/*.test.js"
   },
-  "dependencies": {
+  "devDependencies": {
     "vite": "7.3.6"
   }
 }

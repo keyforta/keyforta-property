@@ -21,3 +21,12 @@ for (const state of ['loading', 'empty', 'populated', 'error']) {
     assert.match(html, /KEYFORTA capability status/);
   });
 }
+
+test('uses distinct descriptions when widgets share a host page', () => {
+  const html = renderToStaticMarkup(createElement('div', null,
+    createElement(HealthWidget, { locale: 'en', state: { kind: 'empty' } }),
+    createElement(HealthWidget, { locale: 'en', state: { kind: 'populated' } }),
+  ));
+  const ids = [...html.matchAll(/<p id="([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(new Set(ids).size, 2);
+});
