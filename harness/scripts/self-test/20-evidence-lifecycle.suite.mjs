@@ -139,6 +139,40 @@ function isolatedValidationUsesProducerHome(source) {
   );
 }
 
+function liveProducerEnvironmentIsBounded(
+  validationJob,
+  environment,
+  currentUser,
+  cgroupMembership,
+) {
+  const taskContract = validationJob.env.HARNESS_TASK_CONTRACT.match(
+    /'(harness\/tasks\/[^']+)'/u,
+  )?.[1];
+  const expectedEnvironment = {
+    CI: "true",
+    HARNESS_CONTRACT_MODE: "required",
+    HARNESS_TASK_CONTRACT: taskContract,
+    HOME: validationJob.env.VALIDATION_HOME,
+    XDG_CONFIG_HOME: `${validationJob.env.VALIDATION_HOME}/.config`,
+    XDG_CACHE_HOME: `${validationJob.env.VALIDATION_HOME}/.cache`,
+    XDG_DATA_HOME: `${validationJob.env.VALIDATION_HOME}/.local/share`,
+    XDG_STATE_HOME: `${validationJob.env.VALIDATION_HOME}/.local/state`,
+  };
+  return (
+    currentUser === validationJob.env.VALIDATION_USER &&
+    cgroupMembership
+      .split("\n")
+      .some((entry) => /^0::\/keyforta-ci-[0-9]+-[0-9]+$/u.test(entry)) &&
+    Object.entries(expectedEnvironment).every(
+      ([name, value]) => environment[name] === value,
+    ) &&
+    ["HARNESS_BASE_REF", "GITHUB_HEAD_REF", "GITHUB_REF_NAME", "PATH"].every(
+      (name) => Boolean(environment[name]),
+    ) &&
+    !Object.hasOwn(environment, "KEYFORTA_AMBIENT_SECRET")
+  );
+}
+
 function producerEnvironmentSurvivesLauncher(source) {
   const workflow = parse(source);
   const validationJob = Object.values(workflow?.jobs ?? {})[0];
@@ -153,27 +187,11 @@ function producerEnvironmentSurvivesLauncher(source) {
     process.env.CI === "true" &&
     currentUser === validationJob.env.VALIDATION_USER
   ) {
-    const taskContract = validationJob.env.HARNESS_TASK_CONTRACT.match(
-      /'(harness\/tasks\/[^']+)'/u,
-    )?.[1];
-    const expectedLiveEnvironment = {
-      CI: "true",
-      HARNESS_CONTRACT_MODE: "required",
-      HARNESS_TASK_CONTRACT: taskContract,
-      HOME: validationJob.env.VALIDATION_HOME,
-      XDG_CONFIG_HOME: `${validationJob.env.VALIDATION_HOME}/.config`,
-      XDG_CACHE_HOME: `${validationJob.env.VALIDATION_HOME}/.cache`,
-      XDG_DATA_HOME: `${validationJob.env.VALIDATION_HOME}/.local/share`,
-      XDG_STATE_HOME: `${validationJob.env.VALIDATION_HOME}/.local/state`,
-    };
-    return (
-      Object.entries(expectedLiveEnvironment).every(
-        ([name, value]) => process.env[name] === value,
-      ) &&
-      ["HARNESS_BASE_REF", "GITHUB_HEAD_REF", "GITHUB_REF_NAME", "PATH"].every(
-        (name) => Boolean(process.env[name]),
-      ) &&
-      !Object.hasOwn(process.env, "KEYFORTA_AMBIENT_SECRET")
+    return liveProducerEnvironmentIsBounded(
+      validationJob,
+      process.env,
+      currentUser,
+      readFileSync("/proc/self/cgroup", "utf8"),
     );
   }
 
@@ -295,7 +313,23 @@ function isolatedValidationWorkspaceIsBounded(source) {
   const cleanup = steps.find(
     ({ name }) => name === "Remove validation workspace",
   );
+  const expectedStepNames = [
+    "Check out source",
+    "Set up pnpm",
+    "Seal pnpm installation",
+    "Set up Node.js",
+    "Create unprivileged validation user",
+    "Install dependencies",
+    "Validate repository",
+    "Generate final commit evidence",
+    "Stop validation producer",
+    "Package untrusted engineering evidence",
+    "Upload untrusted engineering evidence",
+    "Remove validation workspace",
+  ];
   return (
+    steps.length === expectedStepNames.length &&
+    expectedStepNames.every((name, index) => steps[index]?.name === name) &&
     validationJob?.env?.VALIDATION_WORKSPACE ===
       "/tmp/keyforta-workspace-${{ github.run_id }}-${{ github.run_attempt }}" &&
     validationJob?.env?.VALIDATION_CGROUP ===
@@ -1746,9 +1780,40 @@ jobs:
     ),
   );
   check("governed producer environment survives the launcher", () =>
-    producerEnvironmentSurvivesLauncher(
-      readFileSync(".github/workflows/ci.yml", "utf8"),
-    ),
+    {
+      const source = readFileSync(".github/workflows/ci.yml", "utf8");
+      const validationJob = Object.values(parse(source).jobs)[0];
+      const taskContract = "harness/tasks/HAR-012.json";
+      const environment = {
+        CI: "true",
+        HARNESS_CONTRACT_MODE: "required",
+        HARNESS_BASE_REF: "base-sha",
+        HARNESS_TASK_CONTRACT: taskContract,
+        GITHUB_HEAD_REF: "fix/harness-all-report-entries",
+        GITHUB_REF_NAME: "13/merge",
+        HOME: validationJob.env.VALIDATION_HOME,
+        XDG_CONFIG_HOME: `${validationJob.env.VALIDATION_HOME}/.config`,
+        XDG_CACHE_HOME: `${validationJob.env.VALIDATION_HOME}/.cache`,
+        XDG_DATA_HOME: `${validationJob.env.VALIDATION_HOME}/.local/share`,
+        XDG_STATE_HOME: `${validationJob.env.VALIDATION_HOME}/.local/state`,
+        PATH: process.env.PATH,
+      };
+      return (
+        producerEnvironmentSurvivesLauncher(source) &&
+        liveProducerEnvironmentIsBounded(
+          validationJob,
+          environment,
+          "keyforta-ci",
+          "0::/keyforta-ci-123-1\n",
+        ) &&
+        !liveProducerEnvironmentIsBounded(
+          validationJob,
+          environment,
+          "keyforta-ci",
+          "0::/\n",
+        )
+      );
+    },
   );
   check("isolated CI producer hands off a bounded raw candidate", () =>
     isolatedValidationWorkspaceIsBounded(
