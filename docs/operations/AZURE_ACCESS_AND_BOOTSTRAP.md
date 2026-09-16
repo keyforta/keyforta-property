@@ -187,7 +187,9 @@ runtime identity. The migration identity is configured as the PostgreSQL Entra
 administrator, runs only the manual migration job, and grants the API identity
 the restricted `keyforta_runtime` role. The migration maps that database login
 to the API managed identity's immutable object ID with a `pgaadauth` security
-label; it does not rely on a tenant-wide display-name lookup.
+label; it does not rely on a tenant-wide display-name lookup. Idempotent mapping
+checks read that label through `pg_roles` and `pg_seclabel`, which remain
+available when the optional `pgaadauth_list_principals` helper is absent.
 `DATABASE_AUTH=entra` selects the attached user-assigned identity explicitly
 from `AZURE_CLIENT_ID` and rejects missing or blank PostgreSQL access tokens.
 The API parses the passwordless Entra `DATABASE_URL` into explicit connection
