@@ -10,7 +10,7 @@
     "start": "next start --hostname 0.0.0.0 --port 8080"
   },
   "dependencies": {
-    "@fluentui/react-components": "^9.72.5",
+    "@fluentui/react-components": "9.72.5",
     "@fluentui/react-icons": "^2.0.341",
     "@keyforta/brand": "workspace:*",
     "i18next": "^25.5.2",
