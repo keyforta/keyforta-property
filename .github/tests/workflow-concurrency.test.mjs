@@ -85,6 +85,7 @@ test("deploy normalizes curl CRLF before matching the exact CORS origin", () => 
 test("deploy binds and verifies the canonical public web domains", () => {
   const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
   const steps = document.jobs.deploy.steps;
+  const intent = steps.find((step) => step.name === "Verify deployment intent");
   const hostnameState = steps.find((step) => step.name === "Inspect public-web hostname state");
   const previewBootstrap = steps.find(
     (step) => step.name === "Preview public-web hostname bootstrap",
@@ -101,19 +102,22 @@ test("deploy binds and verifies the canonical public web domains", () => {
     assert.match(step?.with?.inlineScript ?? "", /webCanonicalHostName="\$WEB_CANONICAL_HOST"/);
     assert.match(step?.with?.inlineScript ?? "", /webWwwHostName="\$WEB_WWW_HOST"/);
   }
+  assert.match(intent?.run ?? "", /hostname_bootstrap=/);
+  assert.match(intent?.run ?? "", /EXPECTED_HOSTNAME_BOOTSTRAP/);
+  assert.match(hostnameState?.if ?? "", /env\.DEPLOYMENT_SCOPE == 'full'/);
   assert.match(hostnameState?.run ?? "", /az containerapp hostname list/);
-  assert.match(hostnameState?.run ?? "", /bootstrap-required=true/);
+  assert.match(hostnameState?.run ?? "", /bootstrap_required=true/);
+  assert.match(hostnameState?.run ?? "", /Planned hostname bootstrap state/);
   assert.match(hostnameState?.run ?? "", /Expected either zero or both public-web hostnames/);
   for (const step of [previewBootstrap, bootstrap]) {
+    assert.match(step?.if ?? "", /env\.DEPLOYMENT_SCOPE == 'full'/);
     assert.match(step?.if ?? "", /steps\.hostname-state\.outputs\.bootstrap-required == 'true'/);
     assert.match(step?.with?.inlineScript ?? "", /bindWebCertificates=false/);
   }
   assert.ok(steps.indexOf(previewBootstrap) < steps.indexOf(preview));
   assert.ok(steps.indexOf(bootstrap) < steps.indexOf(deploy));
-  assert.equal(
-    preconditions?.if,
-    "inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE == 'public-web'",
-  );
+  assert.match(preconditions?.if ?? "", /env\.DEPLOYMENT_SCOPE == 'public-web'/);
+  assert.match(preconditions?.if ?? "", /env\.DEPLOYMENT_SCOPE == 'full'/);
   assert.match(preconditions?.run ?? "", /access-control-allow-origin: \$\{web_url\}/);
   assert.match(preconditions?.run ?? "", /properties\.staticIp/);
   assert.match(preconditions?.run ?? "", /customDomainVerificationId/);
@@ -123,6 +127,57 @@ test("deploy binds and verifies the canonical public web domains", () => {
   assert.match(smoke?.run ?? "", /www_path="\/properties\?city=Kinshasa"/);
   assert.match(smoke?.run ?? "", /301\|308/);
   assert.match(smoke?.run ?? "", /location: \$\{web_url\}\$\{www_path\}/);
+
+  const evidence = steps.find(
+    (step) => step.name === "Preserve SHA-bound deployment plan evidence",
+  );
+  assert.match(evidence?.run ?? "", /hostname_bootstrap=/);
+});
+
+test("public-web hostname inspection handles zero, both, partial, and drift states", () => {
+  const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
+  const script = document.jobs.deploy.steps.find(
+    (step) => step.name === "Inspect public-web hostname state",
+  )?.run;
+  assert.ok(script);
+
+  function inspect(hostnames, operation = "plan", expected = "") {
+    const directory = mkdtempSync(join(tmpdir(), "keyforta-hostname-state-"));
+    try {
+      executable(directory, "az", '#!/usr/bin/env bash\nprintf "%s\\n" "$HOSTNAMES"\n');
+      const output = join(directory, "output");
+      const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          APP_ENVIRONMENT: "test-environment",
+          EXPECTED_HOSTNAME_BOOTSTRAP: expected,
+          GITHUB_OUTPUT: output,
+          HOSTNAMES: hostnames,
+          OPERATION: operation,
+          PATH: `${directory}:${process.env.PATH}`,
+          RESOURCE_GROUP: "test-resource-group",
+          WEB_CANONICAL_HOST: "keyforta.com",
+          WEB_WWW_HOST: "www.keyforta.com",
+        },
+      });
+      return {
+        ...result,
+        output: result.status === 0 ? readFileSync(output, "utf8") : "",
+      };
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+
+  assert.match(inspect("").output, /bootstrap-required=true/);
+  assert.match(
+    inspect("keyforta.com\nwww.keyforta.com").output,
+    /bootstrap-required=false/,
+  );
+  assert.notEqual(inspect("keyforta.com").status, 0);
+  assert.equal(inspect("", "deploy", "true").status, 0);
+  assert.notEqual(inspect("", "deploy", "false").status, 0);
 });
 
 test("application Bicep uses managed certificates for both public web domains", () => {

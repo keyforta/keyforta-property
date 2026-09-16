@@ -118,6 +118,13 @@ jobs:
             expected_scope="$DEPLOYMENT_SCOPE"
           fi
           grep -Fx "scope=$expected_scope" plan-evidence/deployment-plan.txt
+          planned_hostname_bootstrap=$(sed -n 's/^hostname_bootstrap=//p' plan-evidence/deployment-plan.txt)
+          case "$expected_scope:$planned_hostname_bootstrap" in
+            full:true|full:false|public-web:true|public-web:false) ;;
+            foundation:not-applicable|api:not-applicable|postgres:not-applicable) ;;
+            *) echo "Plan evidence has an invalid hostname_bootstrap value for scope '$expected_scope'." >&2; exit 1 ;;
+          esac
+          echo "EXPECTED_HOSTNAME_BOOTSTRAP=$planned_hostname_bootstrap" >> "$GITHUB_ENV"
 
       - name: Sign in to Azure with OIDC
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
@@ -357,27 +364,41 @@ jobs:
 
       - name: Inspect public-web hostname state
         id: hostname-state
-        if: env.DEPLOYMENT_SCOPE == 'public-web'
+        if: (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && (inputs.operation == 'deploy' || steps.foundation-state.outputs.exists == 'true')
+        env:
+          OPERATION: ${{ inputs.operation }}
         run: |
-          hostnames=$(az containerapp hostname list \
-            --name "ca-keyforta-${ENVIRONMENT}-web" \
+          web_app=$(az containerapp list \
             --resource-group "$RESOURCE_GROUP" \
-            --query '[].name' -o tsv)
+            --query "[?name == 'ca-keyforta-${ENVIRONMENT}-web'].name | [0]" -o tsv)
+          if [ -n "$web_app" ]; then
+            hostnames=$(az containerapp hostname list \
+              --name "$web_app" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query '[].name' -o tsv)
+          else
+            hostnames=''
+          fi
           canonical_present=false
           www_present=false
           grep -Fxq "$WEB_CANONICAL_HOST" <<< "$hostnames" && canonical_present=true
           grep -Fxq "$WEB_WWW_HOST" <<< "$hostnames" && www_present=true
           if [ "$canonical_present" = false ] && [ "$www_present" = false ]; then
-            echo "bootstrap-required=true" >> "$GITHUB_OUTPUT"
+            bootstrap_required=true
           elif [ "$canonical_present" = true ] && [ "$www_present" = true ]; then
-            echo "bootstrap-required=false" >> "$GITHUB_OUTPUT"
+            bootstrap_required=false
           else
             echo "Expected either zero or both public-web hostnames; refusing a partial-state deployment." >&2
             exit 1
           fi
+          if [ "$OPERATION" = "deploy" ] && [ "$bootstrap_required" != "$EXPECTED_HOSTNAME_BOOTSTRAP" ]; then
+            echo "Planned hostname bootstrap state '$EXPECTED_HOSTNAME_BOOTSTRAP' no longer matches live state '$bootstrap_required'; run a new plan." >&2
+            exit 1
+          fi
+          echo "bootstrap-required=$bootstrap_required" >> "$GITHUB_OUTPUT"
 
       - name: Preview public-web hostname bootstrap
-        if: env.DEPLOYMENT_SCOPE == 'public-web' && steps.hostname-state.outputs.bootstrap-required == 'true'
+        if: (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
@@ -433,20 +454,25 @@ jobs:
                 bindWebCertificates=true
 
       - name: Verify public-web domain preconditions
-        if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE == 'public-web'
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full')
         run: |
           api_fqdn=$(az containerapp show \
             --name "ca-keyforta-${ENVIRONMENT}-api" \
             --resource-group "$RESOURCE_GROUP" \
-            --query properties.configuration.ingress.fqdn -o tsv)
-          api_url="https://${api_fqdn}"
+            --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
           web_url="https://${WEB_CANONICAL_HOST}"
-          curl --fail --retry 12 --retry-delay 10 \
-            --header "origin: ${web_url}" \
-            --dump-header api-precondition-headers.txt \
-            "${api_url}/ready"
-          tr -d '\r' < api-precondition-headers.txt \
-            | grep -iFx "access-control-allow-origin: ${web_url}"
+          if [ -n "$api_fqdn" ]; then
+            api_url="https://${api_fqdn}"
+            curl --fail --retry 12 --retry-delay 10 \
+              --header "origin: ${web_url}" \
+              --dump-header api-precondition-headers.txt \
+              "${api_url}/ready"
+            tr -d '\r' < api-precondition-headers.txt \
+              | grep -iFx "access-control-allow-origin: ${web_url}"
+          elif [ "$DEPLOYMENT_SCOPE" != "full" ]; then
+            echo "The public-web deployment requires an existing API with canonical CORS." >&2
+            exit 1
+          fi
 
           static_ip=$(az containerapp env show \
             --name "$APP_ENVIRONMENT" \
@@ -467,7 +493,7 @@ jobs:
           done
 
       - name: Bootstrap public-web hostnames
-        if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE == 'public-web' && steps.hostname-state.outputs.bootstrap-required == 'true'
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
@@ -601,6 +627,9 @@ jobs:
               echo "- Next: review this run, then dispatch operation=deploy-foundation for the same SHA and plan run ID"
             else
               echo "- Result: ${PLAN_SCOPE} what-if completed"
+              if [ "$PLAN_SCOPE" = "public-web" ] || [ "$PLAN_SCOPE" = "full" ]; then
+                echo "- Hostname bootstrap required: ${{ steps.hostname-state.outputs.bootstrap-required }}"
+              fi
               echo "- Next: review this run, then dispatch operation=deploy for the same SHA and plan run ID"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -618,11 +647,19 @@ jobs:
       - name: Preserve SHA-bound deployment plan evidence
         if: inputs.operation == 'plan'
         run: |
+          case "$PLAN_SCOPE" in
+            full|public-web)
+              hostname_bootstrap='${{ steps.hostname-state.outputs.bootstrap-required }}'
+              case "$hostname_bootstrap" in true|false) ;; *) exit 1 ;; esac
+              ;;
+            *) hostname_bootstrap=not-applicable ;;
+          esac
           {
             echo "commit_sha=$DEPLOYMENT_SHA"
             echo "operation=plan"
             echo "run_id=$GITHUB_RUN_ID"
             echo "scope=$PLAN_SCOPE"
+            echo "hostname_bootstrap=$hostname_bootstrap"
           } > deployment-plan.txt
 
       - name: Upload deployment plan evidence

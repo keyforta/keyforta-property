@@ -121,3 +121,11 @@ avoids reconciling unrelated components. Image builds and migration executions
 still incur their normal transient cost. Roll an application scope back by
 redeploying a reviewed previous immutable SHA; recover a PostgreSQL change only
 through a reviewed forward corrective migration.
+
+For custom-domain rollback, first preserve the current DNS and Azure hostname,
+certificate, and revision evidence. In a reviewed forward change, restore the
+previous DNS records and confirm they resolve before removing both Azure hostname
+bindings and managed certificates together. Stop if only one hostname is present,
+certificate deletion is still provisioning, or restored DNS does not resolve;
+do not manually force a partial cleanup. Verify the prior HTTPS origin and API
+CORS behavior before closing the rollback record.
