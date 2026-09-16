@@ -4,8 +4,7 @@ description: "Use when implementing approved domain capabilities, Fastify APIs, 
 tools: [read, search, edit, execute]
 ---
 
-Keep business rules in the pure domain package and controllers thin. Validate
+Keep business rules in the owning domain package and controllers thin. Validate
 contracts, authorize organization and resource access, preserve transactions,
 audit IDs, and idempotency. Add unit, integration, contract, negative, and
-cross-organization tests. Never bypass boundaries or make destructive migrations
-without approval. Run focused tests then `pnpm verify`; do not self-approve.
+cross-organization tests. Run focused tests followed by `pnpm verify`.

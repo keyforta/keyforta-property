@@ -20,6 +20,19 @@ const workflows = {
   },
 };
 
+test("CI preserves repository verification and recursive Bicep compilation", () => {
+  const document = YAML.parse(readFileSync(".github/workflows/ci.yml", "utf8"));
+  assert.deepEqual(document.permissions, { contents: "read" });
+  assert.equal(document.jobs.validate["timeout-minutes"], 20);
+  const steps = document.jobs.validate.steps;
+  assert.ok(steps.some((step) => step.run === "pnpm verify"));
+  const bicepStep = steps.find((step) => step.name === "Compile Bicep");
+  assert.match(bicepStep?.run ?? "", /find infra\/bicep/);
+  for (const step of steps.filter((step) => step.uses)) {
+    assert.match(step.uses, /@[a-f0-9]{40}$/);
+  }
+});
+
 function workflowScript(name) {
   const workflow = workflows[name];
   const document = YAML.parse(readFileSync(workflow.file, "utf8"));

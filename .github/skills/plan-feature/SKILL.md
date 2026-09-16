@@ -1,83 +1,32 @@
 ---
 name: plan-feature
-description: "Produce a traceable implementation plan and acceptance-test map. Use when an approved design must become bounded implementation-ready work."
+description: "Produce a traceable implementation plan and acceptance-test map. Use when approved scope must become bounded implementation work."
 ---
 
 # Plan Feature
 
-## When to Use
+## Inputs
 
-- Decompose an approved design into ordered, testable implementation work.
-
-## Do Not Use For
-
-- Implementing code, changing scope, or assigning agents outside the routing matrix.
-
-## Required Inputs
-
-- Approved task contract, technical decision, acceptance criteria, and affected boundaries.
+- Approved requirement, technical decisions, acceptance criteria, and affected areas.
 
 ## Procedure
 
-1. Verify the task route, allowed paths, dependencies, and reviewers.
-2. Map each requirement to implementation steps and acceptance tests.
-3. Define rollback, risk checks, evidence, and documentation updates.
-4. Create handoffs for work crossing governed ownership boundaries.
-5. Record implementation-plan and acceptance-test-map evidence.
+1. Map each requirement to implementation steps and acceptance tests.
+2. Identify owning modules, dependencies, migrations, and documentation changes.
+3. Define authorization, isolation, failure-path, and rollback checks.
+4. Order work into small independently verifiable changes.
+5. Name required specialist and human reviews.
 
-## Authorized Agents
+## Guardrails
 
-- `solution-architect`
-- `qa-test-engineer`
+- Do not implement code or broaden approved scope while planning.
+- Stop for clarification when a step cannot be traced to approved behavior.
 
-## Required Agent Capabilities
+## Completion
 
-- `ROUTE-002:architecture`
-- `ROUTE-009:quality-assurance`
-- `ROUTE-009:acceptance-testing`
-
-## Required Artifacts
-
-- `implementation-plan`
-- `acceptance-test-map`
-
-## Routing Rules
-
-- `ROUTE-002`
-- `ROUTE-009`
-
-## EDD State Transitions
-
-- `designed -> implementation-ready`
-
-## Evidence Obligations
-
-- `canonical-verification`
-- Maintain requirement-to-step-to-test traceability. For repository changes, run `pnpm verify`; partial checks do not replace it.
-
-## Human Approval Gates
-
-- `architecture-decision-when-consequential`
-- `merge-readiness-review`
-
-## Failure and Escalation
-
-- Return to design or requirements when steps cannot be traced or ownership is ambiguous.
-
-## Prohibited Actions
-
-- `bypass-canonical-verification`
-- `self-approval`
-- `production-deployment`
-
-## Completion Criteria
-
-- The plan is bounded, routed, reversible, test-mapped, and ready for specialist implementation.
+- Return an ordered plan with requirement-to-test traceability and rollback notes.
 
 ## Resources
 
-- [Task contract schema](../../../harness/schemas/task-contract.schema.json)
-- [Routing matrix](../../../harness/policies/agent-routing.json)
-- [Handoff schema](../../../harness/schemas/handoff.schema.json)
 - [Test strategy](../../../docs/engineering/TEST_STRATEGY.md)
-- [EDD protocol](../../../docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md)
+- [Context and ownership](../../../docs/keyforta-context-map-and-ownership.md)

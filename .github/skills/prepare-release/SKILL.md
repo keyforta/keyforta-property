@@ -5,78 +5,28 @@ description: "Prepare monitoring and rollback information for GitHub-owned relea
 
 # Prepare Release
 
-## When to Use
+## Inputs
 
-- Assemble release-readiness information after EDD verification.
-
-## Do Not Use For
-
-- Deploying, merging, granting approval, or bypassing protected environments.
-
-## Required Inputs
-
-- Verified task, GitHub pull request, release plan, monitoring plan, and rollback plan.
+- Verified change, CI status, migration notes, monitoring, and rollback procedure.
 
 ## Procedure
 
-1. Confirm EDD verification and required GitHub CI checks are complete.
-2. Prepare monitoring and rollback information for the GitHub release decision.
-3. Route pull-request reviews, CODEOWNERS or ruleset checks, merge controls, protected environments, and deployment approvals through GitHub.
-4. Stop before merge or deployment and report the next human action.
-5. Do not represent GitHub review, merge, deployment, or rollback outcomes as EDD lifecycle states.
+1. Confirm `pnpm verify` and required GitHub checks have passed.
+2. Summarize user impact, dependencies, configuration, and migration ordering.
+3. Define rollout checks, telemetry, alert thresholds, and rollback triggers.
+4. Verify rollback ownership and data compatibility.
+5. Present readiness and blockers without merging or deploying.
 
-## Authorized Agents
+## Guardrails
 
-- `azure-platform-sre-engineer`
-- `technical-writer-documentation-steward`
+- GitHub remains authoritative for review, merge, environment, and deployment status.
+- Never deploy production, approve your own change, or expose credentials.
 
-## Required Agent Capabilities
+## Completion
 
-- `ROUTE-011:documentation`
-- `ROUTE-012:operational-readiness`
-- `ROUTE-012:incident-support`
-
-## Required Artifacts
-
-- `none`
-
-## Routing Rules
-
-- `ROUTE-011`
-- `ROUTE-012`
-
-## EDD State Transitions
-
-- `none`
-
-## Evidence Obligations
-
-- `canonical-verification`
-- Use the verified EDD result as input; GitHub remains authoritative for CI, review, merge, environment, and deployment status.
-
-## Human Approval Gates
-
-- `product-owner-acceptance`
-- `explicit-human-dispatch`
-
-## Failure and Escalation
-
-- Stop when GitHub controls, monitoring, or rollback information are incomplete.
-
-## Prohibited Actions
-
-- `bypass-canonical-verification`
-- `self-approval`
-- `production-deployment`
-
-## Completion Criteria
-
-- Humans have a complete release decision package; the skill performs no merge or deployment.
+- Return readiness, blockers, monitoring, rollback, owners, and required approvals.
 
 ## Resources
 
-- [Acceptance test traceability](../../../docs/keyforta-acceptance-test-traceability.md)
-- [Evidence manifest schema](../../../harness/schemas/evidence-manifest.schema.json)
-- [Evidence gates](../../../harness/policies/evidence-gates.json)
-- [Routing matrix](../../../harness/policies/agent-routing.json)
-- [EDD protocol](../../../docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md)
+- [Operations documentation](../../../docs/operations/)
+- [Deployment documentation](../../../deployments/README.md)

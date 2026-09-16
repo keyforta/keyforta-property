@@ -27,11 +27,6 @@ in this repository.
 6. Run `pnpm verify`; required GitHub CI checks must pass before merge.
 7. Update documentation in the same pull request.
 
-During foundation setup, `pnpm verify` runs product checks and production builds.
-The engineering harness and Evidence-Driven Development lifecycle are available
-for explicit evaluation but are not merge or implementation prerequisites until
-the product owner activates them.
-
 ## Architecture boundaries
 
 - `packages/contracts`, `packages/auth`, and `packages/authorization` contain
@@ -54,4 +49,4 @@ the product owner activates them.
 - Do not weaken lint, type, test, audit, authorization, or AI safety controls to
   make a build pass.
 - Do not approve your own review, waiver, protected-policy gate, or production
-  transition. Preserve failed evidence and stop after three automated repairs.
+   transition. Required GitHub reviews remain external human controls.

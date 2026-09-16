@@ -29,21 +29,23 @@ pnpm build
 pnpm dev
 ```
 
-## Engineering harness
-
-The repository includes governed Copilot agents, reusable Agent Skills, task
-contracts, evidence gates, and deterministic verification under `.github/` and
-`harness/`. During foundation setup these controls are dormant and do not block
-implementation or CI. The product validation entry point is:
+## Verification
 
 ```bash
 pnpm verify
 ```
 
-Harness checks remain available for explicit evaluation through
-`pnpm verify:all`, the focused `verify:*` commands, and
-`pnpm harness:self-test`. Task contracts and generated evidence become required
-only after product-owner activation.
+This runs workspace, architecture, and secret checks; product, control, and
+deployment workflow tests; an all-dependency audit; and production builds. CI
+also compiles every Bicep module recursively.
+
+## Copilot customizations
+
+Product-focused specialist agents and reusable skills live under
+`.github/agents/` and `.github/skills/`. They support requirements, design,
+implementation, testing, review, operations, and release preparation without a
+repository-local EDD system. They are advisory and do not replace product-owner
+approval, required GitHub controls, or `pnpm verify`.
 
 `pnpm dev` serves the public site at `http://localhost:3000`. Use `pnpm dev:portal` for the portal at `http://localhost:3001`, `pnpm dev:admin` for the admin console at `http://localhost:3002`, or `pnpm dev:all` to run all three.
 

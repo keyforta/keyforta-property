@@ -1,78 +1,33 @@
 ---
 name: define-requirement
-description: "Turn an evidenced product need into a traceable requirement and acceptance boundary. Use when proposing scope for Product Owner approval."
+description: "Turn a verified product need into a traceable requirement and acceptance boundary. Use when proposing scope for Product Owner approval."
 ---
 
 # Define Requirement
 
-## When to Use
+## Inputs
 
-- Define a new requirement from verified product evidence and explicit user need.
-
-## Do Not Use For
-
-- Silently changing approved scope or treating an agent decision as approval.
-
-## Required Inputs
-
-- Requirements analysis, source evidence, scenarios, constraints, and known gaps.
+- Verified product need, source references, users, constraints, and known gaps.
 
 ## Procedure
 
-1. Trace the need to authoritative product sources and an issue.
-2. Define testable acceptance criteria, exclusions, risks, and human decisions.
-3. Create or update the task contract without duplicating product authority.
-4. Route independent review through a handoff where needed.
-5. Request Product Owner approval through GitHub before recording approval.
+1. State the user outcome and cite the authoritative sources.
+2. Define included behavior, exclusions, assumptions, and business invariants.
+3. Write observable acceptance criteria, including failure and denied states.
+4. Identify dependencies, risks, privacy implications, and open decisions.
+5. Request Product Owner approval before treating proposed scope as approved.
 
-## Authorized Agents
+## Guardrails
 
-- `product-requirements-analyst`
+- Do not invent policy, prioritize work, or silently resolve ambiguity.
+- Do not rewrite existing approved requirements to fit a proposed solution.
 
-## Required Agent Capabilities
+## Completion
 
-- `ROUTE-001:requirements-governance`
-- `ROUTE-001:traceability`
-
-## Required Artifacts
-
-- `task-contract`
-
-## Routing Rules
-
-- `ROUTE-001`
-
-## EDD State Transitions
-
-- `analyzed -> approved`
-
-## Evidence Obligations
-
-- `canonical-verification`
-- Preserve source and acceptance traceability. For repository changes, run `pnpm verify`; partial checks do not replace it.
-
-## Human Approval Gates
-
-- `product-owner-scope-approval`
-
-## Failure and Escalation
-
-- Keep the task analyzed and request clarification when scope or acceptance is ambiguous.
-
-## Prohibited Actions
-
-- `bypass-canonical-verification`
-- `self-approval`
-- `production-deployment`
-
-## Completion Criteria
-
-- The requirement is bounded, testable, traceable, and externally approved before advancement.
+- Produce a bounded, testable proposal with source traceability and named decisions.
 
 ## Resources
 
-- [Backend implementation specification](../../../docs/keyforta-backend-implementation-specification.md)
+- [Product requirements](../../../docs/product/PRD.md)
+- [Acceptance traceability](../../../docs/keyforta-acceptance-test-traceability.md)
 - [Requirements gaps](../../../docs/engineering/REQUIREMENTS_GAPS.md)
-- [Task contract schema](../../../harness/schemas/task-contract.schema.json)
-- [Evidence gates](../../../harness/policies/evidence-gates.json)
-- [EDD protocol](../../../docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md)

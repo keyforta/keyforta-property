@@ -1,104 +1,32 @@
 ---
 name: fix-defect
-description: "Reproduce and fix an evidenced defect with a regression test. Use when observed behavior violates an approved requirement or existing contract."
+description: "Reproduce and fix a verified defect with a regression test. Use when observed behavior violates an approved requirement or existing contract."
 ---
 
 # Fix Defect
 
-## When to Use
+## Inputs
 
-- Correct a reproducible defect or address bounded review feedback.
-
-## Do Not Use For
-
-- Reclassifying a feature request as a bug or changing expected behavior without approval.
-
-## Required Inputs
-
-- Failure evidence, expected behavior, task contract, reproduction, and affected route.
+- Failure report, expected behavior source, reproduction, and affected area.
 
 ## Procedure
 
-1. Reproduce the failure and trace expected behavior to an approved source.
-2. Confirm route ownership and create a handoff if another specialist owns the fix.
-3. Add a regression test, implement the root-cause correction, and preserve invariants.
-4. Record bounded correction, changed files, and repair-cycle evidence.
-5. Run focused validation followed by canonical verification.
+1. Reproduce the failure and trace expected behavior to an authoritative source.
+2. Locate the nearest code path that directly controls the behavior.
+3. Add a regression test that fails for the observed defect.
+4. Apply the smallest root-cause correction while preserving invariants.
+5. Run the focused regression check followed by `pnpm verify`.
 
-## Authorized Agents
+## Guardrails
 
-- `frontend-engineer`
-- `backend-engineer`
-- `data-database-engineer`
-- `harness-evaluation-engineer`
-- `qa-test-engineer`
+- Do not reclassify a feature request as a defect or change expected behavior silently.
+- Do not weaken assertions, authorization, isolation, or data integrity.
 
-## Required Agent Capabilities
+## Completion
 
-- `ROUTE-004:implementation`
-- `ROUTE-004:web`
-- `ROUTE-005:implementation`
-- `ROUTE-005:authorization`
-- `ROUTE-006:implementation`
-- `ROUTE-006:data-integrity`
-- `ROUTE-008:deterministic-verification`
-- `ROUTE-009:quality-assurance`
-- `ROUTE-009:regression-testing`
-
-## Required Artifacts
-
-- `failure-evidence`
-- `regression-test`
-- `correction-record`
-- `changed-file-inventory`
-
-## Task Classifications
-
-- `bugfix`
-
-## Routing Rules
-
-- `ROUTE-004`
-- `ROUTE-005`
-- `ROUTE-006`
-- `ROUTE-008`
-- `ROUTE-009`
-
-## EDD State Transitions
-
-- `implementation-ready -> implemented`
-- `changes-requested -> implemented`
-
-## Evidence Obligations
-
-- `canonical-verification`
-- Preserve the failing case and passing regression output; run `pnpm verify` before completion.
-
-## Human Approval Gates
-
-- `approved-task-contract`
-- `data-lifecycle-and-migration-approval-when-consequential`
-- `protected-policy-approval`
-- `merge-readiness-review`
-
-## Failure and Escalation
-
-- Stop after three automated repair cycles or when evidence shows a requirement change is needed.
-
-## Prohibited Actions
-
-- `bypass-canonical-verification`
-- `self-approval`
-- `production-deployment`
-
-## Completion Criteria
-
-- The defect is reproduced, fixed at its controlling path, regression-tested, and independently reviewable.
+- The defect is reproducible, corrected at its source, and protected by a test.
 
 ## Resources
 
-- [Task contract schema](../../../harness/schemas/task-contract.schema.json)
-- [Evidence gates](../../../harness/policies/evidence-gates.json)
-- [Routing matrix](../../../harness/policies/agent-routing.json)
 - [Test strategy](../../../docs/engineering/TEST_STRATEGY.md)
-- [EDD protocol](../../../docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md)
+- [Requirements gaps](../../../docs/engineering/REQUIREMENTS_GAPS.md)

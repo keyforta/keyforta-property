@@ -1,77 +1,32 @@
 ---
 name: review-change
-description: "Perform independent risk-focused review of a verified change. Use when a change needs findings on correctness, scope, security, and maintainability."
+description: "Perform an independent risk-focused review of a change. Use when a diff needs findings on correctness, scope, security, tests, and maintainability."
 ---
 
 # Review Change
 
-## When to Use
+## Inputs
 
-- Independently review a verified change against its task contract and evidence.
-
-## Do Not Use For
-
-- Approving your own implementation, fixing unrelated issues, or replacing GitHub review controls.
-
-## Required Inputs
-
-- Task contract, diff, verification evidence, requirements, and reviewer independence context.
+- Diff, authoritative requirements, test results, and reviewer independence context.
 
 ## Procedure
 
-1. Confirm reviewer independence and task scope.
-2. Inspect behavior, invariants, tests, security, architecture, and evidence.
-3. Report findings by severity with exact file references.
-4. Route corrections through a changes-requested handoff when needed.
-5. Record the review report; leave approval to GitHub controls.
+1. Confirm the intended scope and inspect the complete diff.
+2. Review behavior, invariants, failure paths, tests, security, and architecture.
+3. Reproduce suspicious behavior or run the narrowest relevant checks.
+4. Report findings first, ordered by severity with exact file references.
+5. State open questions, test gaps, and residual risk.
 
-## Authorized Agents
+## Guardrails
 
-- `pull-request-reviewer`
+- Do not approve your own implementation or expand scope during review.
+- Do not suppress a finding because unrelated checks pass.
 
-## Required Agent Capabilities
+## Completion
 
-- `ROUTE-010:independent-review`
-
-## Required Artifacts
-
-- `none`
-
-## Routing Rules
-
-- `ROUTE-010`
-
-## EDD State Transitions
-
-- `none`
-
-## Evidence Obligations
-
-- `canonical-verification`
-- Record findings, independence, and resolution; inspect GitHub checks for commit-specific CI status.
-
-## Human Approval Gates
-
-- `security-authority-when-required`
-
-## Failure and Escalation
-
-- Request changes for unresolved defects and escalate security or authority conflicts to the named human owner.
-
-## Prohibited Actions
-
-- `bypass-canonical-verification`
-- `self-approval`
-- `production-deployment`
-
-## Completion Criteria
-
-- Findings are resolved or explicitly outstanding, independence is documented, and GitHub owns approval.
+- Return actionable findings or explicitly state that none were found.
 
 ## Resources
 
-- [Task contract schema](../../../harness/schemas/task-contract.schema.json)
-- [Evidence manifest schema](../../../harness/schemas/evidence-manifest.schema.json)
-- [Routing matrix](../../../harness/policies/agent-routing.json)
-- [Handoff schema](../../../harness/schemas/handoff.schema.json)
-- [EDD protocol](../../../docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md)
+- [Test strategy](../../../docs/engineering/TEST_STRATEGY.md)
+- [Agent working agreement](../../../AGENTS.md)
