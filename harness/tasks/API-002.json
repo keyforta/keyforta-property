@@ -12,7 +12,7 @@
     "docs/backend-integration-contract.md",
     "docs/openapi.yaml"
   ],
-  "classification": "dependency",
+  "classification": "bugfix",
   "workflowState": "implemented",
   "stateHistory": [
     {
@@ -73,6 +73,22 @@
         "apps/api/test/app.test.ts",
         "docs/engineering/evidence/API-002.md"
       ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Pull Request Reviewer",
+      "enteredAt": "2026-09-16T04:08:50.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/API-002.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Backend Engineer",
+      "enteredAt": "2026-09-16T04:08:51.000Z",
+      "evidenceReferences": [
+        "docs/engineering/evidence/API-002.md"
+      ]
     }
   ],
   "assignedAgent": "Backend Engineer",
@@ -93,7 +109,6 @@
     "docs/adr/ADR-011-public-property-discovery-route.md",
     "docs/engineering/evidence/API-002.md",
     "docs/openapi.yaml",
-    "harness/reports/",
     "harness/tasks/API-002.json",
     "pnpm-lock.yaml"
   ],
@@ -183,5 +198,5 @@
     "Independent security, QA, and pull-request review before merge",
     "No production deployment or frontend activation in this task"
   ],
-  "repairCycle": 0
+  "repairCycle": 1
 }
