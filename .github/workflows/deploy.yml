@@ -227,10 +227,16 @@ jobs:
       - name: Verify public-web domain preconditions
         if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full')
         run: |
-          api_fqdn=$(az containerapp show \
-            --name "ca-keyforta-${ENVIRONMENT}-api" \
+          api_app=$(az containerapp list \
             --resource-group "$RESOURCE_GROUP" \
-            --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
+            --query "[?name == 'ca-keyforta-${ENVIRONMENT}-api'].name | [0]" -o tsv)
+          api_fqdn=''
+          if [ -n "$api_app" ]; then
+            api_fqdn=$(az containerapp show \
+              --name "$api_app" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query properties.configuration.ingress.fqdn -o tsv)
+          fi
           web_url="https://${WEB_CANONICAL_HOST}"
           if [ -n "$api_fqdn" ]; then
             api_url="https://${api_fqdn}"
@@ -253,11 +259,15 @@ jobs:
             --name "$APP_ENVIRONMENT" \
             --resource-group "$RESOURCE_GROUP" \
             --query properties.customDomainConfiguration.customDomainVerificationId -o tsv)
-          web_fqdn=$(az containerapp show \
-            --name "ca-keyforta-${ENVIRONMENT}-web" \
+          web_app=$(az containerapp list \
             --resource-group "$RESOURCE_GROUP" \
-            --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
-          if [ -z "$web_fqdn" ]; then
+            --query "[?name == 'ca-keyforta-${ENVIRONMENT}-web'].name | [0]" -o tsv)
+          if [ -n "$web_app" ]; then
+            web_fqdn=$(az containerapp show \
+              --name "$web_app" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query properties.configuration.ingress.fqdn -o tsv)
+          else
             default_domain=$(az containerapp env show \
               --name "$APP_ENVIRONMENT" \
               --resource-group "$RESOURCE_GROUP" \

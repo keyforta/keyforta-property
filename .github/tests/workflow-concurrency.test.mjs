@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -200,6 +201,7 @@ test("initial full deployment validates DNS without existing API or web apps", (
       "az",
       `#!/usr/bin/env bash
 case "$*" in
+  *"containerapp list"*) exit 0 ;;
   *properties.staticIp*) echo 192.0.2.10 ;;
   *customDomainVerificationId*) echo verification-id ;;
   *properties.defaultDomain*) echo environment.example.test ;;
@@ -235,6 +237,63 @@ esac
       },
     });
     assert.equal(result.status, 0, result.stderr);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("public-web preconditions fail closed when API discovery fails", () => {
+  const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
+  const script = document.jobs.deploy.steps.find(
+    (step) => step.name === "Verify public-web domain preconditions",
+  )?.run;
+  assert.ok(script);
+
+  const directory = mkdtempSync(join(tmpdir(), "keyforta-api-precondition-"));
+  try {
+    executable(
+      directory,
+      "az",
+      `#!/usr/bin/env bash
+case "$*" in
+  *"containerapp list"*) exit 1 ;;
+  *properties.staticIp*) echo 192.0.2.10 ;;
+  *customDomainVerificationId*) echo verification-id ;;
+  *"containerapp show"*"-web"*) echo ca-keyforta-dev-web.environment.example.test ;;
+  *) exit 1 ;;
+esac
+`,
+    );
+    executable(directory, "curl", "#!/usr/bin/env bash\necho called > \"$CALLED\"\nexit 1\n");
+    executable(
+      directory,
+      "dig",
+      `#!/usr/bin/env bash
+echo called > "$CALLED"
+case "$*" in
+  *" A keyforta.com") echo 192.0.2.10 ;;
+  *" CNAME www.keyforta.com") echo ca-keyforta-dev-web.environment.example.test. ;;
+  *" TXT asuid.keyforta.com"|*" TXT asuid.www.keyforta.com") echo '"verification-id"' ;;
+esac
+`,
+    );
+    const called = join(directory, "called");
+    const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        APP_ENVIRONMENT: "test-environment",
+        CALLED: called,
+        DEPLOYMENT_SCOPE: "full",
+        ENVIRONMENT: "dev",
+        PATH: `${directory}:${process.env.PATH}`,
+        RESOURCE_GROUP: "test-resource-group",
+        WEB_CANONICAL_HOST: "keyforta.com",
+        WEB_WWW_HOST: "www.keyforta.com",
+      },
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(existsSync(called), false);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
