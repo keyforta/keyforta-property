@@ -20,9 +20,9 @@ movement action.
 Use one private, locally redundant StorageV2 account in South Africa North and a
 private `tenant-applications` container. The API accesses the container through
 its managed identity and container-scoped Storage Blob Data Contributor role.
-Shared-key authentication and anonymous Blob access are disabled. Browsers
-upload and download through the same-origin BFF and internal API; the product
-does not issue browser SAS tokens.
+Shared-key authentication and anonymous Blob access are disabled. Authorized
+browsers upload and download through the API; the product does not issue browser
+SAS tokens.
 
 Accept PDF, JPEG, and PNG files up to 10 MB. Validate declared MIME type and file
 signature, use opaque blob paths, retain the original filename only as protected

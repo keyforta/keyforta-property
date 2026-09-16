@@ -1,6 +1,6 @@
 # ADR-0003: Host the Pilot on Azure Container Apps Behind a Web BFF
 
-- **Status:** Superseded in part by ADR-0006
+- **Status:** Superseded by ADR-0008
 - **Date:** 2026-09-09
 
 ## Context

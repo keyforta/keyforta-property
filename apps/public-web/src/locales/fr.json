@@ -46,6 +46,7 @@
     "access_request_saved": "Demande enregistree. Reference {{reference}}.",
     "saved_demo": "Enregistre avec succes.",
     "workspace_action_saved": "Action enregistree.",
+    "portal_unavailable": "L espace protege n est pas disponible dans cet environnement.",
     "registration_received": "Votre demande d inscription a ete recue.",
     "contact_received": "Votre message a ete recu.",
     "api_idle": "Les resultats des operations apparaitront ici.",

@@ -59,7 +59,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
     name: 'azure.extensions'
     properties: {
       source: 'user-override'
-      value: 'pgcrypto'
+      value: 'pgcrypto,btree_gist'
     }
   }
 

@@ -29,7 +29,7 @@ paths:
       operationId: requestViewing
       security: []
       requestBody: { $ref: '#/components/requestBodies/ViewingRequest' }
-      responses: { '202': { $ref: '#/components/responses/PublicRequestAccepted' } }
+      responses: { '202': { $ref: '#/components/responses/PublicRequestAccepted' }, '429': { $ref: '#/components/responses/RateLimited' } }
   /auth/signup/landlords:
     post:
       tags: [Identity]
@@ -73,10 +73,10 @@ paths:
   /manager-invitations/{invitationId}/accept:
     post: { tags: [Organizations], operationId: acceptInvitation, parameters: [{ $ref: '#/components/parameters/InvitationId' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Invitation' } } }
   /properties:
-    get: { tags: [Inventory], operationId: listProperties, security: [], parameters: [{ $ref: '#/components/parameters/PublicPropertyCity' }, { $ref: '#/components/parameters/Pagination' }, { $ref: '#/components/parameters/PublicPropertyLimit' }, { $ref: '#/components/parameters/PublicPropertySort' }], responses: { '200': { $ref: '#/components/responses/PublicPropertyList' } } }
+    get: { tags: [Inventory], operationId: listProperties, security: [], parameters: [{ $ref: '#/components/parameters/PublicPropertyCity' }, { $ref: '#/components/parameters/PublicPropertyDistrict' }, { $ref: '#/components/parameters/PublicPropertyMinBedrooms' }, { $ref: '#/components/parameters/PublicPropertyMaxRent' }, { $ref: '#/components/parameters/Pagination' }, { $ref: '#/components/parameters/PublicPropertyLimit' }, { $ref: '#/components/parameters/PublicPropertySort' }], responses: { '200': { $ref: '#/components/responses/PublicPropertyList' } } }
     post: { tags: [Inventory], operationId: createProperty, requestBody: { $ref: '#/components/requestBodies/Property' }, responses: { '201': { $ref: '#/components/responses/Property' } } }
   /properties/{propertyId}:
-    get: { tags: [Inventory], operationId: getProperty, security: [], parameters: [{ $ref: '#/components/parameters/PropertyId' }], responses: { '200': { $ref: '#/components/responses/PublicProperty' } } }
+    get: { tags: [Inventory], operationId: getProperty, security: [], parameters: [{ $ref: '#/components/parameters/PublicPropertyId' }], responses: { '200': { $ref: '#/components/responses/PublicProperty' } } }
     patch: { tags: [Inventory], operationId: updateProperty, parameters: [{ $ref: '#/components/parameters/PropertyId' }, { $ref: '#/components/parameters/IfMatch' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Property' } } }
     delete: { tags: [Inventory], operationId: archiveProperty, parameters: [{ $ref: '#/components/parameters/PropertyId' }], responses: { '204': { description: Archived } } }
   /units:
@@ -129,10 +129,14 @@ paths:
 components:
   securitySchemes: { bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT } }
   parameters:
-    Pagination: { name: cursor, in: query, schema: { type: string } }
+    Pagination: { name: cursor, in: query, schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$' } }
     PublicPropertyCity: { name: city, in: query, schema: { type: string, minLength: 1, maxLength: 120 } }
+    PublicPropertyDistrict: { name: district, in: query, schema: { type: string, minLength: 1, maxLength: 120 } }
+    PublicPropertyMinBedrooms: { name: minBedrooms, in: query, schema: { type: integer, minimum: 0, maximum: 100 } }
+    PublicPropertyMaxRent: { name: maxMonthlyRentMinor, in: query, description: Maximum monthly rent in integer minor units encoded as a decimal string, schema: { type: string, pattern: '^[1-9][0-9]{0,17}$' } }
     PublicPropertyLimit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
     PublicPropertySort: { name: sort, in: query, schema: { type: string, enum: [created_at_desc, name_asc, name_desc], default: created_at_desc } }
+    PublicPropertyId: { name: propertyId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$' } }
     IfMatch: { name: If-Match, in: header, schema: { type: string } }
     IdempotencyKey: { name: Idempotency-Key, in: header, schema: { type: string, maxLength: 128 } }
     OrganizationId: { name: organizationId, in: path, required: true, schema: { type: string } }
@@ -169,6 +173,7 @@ components:
     Patch: { required: true, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
   responses:
     PublicRequestAccepted: { description: Request accepted for processing, content: { application/json: { schema: { $ref: '#/components/schemas/PublicRequestReceipt' } } } }
+    RateLimited: { description: Caller exceeded the viewing-request rate limit, headers: { Retry-After: { schema: { type: integer, minimum: 1 } } }, content: { application/json: { schema: { $ref: '#/components/schemas/Problem' } } } }
     Profile: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     Organization: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     Invitation: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
@@ -187,18 +192,19 @@ components:
     Message: { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     List: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ListEnvelope' } } } }
   schemas:
-    PublicRequestReceipt: { type: object, required: [data], properties: { data: { type: object, required: [reference, status], properties: { reference: { type: string }, status: { type: string, enum: [accepted] } } } } }
+    Problem: { type: object, required: [error], properties: { error: { type: object, required: [code, details, message, traceId], properties: { code: { type: string }, details: { type: object }, message: { type: string }, traceId: { type: string } }, additionalProperties: false } }, additionalProperties: false }
+    PublicRequestReceipt: { type: object, required: [data, meta], properties: { data: { type: object, required: [reference, status], properties: { reference: { type: string }, status: { type: string, enum: [accepted] } }, additionalProperties: false }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
     AccessRequestInput: { type: object, required: [name, email, role], properties: { name: { type: string, minLength: 2, maxLength: 120 }, email: { type: string, format: email }, role: { type: string, enum: [tenant, landlord, property_manager, maintenance_operator] }, location: { type: string, maxLength: 160 }, interest: { type: string, maxLength: 500 }, locale: { type: string, enum: [en, fr] } } }
     ContactRequestInput: { type: object, required: [name, email, topic, message], properties: { name: { type: string, minLength: 2, maxLength: 120 }, email: { type: string, format: email }, topic: { type: string, enum: [general, tenant_support, landlord_inquiry, safety_concern] }, message: { type: string, minLength: 10, maxLength: 4000 }, locale: { type: string, enum: [en, fr] } } }
-    ViewingRequestInput: { type: object, required: [propertyId, name, email], properties: { propertyId: { type: string }, name: { type: string, minLength: 2, maxLength: 120 }, email: { type: string, format: email }, phone: { type: string, maxLength: 40 }, preferredAt: { type: string, format: date-time }, message: { type: string, maxLength: 1000 }, locale: { type: string, enum: [en, fr] } } }
+    ViewingRequestInput: { type: object, required: [propertyId, name, email], properties: { propertyId: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$' }, name: { type: string, minLength: 2, maxLength: 120 }, email: { type: string, format: email, maxLength: 254 }, phone: { type: string, minLength: 7, maxLength: 40 }, preferredAt: { type: string, format: date-time, pattern: 'Z$' }, message: { type: string, maxLength: 1000 }, locale: { type: string, enum: [en, fr] }, website: { type: string, maxLength: 0, description: Honeypot field; must remain empty } }, additionalProperties: false }
     LandlordRegistrationInput: { type: object, required: [name, email, phone, organization], properties: { name: { type: string, minLength: 2, maxLength: 120 }, email: { type: string, format: email }, phone: { type: string, maxLength: 40 }, organization: { type: string, minLength: 2, maxLength: 160 }, locale: { type: string, enum: [en, fr] } } }
     OperatorRegistrationInput: { type: object, required: [name, email, phone, services, coverage], properties: { name: { type: string, minLength: 2, maxLength: 120 }, email: { type: string, format: email }, phone: { type: string, maxLength: 40 }, services: { type: array, minItems: 1, items: { type: string } }, coverage: { type: array, minItems: 1, items: { type: string } }, locale: { type: string, enum: [en, fr] } } }
     Base: { type: object, required: [id, organizationId, createdAt, updatedAt, version], properties: { id: { type: string }, organizationId: { type: string }, createdAt: { type: string, format: date-time }, updatedAt: { type: string, format: date-time }, version: { type: integer } } }
     Meta: { type: object, required: [requestId], properties: { requestId: { type: string } }, additionalProperties: false }
     Money: { type: object, required: [amount, currency], properties: { amount: { type: integer }, currency: { type: string, minLength: 3, maxLength: 3 } } }
-    PublicPropertyProjection: { type: object, required: [id, name, address, city, summary], properties: { id: { type: string }, name: { type: string }, address: { type: string }, city: { type: string }, summary: { type: string }, imageUrl: { type: string } }, additionalProperties: false }
+    PublicPropertyProjection: { type: object, required: [id, name, address, city, district, summary, bedrooms, bathrooms, monthlyRentMinor, currency, availableFrom, amenities, imageUrls], properties: { id: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$' }, name: { type: string }, address: { type: string, description: Approved approximate location only }, city: { type: string }, district: { type: string }, summary: { type: string }, bedrooms: { type: integer, minimum: 0 }, bathrooms: { type: integer, minimum: 1 }, areaSquareMeters: { type: integer, minimum: 1 }, monthlyRentMinor: { type: string, pattern: '^[1-9][0-9]*$' }, currency: { type: string, pattern: '^[A-Z]{3}$' }, availableFrom: { type: string, format: date }, amenities: { type: array, items: { type: string } }, imageUrl: { type: string }, imageUrls: { type: array, minItems: 1, items: { type: string } } }, additionalProperties: false }
     PublicPropertyEnvelope: { type: object, required: [data, meta], properties: { data: { $ref: '#/components/schemas/PublicPropertyProjection' }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
-    PublicPropertyListEnvelope: { type: object, required: [items, total, nextCursor, meta], properties: { items: { type: array, items: { $ref: '#/components/schemas/PublicPropertyProjection' } }, total: { type: integer, minimum: 0 }, nextCursor: { type: string, nullable: true }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
+    PublicPropertyListEnvelope: { type: object, required: [items, total, nextCursor, meta], properties: { items: { type: array, items: { $ref: '#/components/schemas/PublicPropertyProjection' } }, total: { type: integer, minimum: 0 }, nextCursor: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$', nullable: true }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
     Envelope: { type: object, required: [data, auditEventId], properties: { data: { type: object, additionalProperties: true }, auditEventId: { type: string } } }
     ListEnvelope: { type: object, required: [items, total], properties: { items: { type: array, items: { type: object, additionalProperties: true } }, total: { type: integer }, nextCursor: { type: string, nullable: true } } }
     OrganizationInput: { type: object, required: [name, timezone], properties: { name: { type: string }, timezone: { type: string } } }

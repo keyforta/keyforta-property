@@ -31,11 +31,13 @@
 
 ## Implemented foundation
 
-- API bearer tokens are verified against configured issuer, audience, and JWKS.
-- Browser login uses authorization code with PKCE; access tokens remain in
-  short-lived, HTTP-only, same-site cookies and are forwarded only by the BFF.
-- Landlord and manager workspace routes are selected and enforced by the Next.js
-  server proxy from the API-resolved role. `/workspace` is the neutral entry;
+- API bearer-token verification against the configured issuer, audience, and
+  JWKS is required before protected browser routes are enabled.
+- Future browser login uses authorization code with PKCE and direct API bearer
+  tokens. Token storage requires security review before customer authentication
+  is enabled; production CORS permits only the configured web origin.
+- Landlord and manager workspace routes are selected from the API-resolved role.
+  `/workspace` is the neutral entry;
   legacy `/pilot` URLs remain compatibility redirects, and browser input cannot
   select a role.
 - Requested organization IDs are checked against active database membership;

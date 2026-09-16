@@ -2,11 +2,14 @@ import { randomUUID } from "node:crypto";
 
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import {
   publicPropertyIdSchema,
   publicPropertyListQuerySchema,
   publicPropertyListResultSchema,
   publicPropertyProjectionSchema,
+  publicRequestReceiptSchema,
+  publicViewingRequestInputSchema,
 } from "@keyforta/contracts";
 import Fastify, { type FastifyInstance } from "fastify";
 
@@ -14,13 +17,17 @@ import {
   InvalidPublicPropertyCursorError,
   type PublicPropertyGateway,
 } from "./properties/gateway.js";
+import type { PublicViewingRequestGateway } from "./properties/viewing-gateway.js";
 
 const serviceName = "keyforta-api";
 const requestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
 export interface AppDependencies {
+  corsOrigin?: string | boolean;
   publicProperties?: PublicPropertyGateway;
+  publicViewingRequests?: PublicViewingRequestGateway;
   readiness?: () => Promise<void>;
+  viewingRequestRateLimitMax?: number;
 }
 
 function problem(
@@ -44,6 +51,9 @@ function problem(
 export async function buildApp(
   dependencies: AppDependencies = {},
 ): Promise<FastifyInstance> {
+  const configuredCorsOrigin =
+    dependencies.corsOrigin ??
+    (process.env.NODE_ENV === "production" ? false : true);
   const app = Fastify({
     bodyLimit: 16 * 1024,
     frameworkErrors: (_error, request, reply) => {
@@ -78,6 +88,24 @@ export async function buildApp(
   });
 
   app.setErrorHandler((error, request, reply) => {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "statusCode" in error &&
+      error.statusCode === 429
+    ) {
+      return reply
+        .status(429)
+        .send(
+          problem(
+            request.id,
+            429,
+            "RATE_LIMITED",
+            "Too Many Requests",
+            "Too many viewing requests were submitted. Try again later.",
+          ),
+        );
+    }
     request.log.error({ requestId: request.id }, "Unhandled request error");
     return reply
       .status(500)
@@ -107,8 +135,16 @@ export async function buildApp(
   );
 
   await app.register(helmet);
+  await app.register(rateLimit, {
+    global: false,
+  });
   await app.register(cors, {
-    origin: process.env.NODE_ENV === "production" ? false : true,
+    credentials: false,
+    origin:
+      typeof configuredCorsOrigin === "string"
+        ? (origin, callback) =>
+            callback(null, origin === configuredCorsOrigin)
+        : configuredCorsOrigin,
   });
 
   app.get("/health", async (request) => ({
@@ -248,6 +284,75 @@ export async function buildApp(
                 "The requested property was not found.",
               ),
             );
+    },
+  );
+
+  app.post(
+    "/api/v1/viewing-requests",
+    {
+      config: {
+        rateLimit: {
+          max: dependencies.viewingRequestRateLimitMax ?? 10,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (request, reply) => {
+    if (!dependencies.publicViewingRequests) {
+      return reply
+        .status(503)
+        .send(
+          problem(
+            request.id,
+            503,
+            "DEPENDENCY_UNAVAILABLE",
+            "Service Unavailable",
+            "Viewing requests are temporarily unavailable.",
+          ),
+        );
+    }
+
+    const parsedInput = publicViewingRequestInputSchema.safeParse(request.body);
+    if (!parsedInput.success) {
+      return reply
+        .status(400)
+        .send(
+          problem(
+            request.id,
+            400,
+            "VALIDATION_ERROR",
+            "Validation Error",
+            "The viewing request is invalid.",
+            parsedInput.error.flatten(),
+          ),
+        );
+    }
+
+    const accepted = await dependencies.publicViewingRequests.create({
+      ...parsedInput.data,
+      correlationId: request.id,
+    });
+    if (!accepted) {
+      return reply
+        .status(404)
+        .send(
+          problem(
+            request.id,
+            404,
+            "NOT_FOUND",
+            "Not Found",
+            "The requested property was not found.",
+          ),
+        );
+    }
+
+    return reply.status(202).send({
+      data: publicRequestReceiptSchema.parse({
+        reference: request.id,
+        status: "accepted",
+      }),
+      meta: { requestId: request.id },
+    });
     },
   );
 

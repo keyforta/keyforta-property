@@ -46,7 +46,7 @@ jobs:
       RESOURCE_GROUP: rg-keyforta-dev-san
     steps:
       - name: Check out immutable revision
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ env.DEPLOYMENT_SHA }}
@@ -90,14 +90,14 @@ jobs:
           grep -Fx "scope=$expected_scope" plan-evidence/deployment-plan.txt
 
       - name: Sign in to Azure with OIDC
-        uses: azure/login@v3
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Preview foundation changes
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group what-if \
@@ -109,7 +109,7 @@ jobs:
 
       - name: Determine deployment plan scope
         id: foundation-state
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             if az deployment group show \
@@ -124,7 +124,7 @@ jobs:
 
       - name: Deploy foundation
         if: inputs.operation == 'deploy' || inputs.operation == 'deploy-foundation'
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group create \
@@ -136,7 +136,7 @@ jobs:
 
       - name: Load foundation outputs
         if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             outputs=$(az deployment group show --resource-group "$RESOURCE_GROUP" --name "keyforta-${ENVIRONMENT}-foundation" --query properties.outputs -o json)
@@ -167,7 +167,7 @@ jobs:
 
       - name: Preview database access changes
         if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group what-if \
@@ -185,7 +185,7 @@ jobs:
 
       - name: Preview database job changes
         if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group what-if \
@@ -212,7 +212,7 @@ jobs:
 
       - name: Configure PostgreSQL Entra administrator
         if: inputs.operation == 'deploy'
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group create \
@@ -257,7 +257,7 @@ jobs:
 
       - name: Deploy migration job
         if: inputs.operation == 'deploy'
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group create \
@@ -295,7 +295,7 @@ jobs:
 
       - name: Deploy dormant development seed job
         if: inputs.operation == 'deploy'
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group create \
@@ -311,7 +311,7 @@ jobs:
 
       - name: Preview application changes
         if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group what-if \
@@ -330,17 +330,12 @@ jobs:
                 entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
-                entraAuthorizationEndpoint="${{ vars.ENTRA_AUTHORIZATION_ENDPOINT }}" \
-                entraTokenEndpoint="${{ vars.ENTRA_TOKEN_ENDPOINT }}" \
-                entraClientId="${{ vars.ENTRA_CLIENT_ID }}" \
-                entraScopes="${{ vars.ENTRA_SCOPES }}" \
-                defaultOrganizationId="${{ vars.KEYFORTA_DEFAULT_ORGANIZATION_ID }}" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER"
 
       - name: Deploy applications
         if: inputs.operation == 'deploy'
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group create \
@@ -359,49 +354,57 @@ jobs:
                 entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
-                entraAuthorizationEndpoint="${{ vars.ENTRA_AUTHORIZATION_ENDPOINT }}" \
-                entraTokenEndpoint="${{ vars.ENTRA_TOKEN_ENDPOINT }}" \
-                entraClientId="${{ vars.ENTRA_CLIENT_ID }}" \
-                entraScopes="${{ vars.ENTRA_SCOPES }}" \
-                defaultOrganizationId="${{ vars.KEYFORTA_DEFAULT_ORGANIZATION_ID }}" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER"
 
-      - name: Smoke test public BFF
+      - name: Smoke test public applications
         if: inputs.operation == 'deploy'
         run: |
-          fqdn=$(az containerapp show \
+          web_fqdn=$(az containerapp show \
             --name "ca-keyforta-${ENVIRONMENT}-web" \
             --resource-group "$RESOURCE_GROUP" \
             --query properties.configuration.ingress.fqdn -o tsv)
-          web_url="https://${fqdn}"
+          api_fqdn=$(az containerapp show \
+            --name "ca-keyforta-${ENVIRONMENT}-api" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          web_url="https://${web_fqdn}"
+          api_url="https://${api_fqdn}"
           curl --fail --retry 12 --retry-delay 10 "${web_url}/"
           curl --fail --retry 12 --retry-delay 10 \
-            --header 'content-type: application/json' \
-            --data '{"advanceRentPeriods":1,"baseRentMinor":40000,"concessionBasisPoints":1000,"concessionPeriods":2,"currency":"USD","leaseStartDate":"2026-10-01","periods":12,"refundableGuaranteeMultiple":3}' \
-            "${web_url}/api/lease-schedules/preview"
-          curl --fail --retry 12 --retry-delay 10 \
-            "${web_url}/locations" > locations.html
-          grep -q "Logements disponibles" locations.html
-          ! grep -q "Service indisponible" locations.html
+            --header "origin: ${web_url}" \
+            --dump-header api-headers.txt \
+            "${api_url}/ready"
+          tr -d '\r' < api-headers.txt \
+            | grep -iFx "access-control-allow-origin: ${web_url}"
           curl --fail --silent --show-error \
-            --dump-header login-headers.txt \
-            --output /dev/null \
-            "${web_url}/api/auth/login"
-          authorization_url=$(awk 'BEGIN { IGNORECASE=1 } /^location:/ { sub(/\r$/, ""); sub(/^[^:]+:[[:space:]]*/, ""); print; exit }' login-headers.txt)
+            --header "origin: ${web_url}" \
+            "${api_url}/api/v1/properties?limit=1" > public-properties.json
           node -e '
-            const [authorizationUrl, expectedCallback] = process.argv.slice(1);
-            const actualCallback = new URL(authorizationUrl).searchParams.get("redirect_uri");
-            if (actualCallback !== expectedCallback) {
-              throw new Error(`OAuth callback mismatch: expected ${expectedCallback}, received ${actualCallback}`);
+            const response = JSON.parse(require("node:fs").readFileSync("public-properties.json", "utf8"));
+            if (!Array.isArray(response.items) || !Number.isInteger(response.total)) {
+              throw new Error("Public property response does not match its contract.");
             }
-          ' "$authorization_url" "${web_url}/api/auth/callback"
+            const forbidden = ["organizationId", "unitId", "ownerId", "managerId"];
+            for (const item of response.items) {
+              for (const field of forbidden) {
+                if (field in item) throw new Error(`Public property exposed ${field}.`);
+              }
+            }
+          '
+          curl --fail --silent --show-error \
+            --header "origin: https://denied.example.test" \
+            --dump-header denied-origin-headers.txt \
+            --output /dev/null \
+            "${api_url}/health"
+          ! grep -qi '^access-control-allow-origin:' denied-origin-headers.txt
 
           {
             echo "## Dev deployment"
             echo "- Revision: \`${DEPLOYMENT_SHA}\`"
             echo "- Web: ${web_url}"
-            echo "- Checks: home, lease preview, public catalogue, OAuth callback"
+            echo "- API: ${api_url}"
+            echo "- Checks: web home, database readiness, public projection, restricted browser origin"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize deployment plan
@@ -442,7 +445,7 @@ jobs:
 
       - name: Upload deployment plan evidence
         if: inputs.operation == 'plan'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: deployment-plan-${{ env.DEPLOYMENT_SHA }}
           path: deployment-plan.txt

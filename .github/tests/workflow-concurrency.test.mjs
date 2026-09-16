@@ -14,7 +14,7 @@ import YAML from "yaml";
 
 const workflows = {
   deploy: {
-    file: "deployments/azure/workflows/deploy.yml",
+    file: ".github/workflows/deploy.yml",
     job: "deploy",
     step: "Build and push immutable images",
   },
@@ -31,6 +31,47 @@ test("CI preserves repository verification and recursive Bicep compilation", () 
   for (const step of steps.filter((step) => step.uses)) {
     assert.match(step.uses, /@[a-f0-9]{40}$/);
   }
+});
+
+test("deployment workflows pin every action to an immutable commit", () => {
+  for (const file of [
+    ".github/workflows/deploy.yml",
+    ".github/workflows/seed-development.yml",
+  ]) {
+    const document = YAML.parse(readFileSync(file, "utf8"));
+    for (const job of Object.values(document.jobs)) {
+      for (const step of job.steps.filter((candidate) => candidate.uses)) {
+        assert.match(step.uses, /@[a-f0-9]{40}$/, `${file}: ${step.uses}`);
+      }
+    }
+  }
+});
+
+test("deploy normalizes curl CRLF before matching the exact CORS origin", () => {
+  const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
+  const step = document.jobs.deploy.steps.find(
+    (candidate) => candidate.name === "Smoke test public applications",
+  );
+  assert.match(
+    step?.run ?? "",
+    /tr -d '\\r' < api-headers\.txt/,
+  );
+  assert.match(
+    step?.run ?? "",
+    /grep -iFx "access-control-allow-origin: \$\{web_url\}"/,
+  );
+
+  const result = spawnSync(
+    "bash",
+    [
+      "-o",
+      "pipefail",
+      "-c",
+      "printf 'access-control-allow-origin: https://web.example.test\\r\\n' | tr -d '\\r' | grep -iFx 'access-control-allow-origin: https://web.example.test'",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 0);
 });
 
 function workflowScript(name) {

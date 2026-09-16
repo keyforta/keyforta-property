@@ -14,11 +14,6 @@ param databaseUserName string
 param entraAudience string
 param entraIssuer string
 param entraJwksUri string
-param entraAuthorizationEndpoint string
-param entraTokenEndpoint string
-param entraClientId string
-param entraScopes string
-param defaultOrganizationId string
 param documentStorageAccountName string
 param tenantApplicationContainerName string
 
@@ -52,7 +47,8 @@ resource api 'Microsoft.App/containerApps@2024-10-02-preview' = {
     environmentId: appEnvironment.id
     configuration: {
       ingress: {
-        external: false
+        allowInsecure: false
+        external: true
         targetPort: 4000
         transport: 'http'
       }
@@ -67,6 +63,7 @@ resource api 'Microsoft.App/containerApps@2024-10-02-preview' = {
             { name: 'NODE_ENV', value: 'production' }
             { name: 'API_HOST', value: '0.0.0.0' }
             { name: 'API_PORT', value: '4000' }
+            { name: 'CORS_ALLOWED_ORIGIN', value: webPublicBaseUrl }
             { name: 'DATABASE_AUTH', value: 'entra' }
             { name: 'DATABASE_URL', value: 'postgresql://${databaseUserName}@${postgres.properties.fullyQualifiedDomainName}:5432/keyforta?sslmode=require' }
             { name: 'ENTRA_AUDIENCE', value: entraAudience }
@@ -127,13 +124,6 @@ resource web 'Microsoft.App/containerApps@2024-10-02-preview' = {
           image: webImage
           env: [
             { name: 'NODE_ENV', value: 'production' }
-            { name: 'API_INTERNAL_BASE_URL', value: 'https://${api.properties.configuration.ingress.fqdn}' }
-            { name: 'AUTH_PUBLIC_BASE_URL', value: webPublicBaseUrl }
-            { name: 'ENTRA_AUTHORIZATION_ENDPOINT', value: entraAuthorizationEndpoint }
-            { name: 'ENTRA_TOKEN_ENDPOINT', value: entraTokenEndpoint }
-            { name: 'ENTRA_CLIENT_ID', value: entraClientId }
-            { name: 'ENTRA_SCOPES', value: entraScopes }
-            { name: 'KEYFORTA_DEFAULT_ORGANIZATION_ID', value: defaultOrganizationId }
           ]
           probes: [
             {

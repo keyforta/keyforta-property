@@ -72,7 +72,7 @@ must never be used for production or replaced with ad hoc database commands.
 ## Post-deployment verification
 
 - Verify the home page and `/locations` through the public web endpoint.
-- Verify the lease-schedule BFF returns the approved deterministic calculation.
+- Verify the lease-schedule API returns the approved deterministic calculation.
 - Confirm the catalogue returns only explicitly published fields and does not
   fall back to synthetic development listings.
 - Test one authorized request and one denied cross-organization request when

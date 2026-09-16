@@ -18,16 +18,20 @@ import {
   RentalApplicationPage,
   ViewingRequestPage,
   TextContentPage,
-} from './pages/index.js';
+} from './views/index.js';
 import { localizeProperty, properties } from './data/content.js';
+import { buildPortalUrl, resolvePortalWebUrl } from './portal-url.js';
 import { appendRow } from './services/storage.js';
 
-const SignInPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.SignInPage })));
-const WorkspaceLoginPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.WorkspaceLoginPage })));
-const SignupPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.SignupPage })));
-const InviteManagerPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.InviteManagerPage })));
-const OfferServicesPage = lazy(() => import('./pages/AccountPages.jsx').then((module) => ({ default: module.OfferServicesPage })));
-const portalWebUrl = import.meta.env.VITE_PORTAL_WEB_URL || 'http://127.0.0.1:3001/';
+const SignInPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.SignInPage })));
+const WorkspaceLoginPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.WorkspaceLoginPage })));
+const SignupPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.SignupPage })));
+const InviteManagerPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.InviteManagerPage })));
+const OfferServicesPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.OfferServicesPage })));
+const portalWebUrl = resolvePortalWebUrl(
+  process.env.NEXT_PUBLIC_PORTAL_WEB_URL,
+  process.env.NODE_ENV,
+);
 const workspaceRoles = ['tenant', 'landlord', 'manager', 'operator'];
 
 const routeMetadata = [
@@ -97,20 +101,18 @@ function SignupRoute({ lang, onSubmit }) {
 }
 
 function getPortalUrl(role, email) {
-  const url = new URL(portalWebUrl);
-  url.searchParams.set('role', role);
-  if (email) url.searchParams.set('email', email);
-  return url.toString();
+  return buildPortalUrl(portalWebUrl, role, email);
 }
 
 function PortalRedirectRoute() {
   const { role } = useParams();
+  const target = workspaceRoles.includes(role) ? getPortalUrl(role) : null;
 
   useEffect(() => {
-    if (workspaceRoles.includes(role)) window.location.replace(getPortalUrl(role));
-  }, [role]);
+    if (target) window.location.replace(target);
+  }, [target]);
 
-  if (!workspaceRoles.includes(role)) return <Navigate to="/signin" replace />;
+  if (!target) return <Navigate to="/signin" replace />;
   return <div className="page content-page shell route-loading"><Spinner label="Opening KEYFORTA portal" /></div>;
 }
 
@@ -200,7 +202,12 @@ export default function App() {
   }
 
   function handleWorkspaceLogin(role, values) {
-    window.location.assign(getPortalUrl(role, values.email));
+    const target = getPortalUrl(role, values.email);
+    if (!target) {
+      notify(t('status.portal_unavailable'), 'error');
+      return;
+    }
+    window.location.assign(target);
   }
 
   function handleSignup(values) {

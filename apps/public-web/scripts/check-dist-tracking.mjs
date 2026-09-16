@@ -8,7 +8,7 @@ const trackedFiles = execFileSync("git", ["ls-files", "-z"], {
   .split("\0")
   .filter(Boolean);
 const trackedDistFiles = trackedFiles.filter((file) =>
-  /(^|\/)dist\//.test(file),
+  /(^|\/)(?:dist|\.next)\//.test(file),
 );
 
 assert.deepEqual(
@@ -22,6 +22,7 @@ for (const generatedFile of [
   "apps/api/dist/server.js",
   "apps/admin-web/dist/index.html",
   "apps/portal-web/dist/index.html",
+  "apps/public-web/.next/standalone/apps/public-web/server.js",
 ]) {
   execFileSync(
     "git",
@@ -30,4 +31,4 @@ for (const generatedFile of [
   );
 }
 
-console.log("Generated dist directories are ignored and absent from Git tracking.");
+console.log("Generated dist and Next.js directories are ignored and absent from Git tracking.");

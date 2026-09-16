@@ -24,11 +24,22 @@ export class InvalidPublicPropertyCursorError extends Error {
 function toProjection(record: PublicPropertyRecord): PublicPropertyProjection {
   return {
     address: record.address,
+    amenities: record.amenities,
+    availableFrom: record.availableFrom,
+    bathrooms: record.bathrooms,
+    bedrooms: record.bedrooms,
     city: record.city,
+    currency: record.currency,
+    district: record.district,
     id: record.id,
     ...(record.imageUrl ? { imageUrl: record.imageUrl } : {}),
+    imageUrls: record.imageUrls,
+    monthlyRentMinor: record.monthlyRentMinor,
     name: record.name,
     summary: record.summary,
+    ...(record.areaSquareMeters
+      ? { areaSquareMeters: record.areaSquareMeters }
+      : {}),
   };
 }
 
@@ -50,7 +61,16 @@ export function createMemoryPublicPropertyGateway(
             (query.city === undefined ||
               record.city.localeCompare(query.city, undefined, {
                 sensitivity: "accent",
-              }) === 0),
+              }) === 0) &&
+            (query.district === undefined ||
+              record.district
+                .toLocaleLowerCase()
+                .includes(query.district.toLocaleLowerCase())) &&
+            (query.minBedrooms === undefined ||
+              record.bedrooms >= query.minBedrooms) &&
+            (query.maxMonthlyRentMinor === undefined ||
+              BigInt(record.monthlyRentMinor) <=
+                BigInt(query.maxMonthlyRentMinor)),
         )
         .sort((left, right) => {
           if (query.sort === "name_asc") {

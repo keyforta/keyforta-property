@@ -7,3 +7,8 @@ onlyBuiltDependencies:
   - esbuild
 allowBuilds:
   esbuild: true
+
+overrides:
+  '@fluentui/react-tabster': 9.26.14
+  keyborg: 2.6.0
+  tabster: 8.5.5

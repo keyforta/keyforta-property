@@ -4,9 +4,9 @@
 **Database assumption:** PostgreSQL 16+
 **Primary scope:** Kinshasa-first rental management with USD/CDF multi-currency support
 
-This is the relational model for the backend implementation. The executable, reviewed SQL artifacts are maintained beside this document under [`docs/database/`](./database/). They are reference implementation migrations, not application code; the backend team must execute them through its migration runner without weakening the stated ownership, constraints, or audit rules.
+This is the normative target relational model for the backend implementation. The reviewed SQL under [`docs/database/`](./database/) is a reference representation of that target, not the deployed migration lineage. Per ADR-013, [`infra/postgres/migrations`](../infra/postgres/migrations/) is the canonical executable history applied by the checksummed migration runner.
 
-The SQL migrations are canonical for exact PostgreSQL column types, enum names, constraint names, index definitions, and policy definitions. The abbreviated table descriptions below explain ownership and intent; they do not replace the SQL artifacts.
+The target SQL is authoritative for intended PostgreSQL column types, enum names, constraints, indexes, and policies. Operational differences must be explicit, additive migration steps toward this design; the abbreviated table descriptions below explain ownership and intent and do not replace either SQL artifact set.
 
 ## 0. Executable artifacts
 
@@ -17,7 +17,7 @@ The SQL migrations are canonical for exact PostgreSQL column types, enum names, 
 | [`V003__keyforta_reference_seed.sql`](./database/V003__keyforta_reference_seed.sql) | Idempotent reference data for currencies, locales, roles, policy keys, maintenance categories, and event schemas |
 | [`backup-retention-runbook.md`](./database/backup-retention-runbook.md) | Azure PostgreSQL/Blob backup, retention, restore testing, deletion, and legal-hold procedures |
 
-Migration execution order is `V001 → V002 → V003`. These files must be applied only by the migration role, recorded in the deployment ledger, and tested against a clean database and an upgrade from the previous production schema.
+The reference composition order is `V001 → V002 → V003`. Deployment applies only ordered migrations from `infra/postgres/migrations` through the migration role, records their checksums in the deployment ledger, and tests both clean installation and upgrade from the previous schema.
 
 ## 1. Conventions
 
@@ -91,7 +91,7 @@ Platform-scoped tables use `created_at`, `updated_at`, and actor columns but omi
 | `status` | text | `active`, `suspended`, `closed` |
 | `default_currency` | char(3) | `USD` or `CDF` initially |
 | `time_zone` | text | Valid IANA zone |
-| `jurisdiction_code` | text | `CD-KN` initially; policy-driven |
+| `jurisdiction_code` | text | Nullable until explicitly selected; policy-driven |
 | `policy_version` | text | Version of approved business/legal policy |
 | common audit columns | — | As applicable |
 
@@ -126,6 +126,35 @@ Constraints/indexes: effective range valid; exclusion constraint prevents prohib
 `id uuid PK`, `organization_id uuid FK`, `email citext`, `proposed_roles text[]`, `scope jsonb`, `token_digest text`, `status text`, `expires_at timestamptz`, `accepted_at timestamptz`, `invited_by uuid FK parties`, timestamps.
 
 Constraints/indexes: token digest unique; accepted/revoked invitations cannot be reused; index `(organization_id, status, expires_at)`; never store raw invitation token.
+
+Operational migration `0015_party_and_jurisdiction_policy_foundation.sql`
+introduces parties, identity profiles, effective membership dates, and nullable
+organization/property jurisdiction fields additively. Existing `users` and
+single-role membership columns remain compatibility fields while later slices
+migrate callers toward the target model. The backfill maps each existing user
+to a deterministic party while leaving `party_type` unset; it preserves legacy
+display names verbatim and does not infer legal identity, consent, verification,
+expanded roles, or jurisdiction. Memberships receive independent identifiers
+and non-overlapping active intervals so role changes retain prior rows.
+
+Operational migration `0016_bounded_public_listing_pagination.sql` adds indexed,
+database-side public listing filters, stable sort-specific keyset pagination,
+exact totals, and explicit invalid-cursor signaling. The API receives at most
+the requested page plus one look-ahead row and never exposes organization or
+unit identifiers through this projection.
+
+### `jurisdiction_policy_versions`, approval evidence, and activations
+
+Jurisdiction policy versions contain a capability key, jurisdiction code,
+monotonic version, typed JSON rule payload, counsel-approval requirement,
+creator, and creation time. Approval evidence records the policy-owner or
+qualified-counsel role, approver, source reference, optional evidence hash, and
+approval time. Revocations and effective-dated activations are append-only.
+
+The active-policy resolver returns no policy when an activation is absent or
+outside its effective interval, required evidence is missing or mismatched, or
+referenced evidence has been revoked. Operational migrations never seed a
+jurisdiction, legal conclusion, consent, or approval evidence.
 
 ## 5. Relationships and inventory
 
