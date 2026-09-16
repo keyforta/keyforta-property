@@ -370,12 +370,24 @@ case "$*" in
     echo ca-keyforta-dev-web
     ;;
   *"containerapp show"*"-web"*) exit 1 ;;
+  *properties.defaultDomain*) echo environment.example.test ;;
   *) exit 1 ;;
 esac
 `,
       );
       executable(directory, "curl", "#!/usr/bin/env bash\necho called > \"$CALLED\"\n");
-      executable(directory, "dig", "#!/usr/bin/env bash\necho called > \"$CALLED\"\n");
+      executable(
+        directory,
+        "dig",
+        `#!/usr/bin/env bash
+echo called > "$CALLED"
+case "$*" in
+  *" A keyforta.com") echo 192.0.2.10 ;;
+  *" CNAME www.keyforta.com") echo ca-keyforta-dev-web.environment.example.test. ;;
+  *" TXT asuid.keyforta.com"|*" TXT asuid.www.keyforta.com") echo '"verification-id"' ;;
+esac
+`,
+      );
       const called = join(directory, "called");
       const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
         encoding: "utf8",
@@ -419,12 +431,24 @@ case "$*" in
   *customDomainVerificationId*) echo verification-id ;;
   *"containerapp list"*"-web"*) echo ca-keyforta-dev-web ;;
   *"containerapp show"*"-web"*) exit 0 ;;
+  *properties.defaultDomain*) echo environment.example.test ;;
   *) exit 1 ;;
 esac
 `,
     );
     executable(directory, "curl", "#!/usr/bin/env bash\necho called > \"$CALLED\"\n");
-    executable(directory, "dig", "#!/usr/bin/env bash\necho called > \"$CALLED\"\n");
+    executable(
+      directory,
+      "dig",
+      `#!/usr/bin/env bash
+echo called > "$CALLED"
+case "$*" in
+  *" A keyforta.com") echo 192.0.2.10 ;;
+  *" CNAME www.keyforta.com") echo ca-keyforta-dev-web.environment.example.test. ;;
+  *" TXT asuid.keyforta.com"|*" TXT asuid.www.keyforta.com") echo '"verification-id"' ;;
+esac
+`,
+    );
     const called = join(directory, "called");
     const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
       encoding: "utf8",
