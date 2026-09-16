@@ -86,6 +86,7 @@ test("deploy binds and verifies the canonical public web domains", () => {
   const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
   const steps = document.jobs.deploy.steps;
   const preview = steps.find((step) => step.name === "Preview application changes");
+  const preconditions = steps.find((step) => step.name === "Verify public-web domain preconditions");
   const deploy = steps.find((step) => step.name === "Deploy applications");
   const smoke = steps.find((step) => step.name === "Smoke test public applications");
 
@@ -95,13 +96,24 @@ test("deploy binds and verifies the canonical public web domains", () => {
     assert.match(step?.with?.inlineScript ?? "", /webCanonicalHostName="\$WEB_CANONICAL_HOST"/);
     assert.match(step?.with?.inlineScript ?? "", /webWwwHostName="\$WEB_WWW_HOST"/);
   }
+  assert.equal(
+    preconditions?.if,
+    "inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE == 'public-web'",
+  );
+  assert.match(preconditions?.run ?? "", /access-control-allow-origin: \$\{web_url\}/);
+  assert.match(preconditions?.run ?? "", /properties\.staticIp/);
+  assert.match(preconditions?.run ?? "", /customDomainVerificationId/);
+  assert.match(preconditions?.run ?? "", /dig \+short A "\$WEB_CANONICAL_HOST"/);
+  assert.match(preconditions?.run ?? "", /dig \+short CNAME "\$WEB_WWW_HOST"/);
   assert.match(smoke?.run ?? "", /web_url="https:\/\/\$\{WEB_CANONICAL_HOST\}"/);
-  assert.match(smoke?.run ?? "", /location: \$\{web_url\}\//);
+  assert.match(smoke?.run ?? "", /www_path="\/properties\?city=Kinshasa"/);
+  assert.match(smoke?.run ?? "", /301\|308/);
+  assert.match(smoke?.run ?? "", /location: \$\{web_url\}\$\{www_path\}/);
 });
 
 test("application Bicep uses managed certificates for both public web domains", () => {
   const template = readFileSync("infra/bicep/apps.bicep", "utf8");
-  assert.match(template, /domainControlValidation: 'HTTP'[\s\S]*subjectName: webCanonicalHostName/);
+  assert.match(template, /domainControlValidation: 'TXT'[\s\S]*subjectName: webCanonicalHostName/);
   assert.match(template, /domainControlValidation: 'CNAME'[\s\S]*subjectName: webWwwHostName/);
   assert.match(template, /customDomains:[\s\S]*certificateId: webCanonicalCertificate\.id[\s\S]*certificateId: webWwwCertificate\.id/);
   assert.match(template, /var webPublicBaseUrl = 'https:\/\/\$\{webCanonicalHostName\}'/);

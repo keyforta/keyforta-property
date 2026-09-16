@@ -382,6 +382,40 @@ jobs:
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
                 webWwwHostName="$WEB_WWW_HOST"
 
+      - name: Verify public-web domain preconditions
+        if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE == 'public-web'
+        run: |
+          api_fqdn=$(az containerapp show \
+            --name "ca-keyforta-${ENVIRONMENT}-api" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          api_url="https://${api_fqdn}"
+          web_url="https://${WEB_CANONICAL_HOST}"
+          curl --fail --retry 12 --retry-delay 10 \
+            --header "origin: ${web_url}" \
+            --dump-header api-precondition-headers.txt \
+            "${api_url}/ready"
+          tr -d '\r' < api-precondition-headers.txt \
+            | grep -iFx "access-control-allow-origin: ${web_url}"
+
+          static_ip=$(az containerapp env show \
+            --name "$APP_ENVIRONMENT" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.staticIp -o tsv)
+          verification_id=$(az containerapp env show \
+            --name "$APP_ENVIRONMENT" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.customDomainConfiguration.customDomainVerificationId -o tsv)
+          web_fqdn=$(az containerapp show \
+            --name "ca-keyforta-${ENVIRONMENT}-web" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          test "$(dig +short A "$WEB_CANONICAL_HOST")" = "$static_ip"
+          test "$(dig +short CNAME "$WEB_WWW_HOST" | sed 's/\.$//')" = "$web_fqdn"
+          for verification_host in "asuid.${WEB_CANONICAL_HOST}" "asuid.${WEB_WWW_HOST}"; do
+            test "$(dig +short TXT "$verification_host" | tr -d '\"')" = "$verification_id"
+          done
+
       - name: Deploy applications
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
@@ -415,13 +449,19 @@ jobs:
           web_url="https://${WEB_CANONICAL_HOST}"
           if [ "$DEPLOYMENT_SCOPE" != "api" ]; then
             curl --fail --retry 12 --retry-all-errors --retry-delay 10 "${web_url}/"
-            curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 \
+            www_path="/properties?city=Kinshasa"
+            www_status=$(curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 \
               --head \
               --dump-header www-headers.txt \
               --output /dev/null \
-              "https://${WEB_WWW_HOST}/"
+              --write-out "%{http_code}" \
+              "https://${WEB_WWW_HOST}${www_path}")
+            case "$www_status" in
+              301|308) ;;
+              *) echo "Expected a permanent www redirect, received HTTP ${www_status}." >&2; exit 1 ;;
+            esac
             tr -d '\r' < www-headers.txt \
-              | grep -iFx "location: ${web_url}/"
+              | grep -iFx "location: ${web_url}${www_path}"
           fi
           if [ "$DEPLOYMENT_SCOPE" != "public-web" ]; then
             api_fqdn=$(az containerapp show \

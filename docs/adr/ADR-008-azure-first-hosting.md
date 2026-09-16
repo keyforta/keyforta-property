@@ -1,6 +1,6 @@
 # ADR-008: Azure-First Application Hosting
 
-**Status:** Superseded by ADR-014
+**Status:** Accepted; public-site hosting superseded by ADR-014
 **Date:** 2026-09-14
 **Owners:** Technology/Operations
 

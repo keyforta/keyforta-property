@@ -109,8 +109,19 @@ the component scope does not create another server.
 
 ## Public domain cutover
 
-Preserve the prior Cloudflare records before changing them. The approved pilot
-records are:
+Preserve the prior Cloudflare records before changing them. Query the current
+Container Apps environment immediately before cutover:
+
+```bash
+az containerapp env show --name "$APP_ENVIRONMENT" --resource-group "$RESOURCE_GROUP" \
+  --query '{staticIp:properties.staticIp,verificationId:properties.customDomainConfiguration.customDomainVerificationId}'
+az containerapp show --name "ca-keyforta-${ENVIRONMENT}-web" --resource-group "$RESOURCE_GROUP" \
+  --query properties.configuration.ingress.fqdn -o tsv
+```
+
+The deployment workflow refuses a `public-web` deployment unless these live
+values match public DNS and the existing API permits the canonical origin. The
+2026-09-16 dev snapshot is:
 
 | Type  | Name        | Value                                                                      | Proxy    |
 | ----- | ----------- | -------------------------------------------------------------------------- | -------- |
@@ -118,6 +129,9 @@ records are:
 | TXT   | `asuid.www` | `B5783F46F1301E1DCA04EA5A00366ABCAD1672F49C0517FC29E444C4162B29CB`         | DNS only |
 | A     | `@`         | `4.253.76.254`                                                             | DNS only |
 | CNAME | `www`       | `ca-keyforta-dev-web.blueplant-a2bb85a6.southafricanorth.azurecontainerapps.io` | DNS only |
+
+Do not reuse the snapshot after the Container Apps environment is recreated;
+derive and review a fresh record set first.
 
 Azure managed certificate issuance and renewal require the A and CNAME records
 to resolve directly to Container Apps. Do not enable the Cloudflare proxy for
