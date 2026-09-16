@@ -1,6 +1,8 @@
 node_modules/
+.turbo/
 .sites-runtime/
 apps/api/dist/
+packages/types/dist/
 dist/.openai/
 harness/reports/
 keyforta-*.tar.gz

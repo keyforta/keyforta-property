@@ -9,5 +9,12 @@
       "default": "./src/index.js"
     }
   },
-  "dependencies": { "zod": "4.1.12" }
+  "scripts": {
+    "check": "pnpm test",
+    "test": "node --test test/mcp.test.js"
+  },
+  "dependencies": {
+    "@keyforta/types": "workspace:*",
+    "zod": "4.1.12"
+  }
 }

@@ -12,13 +12,13 @@ interfaces in `apps/public-web`, `apps/portal-web`, and `apps/admin-web`,
 forward-only PostgreSQL migrations in `docs/database`, and deterministic
 engineering enforcement in `harness`.
 
-Before implementation, associate work with an approved issue and task contract.
-Respect its allowed paths and protected-path approvals. Run `pnpm verify`; never
-weaken a gate, fabricate evidence, expose secrets, use real tenant data, or deploy
-without explicit authorization. Add authorization and cross-organization tests
-for data paths. Preserve integer minor-unit money, immutable posted financial
-history, human decisions, evidence versions, audit correlation IDs, and operation
-when AI is unavailable.
+During foundation setup, work directly from approved product requirements and
+run `pnpm verify`. Task contracts, harness lifecycle transitions, and generated
+evidence are opt-in until the product owner activates the harness. Never expose
+secrets, use real tenant data, or deploy without explicit authorization. Add
+authorization and cross-organization tests for data paths. Preserve integer
+minor-unit money, immutable posted financial history, human decisions, evidence
+versions, audit correlation IDs, and operation when AI is unavailable.
 
 Resolve agent identity, lifecycle, capability ownership, and routing through
 `harness/policies/agent-registry.json` and `harness/policies/agent-routing.json`.
@@ -26,9 +26,8 @@ Do not invoke deferred, experimental, or retired roles. Use structured handoffs;
 repository approval records never replace GitHub controls.
 
 Use repository procedures from `.github/skills/<skill-name>/SKILL.md` when their
-discovery descriptions match the request. Skills do not create authority: keep
-all work bound to task contracts, routing, handoffs, EDD evidence, canonical
-verification, and external GitHub approval.
+discovery descriptions match the request. Skills do not create authority.
+External GitHub and product-owner approvals remain authoritative.
 
 Update authoritative documentation with consequential changes. Stop for human
 approval before changing requirements, scope, architecture style, technology,

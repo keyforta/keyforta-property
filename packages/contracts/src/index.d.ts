@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./mcp.js";
+
 export const roles: string[];
 export const resources: string[];
 export const maintenanceStatuses: string[];

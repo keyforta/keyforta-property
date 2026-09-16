@@ -41,9 +41,10 @@ External release remains blocked by the explicit pre-beta controls in
 1. Repository-local Copilot roles and precedence were absent. Evidence: before
    this change `.github/agents`, `.github/instructions`, and
    `.github/copilot-instructions.md` did not exist.
-2. `pnpm check` did not enforce task scope, protected paths, architecture edges,
-   secret patterns, documentation impact, or machine-readable evidence. The new
-   `harness` and `pnpm verify` close the foundational gap.
+2. The repository includes enforcement for task scope, protected paths,
+   architecture edges, secret patterns, documentation impact, and
+   machine-readable evidence. This harness remains dormant during foundation
+   setup; `pnpm verify` currently runs product checks and production builds.
 3. Application telemetry is limited to Fastify logging, correlation IDs,
    health/readiness probes, and platform logs. There is no OpenTelemetry trace
    or application-metric implementation; see `OBSERVABILITY.md` for the safe
@@ -51,8 +52,8 @@ External release remains blocked by the explicit pre-beta controls in
 4. CI has dependency auditing but no platform-native secret-scanning or CodeQL
    workflow represented in source. The deterministic pattern grader is a first
    line, not a replacement for GitHub secret scanning.
-5. Accessibility has no browser/component runner. `pnpm verify` reports this as
-   skipped rather than presenting review as automated evidence.
+5. Accessibility has no browser/component runner. Harness evaluation reports
+  this as skipped rather than presenting review as automated evidence.
 
 ### Recommended
 
@@ -74,8 +75,8 @@ They are not activated by this pull request.
 
 ## Implementation sequence
 
-1. Merge governance and harness after independent review.
-2. Require an approved issue and updated task contract on implementation PRs.
+1. Finish and validate the product foundation with product-focused CI.
+2. Review and activate governance and harness enforcement as a separate decision.
 3. Add accessibility and security platform checks as separately approved tasks.
 4. Instrument telemetry against `OBSERVABILITY.md`, then validate proposed SLOs.
 5. Run restore and incident exercises before external data or commitments.

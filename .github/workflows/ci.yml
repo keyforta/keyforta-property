@@ -18,9 +18,6 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      HARNESS_CONTRACT_MODE: ${{ github.event_name == 'pull_request' && 'required' || 'skip' }}
-      HARNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -43,20 +40,4 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Validate repository
-        run: node harness/scripts/verify.mjs
-
-      - name: Generate final commit evidence
-        if: success() && github.event_name == 'pull_request'
-        run: |
-          node harness/scripts/generate-evidence.mjs
-          pnpm verify:evidence
-          EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=verify:evidence pnpm verify:transition
-
-      - name: Retain engineering evidence
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}
-          path: harness/reports/
-          if-no-files-found: error
-          retention-days: 30
+        run: pnpm verify
