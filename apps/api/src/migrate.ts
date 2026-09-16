@@ -20,6 +20,12 @@ function quoteIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
 
+function assertUuid(value: string, variableName: string): void {
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value)) {
+    throw new Error(`${variableName} must be a valid UUID.`);
+  }
+}
+
 function unwrapMigration(content: string, fileName: string): string {
   const match = /^begin;\s*\n([\s\S]*)\ncommit;\s*$/.exec(content);
   if (!match?.[1]) {
@@ -97,6 +103,7 @@ export async function mapRuntimePrincipal(client: PoolClient): Promise<void> {
       "DATABASE_RUNTIME_PRINCIPAL and DATABASE_RUNTIME_PRINCIPAL_ID must be configured together.",
     );
   }
+  assertUuid(principalId, "DATABASE_RUNTIME_PRINCIPAL_ID");
 
   const existing = await client.query<{ label: string }>(
     `select labels.label
@@ -127,10 +134,18 @@ export async function mapRuntimePrincipal(client: PoolClient): Promise<void> {
       );
     }
   } else {
-    await client.query(
-      "select * from pg_catalog.pgaadauth_create_principal_with_oid($1, $2, 'service', false, false)",
-      [principalName, principalId],
-    );
+    const roleName = quoteIdentifier(principalName);
+    await client.query("begin");
+    try {
+      await client.query(`create role ${roleName} login`);
+      await client.query(
+        `security label for "pgaadauth" on role ${roleName} is 'aadauth,oid=${principalId},type=service'`,
+      );
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    }
   }
   await client.query(`alter role ${quoteIdentifier(principalName)} noinherit`);
   await client.query(
