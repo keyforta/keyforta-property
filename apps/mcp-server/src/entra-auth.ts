@@ -47,6 +47,7 @@ export function createEntraAuthenticator(
           algorithms: ["RS256"],
           audience: options.audience,
           issuer: options.issuer,
+          requiredClaims: ["exp"],
         });
         const tenantId = nonEmptyString(payload.tid);
         const principalReference = nonEmptyString(payload.sub);
