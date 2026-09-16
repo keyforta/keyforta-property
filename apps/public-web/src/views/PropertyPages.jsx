@@ -7,6 +7,7 @@ import {
   SearchBox,
   Select,
   Textarea,
+  Tooltip,
   tokens,
 } from "@fluentui/react-components";
 import {
@@ -15,7 +16,6 @@ import {
   ArrowRight20Regular,
   CheckmarkCircle20Filled,
   Circle20Regular,
-  Filter20Regular,
 } from "@fluentui/react-icons";
 import { Link } from "react-router-dom";
 import { useState } from "react";
@@ -28,7 +28,7 @@ const usePropertyPageStyles = makeStyles({
   filters: {
     display: "grid",
     gridTemplateColumns:
-      "minmax(240px, 2fr) repeat(2, minmax(150px, 1fr)) minmax(220px, 1.3fr) auto auto",
+      "minmax(240px, 2fr) repeat(2, minmax(150px, 1fr)) minmax(220px, 1.3fr) auto",
     alignItems: "end",
     gap: tokens.spacingHorizontalL,
     marginBottom: tokens.spacingVerticalXXL,
@@ -62,6 +62,7 @@ const usePropertyPageStyles = makeStyles({
     },
   },
   field: {
+    gridTemplateColumns: "minmax(0, 1fr)",
     minWidth: 0,
     "& label": {
       marginBottom: tokens.spacingVerticalXS,
@@ -75,20 +76,14 @@ const usePropertyPageStyles = makeStyles({
     minHeight: "44px",
     backgroundColor: "#fff",
   },
-  action: {
-    alignSelf: "end",
-    minWidth: "132px",
-    minHeight: "44px",
-    fontSize: "1rem",
-    "@media (max-width: 1200px)": {
-      width: "100%",
-    },
-  },
   reset: {
     alignSelf: "end",
-    minWidth: "108px",
+    justifySelf: "end",
+    width: "44px",
+    minWidth: "44px",
+    height: "44px",
     minHeight: "44px",
-    fontSize: "1rem",
+    padding: 0,
     color: "var(--logo-aubergine)",
     backgroundColor: "transparent",
     borderTopColor: "var(--line)",
@@ -98,9 +93,6 @@ const usePropertyPageStyles = makeStyles({
     ":hover": {
       color: "var(--logo-aubergine)",
       backgroundColor: "var(--logo-cream)",
-    },
-    "@media (max-width: 1200px)": {
-      width: "100%",
     },
   },
 });
@@ -125,7 +117,7 @@ export function PropertiesPage({ lang, filters, onFilterChange }) {
 
   return (
     <section className="page content-page shell">
-      <div className="section-head">
+      <div className="section-head property-discovery-head">
         <div>
           <p className="eyebrow">{t("property_pages.discovery_eyebrow")}</p>
           <h1>{t("property_pages.find_title")}</h1>
@@ -198,23 +190,19 @@ export function PropertiesPage({ lang, filters, onFilterChange }) {
             <option value="beds">{t("property_pages.bedrooms")}</option>
           </Select>
         </Field>
-        <Button
-          appearance="primary"
-          className={styles.action}
-          icon={<Filter20Regular />}
-          type="submit"
+        <Tooltip
+          content={t("property_pages.reset")}
+          relationship="label"
         >
-          {t("property_pages.apply_filters")}
-        </Button>
-        <Button
-          appearance="outline"
-          className={styles.reset}
-          icon={<ArrowReset20Regular />}
-          type="button"
-          onClick={() => onFilterChange("reset", "")}
-        >
-          {t("property_pages.reset")}
-        </Button>
+          <Button
+            appearance="outline"
+            aria-label={t("property_pages.reset")}
+            className={styles.reset}
+            icon={<ArrowReset20Regular />}
+            type="button"
+            onClick={() => onFilterChange("reset", "")}
+          />
+        </Tooltip>
       </form>
       <p
         className="results-count"

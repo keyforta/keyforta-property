@@ -1182,7 +1182,7 @@
   }
   .page > .hero > .hero-media {
     display: block;
-    padding: 0 30px 72px;
+    padding: 0 30px 30px;
   }
   .hero-typewriter {
     width: 100%;
@@ -1226,7 +1226,7 @@
   }
   .page > .hero > .hero-media {
     display: block;
-    padding: 0 16px 28px;
+    padding: 0 16px 16px;
   }
   .hero-typewriter {
     min-height: 136px;

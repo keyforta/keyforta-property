@@ -10,7 +10,7 @@ import {
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Route, Routes, matchRoutes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Header, Footer, AccessDialog } from './components/Layout.jsx';
+import { Header, Footer, AccessDialog, BackToTop } from './components/Layout.jsx';
 import {
   HomePage,
   PropertiesPage,
@@ -358,6 +358,7 @@ export default function App() {
         </Suspense>
       </main>
       <Footer lang={lang} />
+      <BackToTop />
       <AccessDialog lang={lang} open={accessOpen} interest={accessInterest} onClose={closeAccess} onSubmit={handleAccessSubmit} />
       <Toaster toasterId={toasterId} position="top-end" pauseOnHover />
     </>
