@@ -8,7 +8,7 @@ on:
         required: false
         type: string
       operation:
-        description: Preview first; bootstrap a fresh foundation or deploy a reviewed full plan
+        description: Preview first; bootstrap a fresh foundation or deploy a reviewed component plan
         required: true
         default: plan
         type: choice
@@ -72,7 +72,6 @@ jobs:
           git merge-base --is-ancestor "$DEPLOYMENT_SHA" origin/main
 
       - name: Verify deployment scope capability
-        if: inputs.operation != 'deploy-foundation'
         run: |
           case "$DEPLOYMENT_SCOPE" in
             api|full|postgres|public-web) ;;
@@ -196,7 +195,7 @@ jobs:
           esac
 
       - name: Preview database access changes
-        if: steps.foundation-state.outputs.exists == 'true' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
+        if: inputs.operation != 'deploy-foundation' && steps.foundation-state.outputs.exists == 'true' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
@@ -214,7 +213,7 @@ jobs:
                 dbaClientIpAddress="$DBA_CLIENT_IP"
 
       - name: Preview database job changes
-        if: steps.foundation-state.outputs.exists == 'true' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
+        if: inputs.operation != 'deploy-foundation' && steps.foundation-state.outputs.exists == 'true' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
@@ -230,7 +229,7 @@ jobs:
                 postgresServerName="$POSTGRES_SERVER" \
                 apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
       - name: Preview development seed job changes
-        if: steps.foundation-state.outputs.exists == 'true' && env.DEPLOYMENT_SCOPE == 'full'
+        if: inputs.operation != 'deploy-foundation' && steps.foundation-state.outputs.exists == 'true' && env.DEPLOYMENT_SCOPE == 'full'
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |

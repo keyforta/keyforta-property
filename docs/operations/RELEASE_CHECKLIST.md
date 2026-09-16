@@ -19,7 +19,7 @@ Create one record in the pull request or linked issue and keep it current.
 | Scope        | Reviewed deployment scope                              |
 | Migration    | For `postgres` or `full`, job execution and status     |
 | Seed         | Optional seed workflow URL, execution name, and status |
-| Revision     | API and web Container Apps revision names              |
+| Revision     | For application scopes, deployed Container App revisions |
 | Smoke tests  | URLs tested, UTC time, and result                      |
 | Observation  | End time and reviewer for the initial operating window |
 | Rollback     | Previous validated SHA and revision                    |

@@ -249,8 +249,16 @@ test("deploy exposes exact component scopes and binds deploys to plan scope", ()
   const steps = document.jobs.deploy.steps;
   const step = (name) => steps.find((candidate) => candidate.name === name);
 
+  assert.equal(step("Verify deployment scope capability")?.if, undefined);
   assert.match(step("Verify deployment intent")?.run ?? "", /expected_scope="\$DEPLOYMENT_SCOPE"/);
   assert.match(step("Verify deployment intent")?.run ?? "", /grep -Fx "scope=\$expected_scope"/);
+  for (const name of [
+    "Preview database access changes",
+    "Preview database job changes",
+    "Preview development seed job changes",
+  ]) {
+    assert.match(step(name)?.if ?? "", /inputs\.operation != 'deploy-foundation'/);
+  }
   assert.match(step("Deploy migration job")?.if ?? "", /DEPLOYMENT_SCOPE == 'postgres'/);
   assert.doesNotMatch(step("Deploy migration job")?.if ?? "", /DEPLOYMENT_SCOPE == 'api'/);
   assert.match(step("Deploy applications")?.if ?? "", /DEPLOYMENT_SCOPE != 'postgres'/);
