@@ -3,6 +3,8 @@ targetScope = 'resourceGroup'
 param location string = resourceGroup().location
 @allowed(['dev', 'test', 'production'])
 param environment string
+@allowed(['api', 'full', 'public-web'])
+param deploymentScope string
 param containerAppsEnvironmentName string
 param registryName string
 param apiIdentityName string
@@ -19,6 +21,8 @@ param tenantApplicationContainerName string
 
 var webAppName = 'ca-keyforta-${environment}-web'
 var webPublicBaseUrl = 'https://${webAppName}.${appEnvironment.properties.defaultDomain}'
+var deployApi = deploymentScope == 'api' || deploymentScope == 'full'
+var deployWeb = deploymentScope == 'public-web' || deploymentScope == 'full'
 
 resource appEnvironment 'Microsoft.App/managedEnvironments@2024-10-02-preview' existing = {
   name: containerAppsEnvironmentName
@@ -36,7 +40,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existin
   name: postgresServerName
 }
 
-resource api 'Microsoft.App/containerApps@2024-10-02-preview' = {
+resource api 'Microsoft.App/containerApps@2024-10-02-preview' = if (deployApi) {
   name: 'ca-keyforta-${environment}-api'
   location: location
   identity: {
@@ -99,7 +103,7 @@ resource api 'Microsoft.App/containerApps@2024-10-02-preview' = {
   }
 }
 
-resource web 'Microsoft.App/containerApps@2024-10-02-preview' = {
+resource web 'Microsoft.App/containerApps@2024-10-02-preview' = if (deployWeb) {
   name: webAppName
   location: location
   identity: {
@@ -151,5 +155,5 @@ resource web 'Microsoft.App/containerApps@2024-10-02-preview' = {
   }
 }
 
-output apiFqdn string = api.properties.configuration.ingress.fqdn
-output webFqdn string = web.properties.configuration.ingress.fqdn
+output apiFqdn string = api.?properties.configuration.ingress.fqdn ?? ''
+output webFqdn string = web.?properties.configuration.ingress.fqdn ?? ''

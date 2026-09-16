@@ -90,7 +90,7 @@ function executable(directory, name, source) {
   chmodSync(file, 0o755);
 }
 
-function runScenario(workflow, failures = "") {
+function runScenario(workflow, failures = "", scope = "full") {
   const directory = mkdtempSync(join(tmpdir(), "keyforta-workflow-test-"));
   try {
     const events = join(directory, "events");
@@ -120,9 +120,11 @@ done
 touch "$TEST_STATE/$component.started"
 other=api
 if [ "$component" = api ]; then other=web; fi
-while [ ! -f "$TEST_STATE/$other.started" ]; do
-  sleep 0.01
-done
+if [ "$DEPLOYMENT_SCOPE" = full ]; then
+  while [ ! -f "$TEST_STATE/$other.started" ]; do
+    sleep 0.01
+  done
+fi
 echo "build:$component" >> "$EVENTS_FILE"
 if [ "$component" = web ]; then sleep 0.25; fi
 case ",$FAILURES," in
@@ -143,6 +145,7 @@ exit "$result"
         env: {
           ...process.env,
           DEPLOYMENT_SHA: "test-sha",
+          DEPLOYMENT_SCOPE: scope,
           EVENTS_FILE: events,
           FAILURES: failures,
           PATH: `${directory}:${process.env.PATH}`,
@@ -207,4 +210,56 @@ test("deploy publishes both images only after successful builds", () => {
     result.events.filter((event) => event.startsWith("push:")).length,
     2,
   );
+});
+
+for (const [scope, expectedComponent] of [
+  ["api", "api"],
+  ["postgres", "api"],
+  ["public-web", "web"],
+]) {
+  test(`deploy ${scope} scope publishes only its required image`, () => {
+    const result = runScenario("deploy", "", scope);
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      result.events.filter((event) => event.startsWith("build:")),
+      [`build:${expectedComponent}`],
+    );
+    assert.equal(
+      result.events.filter((event) => event.startsWith("push:")).length,
+      1,
+    );
+    assert.match(
+      result.events.find((event) => event.startsWith("push:")) ?? "",
+      new RegExp(`keyforta-${expectedComponent === "web" ? "public-web" : "api"}:`),
+    );
+  });
+}
+
+test("deploy exposes exact component scopes and binds deploys to plan scope", () => {
+  const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
+  assert.deepEqual(document.on.workflow_dispatch.inputs.deployment_scope.options, [
+    "full",
+    "postgres",
+    "api",
+    "public-web",
+    "portal-web",
+    "admin-web",
+    "mcp",
+  ]);
+  const steps = document.jobs.deploy.steps;
+  const step = (name) => steps.find((candidate) => candidate.name === name);
+
+  assert.equal(step("Verify deployment scope capability")?.if, undefined);
+  assert.match(step("Verify deployment intent")?.run ?? "", /expected_scope="\$DEPLOYMENT_SCOPE"/);
+  assert.match(step("Verify deployment intent")?.run ?? "", /grep -Fx "scope=\$expected_scope"/);
+  for (const name of [
+    "Preview database access changes",
+    "Preview database job changes",
+    "Preview development seed job changes",
+  ]) {
+    assert.match(step(name)?.if ?? "", /inputs\.operation != 'deploy-foundation'/);
+  }
+  assert.match(step("Deploy migration job")?.if ?? "", /DEPLOYMENT_SCOPE == 'postgres'/);
+  assert.doesNotMatch(step("Deploy migration job")?.if ?? "", /DEPLOYMENT_SCOPE == 'api'/);
+  assert.match(step("Deploy applications")?.if ?? "", /DEPLOYMENT_SCOPE != 'postgres'/);
 });

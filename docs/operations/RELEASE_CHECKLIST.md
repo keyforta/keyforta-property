@@ -16,9 +16,10 @@ Create one record in the pull request or linked issue and keep it current.
 | Commit       | Immutable full SHA from `main`                      |
 | CI           | Successful workflow URL for that SHA                   |
 | Deployment   | Approved `dev` workflow run URL                        |
-| Migration    | Container Apps job execution name and final status     |
+| Scope        | Reviewed deployment scope                              |
+| Migration    | For `postgres` or `full`, job execution and status     |
 | Seed         | Optional seed workflow URL, execution name, and status |
-| Revision     | API and web Container Apps revision names              |
+| Revision     | For application scopes, deployed Container App revisions |
 | Smoke tests  | URLs tested, UTC time, and result                      |
 | Observation  | End time and reviewer for the initial operating window |
 | Rollback     | Previous validated SHA and revision                    |
@@ -42,21 +43,33 @@ or tenant data in the record.
 ## Deployment
 
 1. Merge the reviewed pull request into `main`.
-2. Dispatch `Deploy` with `operation=plan` for the immutable merge SHA.
+2. Select the narrowest supported scope and dispatch `Deploy` with
+   `operation=plan` for the immutable merge SHA:
+   - `postgres` previews PostgreSQL Entra access, the migration job, and
+     forward migrations. It builds the immutable API image because that image
+     contains the migration runner, but it does not deploy the API application.
+   - `api` previews and deploys only the API image and Container App. It does
+     not configure PostgreSQL access or run migrations.
+   - `public-web` previews and deploys only the public-web image and Container App.
+   - `full` composes `postgres`, `api`, and `public-web`, and reconciles the
+     dormant development seed-job definition without executing it.
+   - `portal-web`, `admin-web`, and `mcp` are reserved names that fail closed
+     until separately approved images and Azure resource definitions exist.
 3. On a fresh resource group, review the `foundation`-scoped plan and dispatch
    `operation=deploy-foundation` with its run ID. Then dispatch `operation=plan`
    again for the same SHA; do not deploy jobs or applications from a
    foundation-only plan.
 4. Review all available Azure `what-if` results for deletes, replacements,
    public exposure, privilege expansion, and unexpected cost.
-5. Dispatch the same SHA with `operation=deploy`, provide the reviewed `full`
-   plan's workflow run ID, and approve the protected `dev` environment. The
+5. Dispatch the same SHA and scope with `operation=deploy`, provide the reviewed
+  plan's workflow run ID, and approve the protected `dev` environment. The
    workflow must retrieve plan evidence whose artifact name, scope, contents,
    and run ID match that SHA before deployment can continue.
-6. Confirm the deploy run repeats `what-if` for the foundation, database jobs,
-   and applications so configuration drift remains visible.
-7. Preserve the migration execution name and verify it reaches `Succeeded`.
-8. Preserve the deployed application revision names and workflow summary.
+6. Confirm the deploy run repeats `what-if` for only the resources owned by the
+  selected scope so configuration drift remains visible.
+7. For `postgres` or `full`, preserve the migration execution name and verify it
+  reaches `Succeeded`.
+8. For application scopes, preserve the deployed revision names and workflow summary.
 
 The workflow must stop on a failed migration or smoke test. Never route around
 an environment approval or replace a failed migration with manual SQL.
@@ -94,3 +107,9 @@ If an application regression occurs, route traffic to the previous validated
 immutable revision. If a schema issue occurs, stop promotion and apply a
 reviewed forward corrective migration. Never edit or delete posted financial
 history during recovery.
+
+Scoped deployment creates no additional standing Azure resources by itself and
+avoids reconciling unrelated components. Image builds and migration executions
+still incur their normal transient cost. Roll an application scope back by
+redeploying a reviewed previous immutable SHA; recover a PostgreSQL change only
+through a reviewed forward corrective migration.
