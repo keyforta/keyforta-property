@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { parse } from "yaml";
 import {
   existsSync,
@@ -327,7 +328,33 @@ function isolatedValidationWorkspaceIsBounded(source) {
     "Upload untrusted engineering evidence",
     "Remove validation workspace",
   ];
+  const stepShape = steps.map(
+    ({
+      name,
+      id,
+      uses,
+      run,
+      shell,
+      with: inputs,
+      if: condition,
+      "working-directory": workingDirectory,
+    }) => ({
+      name,
+      id,
+      uses,
+      run,
+      shell,
+      inputs,
+      condition,
+      workingDirectory,
+    }),
+  );
+  const stepFingerprint = createHash("sha256")
+    .update(JSON.stringify(stepShape))
+    .digest("hex");
   return (
+    stepFingerprint ===
+      "be82b062c0cb19ed210e653305369e4f2205652c3997248b7a2fbd0b1f757535" &&
     steps.length === expectedStepNames.length &&
     expectedStepNames.every((name, index) => steps[index]?.name === name) &&
     validationJob?.env?.VALIDATION_WORKSPACE ===
@@ -1879,6 +1906,14 @@ jobs:
       packageStep,
       `${packageStep}${packageStep}`,
     );
+    const customShell = source.replace(
+      "        id: package-candidate",
+      `        id: package-candidate\n        shell: bash -c 'sudo tar --dereference -cf /tmp/unsafe.tar "$VALIDATION_WORKSPACE/harness"; exit 0' -- {0}`,
+    );
+    const obfuscatedTar = source.replace(
+      '        run: chmod -R u+rwX,go+rX,go-w -- "${{ steps.pnpm.outputs.dest }}"',
+      '        run: |\n          chmod -R u+rwX,go+rX,go-w -- "${{ steps.pnpm.outputs.dest }}"\n          sudo t\\ar -cf "$RUNNER_TEMP/early.tar" "$VALIDATION_WORKSPACE/harness"',
+    );
     return (
       isolatedValidationWorkspaceIsBounded(source) &&
       !isolatedValidationWorkspaceIsBounded(missing) &&
@@ -1892,7 +1927,9 @@ jobs:
       !isolatedValidationWorkspaceIsBounded(unicodeWhitespace) &&
       !isolatedValidationWorkspaceIsBounded(precedingTarStep) &&
       !isolatedValidationWorkspaceIsBounded(escapedTarStep) &&
-      !isolatedValidationWorkspaceIsBounded(duplicatePackageStep)
+      !isolatedValidationWorkspaceIsBounded(duplicatePackageStep) &&
+      !isolatedValidationWorkspaceIsBounded(customShell) &&
+      !isolatedValidationWorkspaceIsBounded(obfuscatedTar)
     );
   });
   check("final CI evidence includes the successful dependency audit", () =>
