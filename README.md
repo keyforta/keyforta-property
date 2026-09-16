@@ -11,11 +11,16 @@ apps/admin-web/    Platform administration console
 apps/api/           Planned modular-monolith backend boundary
 apps/mcp-server/   Standalone authenticated read-only MCP boundary (not deployed)
 apps/jobs/          Planned asynchronous worker boundary
+apps/mcp-server/    Standalone synthetic MCP resource-server boundary (inactive)
 packages/brand/    Shared KEYFORTA identity tokens and asset helpers
 packages/contracts/Shared API schemas, commands, and events
+packages/types/     Dependency-free shared TypeScript declarations
+packages/ui-core/   Isolated widget bridge and shared widget primitives
+packages/build-utils/ Deterministic standalone widget build configuration
 packages/api-client/Shared typed API client boundary
 packages/authorization/Shared role and permission vocabulary
 docs/              Mock-to-API resource, role, and workflow contract
+tools/system/health/Synthetic MCP health tool and isolated widget
 ```
 
 ## Development
@@ -30,6 +35,8 @@ directly; production CORS permits only the deployed web origin.
 pnpm check
 pnpm build
 pnpm dev
+pnpm build:widgets
+pnpm storybook
 ```
 
 ## Verification
@@ -41,6 +48,10 @@ pnpm verify
 This runs workspace, architecture, and secret checks; product, control, and
 deployment workflow tests; an all-dependency audit; and production builds. CI
 also compiles every Bicep module recursively.
+
+The MCP scaffold has no public ingress, identity registration, credentials, or
+provider connection. Its production entry point fails closed until a separately
+approved authenticator is configured.
 
 ## Copilot customizations
 

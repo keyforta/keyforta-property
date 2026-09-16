@@ -7,7 +7,7 @@
   "scripts": {
     "build": "turbo run build",
     "check": "node apps/public-web/scripts/check-dist-tracking.mjs && turbo run check",
-    "dev": "pnpm --filter @keyforta/public-web dev",
+    "dev": "turbo run dev --filter=@keyforta/public-web",
     "dev:public": "pnpm --filter @keyforta/public-web dev",
     "dev:portal": "pnpm --filter @keyforta/portal-web dev",
     "dev:admin": "pnpm --filter @keyforta/admin-web dev",
@@ -17,6 +17,8 @@
     "check:secrets": "node scripts/verify/secret-scan.mjs",
     "build:apps": "pnpm --recursive run build",
     "test": "turbo run test",
+    "storybook": "turbo run storybook",
+    "build:widgets": "turbo run build --filter='./tools/*/*'",
     "test:controls": "node --test scripts/verify/controls.test.mjs",
     "test:workflows": "node --test .github/tests/workflow-concurrency.test.mjs",
     "turbo:build": "turbo run build",
