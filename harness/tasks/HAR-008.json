@@ -1,0 +1,184 @@
+{
+  "contractVersion": 2,
+  "taskId": "HAR-008",
+  "phase": "implementation",
+  "workArea": "governance-and-harness",
+  "title": "Bound trusted report artifact scanning",
+  "businessObjectiveReference": "https://github.com/keyforta/keyforta-property/issues/20",
+  "issueReference": "https://github.com/keyforta/keyforta-property/issues/20",
+  "requirementReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/20",
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"
+  ],
+  "classification": "security",
+  "workflowState": "implemented",
+  "stateHistory": [
+    {
+      "state": "proposed",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T22:41:52.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/20"]
+    },
+    {
+      "state": "analyzed",
+      "actor": "Product and Requirements Analyst",
+      "enteredAt": "2026-09-15T22:41:52.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-008.md"]
+    },
+    {
+      "state": "approved",
+      "actor": "Product owner",
+      "enteredAt": "2026-09-15T22:41:52.000Z",
+      "evidenceReferences": ["https://github.com/keyforta/keyforta-property/issues/20"],
+      "approval": {
+        "approver": "cmbuyamba",
+        "role": "product-owner",
+        "decision": "approved",
+        "evidenceReference": "https://github.com/keyforta/keyforta-property/issues/20",
+        "commitSha": "f93b7270f7517b3486fb24d15932081ce1412e5d"
+      }
+    },
+    {
+      "state": "designed",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-15T22:41:52.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-008.md"]
+    },
+    {
+      "state": "implementation-ready",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T22:41:52.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-008.md"]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T22:44:15.000Z",
+      "evidenceReferences": [
+        ".github/workflows/ci.yml",
+        "harness/scripts/report-retention-guard.mjs",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-008.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T22:52:06.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-008.md"]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T22:52:07.000Z",
+      "evidenceReferences": [
+        "harness/scripts/report-retention-guard.mjs",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-008.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "GitHub Copilot Reviewer",
+      "enteredAt": "2026-09-15T23:06:16.000Z",
+      "evidenceReferences": [
+        "https://github.com/keyforta/keyforta-property/pull/19#discussion_r4020969591",
+        "docs/engineering/evidence/HAR-008.md"
+      ]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T23:06:16.000Z",
+      "evidenceReferences": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/retain-engineering-evidence.yml",
+        "harness/scripts/extract-report-candidate.py",
+        "harness/scripts/report-retention-guard.mjs",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-008.md"
+      ]
+    }
+  ],
+  "assignedAgent": "Harness and Evaluation Engineer",
+  "routingRuleId": "ROUTE-008",
+  "supportingReviewers": [
+    "Security and Privacy Reviewer",
+    "Solution Architect",
+    "Pull Request Reviewer"
+  ],
+  "dependencies": [
+    "HAR-007 blocked exact head f93b7270f7517b3486fb24d15932081ce1412e5d",
+    "HAR-007 remains at its governed three-cycle limit"
+  ],
+  "allowedPaths": [
+    ".gitignore",
+    ".github/workflows/ci.yml",
+    ".github/workflows/retain-engineering-evidence.yml",
+    "docs/engineering/evidence/HAR-007.md",
+    "docs/engineering/evidence/HAR-008.md",
+    "harness/scripts/download-report-candidate.py",
+    "harness/scripts/extract-report-candidate.py",
+    "harness/scripts/report-retention-guard.mjs",
+    "harness/scripts/secret-scan.mjs",
+    "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+    "harness/scripts/verify-reports.mjs",
+    "harness/scripts/verify.mjs",
+    "harness/tasks/HAR-007.json",
+    "harness/tasks/HAR-008.json"
+  ],
+  "declaredProtectedPaths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/retain-engineering-evidence.yml"
+  ],
+  "protectedPaths": [
+    "AGENTS.md",
+    ".github/",
+    "docs/product/",
+    "docs/architecture/adr/",
+    "harness/policies/",
+    "harness/schemas/",
+    "infra/",
+    "packages/auth/",
+    "packages/authorization/"
+  ],
+  "acceptanceCriteriaReferences": [
+    "https://github.com/keyforta/keyforta-property/issues/20",
+    "docs/engineering/evidence/HAR-008.md"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-HAR-008-01",
+      "requirementReferences": ["https://github.com/keyforta/keyforta-property/issues/20"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    },
+    {
+      "id": "AC-HAR-008-02",
+      "requirementReferences": ["docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md"],
+      "testReferences": ["harness/scripts/self-test/20-evidence-lifecycle.suite.mjs"]
+    }
+  ],
+  "technicalDecisionReferences": [
+    "docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md",
+    "docs/engineering/evidence/HAR-008.md"
+  ],
+  "requiredScenarios": ["canonical-verification"],
+  "requiredCommands": ["pnpm harness:self-test", "pnpm verify:all"],
+  "requiredEvidence": [
+    "docs/engineering/evidence/HAR-008.md",
+    "harness/reports/verify-latest.json",
+    "harness/reports/evidence-HAR-008.json"
+  ],
+  "riskClassification": "critical",
+  "securityImpact": "Prevents attacker-controlled candidate artifacts from hiding links during upload, escaping trusted extraction, racing non-descriptor traversal, or exhausting trusted retention memory.",
+  "dataImpact": "No product, personal, persistent, or production data changes.",
+  "observabilityImpact": "Bound violations fail the trusted retention job with no sanitized artifact.",
+  "rollbackConsiderations": "Reverting HAR-008 restores the resource-exhaustion blocker recorded by HAR-007.",
+  "humanApprovalRequirements": [
+    "Product-owner security scope approval recorded in issue #20 and the approving Copilot session",
+    "Independent architecture, security, and pull-request review before merge",
+    "GitHub CI and protected-branch controls remain authoritative",
+    "No harness policy, schema, product-runtime, data, infrastructure, or deployment changes"
+  ],
+  "repairCycle": 2
+}

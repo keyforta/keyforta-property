@@ -1,19 +1,29 @@
 import { execFileSync } from "node:child_process";
+import { parse } from "yaml";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
+  truncateSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { databaseEnvironment, validateEvidence } from "../lib.mjs";
+import { databaseEnvironment, readJson, validateEvidence } from "../lib.mjs";
+import {
+  guardGeneratedReports,
+  snapshotGeneratedReports as snapshotReports,
+} from "../report-retention-guard.mjs";
 import {
   buildEvidenceManifest,
+  declaredToolVersions,
   dependencyArtifactRecords,
   effectiveEvidencePolicy,
   sha256,
   taskEvidenceReference,
+  transitionArtifactRecords,
   validateArtifactRecords,
   validateClassification,
   validateCurrentState,
@@ -29,7 +39,580 @@ import {
   valid,
 } from "./fixtures.mjs";
 
+function snapshotGeneratedReports(
+  sourceDirectory,
+  snapshotDirectory,
+  patterns,
+  beforeOpen,
+  afterReadChunk,
+) {
+  return snapshotReports(
+    sourceDirectory,
+    snapshotDirectory,
+    patterns,
+    beforeOpen,
+    afterReadChunk,
+    process.platform === "linux" ? undefined : (_descriptor, path) => path,
+  );
+}
+
+function checkoutCredentialsAreDisabled(source) {
+  const workflow = parse(source);
+  const jobs = Object.values(workflow?.jobs ?? {});
+  const checkoutSteps = jobs.flatMap(({ steps = [] }) =>
+    steps.filter(({ uses }) => /^actions\/checkout@/.test(uses ?? "")),
+  );
+  return (
+    checkoutSteps.length > 0 &&
+    checkoutSteps.every(
+      (step) => step.with?.["persist-credentials"] === false,
+    )
+  );
+}
+
+function retentionUsesTrustedWorkflow(validationSource, retentionSource) {
+  const validation = parse(validationSource);
+  const retention = parse(retentionSource);
+  const validationJob = Object.values(validation?.jobs ?? {})[0];
+  const validationSteps = Object.values(validation?.jobs ?? {}).flatMap(
+    ({ steps = [] }) => steps,
+  );
+  const retentionJob = Object.values(retention?.jobs ?? {})[0];
+  const retentionSteps = retentionJob?.steps ?? [];
+  const checkout = retentionSteps.find(({ uses }) =>
+    /^actions\/checkout@/.test(uses ?? ""),
+  );
+  const download = retentionSteps.find(
+    ({ name }) => name === "Download untrusted engineering evidence",
+  );
+  const scan = retentionSteps.find(
+    ({ name }) => name === "Scan and snapshot candidate evidence",
+  );
+  const upload = retentionSteps.find(({ uses }) =>
+    /^actions\/upload-artifact@/.test(uses ?? ""),
+  );
+  const candidateUpload = validationSteps.find(
+    ({ name }) => name === "Upload untrusted engineering evidence",
+  );
+  const candidatePackage = validationSteps.find(
+    ({ name }) => name === "Package untrusted engineering evidence",
+  );
+  return (
+    validationJob?.env?.HARNESS_TASK_CONTRACT ===
+      "${{ github.event.pull_request.number == 19 && 'harness/tasks/HAR-008.json' || '' }}" &&
+    retention?.on?.workflow_run?.workflows?.includes("CI") &&
+    retention?.permissions?.contents === "read" &&
+    retention?.permissions?.actions === "read" &&
+    retentionJob?.if === "github.event.workflow_run.event == 'pull_request'" &&
+    checkout?.with?.ref === "${{ github.sha }}" &&
+    checkout.with?.["persist-credentials"] === false &&
+    retentionSteps
+      .filter(({ uses }) => uses)
+      .every(({ uses }) => /@[0-9a-f]{40}$/.test(uses.split(" ")[0])) &&
+    download?.env?.KEYFORTA_ARTIFACT_RUN_ID ===
+      "${{ github.event.workflow_run.id }}" &&
+    download.env?.KEYFORTA_ARTIFACT_NAME ===
+      "untrusted-engineering-evidence-${{ github.event.workflow_run.head_sha }}" &&
+    download.run === "python3 harness/scripts/download-report-candidate.py" &&
+    scan?.run?.includes("extract-report-candidate.py") &&
+    scan.run.includes("node harness/scripts/verify-reports.mjs") &&
+    upload?.with?.path === "${{ runner.temp }}/keyforta-evidence/" &&
+    upload.with?.["include-hidden-files"] === true &&
+    candidatePackage?.run?.includes("tar --create") &&
+    !candidatePackage.run.includes("--dereference") &&
+    candidateUpload?.with?.path ===
+      "${{ runner.temp }}/keyforta-report-candidate.tar" &&
+    !validationSteps.some(({ run = "" }) =>
+      run.includes("verify-reports.mjs"),
+    ) &&
+    !readFileSync("harness/scripts/verify.mjs", "utf8").includes(
+      "report-retention-guard.mjs",
+    )
+  );
+}
+
 export function registerSuite({ check }) {
+  check("unsafe generated reports are removed before retention", () => {
+    const reportDirectory = "harness/reports/self-test-retention-guard";
+    mkdirSync(reportDirectory, { recursive: true });
+    const syntheticCredential = "API_" + "KEY=fakevalue123";
+    writeFileSync(
+      `${reportDirectory}/${syntheticCredential}.json`,
+      `${JSON.stringify({ status: "synthetic" })}\n`,
+    );
+    const result = guardGeneratedReports(
+      reportDirectory,
+      readJson("harness/policies/repository-policy.json")
+        .forbiddenSecretPatterns,
+    );
+    return !result.safe && !existsSync(reportDirectory);
+  });
+  check("secret-bearing non-JSON reports produce no snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-text-snapshot-source";
+    const snapshotDirectory =
+      "harness/retained-reports/self-test-text-snapshot";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(
+      `${reportDirectory}/unsafe.txt`,
+      "API_" + "KEY=fakevalue123\n",
+    );
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      readJson("harness/policies/repository-policy.json")
+        .forbiddenSecretPatterns,
+    );
+    return (
+      !result.safe &&
+      !existsSync(reportDirectory) &&
+      !existsSync(snapshotDirectory)
+    );
+  });
+  check("UTF-16 and binary reports produce no snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-binary-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-binary";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(
+      `${reportDirectory}/unsafe.txt`,
+      Buffer.from("API_" + "KEY=fakevalue123\n", "utf16le"),
+    );
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      readJson("harness/policies/repository-policy.json")
+        .forbiddenSecretPatterns,
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("nested failure reports are retained in the snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-nested-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-nested";
+    mkdirSync(`${reportDirectory}/failures/HAR-007`, { recursive: true });
+    const content = Buffer.from('{"status":"café"}\n', "utf8");
+    writeFileSync(`${reportDirectory}/failures/HAR-007/failure.json`, content);
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    const copied = readFileSync(
+      `${snapshotDirectory}/failures/HAR-007/failure.json`,
+    );
+    rmSync(reportDirectory, { force: true, recursive: true });
+    rmSync(snapshotDirectory, { force: true, recursive: true });
+    return result.safe && copied.equals(content);
+  });
+  check("candidate archives preserve links for trusted rejection", () => {
+    const fixture = "harness/reports/self-test-candidate-archive";
+    const source = `${fixture}/source`;
+    const extracted = `${fixture}/extracted`;
+    const archive = `${fixture}/candidate.tar`;
+    mkdirSync(`${source}/reports`, { recursive: true });
+    writeFileSync(`${fixture}/outside.txt`, "outside evidence\n");
+    symlinkSync("../../outside.txt", `${source}/reports/link.txt`);
+    execFileSync("tar", ["--create", "--file", archive, "--directory", source, "reports"]);
+    let blocked = false;
+    try {
+      execFileSync("python3", [
+        "harness/scripts/extract-report-candidate.py",
+        archive,
+        extracted,
+      ]);
+    } catch {
+      blocked = true;
+    }
+    const passed = blocked && !existsSync(extracted);
+    rmSync(fixture, { force: true, recursive: true });
+    return passed;
+  });
+  check("candidate archive extraction preserves hidden multibyte bytes", () => {
+    const fixture = "harness/reports/self-test-candidate-exact";
+    const source = `${fixture}/source`;
+    const extracted = `${fixture}/extracted`;
+    const snapshot = `${fixture}/snapshot`;
+    const archive = `${fixture}/candidate.tar`;
+    const content = Buffer.from("café evidence\n", "utf8");
+    mkdirSync(`${source}/reports/.hidden`, { recursive: true });
+    writeFileSync(`${source}/reports/.hidden/report.txt`, content);
+    execFileSync("tar", ["--create", "--file", archive, "--directory", source, "reports"]);
+    execFileSync("python3", ["harness/scripts/extract-report-candidate.py", archive, extracted]);
+    const result = snapshotGeneratedReports(`${extracted}/reports`, snapshot, []);
+    const copied = readFileSync(`${snapshot}/.hidden/report.txt`);
+    rmSync(fixture, { force: true, recursive: true });
+    return result.safe && copied.equals(content);
+  });
+  check("duplicate candidate roots fail closed", () => {
+    const fixture = "harness/reports/self-test-candidate-duplicate-root";
+    const source = `${fixture}/source`;
+    const extracted = `${fixture}/extracted`;
+    const archive = `${fixture}/candidate.tar`;
+    mkdirSync(`${source}/reports`, { recursive: true });
+    execFileSync("tar", ["--create", "--file", archive, "--directory", source, "reports"]);
+    execFileSync("tar", ["--append", "--file", archive, "--directory", source, "reports"]);
+    let blocked = false;
+    try {
+      execFileSync("python3", ["harness/scripts/extract-report-candidate.py", archive, extracted]);
+    } catch {
+      blocked = true;
+    }
+    const passed = blocked && !existsSync(extracted);
+    rmSync(fixture, { force: true, recursive: true });
+    return passed;
+  });
+  check("candidate ZIP preflight rejects excessive entries", () => {
+    const script = [
+      "import importlib.util, pathlib, tempfile, zipfile",
+      "spec = importlib.util.spec_from_file_location('downloader', 'harness/scripts/download-report-candidate.py')",
+      "module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)",
+      "root = pathlib.Path(tempfile.mkdtemp()); archive = root / 'candidate.zip'",
+      "with zipfile.ZipFile(archive, 'w') as output: output.writestr('one', b'x'); output.writestr('two', b'y')",
+      "try: module.require_single_zip_entry(archive)",
+      "except ValueError: raise SystemExit(0)",
+      "raise SystemExit(1)",
+    ].join("\n");
+    execFileSync("python3", ["-B", "-c", script]);
+    return true;
+  });
+  check("candidate downloader strips auth on cross-host redirects", () => {
+    const script = [
+      "import importlib.util, urllib.request",
+      "spec = importlib.util.spec_from_file_location('downloader', 'harness/scripts/download-report-candidate.py')",
+      "module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)",
+      "handler = module.SafeRedirectHandler()",
+      "request = urllib.request.Request('https://api.github.com/source', headers={'Authorization': 'Bearer secret'})",
+      "redirected = handler.redirect_request(request, None, 302, 'Found', {}, 'https://signed.example/artifact')",
+      "raise SystemExit(1 if redirected.has_header('Authorization') else 0)",
+    ].join("\n");
+    execFileSync("python3", ["-B", "-c", script]);
+    return true;
+  });
+  check("candidate downloader strips auth on HTTPS downgrade", () => {
+    const script = [
+      "import importlib.util, urllib.request",
+      "spec = importlib.util.spec_from_file_location('downloader', 'harness/scripts/download-report-candidate.py')",
+      "module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)",
+      "handler = module.SafeRedirectHandler()",
+      "request = urllib.request.Request('https://api.github.com/source', headers={'Authorization': 'Bearer secret'})",
+      "redirected = handler.redirect_request(request, None, 302, 'Found', {}, 'http://api.github.com/artifact')",
+      "raise SystemExit(1 if redirected.has_header('Authorization') else 0)",
+    ].join("\n");
+    execFileSync("python3", ["-B", "-c", script]);
+    return true;
+  });
+  check("symlinked report roots produce no snapshot", () => {
+    const targetDirectory = "harness/reports/self-test-root-link-target";
+    const reportDirectory = "harness/reports/self-test-root-link";
+    const snapshotDirectory = "harness/retained-reports/self-test-root-link";
+    mkdirSync(targetDirectory, { recursive: true });
+    writeFileSync(`${targetDirectory}/report.txt`, "safe evidence\n");
+    symlinkSync("self-test-root-link-target", reportDirectory);
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    rmSync(targetDirectory, { force: true, recursive: true });
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("nested symlinks produce no snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-nested-link-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-nested-link";
+    const target = "harness/reports/self-test-nested-link-target.txt";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(target, "safe evidence\n");
+    symlinkSync("../self-test-nested-link-target.txt", `${reportDirectory}/link`);
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    unlinkSync(target);
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("oversized reports produce no snapshot", () => {
+    const reportDirectory = "harness/reports/self-test-oversized-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-oversized";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(`${reportDirectory}/large.txt`, Buffer.alloc(10 * 1024 * 1024 + 1));
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("report entry counts are bounded during enumeration", () => {
+    const reportDirectory = "harness/reports/self-test-entry-limit-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-entry-limit";
+    mkdirSync(reportDirectory, { recursive: true });
+    for (let index = 0; index <= 1_000; index += 1) {
+      writeFileSync(`${reportDirectory}/${String(index).padStart(4, "0")}.txt`, "x");
+    }
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("aggregate report bytes are bounded across failed files", () => {
+    const reportDirectory = "harness/reports/self-test-total-limit-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-total-limit";
+    mkdirSync(reportDirectory, { recursive: true });
+    for (let index = 0; index < 7; index += 1) {
+      const report = `${reportDirectory}/${index}.txt`;
+      writeFileSync(report, Buffer.alloc(70 * 1024, 0x61));
+    }
+    let consumedBytes = 0;
+    const extendedFiles = new Set();
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+      () => {},
+      (file, _fileBytes, aggregateBytes) => {
+        consumedBytes = aggregateBytes;
+        if (extendedFiles.has(file)) return;
+        extendedFiles.add(file);
+        truncateSync(file, 10 * 1024 * 1024 + 70 * 1024);
+      },
+    );
+    return (
+      !result.safe &&
+      consumedBytes === 50 * 1024 * 1024 + 1 &&
+      !existsSync(snapshotDirectory)
+    );
+  });
+  check("report directory depth is bounded", () => {
+    const reportDirectory = "harness/reports/self-test-depth-limit-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-depth-limit";
+    let nestedDirectory = reportDirectory;
+    for (let depth = 0; depth < 18; depth += 1) {
+      nestedDirectory = `${nestedDirectory}/nested`;
+    }
+    mkdirSync(nestedDirectory, { recursive: true });
+    writeFileSync(`${nestedDirectory}/report.txt`, "safe evidence\n");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("same-inode growth before open is bounded", () => {
+    const reportDirectory = "harness/reports/self-test-pre-open-growth-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-pre-open-growth";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(`${reportDirectory}/report.txt`, "x");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+      (file) => writeFileSync(file, Buffer.alloc(10 * 1024 * 1024 + 1), { flag: "a" }),
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("same-inode growth during chunked reads is bounded", () => {
+    const reportDirectory = "harness/reports/self-test-read-growth-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-read-growth";
+    const report = `${reportDirectory}/report.txt`;
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(report, Buffer.alloc(70 * 1024, 0x61));
+    let extended = false;
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+      () => {},
+      (file) => {
+        if (extended) return;
+        extended = true;
+        writeFileSync(file, Buffer.alloc(10 * 1024 * 1024, 0x61), { flag: "a" });
+      },
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("FIFO replacement races fail closed without blocking", () => {
+    const reportDirectory = "harness/reports/self-test-fifo-race-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-fifo-race";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(`${reportDirectory}/report.txt`, "safe evidence\n");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      [],
+      (file) => {
+        unlinkSync(file);
+        execFileSync("mkfifo", [file]);
+      },
+    );
+    return !result.safe && !existsSync(snapshotDirectory);
+  });
+  check("each report entry is scanned independently", () => {
+    const reportDirectory = "harness/reports/self-test-independent-source";
+    const snapshotDirectory = "harness/retained-reports/self-test-independent";
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(
+      `${reportDirectory}/a-unsafe.txt`,
+      "API_" + "KEY=fakevalue123\n",
+    );
+    writeFileSync(`${reportDirectory}/z-safe.txt`, "safe evidence\n");
+    const result = snapshotGeneratedReports(
+      reportDirectory,
+      snapshotDirectory,
+      readJson("harness/policies/repository-policy.json")
+        .forbiddenSecretPatterns,
+    );
+    return (
+      !result.safe &&
+      result.findingCount === 1 &&
+      result.fileCount === 1 &&
+      !existsSync(snapshotDirectory)
+    );
+  });
+  check("retention controls execute only from the trusted workflow", () => {
+    const validation = readFileSync(".github/workflows/ci.yml", "utf8");
+    const retention = readFileSync(
+      ".github/workflows/retain-engineering-evidence.yml",
+      "utf8",
+    );
+    return retentionUsesTrustedWorkflow(validation, retention);
+  });
+  check("unreadable generated reports fail closed", () => {
+    const reportDirectory = "harness/reports/self-test-unreadable-reports";
+    const nestedDirectory = `${reportDirectory}/nested`;
+    mkdirSync(nestedDirectory, { recursive: true });
+    writeFileSync(`${nestedDirectory}/report.json`, "{}\n");
+    const result = guardGeneratedReports(
+      reportDirectory,
+      [],
+      (directory, options) => {
+        if (directory === nestedDirectory) throw new Error("synthetic EACCES");
+        return readdirSync(directory, options);
+      },
+    );
+    return !result.safe && !existsSync(reportDirectory);
+  });
+  check("normalized artifact section bindings accept camelCase sections", () => {
+    const reference = "harness/reports/self-test-normalized-sections.md";
+    mkdirSync("harness/reports", { recursive: true });
+    try {
+      writeFileSync(
+        reference,
+        [
+          "# Synthetic evidence",
+          "## Commands",
+          "The canonical command passed.",
+          "## Tests",
+          "The focused tests passed.",
+          "## Known Failures",
+          "No known failures remain.",
+          "## Reason",
+          "A synthetic transition occurred.",
+          "## Actor",
+          "Harness self-test.",
+          "## Timestamp",
+          "2026-09-11T00:00:00.000Z.",
+          "## Evidence References",
+          "The synthetic evidence file.",
+        ].join("\n"),
+      );
+      const contract = { ...valid, requiredEvidence: [reference] };
+      const capturedAt = "2026-09-11T00:02:00.000Z";
+      const hash = sha256(reference);
+      const manifest = {
+        ...syntheticManifest(),
+        artifactRecords: [
+          {
+            capturedAt,
+            kind: "evidence-manifest",
+            reference,
+            sections: ["commands", "tests", "knownFailures"],
+            sha256: hash,
+          },
+          {
+            capturedAt,
+            kind: "state-change-record",
+            reference,
+            sections: ["reason", "actor", "timestamp", "evidenceReferences"],
+            sha256: hash,
+          },
+        ],
+      };
+      return validateArtifactRecords(manifest, contract).length === 0;
+    } finally {
+      if (existsSync(reference)) unlinkSync(reference);
+    }
+  });
+  check("evidence records only declared tool versions", () => {
+    const packageManifest = {
+      packageManager: "pnpm@11.19.0",
+      devDependencies: { turbo: "^2.5.6" },
+    };
+    const versions = declaredToolVersions(packageManifest);
+    return (
+      versions.packageManager === "pnpm@11.19.0" &&
+      versions.turbo === "^2.5.6" &&
+      !("typescript" in versions)
+    );
+  });
+  check("workspace checks supply fail-closed test evidence", () => {
+    const manifestFor = (status) =>
+      buildEvidenceManifest(
+        valid,
+        "harness/tasks/repository-neutral-example.json",
+        syntheticGit,
+        {
+          results: status ? [{ name: "workspace-checks", status }] : [],
+          startedAt: "2026-09-11T00:01:00.000Z",
+          status: "passed",
+        },
+        "2026-09-11T00:02:00.000Z",
+      );
+    const testAlias = (manifest) =>
+      manifest.automatedChecks.find(
+        (check) => check.name === "unit-integration-contract-tests",
+      );
+    const passed = manifestFor("passed");
+    const failed = manifestFor("failed");
+    const missing = manifestFor();
+    return (
+      testAlias(passed)?.status === "passed" &&
+      passed.testResults.status === "passed" &&
+      testAlias(failed)?.status === "failed" &&
+      failed.testResults.status === "failed" &&
+      testAlias(missing)?.status === "failed" &&
+      missing.testResults.status === "not-applicable"
+    );
+  });
+  check("correction transitions emit their required artifacts", () => {
+    const reference = "docs/engineering/evidence/HAR-001.md";
+    const contract = {
+      ...valid,
+      taskId: "HAR-001",
+      classification: "configuration",
+      workflowState: "implemented",
+      stateHistory: [
+        { state: "changes-requested" },
+        { state: "implemented" },
+      ],
+      requiredEvidence: [reference],
+    };
+    const records = transitionArtifactRecords(
+      contract,
+      "2026-09-11T00:02:00.000Z",
+      evidencePolicy,
+    );
+    return (
+      records.length === 2 &&
+      records.some((record) => record.kind === "failure-evidence") &&
+      records.some((record) => record.kind === "correction-record") &&
+      validateArtifactRecords(
+        { ...syntheticManifest(), artifactRecords: records },
+        contract,
+      ).length === 0
+    );
+  });
   check("stale generated evidence is rejected", () => {
     const report = {
       completedAt: "2026-09-11T00:00:00.000Z",
@@ -775,7 +1358,7 @@ export function registerSuite({ check }) {
   });
   check("CI evidence artifact uses evaluated pull request head SHA", () =>
     readFileSync(".github/workflows/ci.yml", "utf8").includes(
-      "engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}",
+      "untrusted-engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}",
     ),
   );
   check("CI scopes changed paths to the exact pull request base SHA", () =>
@@ -783,6 +1366,28 @@ export function registerSuite({ check }) {
       "HARNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}",
     ),
   );
+  check("CI checkout does not persist credentials", () => {
+    const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+    return (
+      checkoutCredentialsAreDisabled(workflow) &&
+      !checkoutCredentialsAreDisabled(`
+jobs:
+  validate:
+    persist-credentials: false
+    steps:
+      - uses: actions/checkout@v7
+`) &&
+      !checkoutCredentialsAreDisabled(`
+jobs:
+  validate:
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+`)
+    );
+  });
   check("CI invokes the canonical verifier entrypoint directly", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     return (

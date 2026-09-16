@@ -1,10 +1,9 @@
 node_modules/
 .turbo/
 .sites-runtime/
-apps/api/dist/
-packages/types/dist/
-dist/.openai/
+dist/
 harness/reports/
+harness/retained-reports/
 keyforta-*.tar.gz
 upload/
 *.log
