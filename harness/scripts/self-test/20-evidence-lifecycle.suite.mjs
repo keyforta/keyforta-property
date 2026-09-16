@@ -141,10 +141,41 @@ function isolatedValidationUsesProducerHome(source) {
 
 function producerEnvironmentSurvivesLauncher(source) {
   const workflow = parse(source);
-  const install = Object.values(workflow?.jobs ?? {})
-    .flatMap(({ steps = [] }) => steps)
+  const validationJob = Object.values(workflow?.jobs ?? {})[0];
+  const install = validationJob?.steps
     .find(({ name }) => name === "Install dependencies");
   if (!install?.run?.endsWith("pnpm install --frozen-lockfile")) return false;
+
+  const currentUser = execFileSync("id", ["-un"], {
+    encoding: "utf8",
+  }).trim();
+  if (
+    process.env.CI === "true" &&
+    currentUser === validationJob.env.VALIDATION_USER
+  ) {
+    const taskContract = validationJob.env.HARNESS_TASK_CONTRACT.match(
+      /'(harness\/tasks\/[^']+)'/u,
+    )?.[1];
+    const expectedLiveEnvironment = {
+      CI: "true",
+      HARNESS_CONTRACT_MODE: "required",
+      HARNESS_TASK_CONTRACT: taskContract,
+      HOME: validationJob.env.VALIDATION_HOME,
+      XDG_CONFIG_HOME: `${validationJob.env.VALIDATION_HOME}/.config`,
+      XDG_CACHE_HOME: `${validationJob.env.VALIDATION_HOME}/.cache`,
+      XDG_DATA_HOME: `${validationJob.env.VALIDATION_HOME}/.local/share`,
+      XDG_STATE_HOME: `${validationJob.env.VALIDATION_HOME}/.local/state`,
+    };
+    return (
+      Object.entries(expectedLiveEnvironment).every(
+        ([name, value]) => process.env[name] === value,
+      ) &&
+      ["HARNESS_BASE_REF", "GITHUB_HEAD_REF", "GITHUB_REF_NAME", "PATH"].every(
+        (name) => Boolean(process.env[name]),
+      ) &&
+      !Object.hasOwn(process.env, "KEYFORTA_AMBIENT_SECRET")
+    );
+  }
 
   const fixture = mkdtempSync(join(tmpdir(), "keyforta-launcher-"));
   const cgroup = join(fixture, "cgroup");
@@ -187,9 +218,7 @@ function producerEnvironmentSurvivesLauncher(source) {
             ...expected,
             VALIDATION_CGROUP: cgroup,
             VALIDATION_HOME: expected.HOME,
-            VALIDATION_USER: execFileSync("id", ["-un"], {
-              encoding: "utf8",
-            }).trim(),
+            VALIDATION_USER: currentUser,
             KEYFORTA_AMBIENT_SECRET: "must-not-survive",
           },
         },
@@ -203,6 +232,47 @@ function producerEnvironmentSurvivesLauncher(source) {
   } finally {
     rmSync(fixture, { force: true, recursive: true });
   }
+}
+
+const candidateTarCommand =
+  'sudo tar --create --file "$RUNNER_TEMP/keyforta-report-candidate.tar" --directory "$VALIDATION_WORKSPACE/harness" reports';
+
+function executableCommands(run = "") {
+  return run
+    .split("\n")
+    .filter((command) => command !== "" && !command.startsWith("#"));
+}
+
+function packageGuardsPrecedeTar(run = "") {
+  const commands = executableCommands(run);
+  const requiredCommands = [
+    'sudo test -f "$VALIDATION_CONTROL/producer-stopped"',
+    'sudo test -d "$VALIDATION_WORKSPACE"',
+    'sudo test ! -L "$VALIDATION_WORKSPACE"',
+    'sudo test -d "$VALIDATION_WORKSPACE/harness"',
+    'sudo test ! -L "$VALIDATION_WORKSPACE/harness"',
+    candidateTarCommand,
+  ];
+  return (
+    commands.length === requiredCommands.length &&
+    requiredCommands.every((command, index) => commands[index] === command)
+  );
+}
+
+function packageCandidateIsUnique(steps, packageCandidate) {
+  const packageSteps = steps.filter(
+    ({ name }) => name === "Package untrusted engineering evidence",
+  );
+  const tarCommands = steps
+    .flatMap(({ run }) => executableCommands(run))
+    .filter((command) => /(^|[\s/\\])tar(\s|$)/u.test(command));
+  return (
+    packageSteps.length === 1 &&
+    packageSteps[0] === packageCandidate &&
+    tarCommands.length === 1 &&
+    tarCommands[0] === candidateTarCommand &&
+    packageGuardsPrecedeTar(packageCandidate.run)
+  );
 }
 
 function isolatedValidationWorkspaceIsBounded(source) {
@@ -233,7 +303,7 @@ function isolatedValidationWorkspaceIsBounded(source) {
     validationJob?.env?.VALIDATION_CONTROL ===
       "/run/keyforta-ci-${{ github.run_id }}-${{ github.run_attempt }}" &&
     validationJob?.env?.HARNESS_TASK_CONTRACT ===
-      "${{ github.event.pull_request.number == 13 && 'harness/tasks/HAR-010.json' || '' }}" &&
+      "${{ github.event.pull_request.number == 13 && 'harness/tasks/HAR-012.json' || '' }}" &&
     create?.run?.includes('sudo mkdir -- "$VALIDATION_CGROUP"') &&
     create.run.includes(
       'sudo install --directory --owner=root --group=root --mode=0700 "$VALIDATION_CONTROL"',
@@ -256,8 +326,8 @@ function isolatedValidationWorkspaceIsBounded(source) {
     stop &&
     packageCandidate &&
     uploadCandidate &&
-    steps.indexOf(stop) < steps.indexOf(packageCandidate) &&
-    steps.indexOf(packageCandidate) < steps.indexOf(uploadCandidate) &&
+    steps.indexOf(packageCandidate) === steps.indexOf(stop) + 1 &&
+    steps.indexOf(uploadCandidate) === steps.indexOf(packageCandidate) + 1 &&
     stop.id === "stop-producer" &&
     stop.run.includes('sudo usermod --lock --expiredate 1 "$VALIDATION_USER"') &&
     stop.run.includes('echo 1 > "$1/cgroup.kill"') &&
@@ -271,9 +341,7 @@ function isolatedValidationWorkspaceIsBounded(source) {
     packageCandidate.run.includes(
       'sudo test -f "$VALIDATION_CONTROL/producer-stopped"',
     ) &&
-    packageCandidate?.run?.includes(
-      '--directory "$VALIDATION_WORKSPACE/harness" reports',
-    ) &&
+    packageCandidateIsUnique(steps, packageCandidate) &&
     !packageCandidate.run.includes("chown") &&
     !packageCandidate.run.includes("verify-reports.mjs") &&
     uploadCandidate.if.includes("steps.stop-producer.outcome == 'success'") &&
@@ -327,7 +395,7 @@ function retentionUsesTrustedWorkflow(validationSource, retentionSource) {
   );
   return (
     validationJob?.env?.HARNESS_TASK_CONTRACT ===
-      "${{ github.event.pull_request.number == 13 && 'harness/tasks/HAR-010.json' || '' }}" &&
+      "${{ github.event.pull_request.number == 13 && 'harness/tasks/HAR-012.json' || '' }}" &&
     retention?.on?.workflow_run?.workflows?.includes("CI") &&
     retention?.permissions?.contents === "read" &&
     retention?.permissions?.actions === "read" &&
@@ -839,6 +907,57 @@ export function registerSuite({ check }) {
         { ...syntheticManifest(), artifactRecords: records },
         contract,
       ).length === 0
+    );
+  });
+  check("blocked transitions emit their required state change record", () => {
+    const reference = "docs/engineering/evidence/HAR-010.md";
+    const contract = {
+      ...valid,
+      taskId: "HAR-010",
+      classification: "configuration",
+      workflowState: "blocked",
+      stateHistory: [{ state: "implemented" }, { state: "blocked" }],
+      requiredEvidence: [reference],
+    };
+    const records = transitionArtifactRecords(
+      contract,
+      "2026-09-16T00:44:36.000Z",
+      evidencePolicy,
+    );
+    const isolatedPolicy = structuredClone(evidencePolicy);
+    isolatedPolicy.classificationRequirements.configuration = {
+      approvals: [],
+      artifacts: [],
+      checks: [],
+    };
+    isolatedPolicy.pathRequirements = [];
+    const manifest = {
+      ...syntheticManifest(),
+      artifactRecords: records,
+      classification: "configuration",
+      workflowState: "implemented",
+    };
+    const malformed = structuredClone(manifest);
+    malformed.artifactRecords[0]?.sections.splice(
+      malformed.artifactRecords[0].sections.indexOf("actor"),
+      1,
+    );
+    return (
+      records.length === 1 &&
+      records[0].kind === "state-change-record" &&
+      validateArtifactRecords(manifest, contract).length === 0 &&
+      validateTransition(
+        manifest,
+        "implemented",
+        "blocked",
+        isolatedPolicy,
+      ).length === 0 &&
+      validateTransition(
+        malformed,
+        "implemented",
+        "blocked",
+        isolatedPolicy,
+      ).some((error) => error.includes("artifact section: actor"))
     );
   });
   check("stale generated evidence is rejected", () => {
@@ -1636,6 +1755,81 @@ jobs:
       readFileSync(".github/workflows/ci.yml", "utf8"),
     ),
   );
+  check("candidate package guards precede privileged tar", () => {
+    const source = readFileSync(".github/workflows/ci.yml", "utf8");
+    const packageStepStart = source.indexOf(
+      "      - name: Package untrusted engineering evidence",
+    );
+    const packageStepEnd = source.indexOf(
+      "      - name: Upload untrusted engineering evidence",
+      packageStepStart,
+    );
+    const packageStep = source.slice(packageStepStart, packageStepEnd);
+    const workspaceDirectory =
+      '          sudo test -d "$VALIDATION_WORKSPACE"';
+    const workspaceLink =
+      '          sudo test ! -L "$VALIDATION_WORKSPACE"';
+    const harnessDirectory =
+      '          sudo test -d "$VALIDATION_WORKSPACE/harness"';
+    const harnessLink =
+      '          sudo test ! -L "$VALIDATION_WORKSPACE/harness"';
+    const tar =
+      '          sudo tar --create --file "$RUNNER_TEMP/keyforta-report-candidate.tar" --directory "$VALIDATION_WORKSPACE/harness" reports';
+    const missing = source.replace(`${workspaceDirectory}\n`, "");
+    const commented = source.replace(workspaceDirectory, `          #${workspaceDirectory.trim()}`);
+    const reordered = source.replace(
+      `${workspaceDirectory}\n${workspaceLink}`,
+      `${workspaceLink}\n${workspaceDirectory}`,
+    );
+    const postTar = source
+      .replace(`${harnessLink}\n`, "")
+      .replace(tar, `${tar}\n${harnessLink}`);
+    const falseBranch = source
+      .replace(workspaceDirectory, `          if false; then\n${workspaceDirectory}`)
+      .replace(harnessLink, `${harnessLink}\n          fi`);
+    const heredoc = source
+      .replace(workspaceDirectory, `          cat <<'EOF'\n${workspaceDirectory}`)
+      .replace(harnessLink, `${harnessLink}\n          EOF`);
+    const alternateTar = source.replace(
+      workspaceDirectory,
+      `          sudo tar -cf "$RUNNER_TEMP/early.tar" "$VALIDATION_WORKSPACE/harness"\n${workspaceDirectory}`,
+    );
+    const duplicate = source.replace(
+      workspaceDirectory,
+      `${workspaceDirectory}\n${workspaceDirectory}`,
+    );
+    const unicodeWhitespace = source.replace(
+      workspaceLink,
+      `${workspaceLink}\u00a0`,
+    );
+    const precedingTarStep = source.replace(
+      "      - name: Package untrusted engineering evidence",
+      `      - name: Unsafe early package\n        run: sudo /bin/tar -cf "$RUNNER_TEMP/early.tar" "$VALIDATION_WORKSPACE/harness"\n\n      - name: Package untrusted engineering evidence`,
+    );
+    const escapedTarStep = source.replace(
+      "      - name: Package untrusted engineering evidence",
+      `      - name: Unsafe escaped package\n        run: sudo \\tar -cf "$RUNNER_TEMP/early.tar" "$VALIDATION_WORKSPACE/harness"\n\n      - name: Package untrusted engineering evidence`,
+    );
+    const duplicatePackageStep = source.replace(
+      packageStep,
+      `${packageStep}${packageStep}`,
+    );
+    return (
+      isolatedValidationWorkspaceIsBounded(source) &&
+      !isolatedValidationWorkspaceIsBounded(missing) &&
+      !isolatedValidationWorkspaceIsBounded(commented) &&
+      !isolatedValidationWorkspaceIsBounded(reordered) &&
+      !isolatedValidationWorkspaceIsBounded(postTar) &&
+      !isolatedValidationWorkspaceIsBounded(falseBranch) &&
+      !isolatedValidationWorkspaceIsBounded(heredoc) &&
+      !isolatedValidationWorkspaceIsBounded(alternateTar) &&
+      !isolatedValidationWorkspaceIsBounded(duplicate) &&
+      !isolatedValidationWorkspaceIsBounded(unicodeWhitespace) &&
+      !isolatedValidationWorkspaceIsBounded(precedingTarStep) &&
+      !isolatedValidationWorkspaceIsBounded(escapedTarStep) &&
+      !isolatedValidationWorkspaceIsBounded(duplicatePackageStep)
+    );
+  });
   check("final CI evidence includes the successful dependency audit", () =>
     finalEvidenceIncludesCiAudit(
       readFileSync(".github/workflows/ci.yml", "utf8"),

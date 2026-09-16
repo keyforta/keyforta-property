@@ -185,6 +185,24 @@ export function classificationArtifactRecords(
   }));
 }
 
+function transitionRequirement(policy, from, to) {
+  const transition = policy.transitions.find(
+    (candidate) => candidate.from === from && candidate.to === to,
+  );
+  if (transition) return transition;
+  if (
+    policy.orderedStates.includes(from) &&
+    policy.exceptionTransitions.fromAnyActiveState.includes(to)
+  )
+    return {
+      artifacts: [policy.exceptionTransitions.requiredArtifact],
+      sections: policy.exceptionTransitions.requiredSections,
+      checks: [],
+      reviewers: [],
+      approvals: [],
+    };
+}
+
 export function transitionArtifactRecords(
   contract,
   generatedAt,
@@ -197,14 +215,15 @@ export function transitionArtifactRecords(
     !reference ||
     !previousState ||
     !currentState ||
-    previousState !== "changes-requested" ||
-    currentState !== "implemented" ||
+    !(
+      (previousState === "changes-requested" &&
+        currentState === "implemented") ||
+      currentState === "blocked"
+    ) ||
     currentState !== contract.workflowState
   )
     return [];
-  const transition = policy.transitions.find(
-    ({ from, to }) => from === previousState && to === currentState,
-  );
+  const transition = transitionRequirement(policy, previousState, currentState);
   return (transition?.artifacts ?? []).map((kind) => ({
     capturedAt: generatedAt,
     kind,
@@ -737,22 +756,9 @@ export function validateTransition(
     errors.push(
       `manifest state ${manifest.workflowState} does not match transition source ${from}`,
     );
-  let transition = policy.transitions.find(
-    (candidate) => candidate.from === from && candidate.to === to,
-  );
+  const transition = transitionRequirement(policy, from, to);
   if (!transition) {
-    const active = policy.orderedStates.includes(from);
-    if (active && policy.exceptionTransitions.fromAnyActiveState.includes(to)) {
-      transition = {
-        artifacts: [policy.exceptionTransitions.requiredArtifact],
-        sections: policy.exceptionTransitions.requiredSections,
-        checks: [],
-        reviewers: [],
-        approvals: [],
-      };
-    } else {
-      return [`transition is not allowed: ${from} -> ${to}`];
-    }
+    return [`transition is not allowed: ${from} -> ${to}`];
   }
   const classification =
     policy.classificationRequirements[manifest.classification];
