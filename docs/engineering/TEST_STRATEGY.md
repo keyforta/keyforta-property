@@ -8,10 +8,10 @@ Use the lowest deterministic layer that proves the risk.
 | Component/BFF        | Rendering helpers, request shaping, cookie/proxy behavior, loading/error/denied states  | `apps/public-web/test`; add a DOM runner only through approved tooling            |
 | API contract         | Zod input/output compatibility and sanitized transport behavior                         | `packages/contracts`, `apps/api/test/app.test.ts`                          |
 | Database integration | Migrations, constraints, RLS, transactions, idempotency, immutability, cross-org denial | `apps/api/test/postgres.integration.test.ts`; CI PostgreSQL service        |
-| Architecture         | Domain dependency direction and package boundaries                                      | `harness/graders/architecture.mjs`                                         |
-| Infrastructure       | Bicep compilation and pilot resource policy                                             | `pnpm verify` plus CI-specific policy assertion                            |
-| Security             | Negative authorization, isolation, secret patterns, dependency audit, abuse cases       | tests plus harness graders and CI                                          |
-| Accessibility        | Keyboard, semantics, focus, contrast, responsive states                                 | currently manual and explicitly skipped by harness pending approved runner |
+| Architecture         | Domain dependency direction and package boundaries                                      | package tests and review                                                    |
+| Infrastructure       | Bicep compilation and pilot resource policy                                             | CI compilation and policy review                                           |
+| Security             | Negative authorization, isolation, secret patterns, dependency audit, abuse cases       | application tests, dependency audit, and CI                                |
+| Accessibility        | Keyboard, semantics, focus, contrast, responsive states                                 | manual review pending an approved automated runner                         |
 | End-to-end/smoke     | A few public/authenticated critical boundaries after deployment                         | deployment workflow; never substitute for lower-layer rules                |
 | Migration/regression | Forward migration from supported state and exact incident reproductions                 | PostgreSQL suite and focused regression tests                              |
 

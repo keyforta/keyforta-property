@@ -14,16 +14,8 @@
     "dev:all": "pnpm --parallel --filter './apps/*-web' dev",
     "check:apps": "pnpm --recursive run check",
     "build:apps": "pnpm --recursive run build",
-    "harness:self-test": "node harness/scripts/self-test.mjs",
-    "verify": "pnpm verify:all",
-    "verify:agents": "node harness/scripts/verify-agents.mjs",
-    "verify:all": "node harness/scripts/verify.mjs",
-    "verify:classification": "node harness/scripts/verify-classification.mjs",
-    "verify:evidence": "node harness/scripts/verify-evidence.mjs",
-    "verify:reports": "node harness/scripts/verify-reports.mjs",
-    "verify:skills": "node harness/scripts/verify-skills.mjs",
-    "verify:task": "node harness/scripts/validate-contract.mjs",
-    "verify:transition": "node harness/scripts/verify-transition.mjs"
+    "test:workflows": "node --test .github/tests/workflow-concurrency.test.mjs",
+    "verify": "pnpm check && pnpm test:workflows && pnpm audit --prod --audit-level high && pnpm build"
   },
   "devDependencies": {
     "yaml": "^2.9.0"

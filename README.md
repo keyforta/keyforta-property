@@ -29,21 +29,14 @@ pnpm build
 pnpm dev
 ```
 
-## Engineering harness
-
-The repository includes governed Copilot agents, reusable Agent Skills, task
-contracts, evidence gates, and deterministic verification under `.github/` and
-`harness/`.
+## Verification
 
 ```bash
-pnpm verify:agents
-pnpm verify:skills
-pnpm harness:self-test
-HARNESS_CONTRACT_MODE=skip pnpm verify
+pnpm verify
 ```
 
-Pull requests must include one active task contract under `harness/tasks/`.
-Canonical CI verification runs through `harness/scripts/verify.mjs`.
+This runs workspace checks, deployment workflow tests, a production dependency
+audit, and the production build. CI also compiles every Bicep module.
 
 `pnpm dev` serves the public site at `http://localhost:3000`. Use `pnpm dev:portal` for the portal at `http://localhost:3001`, `pnpm dev:admin` for the admin console at `http://localhost:3002`, or `pnpm dev:all` to run all three.
 
