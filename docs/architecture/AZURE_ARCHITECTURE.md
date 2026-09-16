@@ -67,6 +67,16 @@ flowchart TD
 | Evidence         | Private Azure Blob Storage          | Scan-gated tenant application documents        |
 | Delivery         | GitHub Actions OIDC, Bicep, and ACR | Reviewed immutable deployments                 |
 
+### Model Context Protocol Boundary
+
+`apps/mcp-server` is a standalone authenticated read-only MCP service accepted
+by [ADR-012](../adr/ADR-012-standalone-mcp-service.md). It is not part of the
+deployed topology: no Container App, ingress, identity registration, or
+workflow scope is provisioned for it, and it runs only in local and test
+environments. It never imports API implementation modules, connects to
+PostgreSQL, or calls a model provider. Activation requires separate
+infrastructure, identity, cost, ingress, and deployment approval.
+
 ### Data Storage and External Services
 
 PostgreSQL is authoritative for application state, application document

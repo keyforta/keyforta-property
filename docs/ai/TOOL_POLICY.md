@@ -11,3 +11,24 @@
    human decisions receive one correlation ID and auditable record.
 7. Model-generated text is escaped and treated as untrusted at every output
    boundary.
+
+## Remote MCP boundary
+
+8. `apps/mcp-server` is the only Model Context Protocol boundary. It is a
+   standalone service, is not deployed, and is unreachable outside local and
+   test environments.
+9. Every MCP request is authenticated before protocol dispatch. Actor identity
+   comes from the approved authentication boundary, never from JSON-RPC
+   content, tool arguments, or client-supplied organization context.
+10. The first slice exposes only server metadata and the synthetic read-only
+    `system.health` capability tool. Tenant, lease, payment, document,
+    maintenance, and other business tools, and every write tool, require
+    separate product, architecture, and security/privacy approval.
+11. Missing identity, unsupported origins, unsupported protocol versions,
+    malformed messages, insufficient scope, and unknown or expired sessions
+    fail closed with sanitized errors carrying only a stable reason and
+    correlation ID.
+12. MCP audit records retain correlation ID, client identity, protocol version,
+    method, tool name, result status, denial reason, policy version, and a
+    hashed session reference. They never retain credentials, prompts, tool
+    arguments, tool results, or personal data.
