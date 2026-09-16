@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { credentialScheme, readBearerToken } from "../src/auth.js";
 import { createToolRegistry } from "../src/registry.js";
 import { createSessionStore, SessionCapacityError } from "../src/sessions.js";
 import { createSystemHealthTool } from "../src/tools/system-health.js";
@@ -76,5 +77,24 @@ describe("MCP tool registry", () => {
 
     expect(registry.list()).toHaveLength(1);
     expect(tool?.requiredScopes).toEqual(["mcp.tools.read"]);
+  });
+});
+
+describe("credential parsing", () => {
+  it("accepts token68 credentials including base64url identity tokens", () => {
+    const base64UrlToken = [
+      "synthetic_header-segment",
+      "synthetic_payload-segment",
+      "synthetic_signature-segment",
+    ].join(".");
+
+    expect(readBearerToken(`${credentialScheme} ${base64UrlToken}`)).toBe(
+      base64UrlToken,
+    );
+    expect(readBearerToken(`${credentialScheme} synthetic==`)).toBe(
+      "synthetic==",
+    );
+    expect(readBearerToken("Basic synthetic")).toBeNull();
+    expect(readBearerToken(undefined)).toBeNull();
   });
 });

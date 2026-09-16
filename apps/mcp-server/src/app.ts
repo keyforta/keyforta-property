@@ -59,7 +59,7 @@ export interface ProtectedResourceMetadata {
 export interface McpServerDependencies {
   /** Exact browser origins allowed to reach the endpoint. */
   allowedOrigins?: readonly string[];
-  /** Maximum requests per minute per remote client. */
+  /** Maximum requests per minute per source address. */
   requestsPerMinute?: number;
   auditSink?: McpAuditSink;
   authenticator: McpAuthenticator;
@@ -157,6 +157,9 @@ export async function buildMcpServer(
   );
   app.addContentTypeParser("*", { parseAs: "string" }, readRawBody);
 
+  // Limits are keyed by source address. Connectors that share egress
+  // infrastructure therefore share one bucket until a reviewed per-principal
+  // limit is approved.
   await app.register(rateLimit, {
     max: dependencies.requestsPerMinute ?? 120,
     timeWindow: "1 minute",

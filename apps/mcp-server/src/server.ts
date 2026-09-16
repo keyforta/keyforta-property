@@ -8,9 +8,10 @@ import { createStaticAuthenticator } from "./auth.js";
  * development credential.
  */
 async function start(): Promise<void> {
-  if (process.env.NODE_ENV === "production") {
+  const environment = process.env.NODE_ENV ?? "";
+  if (!["development", "test"].includes(environment)) {
     throw new Error(
-      "The KEYFORTA MCP server is not approved for production deployment.",
+      "The KEYFORTA MCP server runs only with NODE_ENV=development or NODE_ENV=test.",
     );
   }
 

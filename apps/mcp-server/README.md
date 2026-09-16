@@ -32,8 +32,8 @@ Supported protocol versions are `2025-06-18` (latest) and `2025-03-26`.
 - The `system.health` tool returns synthetic service metadata. There is no
   database access, no outbound provider call, no write tool, and no tenant,
   lease, payment, document, maintenance, or person-related data.
-- A bounded per-client rate limit, body limit, and request timeout apply before
-  protocol dispatch.
+- A bounded rate limit keyed by source address, a body limit, and a request
+  timeout apply before protocol dispatch.
 - Audit records contain correlation ID, client identity, protocol version,
   method, tool name, result status, denial reason, policy version, and a hashed
   session reference. They never contain credentials, prompts, arguments, or
@@ -52,8 +52,8 @@ MCP_DEVELOPMENT_ACCESS_TOKEN="$(openssl rand -hex 32)" \
   pnpm --filter @keyforta/mcp-server dev
 ```
 
-Startup fails closed when `NODE_ENV=production` or when no development
-credential is provided. Generate the credential locally; never commit one.
+Startup fails closed unless `NODE_ENV` is `development` or `test`, and when no
+development credential is provided. Generate the credential locally; never commit one.
 Optional variables are `MCP_ALLOWED_ORIGINS` (comma-separated exact browser
 origins), `MCP_HOST` (default `127.0.0.1`), and `MCP_PORT` (default `3100`).
 
