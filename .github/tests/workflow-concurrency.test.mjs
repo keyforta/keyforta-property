@@ -76,6 +76,9 @@ test("MCP deploy consumes a reviewed immutable image plan", () => {
   );
   const intent = steps.find((step) => step.name === "Verify deployment intent");
   const preview = steps.find((step) => step.name === "Preview MCP changes");
+  const drift = steps.find(
+    (step) => step.name === "Verify reviewed MCP plan still applies",
+  );
   const deploy = steps.find((step) => step.name === "Deploy MCP revision");
   const scan = steps.find((step) => step.name === "Scan immutable MCP image");
   const revision = steps.find(
@@ -112,6 +115,11 @@ test("MCP deploy consumes a reviewed immutable image plan", () => {
   assert.match(deploy?.with?.inlineScript ?? "", /mcpImage="\$MCP_IMAGE"/);
   assert.match(preview?.with?.inlineScript ?? "", /what-if/);
   assert.match(preview?.with?.inlineScript ?? "", /mcp-what-if\.json/);
+  assert.match(drift?.if ?? "", /inputs\.operation == 'deploy'/);
+  assert.match(drift?.run ?? "", /plan-evidence\/mcp-what-if\.json/);
+  assert.match(drift?.run ?? "", /diff -u/);
+  assert.ok(steps.indexOf(preview) < steps.indexOf(drift));
+  assert.ok(steps.indexOf(drift) < steps.indexOf(deploy));
   assert.match(revision?.run ?? "", /trafficWeight/);
   assert.match(revision?.run ?? "", /role assignment list/);
   assert.match(revision?.run ?? "", /ingress traffic set/);

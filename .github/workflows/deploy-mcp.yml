@@ -171,7 +171,8 @@ jobs:
         run: |
           budget=$(az rest --method get --url \
             "https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/providers/Microsoft.Consumption/budgets/keyforta-mcp-dev?api-version=2023-11-01")
-jq -e '.properties.timeGrain == "Monthly" and .properties.amount <= 25' <<< "$budget" >/dev/null
+          jq -e '.properties.timeGrain == "Monthly" and .properties.amount <= 25' \
+            <<< "$budget" >/dev/null
           jq -e \
             '.properties.filter.dimensions.name == "ResourceGroupName" and (.properties.filter.dimensions.values | index("rg-keyforta-dev-san") != null)' \
             <<< "$budget" >/dev/null
@@ -287,6 +288,30 @@ jq -e '.properties.timeGrain == "Monthly" and .properties.amount <= 25' <<< "$bu
                 resourceScope="$MCP_RESOURCE_SCOPE" \
                 requestsPerMinute="$MCP_REQUESTS_PER_MINUTE" \
               > mcp-what-if.json
+
+      - name: Verify reviewed MCP plan still applies
+        if: inputs.operation == 'deploy'
+        run: |
+          normalize_what_if() {
+            jq -S '{
+              changes: [
+                .changes[]
+                | {
+                    resourceId: (.resourceId | ascii_downcase),
+                    changeType,
+                    before,
+                    after,
+                    delta
+                  }
+              ] | sort_by(.resourceId)
+            }' "$1"
+          }
+          normalize_what_if plan-evidence/mcp-what-if.json > reviewed-what-if.json
+          normalize_what_if mcp-what-if.json > current-what-if.json
+          if ! diff -u reviewed-what-if.json current-what-if.json; then
+            echo "Resource group state drifted from the reviewed plan; run a new plan." >&2
+            exit 1
+          fi
 
       - name: Deploy MCP revision
         if: inputs.operation == 'deploy'

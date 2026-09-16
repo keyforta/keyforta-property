@@ -240,7 +240,9 @@ Current compatibility findings are:
    explicit authorization even though it does not activate the service.
 3. Require deploy mode to consume a successful reviewed plan run for the same
    SHA, scope, environment, image digest, and Bicep inputs, deploying only
-   `image@sha256:...` without rebuilding.
+   `image@sha256:...` without rebuilding. Deploy mode re-runs `what-if` and
+   compares the normalized result with the reviewed plan artifact, stopping when
+   resource-group drift would change the applied resource set.
 4. Keep protected environment approval mandatory. Do not include MCP in `full`
    deployment scope until separately approved.
 
