@@ -38,6 +38,14 @@ pnpm verify
 This runs workspace checks, product and deployment workflow tests, a production
 dependency audit, and production builds. CI also compiles every Bicep module.
 
+## Copilot customizations
+
+Product-focused specialist agents and reusable skills live under
+`.github/agents/` and `.github/skills/`. They support requirements, design,
+implementation, testing, review, operations, and release preparation without a
+repository-local EDD system. They are advisory and do not replace product-owner
+approval, required GitHub controls, or `pnpm verify`.
+
 `pnpm dev` serves the public site at `http://localhost:3000`. Use `pnpm dev:portal` for the portal at `http://localhost:3001`, `pnpm dev:admin` for the admin console at `http://localhost:3002`, or `pnpm dev:all` to run all three.
 
 The public deployment remains static until the production backend, authentication, live listings, verification workflows, payments, notifications, maintenance messaging, and finalized legal documents are connected.

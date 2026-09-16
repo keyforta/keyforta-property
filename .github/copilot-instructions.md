@@ -18,6 +18,11 @@ Preserve integer minor-unit money, immutable posted financial history, human
 decisions, document versions, audit correlation IDs, and operation when AI is
 unavailable. Repository approval records never replace GitHub controls.
 
+Use product-focused specialists from `.github/agents/` and procedures from
+`.github/skills/` when their descriptions match the request. These
+customizations provide guidance only: they do not create approval authority,
+verification status, or permission to bypass repository and GitHub controls.
+
 Update authoritative documentation with consequential changes. Stop for human
 approval before changing requirements, scope, architecture style, technology,
 paid services, auth, data lifecycle, destructive migrations, payment boundaries,
