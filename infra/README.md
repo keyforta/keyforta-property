@@ -47,7 +47,11 @@ exports in a seed.
 
 The public web container builds a standalone Next.js server and runs it as an
 unprivileged Node user. Browsers call the public API directly; API CORS permits
-only the deployed web origin and does not permit credentialed requests.
+only `https://keyforta.com` and does not permit credentialed requests. Azure
+managed certificates secure `keyforta.com` and `www.keyforta.com`; the `www`
+host redirects permanently to the canonical apex host. Cloudflare remains the
+authoritative DNS provider, but these traffic records must remain DNS-only so
+Azure can issue and renew the certificates.
 The deployment workflow actively builds the API and public-web Dockerfiles under
 `deployments/azure/docker/`. The empty `deployments/azure/workflows/` directory
 is reserved and has no active deployment authority; GitHub discovers workflows
@@ -102,6 +106,53 @@ the component scope does not create another server.
   immutable SHA; correct schema defects with a reviewed forward migration.
 - Do not add general document storage, Key Vault, Service Bus, workers, HA, or production
   resources without a reviewed requirement and cost estimate.
+
+## Public domain cutover
+
+Preserve the prior Cloudflare records before changing them. Query the current
+Container Apps environment immediately before cutover:
+
+```bash
+az containerapp env show --name "$APP_ENVIRONMENT" --resource-group "$RESOURCE_GROUP" \
+  --query '{staticIp:properties.staticIp,verificationId:properties.customDomainConfiguration.customDomainVerificationId}'
+az containerapp show --name "ca-keyforta-${ENVIRONMENT}-web" --resource-group "$RESOURCE_GROUP" \
+  --query properties.configuration.ingress.fqdn -o tsv
+```
+
+The deployment workflow refuses a `public-web` deployment unless these live
+values match public DNS and the existing API permits the canonical origin. The
+2026-09-16 dev snapshot is:
+
+| Type  | Name        | Value                                                                      | Proxy    |
+| ----- | ----------- | -------------------------------------------------------------------------- | -------- |
+| TXT   | `asuid`     | `B5783F46F1301E1DCA04EA5A00366ABCAD1672F49C0517FC29E444C4162B29CB`         | DNS only |
+| TXT   | `asuid.www` | `B5783F46F1301E1DCA04EA5A00366ABCAD1672F49C0517FC29E444C4162B29CB`         | DNS only |
+| A     | `@`         | `4.253.76.254`                                                             | DNS only |
+| CNAME | `www`       | `ca-keyforta-dev-web.blueplant-a2bb85a6.southafricanorth.azurecontainerapps.io` | DNS only |
+
+Do not reuse the snapshot after the Container Apps environment is recreated;
+derive and review a fresh record set first.
+
+Azure managed certificate issuance and renewal require the A and CNAME records
+to resolve directly to Container Apps. Do not enable the Cloudflare proxy for
+these records. If a CAA record is later added at the apex, include
+`0 issue digicert.com`.
+
+Cut over in this order:
+
+1. Add both TXT validation records without changing traffic.
+2. Merge and deploy the reviewed `api` scope so CORS permits
+  `https://keyforta.com`.
+3. Replace the current apex records with the DNS-only A record and add the
+  DNS-only `www` CNAME.
+4. Confirm public DNS, then deploy the reviewed `public-web` plan to issue and
+  bind both managed certificates.
+5. Verify the apex page, path-preserving `www` redirect, API allowed-origin
+  response, and denied-origin behavior.
+
+Rollback restores the preserved Cloudflare records. Remove certificate and
+hostname bindings only through another reviewed Bicep plan; do not make
+unrecorded Azure portal changes.
 
 No click-created production resource is considered complete without its
 equivalent reviewed infrastructure code and recovery documentation.

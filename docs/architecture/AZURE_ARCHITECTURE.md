@@ -172,6 +172,8 @@ flowchart LR
 | Backup retention     | 7 days                       |
 | Log retention        | 30 days                      |
 | Deployment           | Manual, immutable commit SHA |
+| Public web origin     | `https://keyforta.com`        |
+| DNS authority         | Cloudflare, DNS-only records  |
 
 Production architecture is intentionally undefined until pilot evidence sets
 availability, recovery, compliance, and budget requirements.

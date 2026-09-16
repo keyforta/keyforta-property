@@ -18,9 +18,11 @@ param entraIssuer string
 param entraJwksUri string
 param documentStorageAccountName string
 param tenantApplicationContainerName string
+param webCanonicalHostName string
+param webWwwHostName string
 
 var webAppName = 'ca-keyforta-${environment}-web'
-var webPublicBaseUrl = 'https://${webAppName}.${appEnvironment.properties.defaultDomain}'
+var webPublicBaseUrl = 'https://${webCanonicalHostName}'
 var deployApi = deploymentScope == 'api' || deploymentScope == 'full'
 var deployWeb = deploymentScope == 'public-web' || deploymentScope == 'full'
 
@@ -38,6 +40,26 @@ resource webIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-3
 }
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existing = {
   name: postgresServerName
+}
+
+resource webCanonicalCertificate 'Microsoft.App/managedEnvironments/managedCertificates@2024-10-02-preview' = if (deployWeb) {
+  parent: appEnvironment
+  name: 'keyforta-${environment}-web-apex'
+  location: location
+  properties: {
+    domainControlValidation: 'TXT'
+    subjectName: webCanonicalHostName
+  }
+}
+
+resource webWwwCertificate 'Microsoft.App/managedEnvironments/managedCertificates@2024-10-02-preview' = if (deployWeb) {
+  parent: appEnvironment
+  name: 'keyforta-${environment}-web-www'
+  location: location
+  properties: {
+    domainControlValidation: 'CNAME'
+    subjectName: webWwwHostName
+  }
 }
 
 resource api 'Microsoft.App/containerApps@2024-10-02-preview' = if (deployApi) {
@@ -115,6 +137,18 @@ resource web 'Microsoft.App/containerApps@2024-10-02-preview' = if (deployWeb) {
     configuration: {
       ingress: {
         allowInsecure: false
+        customDomains: [
+          {
+            bindingType: 'SniEnabled'
+            certificateId: webCanonicalCertificate.id
+            name: webCanonicalHostName
+          }
+          {
+            bindingType: 'SniEnabled'
+            certificateId: webWwwCertificate.id
+            name: webWwwHostName
+          }
+        ]
         external: true
         targetPort: 8080
         transport: 'http'

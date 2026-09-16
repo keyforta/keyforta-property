@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { buildPortalUrl, resolvePortalWebUrl } from '../src/portal-url.js';
 import { getLegacyRouteUrl } from '../src/route-normalization.js';
+import nextConfig from '../next.config.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const featuredIntroSelector = '.featured-section .section-head > p';
@@ -91,4 +92,12 @@ assert.equal(
   buildPortalUrl('https://portal.example/', 'tenant', 'tenant@example.test'),
   'https://portal.example/?role=tenant&email=tenant%40example.test',
 );
-console.log(`Checked ${requiredFiles.length} public-web files, route normalization, locale JSON parsing, and responsive featured-intro wrapping.`);
+assert.deepEqual(await nextConfig.redirects(), [
+  {
+    destination: 'https://keyforta.com/:path*',
+    has: [{ type: 'host', value: 'www.keyforta.com' }],
+    permanent: true,
+    source: '/:path*',
+  },
+]);
+console.log(`Checked ${requiredFiles.length} public-web files, canonical redirect, route normalization, locale JSON parsing, and responsive featured-intro wrapping.`);
