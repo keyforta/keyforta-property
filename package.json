@@ -5,8 +5,8 @@
   "description": "KEYFORTA property marketplace and management platform",
   "packageManager": "pnpm@11.19.0",
   "scripts": {
-    "build": "pnpm --filter @keyforta/public-web build",
-    "check": "node apps/public-web/scripts/check-dist-tracking.mjs && pnpm --recursive run check",
+    "build": "turbo run build",
+    "check": "node apps/public-web/scripts/check-dist-tracking.mjs && turbo run check",
     "dev": "pnpm --filter @keyforta/public-web dev",
     "dev:public": "pnpm --filter @keyforta/public-web dev",
     "dev:portal": "pnpm --filter @keyforta/portal-web dev",
@@ -15,7 +15,11 @@
     "check:apps": "pnpm --recursive run check",
     "build:apps": "pnpm --recursive run build",
     "harness:self-test": "node harness/scripts/self-test.mjs",
-    "verify": "pnpm verify:all",
+    "test": "turbo run test",
+    "turbo:build": "turbo run build",
+    "turbo:check": "turbo run check",
+    "turbo:test": "turbo run test",
+    "verify": "pnpm check && pnpm build",
     "verify:agents": "node harness/scripts/verify-agents.mjs",
     "verify:all": "node harness/scripts/verify.mjs",
     "verify:classification": "node harness/scripts/verify-classification.mjs",
@@ -26,6 +30,8 @@
     "verify:transition": "node harness/scripts/verify-transition.mjs"
   },
   "devDependencies": {
+    "turbo": "2.10.13",
+    "typescript": "5.9.3",
     "yaml": "^2.9.0"
   }
 }

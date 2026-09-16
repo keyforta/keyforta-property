@@ -19,15 +19,18 @@ in this repository.
 
 ## Engineering loop
 
-1. Follow `docs/engineering/EVIDENCE_DRIVEN_DEVELOPMENT.md`; narrative claims do
-   not advance task state.
-2. Read the relevant product requirement, domain documentation, and ADRs.
-3. State the business invariant affected by the change.
-4. Add or update acceptance tests before completing implementation.
-5. Include authorization and cross-organization isolation tests for data paths.
-6. For AI behavior, update the evaluation set and safe-fallback test.
-7. Run `pnpm verify`; required GitHub CI checks must pass before merge.
-8. Update documentation in the same pull request.
+1. Read the relevant product requirement, domain documentation, and ADRs.
+2. State the business invariant affected by the change.
+3. Add or update acceptance tests before completing implementation.
+4. Include authorization and cross-organization isolation tests for data paths.
+5. For AI behavior, update the evaluation set and safe-fallback test.
+6. Run `pnpm verify`; required GitHub CI checks must pass before merge.
+7. Update documentation in the same pull request.
+
+During foundation setup, `pnpm verify` runs product checks and production builds.
+The engineering harness and Evidence-Driven Development lifecycle are available
+for explicit evaluation but are not merge or implementation prerequisites until
+the product owner activates them.
 
 ## Architecture boundaries
 

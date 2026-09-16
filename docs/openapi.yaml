@@ -73,10 +73,10 @@ paths:
   /manager-invitations/{invitationId}/accept:
     post: { tags: [Organizations], operationId: acceptInvitation, parameters: [{ $ref: '#/components/parameters/InvitationId' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Invitation' } } }
   /properties:
-    get: { tags: [Inventory], operationId: listProperties, parameters: [{ $ref: '#/components/parameters/Pagination' }], responses: { '200': { $ref: '#/components/responses/List' } } }
+    get: { tags: [Inventory], operationId: listProperties, security: [], parameters: [{ $ref: '#/components/parameters/PublicPropertyCity' }, { $ref: '#/components/parameters/Pagination' }, { $ref: '#/components/parameters/PublicPropertyLimit' }, { $ref: '#/components/parameters/PublicPropertySort' }], responses: { '200': { $ref: '#/components/responses/PublicPropertyList' } } }
     post: { tags: [Inventory], operationId: createProperty, requestBody: { $ref: '#/components/requestBodies/Property' }, responses: { '201': { $ref: '#/components/responses/Property' } } }
   /properties/{propertyId}:
-    get: { tags: [Inventory], operationId: getProperty, parameters: [{ $ref: '#/components/parameters/PropertyId' }], responses: { '200': { $ref: '#/components/responses/Property' } } }
+    get: { tags: [Inventory], operationId: getProperty, security: [], parameters: [{ $ref: '#/components/parameters/PropertyId' }], responses: { '200': { $ref: '#/components/responses/PublicProperty' } } }
     patch: { tags: [Inventory], operationId: updateProperty, parameters: [{ $ref: '#/components/parameters/PropertyId' }, { $ref: '#/components/parameters/IfMatch' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Property' } } }
     delete: { tags: [Inventory], operationId: archiveProperty, parameters: [{ $ref: '#/components/parameters/PropertyId' }], responses: { '204': { description: Archived } } }
   /units:
@@ -130,6 +130,9 @@ components:
   securitySchemes: { bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT } }
   parameters:
     Pagination: { name: cursor, in: query, schema: { type: string } }
+    PublicPropertyCity: { name: city, in: query, schema: { type: string, minLength: 1, maxLength: 120 } }
+    PublicPropertyLimit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    PublicPropertySort: { name: sort, in: query, schema: { type: string, enum: [created_at_desc, name_asc, name_desc], default: created_at_desc } }
     IfMatch: { name: If-Match, in: header, schema: { type: string } }
     IdempotencyKey: { name: Idempotency-Key, in: header, schema: { type: string, maxLength: 128 } }
     OrganizationId: { name: organizationId, in: path, required: true, schema: { type: string } }
@@ -170,6 +173,8 @@ components:
     Organization: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     Invitation: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     Property: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    PublicProperty: { description: Published public-safe property, content: { application/json: { schema: { $ref: '#/components/schemas/PublicPropertyEnvelope' } } } }
+    PublicPropertyList: { description: Published public-safe properties, content: { application/json: { schema: { $ref: '#/components/schemas/PublicPropertyListEnvelope' } } } }
     Unit: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     Application: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     Lease: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
@@ -189,7 +194,11 @@ components:
     LandlordRegistrationInput: { type: object, required: [name, email, phone, organization], properties: { name: { type: string, minLength: 2, maxLength: 120 }, email: { type: string, format: email }, phone: { type: string, maxLength: 40 }, organization: { type: string, minLength: 2, maxLength: 160 }, locale: { type: string, enum: [en, fr] } } }
     OperatorRegistrationInput: { type: object, required: [name, email, phone, services, coverage], properties: { name: { type: string, minLength: 2, maxLength: 120 }, email: { type: string, format: email }, phone: { type: string, maxLength: 40 }, services: { type: array, minItems: 1, items: { type: string } }, coverage: { type: array, minItems: 1, items: { type: string } }, locale: { type: string, enum: [en, fr] } } }
     Base: { type: object, required: [id, organizationId, createdAt, updatedAt, version], properties: { id: { type: string }, organizationId: { type: string }, createdAt: { type: string, format: date-time }, updatedAt: { type: string, format: date-time }, version: { type: integer } } }
+    Meta: { type: object, required: [requestId], properties: { requestId: { type: string } }, additionalProperties: false }
     Money: { type: object, required: [amount, currency], properties: { amount: { type: integer }, currency: { type: string, minLength: 3, maxLength: 3 } } }
+    PublicPropertyProjection: { type: object, required: [id, name, address, city, summary], properties: { id: { type: string }, name: { type: string }, address: { type: string }, city: { type: string }, summary: { type: string }, imageUrl: { type: string } }, additionalProperties: false }
+    PublicPropertyEnvelope: { type: object, required: [data, meta], properties: { data: { $ref: '#/components/schemas/PublicPropertyProjection' }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
+    PublicPropertyListEnvelope: { type: object, required: [items, total, nextCursor, meta], properties: { items: { type: array, items: { $ref: '#/components/schemas/PublicPropertyProjection' } }, total: { type: integer, minimum: 0 }, nextCursor: { type: string, nullable: true }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
     Envelope: { type: object, required: [data, auditEventId], properties: { data: { type: object, additionalProperties: true }, auditEventId: { type: string } } }
     ListEnvelope: { type: object, required: [items, total], properties: { items: { type: array, items: { type: object, additionalProperties: true } }, total: { type: integer }, nextCursor: { type: string, nullable: true } } }
     OrganizationInput: { type: object, required: [name, timezone], properties: { name: { type: string }, timezone: { type: string } } }

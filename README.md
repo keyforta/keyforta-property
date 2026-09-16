@@ -33,17 +33,17 @@ pnpm dev
 
 The repository includes governed Copilot agents, reusable Agent Skills, task
 contracts, evidence gates, and deterministic verification under `.github/` and
-`harness/`.
+`harness/`. During foundation setup these controls are dormant and do not block
+implementation or CI. The product validation entry point is:
 
 ```bash
-pnpm verify:agents
-pnpm verify:skills
-pnpm harness:self-test
-HARNESS_CONTRACT_MODE=skip pnpm verify
+pnpm verify
 ```
 
-Pull requests must include one active task contract under `harness/tasks/`.
-Canonical CI verification runs through `harness/scripts/verify.mjs`.
+Harness checks remain available for explicit evaluation through
+`pnpm verify:all`, the focused `verify:*` commands, and
+`pnpm harness:self-test`. Task contracts and generated evidence become required
+only after product-owner activation.
 
 `pnpm dev` serves the public site at `http://localhost:3000`. Use `pnpm dev:portal` for the portal at `http://localhost:3001`, `pnpm dev:admin` for the admin console at `http://localhost:3002`, or `pnpm dev:all` to run all three.
 

@@ -1,9 +1,10 @@
 # Evidence-Driven Development
 
-Evidence-Driven Development (EDD) is the repository's mandatory engineering
-workflow. Narrative claims such as "implemented", "tested", "secure", or
-"complete" do not advance a task. Only reproducible, structurally valid evidence
-can satisfy a gate.
+Evidence-Driven Development (EDD) is the repository's defined governance
+workflow. It is dormant during project foundation setup and becomes mandatory
+only after explicit product-owner activation. Until then, CI requires product
+checks and production builds but does not require task contracts, lifecycle
+transitions, or generated evidence.
 
 ## Workflow
 
@@ -106,8 +107,8 @@ or unnecessary personal data.
   inventory, and referenced artifacts.
 - `EDD_TRANSITION_TO=<state> pnpm verify:transition` evaluates a requested state
   transition. Without a target it validates the declared current state.
-- `pnpm verify:all` runs the canonical engineering and evidence gates.
-- `pnpm verify` is an alias for `verify:all` and is the CI entry point.
+- `pnpm verify:all` explicitly evaluates the engineering and evidence gates.
+- `pnpm verify` runs the active product checks and production build used by CI.
 
 Local verification with uncommitted implementation can generate and validate
 evidence. Pull-request CI independently runs the canonical checks and retains

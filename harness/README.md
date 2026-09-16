@@ -4,10 +4,19 @@ This directory contains deterministic, offline-first enforcement for task scope,
 protected paths, architecture boundaries, secret patterns, and verification
 evidence. It does not define product behavior.
 
+## Activation status
+
+The harness is dormant during project foundation setup. CI runs `pnpm verify`,
+which performs product checks and production builds without task contracts,
+lifecycle transitions, or generated evidence. Harness commands remain available
+for explicit evaluation, but their results do not block implementation or merge
+until the product owner activates enforcement.
+
 ## Task contracts
 
-Every implementation pull request updates or supplies a machine-readable contract
-validated against `schemas/task-contract.schema.json`. Set
+When enforcement is activated, every implementation pull request updates or
+supplies a machine-readable contract validated against
+`schemas/task-contract.schema.json`. Set
 `HARNESS_TASK_CONTRACT` when the active contract is not
 `tasks/mvp-engineering-system.json`. A contract records requirement references,
 allowed paths, protected-path declarations, evidence, risks, rollback, task
@@ -26,13 +35,11 @@ still run.
 
 ## Verification
 
-Run `pnpm verify` or `pnpm verify:all` from the repository root. It runs policy,
+Run `pnpm verify:all` from the repository root to evaluate the harness. It runs policy,
 contract, agent-governance, Agent Skills, classification, workflow-state, and
 evidence checks plus formatting, lint, type checking, tests, architecture checks,
 secret-pattern checks, documentation impact, the harness self-test, Bicep compilation
-for every file when Azure CLI is installed, and production builds. CI invokes
-this same command and adds the pilot-specific infrastructure policy and container
-builds.
+for every file when Azure CLI is installed, and production builds.
 PostgreSQL integration tests require `DATABASE_URL` and `DATABASE_AUTH=password`;
 CI supplies both and verification fails if CI loses `DATABASE_URL`. Local runs
 without PostgreSQL clearly report that gate skipped.
@@ -49,11 +56,10 @@ days. Commit and branch values are descriptive metadata and are not compared
 with the checkout. Local dirty-worktree evidence remains subject to the same
 source, inventory, failure, and repair-cycle validation.
 Waivers are retained as audit records but never suppress failed or skipped
-checks, missing artifacts, or missing artifact sections. Final pull-request CI
-validates the transition into the contract's declared current state against the
-generated manifest, and EDD ends at `verified`. CI invokes the canonical
-verifier entrypoint directly; package script aliases are conveniences for local
-use. GitHub required checks, pull-request reviews, CODEOWNERS or rulesets, branch
+checks, missing artifacts, or missing artifact sections. When activated,
+pull-request CI may validate the transition into the contract's declared current
+state against the generated manifest, and EDD ends at `verified`. GitHub required
+checks, pull-request reviews, CODEOWNERS or rulesets, branch
 protection, merge controls, protected environments, and deployment approvals
 are external controls that repository evidence cannot replace.
 

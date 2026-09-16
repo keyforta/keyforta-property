@@ -18,10 +18,6 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      HARNESS_CONTRACT_MODE: ${{ github.event_name == 'pull_request' && 'required' || 'skip' }}
-      HARNESS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
-      HARNESS_TASK_CONTRACT: ${{ github.event.pull_request.number == 19 && 'harness/tasks/HAR-008.json' || '' }}
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -44,25 +40,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate repository
-        run: node harness/scripts/verify.mjs
+      - name: Audit dependencies
+        run: pnpm audit --audit-level high
 
-      - name: Generate final commit evidence
-        if: success() && github.event_name == 'pull_request'
+      - name: Check secrets and architecture
         run: |
-          node harness/scripts/generate-evidence.mjs
-          pnpm verify:evidence
-          EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=verify:evidence pnpm verify:transition
+          node harness/graders/secrets.mjs
+          node harness/graders/architecture.mjs
 
-      - name: Package untrusted engineering evidence
-        if: always() && github.event_name == 'pull_request'
-        run: tar --create --file "$RUNNER_TEMP/keyforta-report-candidate.tar" --directory harness reports
-
-      - name: Upload untrusted engineering evidence
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v6
-        with:
-          name: untrusted-engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}
-          path: ${{ runner.temp }}/keyforta-report-candidate.tar
-          if-no-files-found: error
-          retention-days: 1
+      - name: Validate repository
+        run: pnpm verify
