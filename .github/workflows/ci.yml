@@ -92,6 +92,10 @@ jobs:
         if: always() && github.event_name == 'pull_request' && steps.stop-producer.outcome == 'success'
         run: |
           sudo test -f "$VALIDATION_CONTROL/producer-stopped"
+          sudo test -d "$VALIDATION_WORKSPACE"
+          sudo test ! -L "$VALIDATION_WORKSPACE"
+          sudo test -d "$VALIDATION_WORKSPACE/harness"
+          sudo test ! -L "$VALIDATION_WORKSPACE/harness"
           sudo tar --create --file "$RUNNER_TEMP/keyforta-report-candidate.tar" --directory "$VALIDATION_WORKSPACE/harness" reports
 
       - name: Upload untrusted engineering evidence
