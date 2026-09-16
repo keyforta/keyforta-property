@@ -90,6 +90,37 @@ importers:
 
   apps/jobs: {}
 
+  apps/mcp-server:
+    dependencies:
+      '@fastify/rate-limit':
+        specifier: 10.3.0
+        version: 10.3.0
+      '@keyforta/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@keyforta/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      fastify:
+        specifier: 5.12.3
+        version: 5.12.3
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.4.1
+        version: 26.4.1
+      tsx:
+        specifier: 4.23.13
+        version: 4.23.13
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 5.0.0
+        version: 5.0.0(@types/node@26.4.1)(vite@7.3.6(@types/node@26.4.1)(tsx@4.23.13)(yaml@2.9.1))
+
   apps/portal-web:
     dependencies:
       '@fluentui/react-components':

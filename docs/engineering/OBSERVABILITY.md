@@ -25,6 +25,15 @@ or correlation IDs as metric labels. Correlation IDs may be searchable structure
 log fields with approved retention. Record authorization outcomes and resource
 types, not sensitive resource content.
 
+## MCP boundary telemetry
+
+The standalone MCP service records one bounded audit event per request with
+correlation ID, client identity, protocol version, JSON-RPC method, tool name,
+result status, denial reason, policy version, and a hashed session reference.
+Credentials, prompts, tool arguments, tool results, and personal data are
+excluded. Alert design for authentication failures, limit rejections, latency,
+and session saturation is part of the separately approved activation work.
+
 ## Review triggers
 
 Telemetry packages, exporters, sampling, retention, paid Azure resources, new

@@ -111,6 +111,23 @@ test('makes caller-provided result object schemas strict', () => {
 	assert.equal(schema.safeParse(widgetDataResult).success, false);
 });
 
+test('supports widget-free tool results', () => {
+	const headlessSchema = createToolResultSchema({
+		structuredContentSchema: z.object({ status: z.literal('healthy') }).strict(),
+	});
+	const headlessResult = {
+		content: [{ type: 'text', text: 'KEYFORTA MCP is healthy.' }],
+		structuredContent: { status: 'healthy' },
+	};
+
+	assert.deepEqual(headlessSchema.parse(headlessResult), headlessResult);
+	assert.equal(headlessSchema.safeParse(validResult).success, false);
+	assert.equal(headlessSchema.safeParse({
+		...headlessResult,
+		structuredContent: { status: 'healthy', tenantId: 'prohibited' },
+	}).success, false);
+});
+
 test('keeps raw tokens outside execution context', () => {
 	const context = {
 		correlationId: 'correlation-1',

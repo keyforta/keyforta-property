@@ -9,6 +9,7 @@ apps/public-web/  Public Next.js application
 apps/portal-web/   Authenticated tenant, landlord, manager, and maintenance operator portal
 apps/admin-web/    Platform administration console
 apps/api/           Planned modular-monolith backend boundary
+apps/mcp-server/   Standalone authenticated read-only MCP boundary (not deployed)
 apps/jobs/          Planned asynchronous worker boundary
 packages/brand/    Shared KEYFORTA identity tokens and asset helpers
 packages/contracts/Shared API schemas, commands, and events
