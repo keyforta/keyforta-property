@@ -355,6 +355,55 @@ jobs:
                 postgresServerName="$POSTGRES_SERVER" \
                 apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
 
+      - name: Inspect public-web hostname state
+        id: hostname-state
+        if: env.DEPLOYMENT_SCOPE == 'public-web'
+        run: |
+          hostnames=$(az containerapp hostname list \
+            --name "ca-keyforta-${ENVIRONMENT}-web" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query '[].name' -o tsv)
+          canonical_present=false
+          www_present=false
+          grep -Fxq "$WEB_CANONICAL_HOST" <<< "$hostnames" && canonical_present=true
+          grep -Fxq "$WEB_WWW_HOST" <<< "$hostnames" && www_present=true
+          if [ "$canonical_present" = false ] && [ "$www_present" = false ]; then
+            echo "bootstrap-required=true" >> "$GITHUB_OUTPUT"
+          elif [ "$canonical_present" = true ] && [ "$www_present" = true ]; then
+            echo "bootstrap-required=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Expected either zero or both public-web hostnames; refusing a partial-state deployment." >&2
+            exit 1
+          fi
+
+      - name: Preview public-web hostname bootstrap
+        if: env.DEPLOYMENT_SCOPE == 'public-web' && steps.hostname-state.outputs.bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
+                webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                bindWebCertificates=false
+
       - name: Preview application changes
         if: env.DEPLOYMENT_SCOPE != 'postgres' && (inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true'))
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
@@ -380,7 +429,8 @@ jobs:
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
-                webWwwHostName="$WEB_WWW_HOST"
+                webWwwHostName="$WEB_WWW_HOST" \
+                bindWebCertificates=true
 
       - name: Verify public-web domain preconditions
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE == 'public-web'
@@ -416,6 +466,34 @@ jobs:
             test "$(dig +short TXT "$verification_host" | tr -d '\"')" = "$verification_id"
           done
 
+      - name: Bootstrap public-web hostnames
+        if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE == 'public-web' && steps.hostname-state.outputs.bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
+                webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                bindWebCertificates=false
+
       - name: Deploy applications
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
@@ -441,7 +519,8 @@ jobs:
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
-                webWwwHostName="$WEB_WWW_HOST"
+                webWwwHostName="$WEB_WWW_HOST" \
+                bindWebCertificates=true
 
       - name: Smoke test public applications
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'

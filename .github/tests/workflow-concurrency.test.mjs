@@ -85,8 +85,13 @@ test("deploy normalizes curl CRLF before matching the exact CORS origin", () => 
 test("deploy binds and verifies the canonical public web domains", () => {
   const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
   const steps = document.jobs.deploy.steps;
+  const hostnameState = steps.find((step) => step.name === "Inspect public-web hostname state");
+  const previewBootstrap = steps.find(
+    (step) => step.name === "Preview public-web hostname bootstrap",
+  );
   const preview = steps.find((step) => step.name === "Preview application changes");
   const preconditions = steps.find((step) => step.name === "Verify public-web domain preconditions");
+  const bootstrap = steps.find((step) => step.name === "Bootstrap public-web hostnames");
   const deploy = steps.find((step) => step.name === "Deploy applications");
   const smoke = steps.find((step) => step.name === "Smoke test public applications");
 
@@ -96,6 +101,15 @@ test("deploy binds and verifies the canonical public web domains", () => {
     assert.match(step?.with?.inlineScript ?? "", /webCanonicalHostName="\$WEB_CANONICAL_HOST"/);
     assert.match(step?.with?.inlineScript ?? "", /webWwwHostName="\$WEB_WWW_HOST"/);
   }
+  assert.match(hostnameState?.run ?? "", /az containerapp hostname list/);
+  assert.match(hostnameState?.run ?? "", /bootstrap-required=true/);
+  assert.match(hostnameState?.run ?? "", /Expected either zero or both public-web hostnames/);
+  for (const step of [previewBootstrap, bootstrap]) {
+    assert.match(step?.if ?? "", /steps\.hostname-state\.outputs\.bootstrap-required == 'true'/);
+    assert.match(step?.with?.inlineScript ?? "", /bindWebCertificates=false/);
+  }
+  assert.ok(steps.indexOf(previewBootstrap) < steps.indexOf(preview));
+  assert.ok(steps.indexOf(bootstrap) < steps.indexOf(deploy));
   assert.equal(
     preconditions?.if,
     "inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE == 'public-web'",
@@ -113,6 +127,9 @@ test("deploy binds and verifies the canonical public web domains", () => {
 
 test("application Bicep uses managed certificates for both public web domains", () => {
   const template = readFileSync("infra/bicep/apps.bicep", "utf8");
+  assert.match(template, /param bindWebCertificates bool/);
+  assert.match(template, /if \(deployWeb && bindWebCertificates\)/);
+  assert.match(template, /bindingType: 'Disabled'/);
   assert.match(template, /domainControlValidation: 'TXT'[\s\S]*subjectName: webCanonicalHostName/);
   assert.match(template, /domainControlValidation: 'CNAME'[\s\S]*subjectName: webWwwHostName/);
   assert.match(template, /customDomains:[\s\S]*certificateId: webCanonicalCertificate\.id[\s\S]*certificateId: webWwwCertificate\.id/);

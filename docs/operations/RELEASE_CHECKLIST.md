@@ -72,7 +72,10 @@ or tenant data in the record.
 8. For application scopes, preserve the deployed revision names and workflow summary.
 9. For a public-domain cutover, verify the Cloudflare records are DNS-only,
    preserve the prior records, and confirm the reviewed API CORS deployment
-   before binding the public-web managed certificates.
+  before binding the public-web managed certificates. If neither Container App
+  hostname exists, review both the disabled-binding hostname bootstrap and the
+  final managed-certificate what-if phases. Stop if exactly one hostname exists;
+  do not bypass the workflow's partial-state guard.
 
 The workflow must stop on a failed migration or smoke test. Never route around
 an environment approval or replace a failed migration with manual SQL.

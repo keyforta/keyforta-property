@@ -24,6 +24,10 @@ API configuration update.
 - Azure Bicep owns both managed certificates and Container Apps hostname
   bindings. The SHA-bound deployment workflow owns plan, deployment, and smoke
   evidence.
+- When neither hostname exists, the workflow previews and applies a first Bicep
+  phase with both bindings disabled, then applies the managed certificates and
+  SNI-enabled bindings in the final Bicep phase. Existing two-hostname releases
+  skip the bootstrap; a partial one-hostname state fails closed for review.
 - API CORS permits only `https://keyforta.com`; the Azure-generated web hostname
   is no longer an allowed browser origin.
 
@@ -37,5 +41,8 @@ declare the `dev` stamp production-ready or authorize real tenant data.
 - The pilot remains scale-to-zero and may have cold-start latency.
 - Cloudflare proxying, caching, WAF, and redirect rules are not in the serving
   path. Enabling them requires a separate reviewed certificate and edge design.
+- The bootstrap introduces no new resource class or paid service; it only
+  sequences the already-approved Container Apps hostname and managed-certificate
+  resources.
 - Rollback restores the prior Cloudflare apex records and removes the Azure
   hostname bindings through a reviewed forward infrastructure change.

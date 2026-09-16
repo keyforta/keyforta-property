@@ -20,6 +20,7 @@ param documentStorageAccountName string
 param tenantApplicationContainerName string
 param webCanonicalHostName string
 param webWwwHostName string
+param bindWebCertificates bool = true
 
 var webAppName = 'ca-keyforta-${environment}-web'
 var webPublicBaseUrl = 'https://${webCanonicalHostName}'
@@ -42,7 +43,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existin
   name: postgresServerName
 }
 
-resource webCanonicalCertificate 'Microsoft.App/managedEnvironments/managedCertificates@2024-10-02-preview' = if (deployWeb) {
+resource webCanonicalCertificate 'Microsoft.App/managedEnvironments/managedCertificates@2024-10-02-preview' = if (deployWeb && bindWebCertificates) {
   parent: appEnvironment
   name: 'keyforta-${environment}-web-apex'
   location: location
@@ -52,7 +53,7 @@ resource webCanonicalCertificate 'Microsoft.App/managedEnvironments/managedCerti
   }
 }
 
-resource webWwwCertificate 'Microsoft.App/managedEnvironments/managedCertificates@2024-10-02-preview' = if (deployWeb) {
+resource webWwwCertificate 'Microsoft.App/managedEnvironments/managedCertificates@2024-10-02-preview' = if (deployWeb && bindWebCertificates) {
   parent: appEnvironment
   name: 'keyforta-${environment}-web-www'
   location: location
@@ -137,7 +138,7 @@ resource web 'Microsoft.App/containerApps@2024-10-02-preview' = if (deployWeb) {
     configuration: {
       ingress: {
         allowInsecure: false
-        customDomains: [
+        customDomains: bindWebCertificates ? [
           {
             bindingType: 'SniEnabled'
             certificateId: webCanonicalCertificate.id
@@ -146,6 +147,15 @@ resource web 'Microsoft.App/containerApps@2024-10-02-preview' = if (deployWeb) {
           {
             bindingType: 'SniEnabled'
             certificateId: webWwwCertificate.id
+            name: webWwwHostName
+          }
+        ] : [
+          {
+            bindingType: 'Disabled'
+            name: webCanonicalHostName
+          }
+          {
+            bindingType: 'Disabled'
             name: webWwwHostName
           }
         ]
