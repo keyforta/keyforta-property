@@ -25,6 +25,9 @@ API configuration update.
   bindings. The apex A-record certificate uses HTTP domain-control validation;
   the `www` certificate uses CNAME validation. The SHA-bound deployment
   workflow owns plan, deployment, and smoke evidence.
+- Managed-certificate validation properties are immutable. A validation-method
+  correction uses a new certificate resource ID; obsolete certificates remain
+  until a separate reviewed cleanup confirms the replacement is secured.
 - When neither hostname exists, the workflow previews and applies a first Bicep
   phase with both bindings disabled, then applies the managed certificates and
   SNI-enabled bindings in the final Bicep phase. Existing two-hostname releases

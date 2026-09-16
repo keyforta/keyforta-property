@@ -45,7 +45,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' existin
 
 resource webCanonicalCertificate 'Microsoft.App/managedEnvironments/managedCertificates@2024-10-02-preview' = if (deployWeb && bindWebCertificates) {
   parent: appEnvironment
-  name: 'keyforta-${environment}-web-apex'
+  name: 'keyforta-${environment}-web-apex-http'
   location: location
   properties: {
     domainControlValidation: 'HTTP'
