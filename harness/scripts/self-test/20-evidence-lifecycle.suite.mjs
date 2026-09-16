@@ -101,22 +101,84 @@ function isolatedValidationUsesProducerHome(source) {
       ),
   );
   const requiredEnvironment = [
+    'CI="$CI"',
+    'HARNESS_CONTRACT_MODE="$HARNESS_CONTRACT_MODE"',
+    'HARNESS_BASE_REF="$HARNESS_BASE_REF"',
+    'HARNESS_TASK_CONTRACT="$HARNESS_TASK_CONTRACT"',
+    'GITHUB_HEAD_REF="$GITHUB_HEAD_REF"',
+    'GITHUB_REF_NAME="$GITHUB_REF_NAME"',
     'HOME="$VALIDATION_HOME"',
     'XDG_CONFIG_HOME="$VALIDATION_HOME/.config"',
     'XDG_CACHE_HOME="$VALIDATION_HOME/.cache"',
     'XDG_DATA_HOME="$VALIDATION_HOME/.local/share"',
     'XDG_STATE_HOME="$VALIDATION_HOME/.local/state"',
+    'PATH="$PATH"',
   ];
+  const commandPrefix =
+    "sudo sh -c 'echo $$ > \"$1/cgroup.procs\"; shift; exec \"$@\"' sh \"$VALIDATION_CGROUP\" sudo -u \"$VALIDATION_USER\" env -i " +
+    `${requiredEnvironment.join(" ")} `;
+  const expectedCommands = new Set([
+    "pnpm install --frozen-lockfile",
+    "node harness/scripts/verify.mjs",
+    "node harness/scripts/generate-evidence.mjs",
+    "pnpm verify:evidence",
+    "EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=dependency-audit,verify:evidence pnpm verify:transition",
+  ]);
   return (
-    commands.length === 5 &&
+    commands.length === expectedCommands.size &&
     commands.every(
-      (command) =>
-        command.startsWith(
-          "sudo sh -c 'echo $$ > \"$1/cgroup.procs\"; shift; exec \"$@\"' sh \"$VALIDATION_CGROUP\" sudo --preserve-env=",
-        ) &&
-        command.includes("HARNESS_TASK_CONTRACT") &&
-        requiredEnvironment.every((entry) => command.includes(entry)),
+      (command) => {
+        if (!command.startsWith(commandPrefix)) return false;
+        return expectedCommands.delete(command.slice(commandPrefix.length));
+      },
     )
+    && expectedCommands.size === 0
+  );
+}
+
+function producerEnvironmentSurvivesLauncher() {
+  const expected = {
+    CI: "true",
+    HARNESS_CONTRACT_MODE: "required",
+    HARNESS_BASE_REF: "base sha; printf not-executed",
+    HARNESS_TASK_CONTRACT: "harness/tasks/HAR-010.json",
+    GITHUB_HEAD_REF: 'fix/quoted "branch" $value',
+    GITHUB_REF_NAME: "13/merge",
+    HOME: "/home/keyforta-ci",
+    XDG_CONFIG_HOME: "/home/keyforta-ci/.config",
+    XDG_CACHE_HOME: "/home/keyforta-ci/.cache",
+    XDG_DATA_HOME: "/home/keyforta-ci/.local/share",
+    XDG_STATE_HOME: "/home/keyforta-ci/.local/state",
+    PATH: process.env.PATH,
+  };
+  const assignments = Object.entries(expected).map(
+    ([name, value]) => `${name}=${value}`,
+  );
+  const observed = JSON.parse(
+    execFileSync(
+      "sh",
+      [
+        "-c",
+        'shift; exec "$@"',
+        "sh",
+        "simulated-cgroup",
+        "env",
+        "-i",
+        ...assignments,
+        process.execPath,
+        "-e",
+        "process.stdout.write(JSON.stringify(process.env))",
+      ],
+      {
+        encoding: "utf8",
+        env: { ...process.env, KEYFORTA_AMBIENT_SECRET: "must-not-survive" },
+      },
+    ),
+  );
+  return (
+    Object.entries(expected).every(
+      ([name, value]) => observed[name] === value,
+    ) && !Object.hasOwn(observed, "KEYFORTA_AMBIENT_SECRET")
   );
 }
 
@@ -147,6 +209,8 @@ function isolatedValidationWorkspaceIsBounded(source) {
       "/sys/fs/cgroup/keyforta-ci-${{ github.run_id }}-${{ github.run_attempt }}" &&
     validationJob?.env?.VALIDATION_CONTROL ===
       "/run/keyforta-ci-${{ github.run_id }}-${{ github.run_attempt }}" &&
+    validationJob?.env?.HARNESS_TASK_CONTRACT ===
+      "${{ github.event.pull_request.number == 13 && 'harness/tasks/HAR-010.json' || '' }}" &&
     create?.run?.includes('sudo mkdir -- "$VALIDATION_CGROUP"') &&
     create.run.includes(
       'sudo install --directory --owner=root --group=root --mode=0700 "$VALIDATION_CONTROL"',
@@ -240,7 +304,7 @@ function retentionUsesTrustedWorkflow(validationSource, retentionSource) {
   );
   return (
     validationJob?.env?.HARNESS_TASK_CONTRACT ===
-      "${{ github.event.pull_request.number == 13 && 'harness/tasks/HAR-009.json' || '' }}" &&
+      "${{ github.event.pull_request.number == 13 && 'harness/tasks/HAR-010.json' || '' }}" &&
     retention?.on?.workflow_run?.workflows?.includes("CI") &&
     retention?.permissions?.contents === "read" &&
     retention?.permissions?.actions === "read" &&
@@ -1538,6 +1602,9 @@ jobs:
     isolatedValidationUsesProducerHome(
       readFileSync(".github/workflows/ci.yml", "utf8"),
     ),
+  );
+  check("governed producer environment survives the launcher", () =>
+    producerEnvironmentSurvivesLauncher(),
   );
   check("isolated CI producer hands off a bounded raw candidate", () =>
     isolatedValidationWorkspaceIsBounded(
