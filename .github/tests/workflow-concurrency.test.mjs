@@ -33,6 +33,14 @@ test("CI preserves repository verification and recursive Bicep compilation", () 
   }
 });
 
+test("migration job preserves single-replica manual execution", () => {
+  const template = readFileSync("infra/bicep/migration-job.bicep", "utf8");
+  assert.match(
+    template,
+    /manualTriggerConfig:\s*\{\s*parallelism:\s*1\s*replicaCompletionCount:\s*1\s*\}/,
+  );
+});
+
 test("deployment workflows pin every action to an immutable commit", () => {
   for (const file of [
     ".github/workflows/deploy.yml",

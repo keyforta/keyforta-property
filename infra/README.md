@@ -29,6 +29,8 @@ database role. The API image includes the checksummed migration runner invoked
 by that job. The runner validates each migration's transaction envelope, applies
 its SQL and checksum ledger row in one transaction, and rejects checksum drift;
 application startup never applies migrations.
+The manually triggered migration job runs one replica and requires that replica
+to complete, preventing concurrent migration runners inside one job execution.
 
 Jurisdiction and legal-policy values remain unset until evidence-backed policy
 activation. Migrations do not seed legal conclusions, consent, owner approval,
