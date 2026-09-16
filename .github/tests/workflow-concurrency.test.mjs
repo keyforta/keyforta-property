@@ -45,6 +45,7 @@ test("migration job preserves single-replica manual execution", () => {
 test("deployment workflows pin every action to an immutable commit", () => {
   for (const file of [
     ".github/workflows/deploy.yml",
+    ".github/workflows/deploy-mcp.yml",
     ".github/workflows/seed-development.yml",
   ]) {
     const document = YAML.parse(readFileSync(file, "utf8"));
@@ -54,6 +55,78 @@ test("deployment workflows pin every action to an immutable commit", () => {
       }
     }
   }
+});
+
+test("MCP deploy consumes a reviewed immutable image plan", () => {
+  const document = YAML.parse(
+    readFileSync(".github/workflows/deploy-mcp.yml", "utf8"),
+  );
+  const steps = document.jobs.deploy.steps;
+  const configuration = steps.find(
+    (step) => step.name === "Verify revision and configuration",
+  );
+  const publish = steps.find(
+    (step) => step.name === "Build and publish exact-SHA MCP image",
+  );
+  const attestations = steps.find(
+    (step) => step.name === "Verify MCP image attestations",
+  );
+  const preconditions = steps.find(
+    (step) => step.name === "Verify MCP deployment preconditions",
+  );
+  const intent = steps.find((step) => step.name === "Verify deployment intent");
+  const preview = steps.find((step) => step.name === "Preview MCP changes");
+  const deploy = steps.find((step) => step.name === "Deploy MCP revision");
+  const scan = steps.find((step) => step.name === "Scan immutable MCP image");
+  const revision = steps.find(
+    (step) => step.name === "Verify deployed MCP revision and RBAC",
+  );
+  const smoke = steps.find(
+    (step) => step.name === "Smoke test deployed MCP boundary",
+  );
+  const evidence = steps.find(
+    (step) => step.name === "Preserve SHA-bound MCP plan evidence",
+  );
+
+  assert.equal(document.jobs.deploy.environment, "dev");
+  assert.equal(document.jobs.deploy.concurrency["cancel-in-progress"], false);
+  assert.match(configuration?.run ?? "", /test -z "\$MCP_ALLOWED_NON_BROWSER_CLIENT_IDS"/);
+  assert.match(publish?.if ?? "", /inputs\.operation == 'plan'/);
+  assert.match(publish?.run ?? "", /--provenance=mode=max/);
+  assert.match(publish?.run ?? "", /--sbom=true/);
+  assert.match(publish?.run ?? "", /--push/);
+  assert.match(publish?.run ?? "", /repository show/);
+  assert.doesNotMatch(publish?.run ?? "", /show-manifests/);
+  assert.match(attestations?.run ?? "", /\.SBOM/);
+  assert.match(attestations?.run ?? "", /\.Provenance/);
+  assert.match(preconditions?.run ?? "", /keyforta-mcp-dev/);
+  assert.match(preconditions?.run ?? "", /ResourceGroupName/);
+  assert.match(preconditions?.run ?? "", /rg-keyforta-dev-san/);
+  assert.equal(scan?.with?.["exit-code"], "1");
+  assert.equal(scan?.with?.severity, "CRITICAL,HIGH");
+  assert.match(intent?.run ?? "", /image_digest=/);
+  assert.match(intent?.run ?? "", /bicep_sha256=/);
+  assert.match(intent?.run ?? "", /parameters_sha256=/);
+  assert.match(intent?.run ?? "", /what_if_sha256=/);
+  assert.doesNotMatch(deploy?.with?.inlineScript ?? "", /docker build/);
+  assert.match(deploy?.with?.inlineScript ?? "", /mcpImage="\$MCP_IMAGE"/);
+  assert.match(preview?.with?.inlineScript ?? "", /what-if/);
+  assert.match(preview?.with?.inlineScript ?? "", /mcp-what-if\.json/);
+  assert.match(revision?.run ?? "", /trafficWeight/);
+  assert.match(revision?.run ?? "", /role assignment list/);
+  assert.match(revision?.run ?? "", /ingress traffic set/);
+  assert.ok(steps.indexOf(deploy) < steps.indexOf(revision));
+  assert.match(smoke?.run ?? "", /MCP_BIND_CERTIFICATE/);
+  assert.match(smoke?.run ?? "", /unknown_resource/);
+  assert.match(evidence?.run ?? "", /image_digest=\$MCP_IMAGE_DIGEST/);
+  assert.match(evidence?.run ?? "", /bicep_sha256=\$BICEP_SHA256/);
+  assert.match(evidence?.run ?? "", /parameters_sha256=\$PARAMETERS_SHA256/);
+  assert.match(evidence?.run ?? "", /what_if_sha256=/);
+  assert.match(evidence?.run ?? "", /sbom_sha256=/);
+  assert.match(evidence?.run ?? "", /provenance_sha256=/);
+
+  const template = readFileSync("infra/bicep/mcp.bicep", "utf8");
+  assert.doesNotMatch(template, /latestRevision:\s*true/);
 });
 
 test("deploy normalizes curl CRLF before matching the exact CORS origin", () => {

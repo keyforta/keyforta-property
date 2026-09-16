@@ -6,9 +6,11 @@ import { createSessionStore, SessionCapacityError } from "../src/sessions.js";
 import { createSystemHealthTool } from "../src/tools/system-health.js";
 
 const binding = {
+  clientId: "synthetic-test-client",
   originKey: "non-browser",
   protocolVersion: "2025-06-18",
   subjectReference: "synthetic-subject-1",
+  tenantId: "synthetic-tenant-1",
 } as const;
 
 describe("MCP session store", () => {
@@ -50,6 +52,12 @@ describe("MCP session store", () => {
     ).toEqual({ ok: false, reason: "mismatched_session_binding" });
     expect(
       sessions.touch(session.id, { ...binding, protocolVersion: "2025-03-26" }),
+    ).toEqual({ ok: false, reason: "mismatched_session_binding" });
+    expect(
+      sessions.touch(session.id, { ...binding, clientId: "other-client" }),
+    ).toEqual({ ok: false, reason: "mismatched_session_binding" });
+    expect(
+      sessions.touch(session.id, { ...binding, tenantId: "other-tenant" }),
     ).toEqual({ ok: false, reason: "mismatched_session_binding" });
     expect(sessions.touch("unknown-session-identifier", binding)).toEqual({
       ok: false,

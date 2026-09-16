@@ -15,8 +15,10 @@
 ## Remote MCP boundary
 
 8. `apps/mcp-server` is the only Model Context Protocol boundary. It is a
-   standalone service, is not deployed, and is unreachable outside local and
-   test environments.
+   standalone service approved for a synthetic-only ChatGPT connection in the
+   dev environment through the protected activation process. It remains
+   unavailable in production and has no private API, database, tenant-data, or
+   model-provider access.
 9. Every MCP request is authenticated before protocol dispatch. Actor identity
    comes from the approved authentication boundary, never from JSON-RPC
    content, tool arguments, or client-supplied organization context.

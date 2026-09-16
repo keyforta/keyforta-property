@@ -20,6 +20,9 @@ operating window.
 Use [`RUNBOOK_TEMPLATE.md`](RUNBOOK_TEMPLATE.md) for new procedures. The
 [`authentication redirect mismatch`](AUTHENTICATION_REDIRECT_FAILURE.md)
 runbook is the executable procedure for OIDC callback failures.
+The [`MCP dev activation and containment`](MCP_DEV_RUNBOOK.md) runbook governs
+the synthetic-only ChatGPT dev connector, including cost, monitoring, emergency
+disable, and immutable-revision rollback.
 
 Every runbook must identify detection, severity, containment, owner,
 communication, recovery, evidence preservation, and follow-up actions.
