@@ -85,8 +85,8 @@ or incompatible contract versions.
 - `pnpm-workspace.yaml` retains `apps/*` and `packages/*`, adds `tools/*/*`, and
   preserves the explicit esbuild build policy.
 - `turbo.json` caches only deterministic tasks with declared inputs and outputs.
-  Development servers and Storybook are persistent and uncached. Harness,
-  security, evidence, identity, and deployment commands are never satisfied
+  Development servers and Storybook are persistent and uncached. Security,
+  identity, and deployment commands are never satisfied
   from Turbo cache.
 - Root `tsconfig.base.json` uses strict NodeNext/ES2022 defaults,
   `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and
@@ -95,7 +95,7 @@ or incompatible contract versions.
 - Packages consume each other through declared workspace dependencies and
   exports. TypeScript path aliases must not bypass those boundaries.
 - Direct pnpm package scripts remain available until build, test, cache, and
-  canonical verification parity is demonstrated.
+  verification parity is demonstrated.
 
 ### Core contracts and ownership
 
@@ -255,8 +255,8 @@ external secret and cannot claim live connector compatibility.
 
 Before implementation begins, this ADR requires Product, Architecture,
 Security/Privacy, UX, and Platform/SRE acceptance and separate application and
-infrastructure task contracts. Before any public endpoint is activated, require
-an approved Entra registration/consent design, connector privacy review,
+infrastructure implementation plans. Before any public endpoint is activated,
+require an approved Entra registration/consent design, connector privacy review,
 threat model, Bicep build and `what-if`, cost estimate, runbook, monitoring,
 rollback exercise, and explicit environment deployment approval.
 
@@ -314,6 +314,7 @@ deterministic workflows operating.
 - Product, Architecture, Security/Privacy, UX, and Platform/SRE acceptance:
   [issue #17 comment 5688247402](https://github.com/keyforta/keyforta-property/issues/17#issuecomment-5688247402)
 
-This acceptance authorizes implementation planning and separate task contracts.
+This acceptance authorizes implementation planning and separately reviewed
+application and infrastructure changes.
 It does not authorize external identity changes, infrastructure activation,
 credentials, provider connections, paid services, or deployment.

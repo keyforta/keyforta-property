@@ -13,13 +13,16 @@
     "dev:admin": "pnpm --filter @keyforta/admin-web dev",
     "dev:all": "pnpm --parallel --filter './apps/*-web' dev",
     "check:apps": "pnpm --recursive run check",
+    "check:architecture": "node scripts/verify/architecture-boundaries.mjs",
+    "check:secrets": "node scripts/verify/secret-scan.mjs",
     "build:apps": "pnpm --recursive run build",
     "test": "turbo run test",
+    "test:controls": "node --test scripts/verify/controls.test.mjs",
     "test:workflows": "node --test .github/tests/workflow-concurrency.test.mjs",
     "turbo:build": "turbo run build",
     "turbo:check": "turbo run check",
     "turbo:test": "turbo run test",
-    "verify": "pnpm check && pnpm test && pnpm test:workflows && pnpm audit --prod --audit-level high && pnpm build"
+    "verify": "pnpm check && pnpm check:architecture && pnpm check:secrets && pnpm test && pnpm test:controls && pnpm test:workflows && pnpm audit --audit-level high && pnpm build"
   },
   "devDependencies": {
     "turbo": "2.10.13",

@@ -35,8 +35,9 @@ pnpm dev
 pnpm verify
 ```
 
-This runs workspace checks, product and deployment workflow tests, a production
-dependency audit, and production builds. CI also compiles every Bicep module.
+This runs workspace, architecture, and secret checks; product, control, and
+deployment workflow tests; an all-dependency audit; and production builds. CI
+also compiles every Bicep module recursively.
 
 ## Copilot customizations
 

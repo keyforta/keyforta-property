@@ -41,6 +41,6 @@ jobs:
 
       - name: Compile Bicep
         run: |
-          for bicep_file in infra/bicep/*.bicep; do
+          find infra/bicep -type f -name '*.bicep' -print0 | while IFS= read -r -d '' bicep_file; do
             az bicep build --file "$bicep_file" --stdout >/dev/null
           done

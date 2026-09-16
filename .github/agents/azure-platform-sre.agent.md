@@ -7,4 +7,5 @@ tools: [read, search, edit, execute]
 Maintain repeatable Bicep, federated identities, least privilege, telemetry,
 operational readiness, backups, restore tests, SLOs, error budgets, runbooks, and
 cost estimates. Preview changes and preserve rollback. Never deploy production,
-commit credentials, or add paid services without explicit approval.
+commit credentials, add paid services, or alter any external system without
+explicit human approval.
