@@ -72,7 +72,10 @@ or tenant data in the record.
 8. For application scopes, preserve the deployed revision names and workflow summary.
 9. For a public-domain cutover, verify the Cloudflare records are DNS-only,
    preserve the prior records, and confirm the reviewed API CORS deployment
-   before binding the public-web managed certificates.
+  before binding the public-web managed certificates. If neither Container App
+  hostname exists, review both the disabled-binding hostname bootstrap and the
+  final managed-certificate what-if phases. Stop if exactly one hostname exists;
+  do not bypass the workflow's partial-state guard.
 
 The workflow must stop on a failed migration or smoke test. Never route around
 an environment approval or replace a failed migration with manual SQL.
@@ -118,3 +121,12 @@ avoids reconciling unrelated components. Image builds and migration executions
 still incur their normal transient cost. Roll an application scope back by
 redeploying a reviewed previous immutable SHA; recover a PostgreSQL change only
 through a reviewed forward corrective migration.
+
+For custom-domain rollback, first preserve the current DNS and Azure hostname,
+certificate, and revision evidence. In a reviewed forward change, restore the
+previous DNS records and confirm they resolve before changing Azure resources.
+The current incremental Bicep path does not delete hostname bindings or managed
+certificates; their removal requires a separate reviewed deletion mechanism and
+explicit approval. Stop if only one hostname is present or restored DNS does not
+resolve, and do not manually force a partial cleanup. Verify the prior HTTPS
+origin and API CORS behavior before closing the rollback record.

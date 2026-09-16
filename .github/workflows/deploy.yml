@@ -118,6 +118,13 @@ jobs:
             expected_scope="$DEPLOYMENT_SCOPE"
           fi
           grep -Fx "scope=$expected_scope" plan-evidence/deployment-plan.txt
+          planned_hostname_bootstrap=$(sed -n 's/^hostname_bootstrap=//p' plan-evidence/deployment-plan.txt)
+          case "$expected_scope:$planned_hostname_bootstrap" in
+            full:true|full:false|public-web:true|public-web:false) ;;
+            foundation:not-applicable|api:not-applicable|postgres:not-applicable) ;;
+            *) echo "Plan evidence has an invalid hostname_bootstrap value for scope '$expected_scope'." >&2; exit 1 ;;
+          esac
+          echo "EXPECTED_HOSTNAME_BOOTSTRAP=$planned_hostname_bootstrap" >> "$GITHUB_ENV"
 
       - name: Sign in to Azure with OIDC
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
@@ -181,6 +188,87 @@ jobs:
             echo "WEB_IDENTITY=$(echo "$outputs" | jq -r '.webIdentityName.value')" >> "$GITHUB_ENV"
             echo "DOCUMENT_STORAGE_ACCOUNT=$(echo "$outputs" | jq -r '.documentStorageAccountName.value')" >> "$GITHUB_ENV"
             echo "TENANT_APPLICATION_CONTAINER=$(echo "$outputs" | jq -r '.tenantApplicationContainerName.value')" >> "$GITHUB_ENV"
+
+      - name: Inspect public-web hostname state
+        id: hostname-state
+        if: (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && (inputs.operation == 'deploy' || steps.foundation-state.outputs.exists == 'true')
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          web_app=$(az containerapp list \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "[?name == 'ca-keyforta-${ENVIRONMENT}-web'].name | [0]" -o tsv)
+          if [ -n "$web_app" ]; then
+            hostnames=$(az containerapp hostname list \
+              --name "$web_app" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query '[].name' -o tsv)
+          else
+            hostnames=''
+          fi
+          canonical_present=false
+          www_present=false
+          grep -Fxq "$WEB_CANONICAL_HOST" <<< "$hostnames" && canonical_present=true
+          grep -Fxq "$WEB_WWW_HOST" <<< "$hostnames" && www_present=true
+          if [ "$canonical_present" = false ] && [ "$www_present" = false ]; then
+            bootstrap_required=true
+          elif [ "$canonical_present" = true ] && [ "$www_present" = true ]; then
+            bootstrap_required=false
+          else
+            echo "Expected either zero or both public-web hostnames; refusing a partial-state deployment." >&2
+            exit 1
+          fi
+          if [ "$OPERATION" = "deploy" ] && [ "$bootstrap_required" != "$EXPECTED_HOSTNAME_BOOTSTRAP" ]; then
+            echo "Planned hostname bootstrap state '$EXPECTED_HOSTNAME_BOOTSTRAP' no longer matches live state '$bootstrap_required'; run a new plan." >&2
+            exit 1
+          fi
+          echo "bootstrap-required=$bootstrap_required" >> "$GITHUB_OUTPUT"
+
+      - name: Verify public-web domain preconditions
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full')
+        run: |
+          api_fqdn=$(az containerapp show \
+            --name "ca-keyforta-${ENVIRONMENT}-api" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
+          web_url="https://${WEB_CANONICAL_HOST}"
+          if [ -n "$api_fqdn" ]; then
+            api_url="https://${api_fqdn}"
+            curl --fail --retry 12 --retry-delay 10 \
+              --header "origin: ${web_url}" \
+              --dump-header api-precondition-headers.txt \
+              "${api_url}/ready"
+            tr -d '\r' < api-precondition-headers.txt \
+              | grep -iFx "access-control-allow-origin: ${web_url}"
+          elif [ "$DEPLOYMENT_SCOPE" != "full" ]; then
+            echo "The public-web deployment requires an existing API with canonical CORS." >&2
+            exit 1
+          fi
+
+          static_ip=$(az containerapp env show \
+            --name "$APP_ENVIRONMENT" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.staticIp -o tsv)
+          verification_id=$(az containerapp env show \
+            --name "$APP_ENVIRONMENT" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.customDomainConfiguration.customDomainVerificationId -o tsv)
+          web_fqdn=$(az containerapp show \
+            --name "ca-keyforta-${ENVIRONMENT}-web" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)
+          if [ -z "$web_fqdn" ]; then
+            default_domain=$(az containerapp env show \
+              --name "$APP_ENVIRONMENT" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query properties.defaultDomain -o tsv)
+            web_fqdn="ca-keyforta-${ENVIRONMENT}-web.${default_domain}"
+          fi
+          test "$(dig +short A "$WEB_CANONICAL_HOST")" = "$static_ip"
+          test "$(dig +short CNAME "$WEB_WWW_HOST" | sed 's/\.$//')" = "$web_fqdn"
+          for verification_host in "asuid.${WEB_CANONICAL_HOST}" "asuid.${WEB_WWW_HOST}"; do
+            test "$(dig +short TXT "$verification_host" | tr -d '\"')" = "$verification_id"
+          done
 
       - name: Verify PostgreSQL DBA access configuration
         if: (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres') && (inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true'))
@@ -355,6 +443,34 @@ jobs:
                 postgresServerName="$POSTGRES_SERVER" \
                 apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
 
+      - name: Preview public-web hostname bootstrap
+        if: (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
+                webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                bindWebCertificates=false
+
       - name: Preview application changes
         if: env.DEPLOYMENT_SCOPE != 'postgres' && (inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true'))
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
@@ -380,41 +496,36 @@ jobs:
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
-                webWwwHostName="$WEB_WWW_HOST"
+                webWwwHostName="$WEB_WWW_HOST" \
+                bindWebCertificates=true
 
-      - name: Verify public-web domain preconditions
-        if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE == 'public-web'
-        run: |
-          api_fqdn=$(az containerapp show \
-            --name "ca-keyforta-${ENVIRONMENT}-api" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query properties.configuration.ingress.fqdn -o tsv)
-          api_url="https://${api_fqdn}"
-          web_url="https://${WEB_CANONICAL_HOST}"
-          curl --fail --retry 12 --retry-delay 10 \
-            --header "origin: ${web_url}" \
-            --dump-header api-precondition-headers.txt \
-            "${api_url}/ready"
-          tr -d '\r' < api-precondition-headers.txt \
-            | grep -iFx "access-control-allow-origin: ${web_url}"
-
-          static_ip=$(az containerapp env show \
-            --name "$APP_ENVIRONMENT" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query properties.staticIp -o tsv)
-          verification_id=$(az containerapp env show \
-            --name "$APP_ENVIRONMENT" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query properties.customDomainConfiguration.customDomainVerificationId -o tsv)
-          web_fqdn=$(az containerapp show \
-            --name "ca-keyforta-${ENVIRONMENT}-web" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query properties.configuration.ingress.fqdn -o tsv)
-          test "$(dig +short A "$WEB_CANONICAL_HOST")" = "$static_ip"
-          test "$(dig +short CNAME "$WEB_WWW_HOST" | sed 's/\.$//')" = "$web_fqdn"
-          for verification_host in "asuid.${WEB_CANONICAL_HOST}" "asuid.${WEB_WWW_HOST}"; do
-            test "$(dig +short TXT "$verification_host" | tr -d '\"')" = "$verification_id"
-          done
+      - name: Bootstrap public-web hostnames
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
+                webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                bindWebCertificates=false
 
       - name: Deploy applications
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'
@@ -441,7 +552,8 @@ jobs:
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
-                webWwwHostName="$WEB_WWW_HOST"
+                webWwwHostName="$WEB_WWW_HOST" \
+                bindWebCertificates=true
 
       - name: Smoke test public applications
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'
@@ -522,6 +634,9 @@ jobs:
               echo "- Next: review this run, then dispatch operation=deploy-foundation for the same SHA and plan run ID"
             else
               echo "- Result: ${PLAN_SCOPE} what-if completed"
+              if [ "$PLAN_SCOPE" = "public-web" ] || [ "$PLAN_SCOPE" = "full" ]; then
+                echo "- Hostname bootstrap required: ${{ steps.hostname-state.outputs.bootstrap-required }}"
+              fi
               echo "- Next: review this run, then dispatch operation=deploy for the same SHA and plan run ID"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -539,11 +654,19 @@ jobs:
       - name: Preserve SHA-bound deployment plan evidence
         if: inputs.operation == 'plan'
         run: |
+          case "$PLAN_SCOPE" in
+            full|public-web)
+              hostname_bootstrap='${{ steps.hostname-state.outputs.bootstrap-required }}'
+              case "$hostname_bootstrap" in true|false) ;; *) exit 1 ;; esac
+              ;;
+            *) hostname_bootstrap=not-applicable ;;
+          esac
           {
             echo "commit_sha=$DEPLOYMENT_SHA"
             echo "operation=plan"
             echo "run_id=$GITHUB_RUN_ID"
             echo "scope=$PLAN_SCOPE"
+            echo "hostname_bootstrap=$hostname_bootstrap"
           } > deployment-plan.txt
 
       - name: Upload deployment plan evidence
