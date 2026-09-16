@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type {
+	HeadlessToolResult,
 	HostToWidgetMessage,
 	JsonObject,
 	JsonValue,
@@ -32,3 +33,9 @@ export function createToolResultSchema<
 	structuredContentSchema: z.ZodType<TStructuredContent> & z.ZodObject;
 	widgetDataSchema: z.ZodType<TWidgetData> & z.ZodObject;
 }): z.ZodType<ToolResult<TStructuredContent, TWidgetData>>;
+export function createToolResultSchema<
+	TStructuredContent extends JsonObject,
+>(schemas: {
+	structuredContentSchema: z.ZodType<TStructuredContent> & z.ZodObject;
+	widgetDataSchema?: undefined;
+}): z.ZodType<HeadlessToolResult<TStructuredContent>>;

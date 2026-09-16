@@ -27,3 +27,17 @@ draft work related to their property relationship.
 When evidence is missing, access is denied, confidence is inadequate, a tool
 fails, or model service is unavailable, the assistant states the limitation and
 routes the user to the deterministic workflow or a human.
+
+## Model Context Protocol boundary
+
+KEYFORTA exposes a standalone, authenticated, read-only MCP service
+(`apps/mcp-server`) for Claude and ChatGPT-compatible remote MCP clients. The
+active slice returns only synthetic service metadata through the
+`system.health` capability tool.
+
+The service performs no outbound Anthropic or OpenAI API call, holds no
+provider credential, reads no database, accepts no client-supplied
+organization context, and offers no write tool or autonomous decision. Public
+ingress, provider connections, paid services, tenant-data tools, and production
+deployment remain separately gated. When the MCP service or any model client is
+unavailable, deterministic product workflows are unaffected.

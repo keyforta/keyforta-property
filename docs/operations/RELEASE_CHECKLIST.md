@@ -70,6 +70,9 @@ or tenant data in the record.
 7. For `postgres` or `full`, preserve the migration execution name and verify it
   reaches `Succeeded`.
 8. For application scopes, preserve the deployed revision names and workflow summary.
+9. For a public-domain cutover, verify the Cloudflare records are DNS-only,
+   preserve the prior records, and confirm the reviewed API CORS deployment
+   before binding the public-web managed certificates.
 
 The workflow must stop on a failed migration or smoke test. Never route around
 an environment approval or replace a failed migration with manual SQL.
@@ -85,6 +88,8 @@ must never be used for production or replaced with ad hoc database commands.
 ## Post-deployment verification
 
 - Verify the home page and `/locations` through the public web endpoint.
+- Verify `https://keyforta.com` serves the expected revision and
+  `https://www.keyforta.com` redirects to the same apex path.
 - Verify the lease-schedule API returns the approved deterministic calculation.
 - Confirm the catalogue returns only explicitly published fields and does not
   fall back to synthetic development listings.

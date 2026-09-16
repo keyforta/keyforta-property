@@ -1,9 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "esModuleInterop": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "types": ["node"]
+    "rootDir": "src"
   },
   "include": ["src/**/*.ts"]
 }

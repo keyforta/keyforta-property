@@ -156,13 +156,17 @@ const strictObjectSchema = (schema, channel) => {
 
 export const createToolResultSchema = ({ structuredContentSchema, widgetDataSchema }) => {
 	const strictStructuredContentSchema = strictObjectSchema(structuredContentSchema, 'structuredContentSchema');
-	const strictWidgetDataSchema = strictObjectSchema(widgetDataSchema, 'widgetDataSchema');
+	const widgetChannelShape = widgetDataSchema === undefined
+		? {}
+		: {
+			_meta: z.object({
+				'openai/outputTemplate': widgetResourceUriSchema,
+				widgetData: strictObjectSchema(widgetDataSchema, 'widgetDataSchema'),
+			}).strict(),
+		};
 
 	return z.object({
-		_meta: z.object({
-			'openai/outputTemplate': widgetResourceUriSchema,
-			widgetData: strictWidgetDataSchema,
-		}).strict(),
+		...widgetChannelShape,
 		content: z.array(toolTextContentSchema).max(8),
 		structuredContent: strictStructuredContentSchema,
 	}).strict().superRefine((result, context) => {

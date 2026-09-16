@@ -1,4 +1,5 @@
 import type {
+  HeadlessToolResult,
   ToolExecutionContext,
   ToolResult,
   WidgetResourceDescriptor,
@@ -31,7 +32,13 @@ const context = {
   principalReference: 'principal-1',
 } as const satisfies ToolExecutionContext;
 
+const headlessResult = {
+  structuredContent: { status: 'healthy' },
+  content: [{ type: 'text', text: 'KEYFORTA MCP is healthy.' }],
+} as const satisfies HeadlessToolResult;
+
 void result;
+void headlessResult;
 void resource;
 void context;
 

@@ -29,13 +29,18 @@ export interface ToolResultMeta<
   readonly widgetData: TWidgetData;
 }
 
+export interface HeadlessToolResult<
+  TStructuredContent extends JsonObject = JsonObject,
+> extends JsonObject {
+  readonly content: readonly ToolTextContent[];
+  readonly structuredContent: TStructuredContent;
+}
+
 export interface ToolResult<
   TStructuredContent extends JsonObject = JsonObject,
   TWidgetData extends JsonObject = JsonObject,
-> extends JsonObject {
+> extends HeadlessToolResult<TStructuredContent> {
   readonly _meta: ToolResultMeta<TWidgetData>;
-  readonly content: readonly ToolTextContent[];
-  readonly structuredContent: TStructuredContent;
 }
 
 export interface WidgetContentSecurityPolicy extends JsonObject {
