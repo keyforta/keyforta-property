@@ -46,7 +46,7 @@ jobs:
       RESOURCE_GROUP: rg-keyforta-dev-san
     steps:
       - name: Check out immutable revision
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ env.DEPLOYMENT_SHA }}
@@ -90,14 +90,14 @@ jobs:
           grep -Fx "scope=$expected_scope" plan-evidence/deployment-plan.txt
 
       - name: Sign in to Azure with OIDC
-        uses: azure/login@v3
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Preview foundation changes
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group what-if \
@@ -109,7 +109,7 @@ jobs:
 
       - name: Determine deployment plan scope
         id: foundation-state
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             if az deployment group show \
@@ -124,7 +124,7 @@ jobs:
 
       - name: Deploy foundation
         if: inputs.operation == 'deploy' || inputs.operation == 'deploy-foundation'
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group create \
@@ -136,7 +136,7 @@ jobs:
 
       - name: Load foundation outputs
         if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             outputs=$(az deployment group show --resource-group "$RESOURCE_GROUP" --name "keyforta-${ENVIRONMENT}-foundation" --query properties.outputs -o json)
@@ -167,7 +167,7 @@ jobs:
 
       - name: Preview database access changes
         if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group what-if \
@@ -185,7 +185,7 @@ jobs:
 
       - name: Preview database job changes
         if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group what-if \
@@ -212,7 +212,7 @@ jobs:
 
       - name: Configure PostgreSQL Entra administrator
         if: inputs.operation == 'deploy'
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group create \
@@ -257,7 +257,7 @@ jobs:
 
       - name: Deploy migration job
         if: inputs.operation == 'deploy'
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group create \
@@ -295,7 +295,7 @@ jobs:
 
       - name: Deploy dormant development seed job
         if: inputs.operation == 'deploy'
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group create \
@@ -311,7 +311,7 @@ jobs:
 
       - name: Preview application changes
         if: inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true')
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group what-if \
@@ -335,7 +335,7 @@ jobs:
 
       - name: Deploy applications
         if: inputs.operation == 'deploy'
-        uses: azure/CLI@v3
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
             az deployment group create \
@@ -375,7 +375,8 @@ jobs:
             --header "origin: ${web_url}" \
             --dump-header api-headers.txt \
             "${api_url}/ready"
-          grep -iFx "access-control-allow-origin: ${web_url}" api-headers.txt
+          tr -d '\r' < api-headers.txt \
+            | grep -iFx "access-control-allow-origin: ${web_url}"
           curl --fail --silent --show-error \
             --header "origin: ${web_url}" \
             "${api_url}/api/v1/properties?limit=1" > public-properties.json
@@ -444,7 +445,7 @@ jobs:
 
       - name: Upload deployment plan evidence
         if: inputs.operation == 'plan'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: deployment-plan-${{ env.DEPLOYMENT_SHA }}
           path: deployment-plan.txt

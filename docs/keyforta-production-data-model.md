@@ -1,18 +1,12 @@
-Operational migration `0015_party_and_jurisdiction_policy_foundation.sql`
-introduces parties, identity profiles, effective membership dates, and nullable
-organization/property jurisdiction fields additively. Existing `users` and
-single-role membership columns remain compatibility fields while later slices
-migrate callers toward the target model. The backfill maps each existing user
-to a deterministic party but does not infer legal identity, consent,
 # KEYFORTA Production Data Model
 
 **Status:** Normative production logical/physical data design v2.0
 **Database assumption:** PostgreSQL 16+
 **Primary scope:** Kinshasa-first rental management with USD/CDF multi-currency support
 
-This is the relational model for the backend implementation. The executable, reviewed SQL artifacts are maintained beside this document under [`docs/database/`](./database/). They are reference implementation migrations, not application code; the backend team must execute them through its migration runner without weakening the stated ownership, constraints, or audit rules.
+This is the normative target relational model for the backend implementation. The reviewed SQL under [`docs/database/`](./database/) is a reference representation of that target, not the deployed migration lineage. Per ADR-013, [`infra/postgres/migrations`](../infra/postgres/migrations/) is the canonical executable history applied by the checksummed migration runner.
 
-The SQL migrations are canonical for exact PostgreSQL column types, enum names, constraint names, index definitions, and policy definitions. The abbreviated table descriptions below explain ownership and intent; they do not replace the SQL artifacts.
+The target SQL is authoritative for intended PostgreSQL column types, enum names, constraints, indexes, and policies. Operational differences must be explicit, additive migration steps toward this design; the abbreviated table descriptions below explain ownership and intent and do not replace either SQL artifact set.
 
 ## 0. Executable artifacts
 
@@ -23,7 +17,7 @@ The SQL migrations are canonical for exact PostgreSQL column types, enum names, 
 | [`V003__keyforta_reference_seed.sql`](./database/V003__keyforta_reference_seed.sql) | Idempotent reference data for currencies, locales, roles, policy keys, maintenance categories, and event schemas |
 | [`backup-retention-runbook.md`](./database/backup-retention-runbook.md) | Azure PostgreSQL/Blob backup, retention, restore testing, deletion, and legal-hold procedures |
 
-Migration execution order is `V001 → V002 → V003`. These files must be applied only by the migration role, recorded in the deployment ledger, and tested against a clean database and an upgrade from the previous production schema.
+The reference composition order is `V001 → V002 → V003`. Deployment applies only ordered migrations from `infra/postgres/migrations` through the migration role, records their checksums in the deployment ledger, and tests both clean installation and upgrade from the previous schema.
 
 ## 1. Conventions
 
@@ -138,8 +132,16 @@ introduces parties, identity profiles, effective membership dates, and nullable
 organization/property jurisdiction fields additively. Existing `users` and
 single-role membership columns remain compatibility fields while later slices
 migrate callers toward the target model. The backfill maps each existing user
-to a deterministic party but does not infer legal identity, consent,
-verification, expanded roles, or jurisdiction.
+to a deterministic party while leaving `party_type` unset; it preserves legacy
+display names verbatim and does not infer legal identity, consent, verification,
+expanded roles, or jurisdiction. Memberships receive independent identifiers
+and non-overlapping active intervals so role changes retain prior rows.
+
+Operational migration `0016_bounded_public_listing_pagination.sql` adds indexed,
+database-side public listing filters, stable sort-specific keyset pagination,
+exact totals, and explicit invalid-cursor signaling. The API receives at most
+the requested page plus one look-ahead row and never exposes organization or
+unit identifiers through this projection.
 
 ### `jurisdiction_policy_versions`, approval evidence, and activations
 

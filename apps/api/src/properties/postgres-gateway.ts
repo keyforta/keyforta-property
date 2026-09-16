@@ -26,6 +26,35 @@ interface PublicListingRow {
   title: string;
 }
 
+interface PublicListingPageRow {
+  cursor_valid: boolean;
+  items: unknown[];
+  next_cursor: string | null;
+  total_count: string;
+}
+
+function parsePublicListingPageRow(row: unknown): PublicListingPageRow {
+  if (!row || typeof row !== "object") {
+    throw new Error("The public listing page query returned an invalid row.");
+  }
+  const candidate = row as Record<string, unknown>;
+  if (
+    typeof candidate.cursor_valid !== "boolean" ||
+    !Array.isArray(candidate.items) ||
+    (candidate.next_cursor !== null &&
+      typeof candidate.next_cursor !== "string") ||
+    typeof candidate.total_count !== "string"
+  ) {
+    throw new Error("The public listing page query returned an invalid row.");
+  }
+  return {
+    cursor_valid: candidate.cursor_valid,
+    items: candidate.items,
+    next_cursor: candidate.next_cursor,
+    total_count: candidate.total_count,
+  };
+}
+
 function parseDateOnly(value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (!(value instanceof Date) || Number.isNaN(value.valueOf())) return undefined;
@@ -100,27 +129,6 @@ function toProjection(row: PublicListingRow): PublicPropertyProjection {
   };
 }
 
-function sortRows(
-  rows: PublicListingRow[],
-  sort: PublicPropertyListQuery["sort"],
-): PublicListingRow[] {
-  if (sort === "name_asc") {
-    return rows.sort(
-      (left, right) =>
-        left.title.localeCompare(right.title) ||
-        left.slug.localeCompare(right.slug),
-    );
-  }
-  if (sort === "name_desc") {
-    return rows.sort(
-      (left, right) =>
-        right.title.localeCompare(left.title) ||
-        left.slug.localeCompare(right.slug),
-    );
-  }
-  return rows;
-}
-
 export function createPostgresPublicPropertyGateway(
   client: DatabaseClient,
 ): PublicPropertyGateway {
@@ -135,41 +143,30 @@ export function createPostgresPublicPropertyGateway(
     },
     async list(query) {
       const result = await client.query(
-        "select * from app.list_public_listings($1, $2, $3)",
+        "select * from app.list_public_listings_page($1, $2, $3, $4, $5, $6, $7)",
         [
+          query.city ?? null,
           query.district ?? null,
           query.minBedrooms ?? null,
           query.maxMonthlyRentMinor ?? null,
+          query.sort,
+          query.cursor ?? null,
+          query.limit,
         ],
       );
-      const rows = sortRows(
-        result.rows
-          .map(parsePublicListingRow)
-          .filter(
-            (row) =>
-              query.city === undefined ||
-              row.city.localeCompare(query.city, undefined, {
-                sensitivity: "accent",
-              }) === 0,
-          ),
-        query.sort,
-      );
-      const cursorIndex = query.cursor
-        ? rows.findIndex((row) => row.slug === query.cursor)
-        : -1;
-      if (query.cursor && cursorIndex === -1) {
+      const row = result.rows[0];
+      if (!row) {
+        throw new Error("The public listing page query returned no row.");
+      }
+      const page = parsePublicListingPageRow(row);
+      if (!page.cursor_valid) {
         throw new InvalidPublicPropertyCursorError();
       }
-      const pageStart = cursorIndex + 1;
-      const page = rows.slice(pageStart, pageStart + query.limit);
 
       return {
-        items: page.map(toProjection),
-        nextCursor:
-          pageStart + page.length < rows.length
-            ? page.at(-1)?.slug ?? null
-            : null,
-        total: rows.length,
+        items: page.items.map(parsePublicListingRow).map(toProjection),
+        nextCursor: page.next_cursor,
+        total: Number(page.total_count),
       };
     },
   };

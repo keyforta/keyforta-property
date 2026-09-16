@@ -101,7 +101,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     const result = await client.query<{ count: string }>(
       "select count(*)::text as count from app.schema_migrations",
     );
-    expect(result.rows[0]?.count).toBe("15");
+    expect(result.rows[0]?.count).toBe("16");
   });
 
   it("maps users to parties without inventing legal or consent facts", async () => {
@@ -156,9 +156,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
         '00000000-0000-4000-8000-000000000941',
         'tenant',
         true
-      )
-      on conflict (organization_id, user_id) do update
-        set role = excluded.role, active = true;
+      );
     `);
 
     await runtimeClient.query("begin");
@@ -356,6 +354,53 @@ describePostgres("PostgreSQL public discovery integration", () => {
       "published-org-b",
       "published-org-a",
     ]);
+  });
+
+  it("filters and paginates published listings inside PostgreSQL", async () => {
+    const listPage = async (cursor: string | null) => {
+      await runtimeClient.query("begin");
+      await runtimeClient.query("set local role keyforta_runtime");
+      try {
+        const result = await runtimeClient.query<{
+          cursor_valid: boolean;
+          items: Array<{ slug: string }>;
+          next_cursor: string | null;
+          total_count: string;
+        }>(
+          "select * from app.list_public_listings_page($1, $2, $3, $4, $5, $6, $7)",
+          ["Kinshasa", null, 2, "70000", "created_at_desc", cursor, 1],
+        );
+        await runtimeClient.query("commit");
+        return result.rows[0]!;
+      } catch (error) {
+        await runtimeClient.query("rollback");
+        throw error;
+      }
+    };
+
+    const firstPage = await listPage(null);
+    expect(firstPage).toEqual({
+      cursor_valid: true,
+      items: [expect.objectContaining({ slug: "published-org-b" })],
+      next_cursor: "published-org-b",
+      total_count: "2",
+    });
+
+    const secondPage = await listPage(firstPage.next_cursor);
+    expect(secondPage).toEqual({
+      cursor_valid: true,
+      items: [expect.objectContaining({ slug: "published-org-a" })],
+      next_cursor: null,
+      total_count: "2",
+    });
+
+    const invalidPage = await listPage("missing-listing");
+    expect(invalidPage).toEqual({
+      cursor_valid: false,
+      items: [],
+      next_cursor: null,
+      total_count: "2",
+    });
   });
 
   it("derives inquiry organization from the listing and suppresses duplicates", async () => {

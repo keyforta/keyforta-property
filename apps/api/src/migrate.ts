@@ -88,7 +88,7 @@ export async function applyMigrations(client: PoolClient): Promise<void> {
   }
 }
 
-async function mapRuntimePrincipal(client: PoolClient): Promise<void> {
+export async function mapRuntimePrincipal(client: PoolClient): Promise<void> {
   const principalName = process.env.DATABASE_RUNTIME_PRINCIPAL;
   const principalId = process.env.DATABASE_RUNTIME_PRINCIPAL_ID;
   if (!principalName && !principalId) return;
@@ -101,7 +101,7 @@ async function mapRuntimePrincipal(client: PoolClient): Promise<void> {
   const existing = await client.query<{ principal: Record<string, unknown> }>(
     `select row_to_json(principal) as principal
      from pg_catalog.pgaadauth_list_principals(false) principal
-     where rolename = $1`,
+     where rolname = $1`,
     [principalName],
   );
   const existingPrincipal = existing.rows[0]?.principal;

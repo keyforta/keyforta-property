@@ -10,8 +10,9 @@ describe("PostgreSQL public property gateway", () => {
       async query(text: string, parameters: readonly unknown[] = []) {
         queries.push({ parameters, text });
         return {
-          rows: [
-            {
+          rows: [{
+            cursor_valid: true,
+            items: [{
               amenities: ["Water"],
               area_square_meters: 72,
               available_from: new Date(2026, 9, 1),
@@ -25,30 +26,18 @@ describe("PostgreSQL public property gateway", () => {
               slug: "appartement-gombe",
               summary: "Synthetic published listing.",
               title: "Appartement Gombe",
-            },
-            {
-              amenities: ["Parking"],
-              area_square_meters: null,
-              available_from: "2026-10-15",
-              bathrooms: 2,
-              bedrooms: 3,
-              city: "Kinshasa",
-              currency: "USD",
-              district: "Limete",
-              image_urls: ["/images/second.jpg"],
-              monthly_rent_minor: "65000",
-              slug: "maison-limete",
-              summary: "Second synthetic published listing.",
-              title: "Maison Limete",
-            },
-          ],
+            }],
+            next_cursor: "appartement-gombe",
+            total_count: "2",
+          }],
         };
       },
     };
     const gateway = createPostgresPublicPropertyGateway(client);
 
     const result = await gateway.list({
-      cursor: "appartement-gombe",
+      city: "Kinshasa",
+      cursor: "maison-limete",
       district: "Limete",
       limit: 1,
       maxMonthlyRentMinor: "70000",
@@ -58,32 +47,63 @@ describe("PostgreSQL public property gateway", () => {
 
     expect(queries).toEqual([
       {
-        parameters: ["Limete", 2, "70000"],
-        text: expect.stringContaining("app.list_public_listings"),
+        parameters: [
+          "Kinshasa",
+          "Limete",
+          2,
+          "70000",
+          "created_at_desc",
+          "maison-limete",
+          1,
+        ],
+        text: expect.stringContaining("app.list_public_listings_page"),
       },
     ]);
     expect(result).toEqual({
       items: [
         {
           address: "Limete",
-          amenities: ["Parking"],
-          availableFrom: "2026-10-15",
-          bathrooms: 2,
-          bedrooms: 3,
+          amenities: ["Water"],
+          availableFrom: "2026-10-01",
+          bathrooms: 1,
+          bedrooms: 2,
           city: "Kinshasa",
           currency: "USD",
           district: "Limete",
-          id: "maison-limete",
-          imageUrl: "/images/second.jpg",
-          imageUrls: ["/images/second.jpg"],
-          monthlyRentMinor: "65000",
-          name: "Maison Limete",
-          summary: "Second synthetic published listing.",
+          id: "appartement-gombe",
+          imageUrl: "/images/listing.jpg",
+          imageUrls: ["/images/listing.jpg"],
+          monthlyRentMinor: "40000",
+          name: "Appartement Gombe",
+          summary: "Synthetic published listing.",
+          areaSquareMeters: 72,
         },
       ],
-      nextCursor: null,
+      nextCursor: "appartement-gombe",
       total: 2,
     });
+  });
+
+  it("rejects a cursor that is outside the filtered database result", async () => {
+    const client = {
+      async query() {
+        return {
+          rows: [{
+            cursor_valid: false,
+            items: [],
+            next_cursor: null,
+            total_count: "1",
+          }],
+        };
+      },
+    };
+    const gateway = createPostgresPublicPropertyGateway(client);
+
+    await expect(gateway.list({
+      cursor: "missing-listing",
+      limit: 20,
+      sort: "created_at_desc",
+    })).rejects.toThrow("The public property cursor is invalid.");
   });
 
   it("persists a correlated inquiry through the serialized database command", async () => {

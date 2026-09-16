@@ -46,6 +46,7 @@
     "access_request_saved": "Request saved. Reference {{reference}}.",
     "saved_demo": "Saved successfully.",
     "workspace_action_saved": "Action saved.",
+    "portal_unavailable": "The protected workspace is not available in this environment.",
     "registration_received": "Your registration request has been received.",
     "contact_received": "Your message has been received.",
     "api_idle": "Operation results will appear here.",

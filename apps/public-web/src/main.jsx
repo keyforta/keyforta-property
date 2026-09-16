@@ -3,9 +3,10 @@
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { keyfortaBrand } from '@keyforta/brand';
 import { useEffect } from 'react';
-import { HashRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import './i18n.js';
 import App from './App.jsx';
+import { getLegacyRouteUrl } from './route-normalization.js';
 
 const { colors } = keyfortaBrand;
 const keyfortaTheme = {
@@ -21,60 +22,22 @@ const keyfortaTheme = {
 };
 
 function normalizeLegacyHashRoute() {
-  const currentHash = window.location.hash || '';
-  if (!currentHash || currentHash === '#') {
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/home`);
-    return;
-  }
-
-  const raw = currentHash.slice(1);
-  if (raw.startsWith('/')) return;
-
-  const [pathPart, fragmentPart] = raw.split('#');
-  const [routeRoot] = pathPart.split('/');
-  const legacyRoots = new Set([
-    'home',
-    'voice',
-    'properties',
-    'property',
-    'apply',
-    'how',
-    'landlords',
-    'trust',
-    'faq',
-    'contact',
-    'privacy',
-    'terms',
-    'signin',
-    'login',
-    'signup',
-    'invite',
-    'offer-services',
-    'demo',
-  ]);
-
-  if (routeRoot === 'status') {
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/home#status`);
-    return;
-  }
-
-  if (!legacyRoots.has(routeRoot)) return;
-
-  const normalized = fragmentPart ? `#/${pathPart}#${fragmentPart}` : `#/${pathPart}`;
-  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${normalized}`);
+  const normalized = getLegacyRouteUrl(window.location);
+  if (normalized) window.history.replaceState(null, '', normalized);
 }
+
+if (typeof window !== 'undefined') normalizeLegacyHashRoute();
 
 export default function ClientApp() {
   useEffect(() => {
-    normalizeLegacyHashRoute();
     window.history.scrollRestoration = 'manual';
   }, []);
 
   return (
     <FluentProvider theme={keyfortaTheme} className="fluent-app-provider">
-      <HashRouter>
+      <BrowserRouter>
         <App />
-      </HashRouter>
+      </BrowserRouter>
     </FluentProvider>
   );
 }

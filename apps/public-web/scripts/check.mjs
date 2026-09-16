@@ -3,6 +3,9 @@ import { access, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { buildPortalUrl, resolvePortalWebUrl } from '../src/portal-url.js';
+import { getLegacyRouteUrl } from '../src/route-normalization.js';
+
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const featuredIntroSelector = '.featured-section .section-head > p';
 
@@ -58,4 +61,15 @@ assert.throws(
   /must remain wrappable/,
   'A later featured-intro override must not evade the wrapping regression.'
 );
-console.log(`Checked ${requiredFiles.length} public-web files, locale JSON parsing, and responsive featured-intro wrapping.`);
+assert.equal(getLegacyRouteUrl({ hash: '', search: '' }), null);
+assert.equal(getLegacyRouteUrl({ hash: '#/properties', search: '?city=Kinshasa' }), '/properties?city=Kinshasa');
+assert.equal(getLegacyRouteUrl({ hash: '#property/unit-1', search: '' }), '/property/unit-1');
+assert.equal(getLegacyRouteUrl({ hash: '#status', search: '' }), '/home#status');
+assert.equal(getLegacyRouteUrl({ hash: '#section', search: '' }), null);
+assert.equal(resolvePortalWebUrl(undefined, 'production'), null);
+assert.equal(resolvePortalWebUrl(undefined, 'development'), 'http://127.0.0.1:3001/');
+assert.equal(
+  buildPortalUrl('https://portal.example/', 'tenant', 'tenant@example.test'),
+  'https://portal.example/?role=tenant&email=tenant%40example.test',
+);
+console.log(`Checked ${requiredFiles.length} public-web files, route normalization, locale JSON parsing, and responsive featured-intro wrapping.`);
