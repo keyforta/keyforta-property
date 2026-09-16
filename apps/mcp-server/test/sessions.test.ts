@@ -16,13 +16,15 @@ describe("MCP session store", () => {
     let currentTime = 0;
     const sessions = createSessionStore({
       absoluteTtlMs: 1_000,
-      idleTtlMs: 1_000,
+      idleTtlMs: 60_000,
       now: () => currentTime,
     });
     const session = sessions.open(binding);
 
-    currentTime = 500;
-    expect(sessions.touch(session.id, binding).ok).toBe(true);
+    for (const elapsed of [200, 400, 600, 800]) {
+      currentTime = elapsed;
+      expect(sessions.touch(session.id, binding).ok).toBe(true);
+    }
 
     currentTime = 1_000;
     const lookup = sessions.touch(session.id, binding);

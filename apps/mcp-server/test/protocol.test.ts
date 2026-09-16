@@ -208,8 +208,12 @@ describe("MCP Streamable HTTP protocol", () => {
     expect(malformedJson.statusCode).toBe(400);
     expect(malformedJson.json().error.code).toBe(-32700);
 
-    const batched = await send(server, sessionId, {} as Record<string, never>);
-    expect(batched.statusCode).toBe(400);
+    const emptyMessage = await send(
+      server,
+      sessionId,
+      {} as Record<string, never>,
+    );
+    expect(emptyMessage.statusCode).toBe(400);
 
     const arrayPayload = await server.app.inject({
       headers: { ...authorizationHeaders(), "mcp-session-id": sessionId },
