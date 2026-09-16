@@ -48,7 +48,7 @@ resource webCanonicalCertificate 'Microsoft.App/managedEnvironments/managedCerti
   name: 'keyforta-${environment}-web-apex'
   location: location
   properties: {
-    domainControlValidation: 'TXT'
+    domainControlValidation: 'HTTP'
     subjectName: webCanonicalHostName
   }
 }

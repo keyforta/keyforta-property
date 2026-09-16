@@ -22,8 +22,9 @@ API configuration update.
 - Cloudflare remains authoritative for `keyforta.com`, but the apex A record and
   `www` CNAME remain DNS-only while Azure managed certificates are assigned.
 - Azure Bicep owns both managed certificates and Container Apps hostname
-  bindings. The SHA-bound deployment workflow owns plan, deployment, and smoke
-  evidence.
+  bindings. The apex A-record certificate uses HTTP domain-control validation;
+  the `www` certificate uses CNAME validation. The SHA-bound deployment
+  workflow owns plan, deployment, and smoke evidence.
 - When neither hostname exists, the workflow previews and applies a first Bicep
   phase with both bindings disabled, then applies the managed certificates and
   SNI-enabled bindings in the final Bicep phase. Existing two-hostname releases
