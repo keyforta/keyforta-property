@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { parse } from "yaml";
 import {
   existsSync,
+  mkdtempSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -11,6 +12,8 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { databaseEnvironment, readJson, validateEvidence } from "../lib.mjs";
 import {
   guardGeneratedReports,
@@ -136,7 +139,17 @@ function isolatedValidationUsesProducerHome(source) {
   );
 }
 
-function producerEnvironmentSurvivesLauncher() {
+function producerEnvironmentSurvivesLauncher(source) {
+  const workflow = parse(source);
+  const install = Object.values(workflow?.jobs ?? {})
+    .flatMap(({ steps = [] }) => steps)
+    .find(({ name }) => name === "Install dependencies");
+  if (!install?.run?.endsWith("pnpm install --frozen-lockfile")) return false;
+
+  const fixture = mkdtempSync(join(tmpdir(), "keyforta-launcher-"));
+  const cgroup = join(fixture, "cgroup");
+  const observer = join(fixture, "observe.mjs");
+  const path = process.env.PATH;
   const expected = {
     CI: "true",
     HARNESS_CONTRACT_MODE: "required",
@@ -149,37 +162,47 @@ function producerEnvironmentSurvivesLauncher() {
     XDG_CACHE_HOME: "/home/keyforta-ci/.cache",
     XDG_DATA_HOME: "/home/keyforta-ci/.local/share",
     XDG_STATE_HOME: "/home/keyforta-ci/.local/state",
-    PATH: process.env.PATH,
+    PATH: path,
   };
-  const assignments = Object.entries(expected).map(
-    ([name, value]) => `${name}=${value}`,
-  );
-  const observed = JSON.parse(
-    execFileSync(
-      "sh",
-      [
-        "-c",
-        'shift; exec "$@"',
+  try {
+    mkdirSync(cgroup);
+    writeFileSync(
+      observer,
+      "process.stdout.write(JSON.stringify(process.env));\n",
+    );
+    const observed = JSON.parse(
+      execFileSync(
         "sh",
-        "simulated-cgroup",
-        "env",
-        "-i",
-        ...assignments,
-        process.execPath,
-        "-e",
-        "process.stdout.write(JSON.stringify(process.env))",
-      ],
-      {
-        encoding: "utf8",
-        env: { ...process.env, KEYFORTA_AMBIENT_SECRET: "must-not-survive" },
-      },
-    ),
-  );
-  return (
-    Object.entries(expected).every(
-      ([name, value]) => observed[name] === value,
-    ) && !Object.hasOwn(observed, "KEYFORTA_AMBIENT_SECRET")
-  );
+        [
+          "-c",
+          install.run.replace(
+            "pnpm install --frozen-lockfile",
+            `${JSON.stringify(process.execPath)} ${JSON.stringify(observer)}`,
+          ),
+        ],
+        {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            ...expected,
+            VALIDATION_CGROUP: cgroup,
+            VALIDATION_HOME: expected.HOME,
+            VALIDATION_USER: execFileSync("id", ["-un"], {
+              encoding: "utf8",
+            }).trim(),
+            KEYFORTA_AMBIENT_SECRET: "must-not-survive",
+          },
+        },
+      ),
+    );
+    return (
+      Object.entries(expected).every(
+        ([name, value]) => observed[name] === value,
+      ) && !Object.hasOwn(observed, "KEYFORTA_AMBIENT_SECRET")
+    );
+  } finally {
+    rmSync(fixture, { force: true, recursive: true });
+  }
 }
 
 function isolatedValidationWorkspaceIsBounded(source) {
@@ -1604,7 +1627,9 @@ jobs:
     ),
   );
   check("governed producer environment survives the launcher", () =>
-    producerEnvironmentSurvivesLauncher(),
+    producerEnvironmentSurvivesLauncher(
+      readFileSync(".github/workflows/ci.yml", "utf8"),
+    ),
   );
   check("isolated CI producer hands off a bounded raw candidate", () =>
     isolatedValidationWorkspaceIsBounded(
