@@ -98,18 +98,29 @@ export async function mapRuntimePrincipal(client: PoolClient): Promise<void> {
     );
   }
 
-  const existing = await client.query<{ principal: Record<string, unknown> }>(
-    `select row_to_json(principal) as principal
-     from pg_catalog.pgaadauth_list_principals(false) principal
-     where rolname = $1`,
+  const existing = await client.query<{ label: string }>(
+    `select labels.label
+     from pg_catalog.pg_roles roles
+     join pg_catalog.pg_seclabel labels
+       on labels.objoid = roles.oid
+      and labels.classoid = 'pg_catalog.pg_authid'::regclass
+      and labels.objsubid = 0
+     where rolname = $1
+       and labels.provider = 'pgaadauth'`,
     [principalName],
   );
-  const existingPrincipal = existing.rows[0]?.principal;
-  if (existingPrincipal) {
-    const existingObjectId =
-      existingPrincipal.objectId ?? existingPrincipal.objectid;
-    const existingObjectType =
-      existingPrincipal.principalType ?? existingPrincipal.principaltype;
+  const existingLabel = existing.rows[0]?.label;
+  if (existingLabel) {
+    const attributes = Object.fromEntries(
+      existingLabel.split(",").flatMap((entry) => {
+        const separator = entry.indexOf("=");
+        return separator === -1
+          ? []
+          : [[entry.slice(0, separator), entry.slice(separator + 1)]];
+      }),
+    );
+    const existingObjectId = attributes.oid;
+    const existingObjectType = attributes.type;
     if (existingObjectId !== principalId || existingObjectType !== "service") {
       throw new Error(
         "The existing PostgreSQL runtime principal does not match the configured managed identity.",
