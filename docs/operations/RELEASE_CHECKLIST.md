@@ -77,7 +77,10 @@ or tenant data in the record.
   final managed-certificate what-if phases. Stop if exactly one hostname exists;
   do not bypass the workflow's partial-state guard. Verify the apex A-record
   certificate uses HTTP validation and the `www` certificate uses CNAME
-  validation.
+  validation. Because managed-certificate validation properties are immutable,
+  use a new certificate resource ID for any correction. Remove the obsolete
+  certificate only through a separate reviewed cleanup after the replacement
+  is secured.
 
 The workflow must stop on a failed migration or smoke test. Never route around
 an environment approval or replace a failed migration with manual SQL.
