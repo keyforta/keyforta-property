@@ -36,6 +36,10 @@ resource migrationJob 'Microsoft.App/jobs@2024-10-02-preview' = {
   properties: {
     environmentId: appEnvironment.id
     configuration: {
+      manualTriggerConfig: {
+        parallelism: 1
+        replicaCompletionCount: 1
+      }
       replicaRetryLimit: 1
       replicaTimeout: 900
       registries: [{ server: registry.properties.loginServer, identity: migrationIdentity.id }]
