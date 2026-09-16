@@ -111,7 +111,9 @@ function isolatedValidationUsesProducerHome(source) {
     commands.length === 5 &&
     commands.every(
       (command) =>
-        command.startsWith("sudo --preserve-env=") &&
+        command.startsWith(
+          "sudo sh -c 'echo $$ > \"$1/cgroup.procs\"; shift; exec \"$@\"' sh \"$VALIDATION_CGROUP\" sudo --preserve-env=",
+        ) &&
         command.includes("HARNESS_TASK_CONTRACT") &&
         requiredEnvironment.every((entry) => command.includes(entry)),
     )
@@ -141,6 +143,14 @@ function isolatedValidationWorkspaceIsBounded(source) {
   return (
     validationJob?.env?.VALIDATION_WORKSPACE ===
       "/tmp/keyforta-workspace-${{ github.run_id }}-${{ github.run_attempt }}" &&
+    validationJob?.env?.VALIDATION_CGROUP ===
+      "/sys/fs/cgroup/keyforta-ci-${{ github.run_id }}-${{ github.run_attempt }}" &&
+    validationJob?.env?.VALIDATION_CONTROL ===
+      "/run/keyforta-ci-${{ github.run_id }}-${{ github.run_attempt }}" &&
+    create?.run?.includes('sudo mkdir -- "$VALIDATION_CGROUP"') &&
+    create.run.includes(
+      'sudo install --directory --owner=root --group=root --mode=0700 "$VALIDATION_CONTROL"',
+    ) &&
     create?.run?.includes(
       'sudo cp -a -- "$GITHUB_WORKSPACE/." "$VALIDATION_WORKSPACE/"',
     ) &&
@@ -149,19 +159,41 @@ function isolatedValidationWorkspaceIsBounded(source) {
     ) &&
     producerSteps.length === 3 &&
     producerSteps.every(
-      (step) => step["working-directory"] === "${{ env.VALIDATION_WORKSPACE }}",
+      (step) =>
+        step["working-directory"] === "${{ env.VALIDATION_WORKSPACE }}" &&
+        step.run
+          .split("\n")
+          .filter((command) => command.includes('-u "$VALIDATION_USER" env'))
+          .every((command) => command.includes('"$VALIDATION_CGROUP"')),
     ) &&
     stop &&
     packageCandidate &&
     uploadCandidate &&
     steps.indexOf(stop) < steps.indexOf(packageCandidate) &&
     steps.indexOf(packageCandidate) < steps.indexOf(uploadCandidate) &&
-    stop?.run?.includes('sudo pkill -KILL -u "$VALIDATION_USER"') &&
+    stop.id === "stop-producer" &&
+    stop.run.includes('sudo usermod --lock --expiredate 1 "$VALIDATION_USER"') &&
+    stop.run.includes('echo 1 > "$1/cgroup.kill"') &&
+    stop.run.includes('"$VALIDATION_CGROUP/cgroup.events"') &&
+    stop.run.includes('sudo rmdir "$VALIDATION_CGROUP"') &&
+    stop.run.includes(
+      'sudo install --owner=root --group=root --mode=0400 /dev/null "$VALIDATION_CONTROL/producer-stopped"',
+    ) &&
+    packageCandidate.id === "package-candidate" &&
+    packageCandidate.if.includes("steps.stop-producer.outcome == 'success'") &&
+    packageCandidate.run.includes(
+      'sudo test -f "$VALIDATION_CONTROL/producer-stopped"',
+    ) &&
     packageCandidate?.run?.includes(
       '--directory "$VALIDATION_WORKSPACE/harness" reports',
     ) &&
     !packageCandidate.run.includes("chown") &&
     !packageCandidate.run.includes("verify-reports.mjs") &&
+    uploadCandidate.if.includes("steps.stop-producer.outcome == 'success'") &&
+    uploadCandidate.if.includes(
+      "steps.package-candidate.outcome == 'success'",
+    ) &&
+    cleanup.run.includes('"$VALIDATION_CONTROL"') &&
     cleanup?.run?.includes('"$VALIDATION_WORKSPACE"')
   );
 }

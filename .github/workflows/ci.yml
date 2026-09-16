@@ -25,6 +25,8 @@ jobs:
       VALIDATION_USER: keyforta-ci
       VALIDATION_HOME: /home/keyforta-ci
       VALIDATION_WORKSPACE: /tmp/keyforta-workspace-${{ github.run_id }}-${{ github.run_attempt }}
+      VALIDATION_CGROUP: /sys/fs/cgroup/keyforta-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      VALIDATION_CONTROL: /run/keyforta-ci-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -54,37 +56,46 @@ jobs:
           sudo useradd --create-home --shell /bin/bash "$VALIDATION_USER"
           sudo rm -rf -- "$VALIDATION_WORKSPACE"
           sudo mkdir -p -- "$VALIDATION_WORKSPACE"
+          sudo mkdir -- "$VALIDATION_CGROUP"
+          sudo install --directory --owner=root --group=root --mode=0700 "$VALIDATION_CONTROL"
           sudo cp -a -- "$GITHUB_WORKSPACE/." "$VALIDATION_WORKSPACE/"
           sudo chown -R "$VALIDATION_USER:$VALIDATION_USER" "$VALIDATION_WORKSPACE"
 
       - name: Install dependencies
         working-directory: ${{ env.VALIDATION_WORKSPACE }}
-        run: sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,HARNESS_TASK_CONTRACT,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" pnpm install --frozen-lockfile
+        run: sudo sh -c 'echo $$ > "$1/cgroup.procs"; shift; exec "$@"' sh "$VALIDATION_CGROUP" sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,HARNESS_TASK_CONTRACT,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" pnpm install --frozen-lockfile
 
       - name: Validate repository
         working-directory: ${{ env.VALIDATION_WORKSPACE }}
-        run: sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,HARNESS_TASK_CONTRACT,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" node harness/scripts/verify.mjs
+        run: sudo sh -c 'echo $$ > "$1/cgroup.procs"; shift; exec "$@"' sh "$VALIDATION_CGROUP" sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,HARNESS_TASK_CONTRACT,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" node harness/scripts/verify.mjs
 
       - name: Generate final commit evidence
         if: success() && github.event_name == 'pull_request'
         working-directory: ${{ env.VALIDATION_WORKSPACE }}
         run: |
-          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,HARNESS_TASK_CONTRACT,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" node harness/scripts/generate-evidence.mjs
-          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,HARNESS_TASK_CONTRACT,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" pnpm verify:evidence
-          sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,HARNESS_TASK_CONTRACT,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=dependency-audit,verify:evidence pnpm verify:transition
+          sudo sh -c 'echo $$ > "$1/cgroup.procs"; shift; exec "$@"' sh "$VALIDATION_CGROUP" sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,HARNESS_TASK_CONTRACT,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" node harness/scripts/generate-evidence.mjs
+          sudo sh -c 'echo $$ > "$1/cgroup.procs"; shift; exec "$@"' sh "$VALIDATION_CGROUP" sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,HARNESS_TASK_CONTRACT,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" pnpm verify:evidence
+          sudo sh -c 'echo $$ > "$1/cgroup.procs"; shift; exec "$@"' sh "$VALIDATION_CGROUP" sudo --preserve-env=CI,HARNESS_CONTRACT_MODE,HARNESS_BASE_REF,HARNESS_TASK_CONTRACT,GITHUB_HEAD_REF,GITHUB_REF_NAME -u "$VALIDATION_USER" env HOME="$VALIDATION_HOME" XDG_CONFIG_HOME="$VALIDATION_HOME/.config" XDG_CACHE_HOME="$VALIDATION_HOME/.cache" XDG_DATA_HOME="$VALIDATION_HOME/.local/share" XDG_STATE_HOME="$VALIDATION_HOME/.local/state" PATH="$PATH" EDD_VALIDATE_CURRENT_STATE=true EDD_SATISFIED_CHECKS=dependency-audit,verify:evidence pnpm verify:transition
 
       - name: Stop validation producer
+        id: stop-producer
         if: always()
         run: |
-          sudo usermod --lock --expiredate 1 "$VALIDATION_USER" || true
-          sudo pkill -KILL -u "$VALIDATION_USER" || true
+          sudo usermod --lock --expiredate 1 "$VALIDATION_USER"
+          sudo sh -c 'echo 1 > "$1/cgroup.kill"' sh "$VALIDATION_CGROUP"
+          test "$(awk '$1 == "populated" { print $2 }' "$VALIDATION_CGROUP/cgroup.events")" = "0"
+          sudo rmdir "$VALIDATION_CGROUP"
+          sudo install --owner=root --group=root --mode=0400 /dev/null "$VALIDATION_CONTROL/producer-stopped"
 
       - name: Package untrusted engineering evidence
-        if: always() && github.event_name == 'pull_request'
-        run: sudo tar --create --file "$RUNNER_TEMP/keyforta-report-candidate.tar" --directory "$VALIDATION_WORKSPACE/harness" reports
+        id: package-candidate
+        if: always() && github.event_name == 'pull_request' && steps.stop-producer.outcome == 'success'
+        run: |
+          sudo test -f "$VALIDATION_CONTROL/producer-stopped"
+          sudo tar --create --file "$RUNNER_TEMP/keyforta-report-candidate.tar" --directory "$VALIDATION_WORKSPACE/harness" reports
 
       - name: Upload untrusted engineering evidence
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && steps.stop-producer.outcome == 'success' && steps.package-candidate.outcome == 'success'
         uses: actions/upload-artifact@v6
         with:
           name: untrusted-engineering-evidence-${{ github.event.pull_request.head.sha || github.sha }}
@@ -94,4 +105,4 @@ jobs:
 
       - name: Remove validation workspace
         if: always()
-        run: sudo rm -rf -- "$RUNNER_TEMP/keyforta-report-candidate.tar" "$VALIDATION_WORKSPACE"
+        run: sudo rm -rf -- "$VALIDATION_CONTROL" "$RUNNER_TEMP/keyforta-report-candidate.tar" "$VALIDATION_WORKSPACE"

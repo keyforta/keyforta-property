@@ -75,6 +75,38 @@
         "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
         "docs/engineering/evidence/HAR-009.md"
       ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Solution Architect",
+      "enteredAt": "2026-09-15T23:52:28.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-009.md"]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T23:52:28.000Z",
+      "evidenceReferences": [
+        ".github/workflows/ci.yml",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-009.md"
+      ]
+    },
+    {
+      "state": "changes-requested",
+      "actor": "Security and Privacy Reviewer",
+      "enteredAt": "2026-09-15T23:57:36.000Z",
+      "evidenceReferences": ["docs/engineering/evidence/HAR-009.md"]
+    },
+    {
+      "state": "implemented",
+      "actor": "Harness and Evaluation Engineer",
+      "enteredAt": "2026-09-15T23:57:36.000Z",
+      "evidenceReferences": [
+        ".github/workflows/ci.yml",
+        "harness/scripts/self-test/20-evidence-lifecycle.suite.mjs",
+        "docs/engineering/evidence/HAR-009.md"
+      ]
     }
   ],
   "assignedAgent": "Harness and Evaluation Engineer",
@@ -89,7 +121,6 @@
     "HAR-003, HAR-005, and HAR-006 remain unchanged at repair cycle 3"
   ],
   "allowedPaths": [
-    ".gitignore",
     ".github/workflows/ci.yml",
     "docs/engineering/evidence/HAR-003.md",
     "docs/engineering/evidence/HAR-005.md",
@@ -151,5 +182,5 @@
     "GitHub CI and protected-branch controls remain authoritative",
     "No changes to exhausted HAR-003, HAR-005, or HAR-006 task history"
   ],
-  "repairCycle": 1
+  "repairCycle": 3
 }
