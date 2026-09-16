@@ -94,6 +94,9 @@ test("deploy binds and verifies the canonical public web domains", () => {
   const preconditions = steps.find((step) => step.name === "Verify public-web domain preconditions");
   const bootstrap = steps.find((step) => step.name === "Bootstrap public-web hostnames");
   const deploy = steps.find((step) => step.name === "Deploy applications");
+  const firstMutation = steps.find(
+    (step) => step.name === "Configure PostgreSQL Entra administrator",
+  );
   const smoke = steps.find((step) => step.name === "Smoke test public applications");
 
   assert.equal(document.jobs.deploy.env.WEB_CANONICAL_HOST, "keyforta.com");
@@ -116,11 +119,14 @@ test("deploy binds and verifies the canonical public web domains", () => {
   }
   assert.ok(steps.indexOf(previewBootstrap) < steps.indexOf(preview));
   assert.ok(steps.indexOf(bootstrap) < steps.indexOf(deploy));
+  assert.ok(steps.indexOf(hostnameState) < steps.indexOf(firstMutation));
+  assert.ok(steps.indexOf(preconditions) < steps.indexOf(firstMutation));
   assert.match(preconditions?.if ?? "", /env\.DEPLOYMENT_SCOPE == 'public-web'/);
   assert.match(preconditions?.if ?? "", /env\.DEPLOYMENT_SCOPE == 'full'/);
   assert.match(preconditions?.run ?? "", /access-control-allow-origin: \$\{web_url\}/);
   assert.match(preconditions?.run ?? "", /properties\.staticIp/);
   assert.match(preconditions?.run ?? "", /customDomainVerificationId/);
+  assert.match(preconditions?.run ?? "", /properties\.defaultDomain/);
   assert.match(preconditions?.run ?? "", /dig \+short A "\$WEB_CANONICAL_HOST"/);
   assert.match(preconditions?.run ?? "", /dig \+short CNAME "\$WEB_WWW_HOST"/);
   assert.match(smoke?.run ?? "", /web_url="https:\/\/\$\{WEB_CANONICAL_HOST\}"/);
@@ -178,6 +184,60 @@ test("public-web hostname inspection handles zero, both, partial, and drift stat
   assert.notEqual(inspect("keyforta.com").status, 0);
   assert.equal(inspect("", "deploy", "true").status, 0);
   assert.notEqual(inspect("", "deploy", "false").status, 0);
+});
+
+test("initial full deployment validates DNS without existing API or web apps", () => {
+  const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
+  const script = document.jobs.deploy.steps.find(
+    (step) => step.name === "Verify public-web domain preconditions",
+  )?.run;
+  assert.ok(script);
+
+  const directory = mkdtempSync(join(tmpdir(), "keyforta-domain-preconditions-"));
+  try {
+    executable(
+      directory,
+      "az",
+      `#!/usr/bin/env bash
+case "$*" in
+  *properties.staticIp*) echo 192.0.2.10 ;;
+  *customDomainVerificationId*) echo verification-id ;;
+  *properties.defaultDomain*) echo environment.example.test ;;
+  *containerapp\\ show*) exit 1 ;;
+  *) exit 1 ;;
+esac
+`,
+    );
+    executable(
+      directory,
+      "dig",
+      `#!/usr/bin/env bash
+case "$*" in
+  *" A keyforta.com") echo 192.0.2.10 ;;
+  *" CNAME www.keyforta.com") echo ca-keyforta-dev-web.environment.example.test. ;;
+  *" TXT asuid.keyforta.com"|*" TXT asuid.www.keyforta.com") echo '"verification-id"' ;;
+  *) exit 1 ;;
+esac
+`,
+    );
+    executable(directory, "curl", "#!/usr/bin/env bash\nexit 1\n");
+    const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        APP_ENVIRONMENT: "test-environment",
+        DEPLOYMENT_SCOPE: "full",
+        ENVIRONMENT: "dev",
+        PATH: `${directory}:${process.env.PATH}`,
+        RESOURCE_GROUP: "test-resource-group",
+        WEB_CANONICAL_HOST: "keyforta.com",
+        WEB_WWW_HOST: "www.keyforta.com",
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("application Bicep uses managed certificates for both public web domains", () => {

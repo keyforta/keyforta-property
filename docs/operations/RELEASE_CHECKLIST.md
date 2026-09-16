@@ -124,8 +124,9 @@ through a reviewed forward corrective migration.
 
 For custom-domain rollback, first preserve the current DNS and Azure hostname,
 certificate, and revision evidence. In a reviewed forward change, restore the
-previous DNS records and confirm they resolve before removing both Azure hostname
-bindings and managed certificates together. Stop if only one hostname is present,
-certificate deletion is still provisioning, or restored DNS does not resolve;
-do not manually force a partial cleanup. Verify the prior HTTPS origin and API
-CORS behavior before closing the rollback record.
+previous DNS records and confirm they resolve before changing Azure resources.
+The current incremental Bicep path does not delete hostname bindings or managed
+certificates; their removal requires a separate reviewed deletion mechanism and
+explicit approval. Stop if only one hostname is present or restored DNS does not
+resolve, and do not manually force a partial cleanup. Verify the prior HTTPS
+origin and API CORS behavior before closing the rollback record.
