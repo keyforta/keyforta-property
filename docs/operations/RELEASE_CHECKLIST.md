@@ -75,7 +75,9 @@ or tenant data in the record.
   before binding the public-web managed certificates. If neither Container App
   hostname exists, review both the disabled-binding hostname bootstrap and the
   final managed-certificate what-if phases. Stop if exactly one hostname exists;
-  do not bypass the workflow's partial-state guard.
+  do not bypass the workflow's partial-state guard. Verify the apex A-record
+  certificate uses HTTP validation and the `www` certificate uses CNAME
+  validation.
 
 The workflow must stop on a failed migration or smoke test. Never route around
 an environment approval or replace a failed migration with manual SQL.

@@ -476,7 +476,7 @@ test("application Bicep uses managed certificates for both public web domains", 
   assert.match(template, /param bindWebCertificates bool/);
   assert.match(template, /if \(deployWeb && bindWebCertificates\)/);
   assert.match(template, /bindingType: 'Disabled'/);
-  assert.match(template, /domainControlValidation: 'TXT'[\s\S]*subjectName: webCanonicalHostName/);
+  assert.match(template, /domainControlValidation: 'HTTP'[\s\S]*subjectName: webCanonicalHostName/);
   assert.match(template, /domainControlValidation: 'CNAME'[\s\S]*subjectName: webWwwHostName/);
   assert.match(template, /customDomains:[\s\S]*certificateId: webCanonicalCertificate\.id[\s\S]*certificateId: webWwwCertificate\.id/);
   assert.match(template, /var webPublicBaseUrl = 'https:\/\/\$\{webCanonicalHostName\}'/);
