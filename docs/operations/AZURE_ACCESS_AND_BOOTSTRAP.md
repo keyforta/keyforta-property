@@ -190,6 +190,9 @@ to the API managed identity's immutable object ID with a `pgaadauth` security
 label; it does not rely on a tenant-wide display-name lookup.
 `DATABASE_AUTH=entra` selects the attached user-assigned identity explicitly
 from `AZURE_CLIENT_ID` and rejects missing or blank PostgreSQL access tokens.
+The API parses the passwordless Entra `DATABASE_URL` into explicit connection
+options before applying the token callback; passing both directly to `pg` lets
+the parsed empty password replace the callback during client construction.
 
 An approved DBA user or group may be configured as an additional Entra
 administrator. Direct access is limited to the exact public IP in

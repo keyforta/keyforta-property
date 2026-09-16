@@ -4,6 +4,7 @@ import {
   type TokenCredential,
 } from "@azure/identity";
 import { Pool, type PoolConfig } from "pg";
+import { parseIntoClientConfig } from "pg-connection-string";
 
 const postgresTokenScope =
   "https://ossrdbms-aad.database.windows.net/.default";
@@ -29,9 +30,13 @@ export function createDatabasePool(
     throw new Error("DATABASE_URL is required for PostgreSQL persistence.");
   }
 
+  const connectionConfiguration =
+    configuration.DATABASE_AUTH === "entra"
+      ? parseIntoClientConfig(configuration.DATABASE_URL)
+      : { connectionString: configuration.DATABASE_URL };
   const poolConfiguration: PoolConfig = {
+    ...connectionConfiguration,
     allowExitOnIdle: true,
-    connectionString: configuration.DATABASE_URL,
     connectionTimeoutMillis: 10_000,
     idleTimeoutMillis: 30_000,
     max: 10,
