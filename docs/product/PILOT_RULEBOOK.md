@@ -77,7 +77,8 @@ Until the register contains the required dated evidence:
 
 - the guarantee and advance-rent rules remain synthetic hypotheses;
 - lease execution, signature reliance, termination, renewal, and
-  jurisdiction-specific notices remain disabled or manual;
+  jurisdiction-specific notices remain disabled; cases may only be routed to
+  manual review;
 - collection-method and payment-provider automation remain unapproved;
 - real tenant data must not be collected or hosted; and
 - retention timing, irreversible deletion, and data-subject-request handling
