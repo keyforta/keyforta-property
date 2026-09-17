@@ -17,18 +17,18 @@ The detailed companion artifacts are:
 - [`keyforta-api-event-contract.md`](./keyforta-api-event-contract.md)
 - [`keyforta-state-machines.md`](./keyforta-state-machines.md)
 - [`keyforta-production-data-model.md`](./keyforta-production-data-model.md)
-- [`database/`](./database/) — executable PostgreSQL schema/security/seed migrations and backup-retention runbook
+- [`database/`](../database/) — executable PostgreSQL schema/security/seed migrations and backup-retention runbook
 - [`keyforta-acceptance-test-traceability.md`](./keyforta-acceptance-test-traceability.md)
 - [`keyforta-legal-privacy-decision-register.md`](./keyforta-legal-privacy-decision-register.md)
-- [`adr/`](./adr/) — accepted and proposed architecture decision records
+- [`adr/`](../adr/) — accepted and proposed architecture decision records
 
 ## 1. Authority and change control
 
 The following documents form one contract:
 
-1. `docs/keyforta-domain-driven-design.md` — domain language, contexts, aggregates, invariants, and workflows.
-2. `docs/keyforta-backend-implementation-specification.md` — this document; implementation decisions, persistence, authorization, commands, events, and operational requirements.
-3. `docs/backend-integration-contract.md` — compatibility mapping from the current mock to production API behavior.
+1. `docs/contracts/keyforta-domain-driven-design.md` — domain language, contexts, aggregates, invariants, and workflows.
+2. `docs/contracts/keyforta-backend-implementation-specification.md` — this document; implementation decisions, persistence, authorization, commands, events, and operational requirements.
+3. `docs/contracts/backend-integration-contract.md` — compatibility mapping from the current mock to production API behavior.
 4. `docs/openapi.yaml` — machine-readable HTTP surface. It must not contradict this document.
 
 When a conflict is found, stop implementation of the affected behavior and resolve the conflict with a documented decision. A change to an invariant, aggregate boundary, role rule, financial behavior, public API, or event schema requires the affected documents to change in the same pull request.

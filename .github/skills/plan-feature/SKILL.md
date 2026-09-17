@@ -29,4 +29,4 @@ description: "Produce a traceable implementation plan and acceptance-test map. U
 ## Resources
 
 - [Test strategy](../../../docs/engineering/TEST_STRATEGY.md)
-- [Context and ownership](../../../docs/keyforta-context-map-and-ownership.md)
+- [Context and ownership](../../../docs/contracts/keyforta-context-map-and-ownership.md)

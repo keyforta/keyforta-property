@@ -1,6 +1,6 @@
 # KEYFORTA Domain-Driven Design
 
-**Status:** Canonical domain baseline for MVP implementation; detailed backend handoff in `docs/keyforta-backend-implementation-specification.md`
+**Status:** Canonical domain baseline for MVP implementation; detailed backend handoff in `docs/contracts/keyforta-backend-implementation-specification.md`
 **Scope:** Multi-organization rental and property-operations platform for apartments, houses, and commercial properties
 **Architecture:** Modular monolith first; extract services only when scale, regulation, deployment independence, or ownership justifies it
 

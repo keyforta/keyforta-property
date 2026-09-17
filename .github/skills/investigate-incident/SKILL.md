@@ -29,4 +29,4 @@ description: "Investigate an operational incident using bounded facts and runboo
 ## Resources
 
 - [Operations documentation](../../../docs/operations/)
-- [Azure architecture](../../../infra/README.md#appendix-a-supporting-logical-and-repository-defined-azure-architecture)
+- [Azure architecture](../../../infra/README.md)

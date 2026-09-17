@@ -423,7 +423,7 @@ Microsoft’s Azure Architecture Center treats multitenancy as a set of explicit
 #### Module boundaries
 
 Start with one deployable API but enforce the module boundaries cataloged in the
-[supporting domain-model summary](../keyforta-domain-driven-design.md#initial-bounded-modules).
+[supporting domain-model summary](../contracts/keyforta-domain-driven-design.md#initial-bounded-modules).
 
 Modules communicate through public application commands, queries, and events—not by reaching into another module’s internal tables. Split a module into a service only when scaling, deployment independence, regulation, or team ownership provides measurable value.
 

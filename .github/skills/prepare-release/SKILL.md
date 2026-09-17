@@ -29,4 +29,4 @@ description: "Prepare monitoring and rollback information for GitHub-owned relea
 ## Resources
 
 - [Operations documentation](../../../docs/operations/)
-- [Image and deployment ownership](../../../infra/README.md#image-and-deployment-ownership)
+- [Image and deployment ownership](../../../infra/README.md)

@@ -4,7 +4,7 @@
 **Database assumption:** PostgreSQL 16+
 **Primary scope:** Kinshasa-first rental management with USD/CDF multi-currency support
 
-This is the normative target relational model for the backend implementation. The reviewed SQL under [`docs/database/`](./database/) is a reference representation of that target, not the deployed migration lineage. Per ADR-013, [`infra/postgres/migrations`](../infra/postgres/migrations/) is the canonical executable history applied by the checksummed migration runner.
+This is the normative target relational model for the backend implementation. The reviewed SQL under [`docs/database/`](../database/) is a reference representation of that target, not the deployed migration lineage. Per ADR-013, [`infra/postgres/migrations`](../../infra/postgres/migrations/) is the canonical executable history applied by the checksummed migration runner.
 
 The target SQL is authoritative for intended PostgreSQL column types, enum names, constraints, indexes, and policies. Operational differences must be explicit, additive migration steps toward this design; the abbreviated table descriptions below explain ownership and intent and do not replace either SQL artifact set.
 
@@ -12,10 +12,10 @@ The target SQL is authoritative for intended PostgreSQL column types, enum names
 
 | Artifact | Purpose |
 | --- | --- |
-| [`V001__keyforta_schema.sql`](./database/V001__keyforta_schema.sql) | Extensions, enumerations, tables, primary/foreign keys, checks, unique/exclusion constraints, and indexes |
-| [`V002__keyforta_security_and_rls.sql`](./database/V002__keyforta_security_and_rls.sql) | Runtime roles, trusted session helpers, row-level-security policies, and immutable/audit protections |
-| [`V003__keyforta_reference_seed.sql`](./database/V003__keyforta_reference_seed.sql) | Idempotent reference data for currencies, locales, roles, policy keys, maintenance categories, and event schemas |
-| [`backup-retention-runbook.md`](./database/backup-retention-runbook.md) | Azure PostgreSQL/Blob backup, retention, restore testing, deletion, and legal-hold procedures |
+| [`V001__keyforta_schema.sql`](../database/V001__keyforta_schema.sql) | Extensions, enumerations, tables, primary/foreign keys, checks, unique/exclusion constraints, and indexes |
+| [`V002__keyforta_security_and_rls.sql`](../database/V002__keyforta_security_and_rls.sql) | Runtime roles, trusted session helpers, row-level-security policies, and immutable/audit protections |
+| [`V003__keyforta_reference_seed.sql`](../database/V003__keyforta_reference_seed.sql) | Idempotent reference data for currencies, locales, roles, policy keys, maintenance categories, and event schemas |
+| [`backup-retention-runbook.md`](../database/backup-retention-runbook.md) | Azure PostgreSQL/Blob backup, retention, restore testing, deletion, and legal-hold procedures |
 
 The intended reference composition order is `V001 → V002 → V003`; its current
 composition and jurisdiction defaults have unresolved gaps and it is not a
@@ -419,7 +419,7 @@ RLS is defense in depth, not a replacement for domain authorization.
 
 ## 13. Backup and retention implementation
 
-The database and object store have separate recovery and retention controls. The detailed operational procedure is [`backup-retention-runbook.md`](./database/backup-retention-runbook.md).
+The database and object store have separate recovery and retention controls. The detailed operational procedure is [`backup-retention-runbook.md`](../database/backup-retention-runbook.md).
 
 The implementation must:
 
@@ -445,9 +445,9 @@ executable migration lineage under `infra/postgres/migrations`.
 ### Data Model Direction
 
 The persistence implementation follows accepted
-[organization-isolation](./adr/ADR-002-organization-isolation.md),
-[production-persistence](./adr/ADR-010-production-persistence-boundary.md), and
-[migration-lineage](./adr/ADR-013-operational-migration-lineage.md) decisions.
+[organization-isolation](../adr/ADR-002-organization-isolation.md),
+[production-persistence](../adr/ADR-010-production-persistence-boundary.md), and
+[migration-lineage](../adr/ADR-013-operational-migration-lineage.md) decisions.
 Executable migrations and PostgreSQL integration tests establish the current
 foundation; this appendix remains a supporting conceptual view.
 
@@ -618,6 +618,6 @@ replacement and its receipt evidence remain the normative target continuation.
 	their sources and can be rebuilt from authoritative records.
 
 Physical schema changes must follow the canonical executable lineage in
-[`infra/postgres/migrations`](../infra/postgres/migrations/) and keep
+[`infra/postgres/migrations`](../../infra/postgres/migrations/) and keep
 migration, authorization, idempotency, immutability, and RLS isolation tests
 green.

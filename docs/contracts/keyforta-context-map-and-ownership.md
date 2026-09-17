@@ -138,10 +138,10 @@ below.
 
 This directory adds detailed KEYFORTA context, domain, integration, security,
 data, and Azure views. The authoritative architecture decisions remain in
-[`docs/adr/`](./adr/).
+[`docs/adr/`](../adr/).
 
 The files under `docs/architecture/adr/` are retained candidate and historical
-decision records. They do not supersede [`docs/adr/`](./adr/), the backend
+decision records. They do not supersede [`docs/adr/`](../adr/), the backend
 implementation specification, or the production data model unless a reviewed
 decision explicitly reconciles and promotes them.
 
@@ -193,7 +193,7 @@ flowchart TB
   end
 
   subgraph Documentation["Documentation authority"]
-    ContractsDocs["docs root contracts and openapi.yaml"]
+    ContractsDocs["docs/contracts and root docs/openapi.yaml"]
     Decisions["docs/adr accepted decisions"]
     Architecture["docs/architecture supporting views"]
     Operations["docs/operations runbooks and release controls"]
@@ -247,7 +247,7 @@ package surfaces but are not direct application or tool dependencies in current
 manifests.
 Infrastructure and workflow arrows show delivery ownership, while dotted
 documentation arrows show governance rather than runtime calls. See the
-[diagram catalog](./README.md#mermaid-diagram-catalog) for status, semantic ownership, authoritative
+[diagram catalog](../README.md#mermaid-diagram-catalog) for status, semantic ownership, authoritative
 sources, and review triggers.
 
 ## Appendix B. Supporting system context
