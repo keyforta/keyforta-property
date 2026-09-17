@@ -3,7 +3,7 @@
 **Status:** Approved for synthetic-data prototype; legal confirmation required
 before real tenant use  
 **Decision owner:** Celestin Mbuyamba  
-**Last updated:** 2026-09-09
+**Last updated:** 2026-09-17
 
 This rulebook makes pilot assumptions visible and testable. A rule marked
 pending must not be silently inferred by application code or AI.

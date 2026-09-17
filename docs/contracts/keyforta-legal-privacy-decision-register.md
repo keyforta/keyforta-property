@@ -45,13 +45,13 @@ assigned, not who has approved a decision.
 
 | ID | Required approving owner(s) | Evidence reference | Decision date | Status |
 | --- | --- | --- | --- | --- |
-| LEG-003 | Named qualified DRC counsel; named product and finance owners must also accept the commercial rule | Not provided | Not recorded | Legal blocker for commercial launch |
-| LEG-005 | Named qualified DRC counsel; named product owner must also accept the commercial rule | Not provided | Not recorded | Legal blocker for commercial launch |
-| LEG-008 | Named qualified DRC counsel; named product and security owners must also accept the signing and evidence controls | Not provided | Not recorded | Legal blocker for commercial launch |
-| LEG-009 | Named privacy owner and named qualified DRC counsel; named product and security owners must also accept the operational controls | Not provided | Not recorded | Legal blocker for commercial launch |
-| LEG-011 | Named privacy owner and named qualified DRC counsel; named product and security owners must also accept the operational controls | Not provided | Not recorded | Legal blocker for commercial launch |
-| LEG-013 | Named security and privacy owners and named qualified DRC counsel; named product owner must also accept the hosting boundary | Not provided | Not recorded | Legal blocker for production data |
-| LEG-015 | Named finance owner and named qualified DRC counsel; named product and security owners and the selected provider must also accept their responsibilities | Not provided | Not recorded | Legal blocker for commercial payments |
+| LEG-003 | Named individual not recorded; qualified DRC counsel required | Not provided | Not recorded | Legal blocker for commercial launch |
+| LEG-005 | Named individual not recorded; qualified DRC counsel required | Not provided | Not recorded | Legal blocker for commercial launch |
+| LEG-008 | Named individual not recorded; qualified DRC counsel required | Not provided | Not recorded | Legal blocker for commercial launch |
+| LEG-009 | Named individuals not recorded; privacy owner and qualified counsel required | Not provided | Not recorded | Legal blocker for commercial launch |
+| LEG-011 | Named individuals not recorded; privacy owner and qualified counsel required | Not provided | Not recorded | Legal blocker for commercial launch |
+| LEG-013 | Named individuals not recorded; security/privacy owners and qualified counsel required | Not provided | Not recorded | Legal blocker for production data |
+| LEG-015 | Named individuals not recorded; finance owner, qualified counsel, and provider required | Not provided | Not recorded | Legal blocker for commercial payments |
 
 No row may move out of a blocking status until its evidence reference identifies
 the approved artifact and records every named human approver and decision date.
