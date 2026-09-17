@@ -29,5 +29,5 @@ description: "Turn a verified product need into a traceable requirement and acce
 ## Resources
 
 - [Product requirements](../../../docs/product/PRD.md)
-- [Acceptance traceability](../../../docs/keyforta-acceptance-test-traceability.md)
+- [Acceptance traceability](../../../docs/contracts/keyforta-acceptance-test-traceability.md)
 - [Requirements gaps](../../../docs/engineering/REQUIREMENTS_GAPS.md)

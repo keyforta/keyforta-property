@@ -29,4 +29,4 @@ description: "Design accessible responsive product flows from approved requireme
 ## Resources
 
 - [Web instructions](../../instructions/web.instructions.md)
-- [Domain-driven design](../../../docs/keyforta-domain-driven-design.md)
+- [Domain-driven design](../../../docs/contracts/keyforta-domain-driven-design.md)

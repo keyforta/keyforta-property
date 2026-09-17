@@ -14,6 +14,7 @@
     "dev:all": "pnpm --parallel --filter './apps/*-web' dev",
     "check:apps": "pnpm --recursive run check",
     "check:architecture": "node scripts/verify/architecture-boundaries.mjs",
+    "check:diagrams": "node scripts/verify/mermaid-diagrams.mjs docs infra/README.md",
     "check:secrets": "node scripts/verify/secret-scan.mjs",
     "build:apps": "pnpm --recursive run build",
     "test": "turbo run test",
@@ -24,9 +25,11 @@
     "turbo:build": "turbo run build",
     "turbo:check": "turbo run check",
     "turbo:test": "turbo run test",
-    "verify": "pnpm check && pnpm check:architecture && pnpm check:secrets && pnpm test && pnpm test:controls && pnpm test:workflows && pnpm audit --audit-level high && pnpm build"
+    "verify": "pnpm check && pnpm check:architecture && pnpm check:diagrams && pnpm check:secrets && pnpm test && pnpm test:controls && pnpm test:workflows && pnpm audit --audit-level high && pnpm build"
   },
   "devDependencies": {
+    "jsdom": "26.1.0",
+    "mermaid": "11.12.0",
     "turbo": "2.10.13",
     "typescript": "5.9.3",
     "yaml": "^2.9.0"

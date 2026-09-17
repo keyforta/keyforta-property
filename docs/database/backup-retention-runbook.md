@@ -16,6 +16,41 @@ geo-redundant backup, backup alerts, or verified restore evidence. The environme
 must remain synthetic-only until a separately approved isolated restore exercise
 records observed RPO/RTO.
 
+```mermaid
+flowchart TB
+  Region["Single pilot region: South Africa North"]
+  PG["PostgreSQL automated backups: 7 days, no HA, no geo redundancy"]
+  Blob["Application Blob: LRS and 7-day soft delete"]
+  Logs["Log Analytics: 30-day logs"]
+  IaC["Bicep and immutable image evidence"]
+  Identity["Entra and managed identities"]
+  Apps["API, public web and admin recovery"]
+  Outbox["Outbox replay and provider reconciliation"]
+  Missing["Absent: logical backup job, isolated backup store, backup alerts, private endpoints"]
+  Objective["RPO and RTO: unapproved and unverified"]
+
+  Region --> PG
+  Region --> Blob
+  PG -->|"authoritative state and PITR source"| Apps
+  Blob -->|"evidence bytes and versions"| Apps
+  IaC -->|"recreate configuration and exact app SHA"| Apps
+  Identity -->|"restore authorized access"| Apps
+  PG --> Outbox
+  Logs -->|"investigation evidence, not a backup"| Apps
+  Missing -.-> Objective
+  PG -.-> Objective
+  Blob -.-> Objective
+
+  classDef current fill:#e8f5e9,stroke:#2e7d32,color:#102a13
+  classDef gap fill:#f3f4f6,stroke:#6b7280,color:#374151,stroke-dasharray:2 4
+  class PG,Blob,Logs,IaC,Identity,Apps,Outbox current
+  class Region,Missing,Objective gap
+```
+
+This dependency map records current pilot mechanisms, not a recovery guarantee.
+The single region, disabled PostgreSQL HA, LRS storage, and missing restore
+evidence prevent any verified RPO or RTO claim.
+
 ## 1. Recovery objectives and ownership
 
 Record the approved SLO, RPO, and RTO in an environment ADR before launch. Until those values are approved, do not advertise them publicly.
@@ -66,6 +101,38 @@ Do not place production connection strings in this repository. The command is an
 ## 3. Restore verification
 
 At least quarterly, after a major migration, and after a material backup configuration change:
+
+```mermaid
+sequenceDiagram
+  actor Approver as Infrastructure and cost approver
+  participant Operator as Authorized restore operator
+  participant Azure as Isolated non-production target
+  participant PG as PostgreSQL backups
+  participant Blob as Blob versions and soft delete
+  participant App as Recovered application
+  participant Evidence as Exercise evidence record
+
+  Approver->>Operator: Approve isolated exercise and cleanup authority
+  Operator->>Azure: Verify isolation and non-production identities
+  alt target or credentials are not isolated
+    Operator-->>Evidence: Stop without restoring and record failure
+  else isolation verified
+    Operator->>PG: Request point-in-time restore
+    PG-->>Azure: Restore selected automated backup point
+    Operator->>PG: Restore latest logical backup when implemented
+    PG-->>Azure: Separate logical restore
+    Operator->>Azure: Apply recorded migration and reference seed versions
+    Operator->>Azure: Verify schema, RLS, isolation, ledger and idempotency
+    Operator->>Blob: Restore representative object version
+    Blob-->>Azure: Return bytes, hash and scan state
+    Operator->>App: Run smoke suite with outbound side effects disabled
+    App-->>Operator: Readiness and domain verification result
+    Operator->>Azure: Reconcile outbox and uncertain provider state
+    Operator->>Evidence: Record actual restore point, loss window, duration, cleanup and sign-off
+    Note over Evidence: Observed RPO and RTO remain unverified until this sequence succeeds
+    Operator->>Azure: Clean up isolated resources under approved authority
+  end
+```
 
 1. Restore a point-in-time copy into an isolated non-production subscription/resource group.
 2. Restore the latest logical backup into a separate isolated database.

@@ -28,6 +28,6 @@ description: "Assess architecture, security, data, operational, and rollback imp
 
 ## Resources
 
-- [Context and ownership](../../../docs/keyforta-context-map-and-ownership.md)
+- [Context and ownership](../../../docs/contracts/keyforta-context-map-and-ownership.md)
 - [Architecture decisions](../../../docs/adr/)
-- [Security architecture](../../../docs/architecture/SECURITY.md)
+- [Security architecture](../../../docs/engineering/THREAT_MODEL.md)

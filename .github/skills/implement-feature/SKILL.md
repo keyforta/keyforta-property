@@ -28,5 +28,5 @@ description: "Implement an approved feature with focused tests and documentation
 
 ## Resources
 
-- [Backend specification](../../../docs/keyforta-backend-implementation-specification.md)
+- [Backend specification](../../../docs/contracts/keyforta-backend-implementation-specification.md)
 - [Test strategy](../../../docs/engineering/TEST_STRATEGY.md)

@@ -1,6 +1,6 @@
 # KEYFORTA Domain-Driven Design
 
-**Status:** Canonical domain baseline for MVP implementation; detailed backend handoff in `docs/keyforta-backend-implementation-specification.md`
+**Status:** Canonical domain baseline for MVP implementation; detailed backend handoff in `docs/contracts/keyforta-backend-implementation-specification.md`
 **Scope:** Multi-organization rental and property-operations platform for apartments, houses, and commercial properties
 **Architecture:** Modular monolith first; extract services only when scale, regulation, deployment independence, or ownership justifies it
 
@@ -591,3 +591,42 @@ A feature is complete only when:
 10. Provider integrations, resilience, observability, and selective service extraction.
 
 This document is the domain baseline. Any implementation that changes an invariant, aggregate boundary, role rule, or financial behavior must update this document and the API contract in the same change.
+
+## Appendix A. Supporting domain-model summary
+
+This supporting appendix preserves the former domain-model summary. It does not
+alter this document's current authority header or replace the normative domain
+contracts.
+
+### Domain Model
+
+#### Structural hierarchy
+
+`Organization → Portfolio → Property → Unit`
+
+#### Initial bounded modules
+
+1. Identity and organization
+2. Party and relationship
+3. Property and unit
+4. Leasing and occupancy
+5. Billing and ledger
+6. Payments and reconciliation
+7. Maintenance and inspection
+8. Document and communication
+9. Reporting
+10. AI orchestration
+11. Integration adapters
+
+#### Core invariants
+
+- Organization is the commercial data-isolation boundary.
+- A unit cannot have conflicting active occupancy for the same dates unless the
+  lease model explicitly permits a shared arrangement.
+- An active lease points to one immutable approved terms version.
+- A charge schedule is derived from approved terms and retains the derivation
+  version.
+- Posted ledger entries are immutable and balanced under the defined subledger
+  policy.
+- AI recommendations are not domain facts until accepted through an authorized
+  command.

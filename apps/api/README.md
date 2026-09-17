@@ -1,20 +1,21 @@
 # API
 
-The KEYFORTA modular-monolith API runtime. API-002 provides process health,
-dependency readiness, and anonymous read-only property discovery:
+The current KEYFORTA modular-monolith API runtime exposes:
 
 - `GET /health`
 - `GET /ready`
 - `GET /api/v1/properties`
 - `GET /api/v1/properties/:propertyId`
+- `POST /api/v1/viewing-requests`
+- `POST /api/v1/public-listings/:listingId/publish`
+- `POST /api/v1/public-listings/:listingId/withdraw`
 - `POST /api/v1/landlord-onboarding-applications`
 - `GET /api/v1/landlord-onboarding-applications`
 - `POST /api/v1/landlord-onboarding-applications/:applicationId/decision`
 
-Property routes depend on an injected public projection gateway and return only
-published, public-safe fields. The server uses synthetic development projections
-outside production; no production persistence adapter is configured in this
-slice.
+Property routes return only published, public-safe fields. Development may use
+synthetic projections; production uses PostgreSQL gateways and fails closed
+when required dependencies are unavailable.
 
 Landlord onboarding submission requires a verified Entra bearer token. Listing
 and decisions additionally require the token's immutable `oid` claim to appear

@@ -1,10 +1,71 @@
-# KEYFORTA: AI-First Real Estate Platform Blueprint
+# Product documentation
 
-**Status:** Product and solution blueprint v0.1  
-**Initial pilot:** Celestin Mbuyamba's apartments in Kinshasa, Democratic Republic of the Congo  
+Product documents answer different questions and must not be treated as
+interchangeable copies.
+
+| Document | Purpose | Authority/status |
+| --- | --- | --- |
+| [`PRD.md`](./PRD.md) | Approved scope, exclusions, and acceptance outcomes | Product authority; delivery-status claims require source and test evidence |
+| [`PILOT_ROLE_USE_CASES.md`](./PILOT_ROLE_USE_CASES.md) | Detailed role boundaries and requirement IDs | Draft pending product-owner validation |
+| [Descriptive diagrams appendix](./PILOT_ROLE_USE_CASES.md#appendix-descriptive-user-flow-diagrams) | Visual companion with explicit UI/API/mock/plan labels | Supporting only; host document remains draft pending product-owner validation |
+| [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md) | Evidence-linked current capability summary | Single documentation status ledger; source and tests remain controlling |
+| [`PILOT_RULEBOOK.md`](./PILOT_RULEBOOK.md) | Approved pilot classifications and financial rules | Policy authority for pilot examples, subject to legal gates |
+| [Synthetic examples and scenarios](./PILOT_RULEBOOK.md#synthetic-examples-and-scenarios) | Synthetic examples and edge cases | Test/example companion within the rulebook |
+| [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) | Sequencing, dependencies, and evidence | Planning record, not runtime truth |
+| [Directional vision appendix](#appendix-a-directional-product-vision) | Stable product mission | Directional context |
+| [Historical/proposed blueprint appendix](#appendix-b-historical-and-proposed-product-blueprint) | Earlier broad solution and roadmap | Historical/proposed context; does not override the PRD, contracts, or ADRs |
+
+Implementation status is established by current source, executable tests, and
+delivery evidence and summarized only in `IMPLEMENTATION_STATUS.md`.
+Contradictions that cannot be resolved from those sources remain in
+[`../engineering/REQUIREMENTS_GAPS.md`](../engineering/REQUIREMENTS_GAPS.md).
+
+## Appendix A: Directional product vision
+
+**Authority safeguard:** Directional context only. This appendix is not an
+approved PRD requirement and does not establish implementation status.
+
+### Product Vision
+
+### Vision
+
+Give every landlord and tenant a trusted digital record of their property
+relationship, make routine property work conversational and automated, and
+grow that foundation into a complete real-estate platform.
+
+### Initial users
+
+- Landlord or owner
+- Property manager
+- Tenant and co-tenant
+- Accountant or finance viewer
+- Maintenance vendor with restricted access
+- Platform operator
+
+### Product principles
+
+1. Both sides see the same contractual and financial truth.
+2. Configuration represents local terms; jurisdiction-specific assumptions are
+   not buried in code.
+3. Mobile and low-bandwidth use are first-class.
+4. AI shortens work, but deterministic rules control money and permissions.
+5. Every consequential action is attributable and auditable.
+6. The private pilot earns expansion through measured evidence.
+
+## Appendix B: Historical and proposed product blueprint
+
+**Authority safeguard:** The content below is historical and proposed
+product/solution context. It does not override the approved PRD, contracts, or
+ADRs and must not be read as approved requirements or implementation status.
+
+### KEYFORTA: AI-First Real Estate Platform Blueprint
+
+**Status:** Historical and proposed product/solution context v0.1; does not override the approved PRD, contracts, or ADRs
+**Initial pilot:** Celestin Mbuyamba's apartments in Kinshasa, Democratic Republic of the Congo
+
 **Long-term direction:** A professional, multi-tenant real-estate platform serving landlords, tenants, property managers, vendors, agents, buyers, and investors
 
-## 1. Executive decision
+### 1. Executive decision
 
 Build **one extensible platform in stages**, beginning with a focused rental-management product. Do not build a small personal rent tracker that later has to be replaced.
 
@@ -18,11 +79,11 @@ The first release should be a **multi-tenant-ready modular monolith**:
 
 This provides professional foundations without the cost and operational burden of premature microservices.
 
-## 2. Product vision
+### 2. Product vision
 
 > Give every landlord and tenant a trusted digital record of the property relationship, make routine property work conversational and automated, and grow that foundation into a complete real-estate platform.
 
-### Initial value proposition
+#### Initial value proposition
 
 For the landlord:
 
@@ -38,11 +99,11 @@ For the tenant:
 - Receive timely reminders and communicate without losing the history.
 - Ask questions in plain language and receive answers that cite the relevant lease, invoice, or policy.
 
-### Long-term value proposition
+#### Long-term value proposition
 
 The trusted property, party, document, and financial records become the foundation for listings, applications, vendor services, sales transactions, portfolio analytics, and other real-estate services.
 
-## 3. DRC-first assumptions for v0.1
+### 3. DRC-first assumptions for v0.1
 
 These are design assumptions to validate, not legal conclusions:
 
@@ -54,76 +115,76 @@ These are design assumptions to validate, not legal conclusions:
 - Lease, deposit, notice, privacy, identity-verification, and electronic-signature terms must be validated by qualified DRC counsel before commercial launch.
 - Messaging integrations are replaceable adapters. The core system must work even if a particular messaging or payment provider changes.
 
-## 4. Product boundaries
+### 4. Product boundaries
 
-### Pilot MVP: must include
+#### Pilot MVP: must include
 
 1. **Accounts and roles**
-   - Platform administrator
-   - Landlord/owner
-   - Property manager
-   - Tenant
-   - Accountant or finance viewer
-   - Maintenance worker/vendor, with limited access
+	 - Platform administrator
+	 - Landlord/owner
+	 - Property manager
+	 - Tenant
+	 - Accountant or finance viewer
+	 - Maintenance worker/vendor, with limited access
 
 2. **Property registry**
-  - Organization, portfolio, property, and unit
-   - Unit type, rooms, amenities, condition, photos, meter identifiers, and occupancy status
-   - Ownership and management relationships effective over time
-   - Controlled public listing projection with approved photos, approximate
-     location, rent, availability, and visit inquiries
+	- Organization, portfolio, property, and unit
+	 - Unit type, rooms, amenities, condition, photos, meter identifiers, and occupancy status
+	 - Ownership and management relationships effective over time
+	 - Controlled public listing projection with approved photos, approximate
+		 location, rent, availability, and visit inquiries
 
 3. **People and relationships**
-   - A reusable Party record for a person or organization
-   - Tenant, co-tenant, guarantor, owner, manager, vendor, and emergency-contact roles
-   - Contact preferences, language, consent, and verified identifiers
+	 - A reusable Party record for a person or organization
+	 - Tenant, co-tenant, guarantor, owner, manager, vendor, and emergency-contact roles
+	 - Contact preferences, language, consent, and verified identifiers
 
 4. **Lease and occupancy**
-   - Draft, review, approve, activate, renew, terminate, and archive
-   - Multiple tenants and guarantors on one lease
-   - Versioned terms and signed-document evidence
-   - Rent, deposit/guarantee, discount, due date, grace period, late-fee rule, and renewal terms
-   - Move-in and move-out inspections
+	 - Draft, review, approve, activate, renew, terminate, and archive
+	 - Multiple tenants and guarantors on one lease
+	 - Versioned terms and signed-document evidence
+	 - Rent, deposit/guarantee, discount, due date, grace period, late-fee rule, and renewal terms
+	 - Move-in and move-out inspections
 
 5. **Billing, ledger, and payments**
-   - Scheduled charges and one-time charges
-   - Concessions/discounts as separate records rather than hidden changes to rent
-   - Deposit obligations and movements separated from rental income
-   - Invoice/statement generation
-   - Cash, bank, mobile-money, and adjustment transactions
-   - Allocation of one payment across one or more charges
-   - Numbered receipts, reversals, refunds, and complete audit history
-   - Arrears aging and collection status
+	 - Scheduled charges and one-time charges
+	 - Concessions/discounts as separate records rather than hidden changes to rent
+	 - Deposit obligations and movements separated from rental income
+	 - Invoice/statement generation
+	 - Cash, bank, mobile-money, and adjustment transactions
+	 - Allocation of one payment across one or more charges
+	 - Numbered receipts, reversals, refunds, and complete audit history
+	 - Arrears aging and collection status
 
 6. **Maintenance and inspections**
-   - Tenant request with text, voice transcript, photos, and desired access times
-   - Triage, priority, assignment, estimate, approval, work, evidence, completion, and tenant confirmation
-   - Property assets such as plumbing, electrical equipment, doors, or appliances
-   - Cost and vendor history
+	 - Tenant request with text, voice transcript, photos, and desired access times
+	 - Triage, priority, assignment, estimate, approval, work, evidence, completion, and tenant confirmation
+	 - Property assets such as plumbing, electrical equipment, doors, or appliances
+	 - Cost and vendor history
 
 7. **Documents and communication**
-   - Lease, addendum, notice, receipt, inspection report, identity document, and property document
-   - Document versions, access permissions, retention status, and signatures/acknowledgments
-   - In-app and email notifications initially; SMS or messaging channels through adapters later
-   - Immutable communication timeline connected to the relevant lease, charge, payment, or work order
+	 - Lease, addendum, notice, receipt, inspection report, identity document, and property document
+	 - Document versions, access permissions, retention status, and signatures/acknowledgments
+	 - In-app and email notifications initially; SMS or messaging channels through adapters later
+	 - Immutable communication timeline connected to the relevant lease, charge, payment, or work order
 
 8. **Operational dashboard and reports**
-   - Occupancy and vacancy
-   - Rent billed, collected, outstanding, and overdue
-   - Deposits held or due
-   - Upcoming lease events
-   - Open maintenance by age and priority
-   - Downloadable tenant statement and property cash summary
+	 - Occupancy and vacancy
+	 - Rent billed, collected, outstanding, and overdue
+	 - Deposits held or due
+	 - Upcoming lease events
+	 - Open maintenance by age and priority
+	 - Downloadable tenant statement and property cash summary
 
 9. **AI assistant with controls**
-   - Landlord copilot
-   - Tenant concierge
-   - Document extraction and summarization
-   - Maintenance triage assistant
-   - Drafting and reminder assistance
-   - Evaluation, audit, evidence, and approval controls
+	 - Landlord copilot
+	 - Tenant concierge
+	 - Document extraction and summarization
+	 - Maintenance triage assistant
+	 - Drafting and reminder assistance
+	 - Evaluation, audit, evidence, and approval controls
 
-### Deliberately excluded from the pilot
+#### Deliberately excluded from the pilot
 
 - Rental applications, automated reservations, and marketplace aggregation
 - Automated tenant acceptance or rejection
@@ -135,7 +196,7 @@ These are design assumptions to validate, not legal conclusions:
 
 These are future capabilities, not pilot dependencies.
 
-## 5. Configuring the initial apartments
+### 5. Configuring the initial apartments
 
 The system must express the current rules as data, not code.
 
@@ -155,17 +216,17 @@ Recommended representation:
 - `BaseRent`: recurring monthly charge.
 - `Concession`: 10% of base rent for lease periods 1 and 2.
 - `RefundableGuaranteeRule`: three times contractual base rent, recorded as a
-  distinct refundable obligation.
+	distinct refundable obligation.
 - `AdvanceRentRule`: one scheduled period allocated to period one after its
-  approved concession.
+	approved concession.
 - `ChargeSchedule`: the dated obligations generated from the approved lease terms.
 - `LedgerEntry`: the posted financial truth; posted entries are reversed, never silently edited.
 
 This preserves the true contractual rent while showing the temporary discount transparently.
 
-## 6. Core user journeys
+### 6. Core user journeys
 
-### A. Landlord creates and activates a lease
+#### A. Landlord creates and activates a lease
 
 1. Select an available unit.
 2. Add or invite the tenant and any co-tenant or guarantor.
@@ -176,7 +237,7 @@ This preserves the true contractual rent while showing the temporary discount tr
 7. Authorized people sign or acknowledge.
 8. The system activates the lease, generates the schedule, and creates the move-in checklist.
 
-### B. Tenant pays
+#### B. Tenant pays
 
 1. The tenant sees the amount due and payment instructions.
 2. A payment is submitted through an integration or recorded by an authorized user.
@@ -185,7 +246,7 @@ This preserves the true contractual rent while showing the temporary discount tr
 5. A numbered receipt and updated statement are produced.
 6. Both sides see the same ledger balance.
 
-### C. Tenant reports maintenance
+#### C. Tenant reports maintenance
 
 1. The tenant describes the issue and can add voice or photos.
 2. AI proposes category, urgency, troubleshooting questions, and a concise summary.
@@ -194,7 +255,7 @@ This preserves the true contractual rent while showing the temporary discount tr
 5. The tenant confirms resolution or reopens the issue.
 6. The property and asset history update.
 
-### D. Landlord asks the system
+#### D. Landlord asks the system
 
 Examples:
 
@@ -206,11 +267,11 @@ Examples:
 
 Every answer involving business facts must cite the underlying records and respect the requesting user’s permissions.
 
-## 7. What “AI-first” means
+### 7. What “AI-first” means
 
 AI-first does not mean that every feature uses a language model. It means that users can accomplish work conversationally, while deterministic services remain the authority for money, permissions, dates, and contract state.
 
-### AI product principles
+#### AI product principles
 
 1. **Conversation is an interface, not the database.** The assistant calls authorized domain APIs; it never writes directly to production tables.
 2. **Business facts come from tools.** Balances, due dates, parties, and lease status are calculated by deterministic services.
@@ -221,7 +282,7 @@ AI-first does not mean that every feature uses a language model. It means that u
 7. **Failure is safe.** If AI is unavailable or uncertain, ordinary forms and deterministic workflows still work.
 8. **Quality is measured.** Maintain test sets for factual accuracy, permission enforcement, multilingual quality, extraction, tool selection, refusal behavior, cost, and latency.
 
-### AI capability map
+#### AI capability map
 
 | Capability             | Pilot behavior                                                               | Control level                                   |
 | ---------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------- |
@@ -234,7 +295,7 @@ AI-first does not mean that every feature uses a language model. It means that u
 | Document intelligence  | Extracts structured fields from leases, IDs, receipts, and invoices          | Confidence thresholds and review queue          |
 | Portfolio intelligence | Finds trends and answers natural-language analytics questions                | Read-only and source-linked                     |
 
-### Actions AI must not take autonomously
+#### Actions AI must not take autonomously
 
 - Accept or reject a tenant
 - Determine a protected or sensitive characteristic
@@ -246,21 +307,21 @@ AI-first does not mean that every feature uses a language model. It means that u
 
 Microsoft’s current responsible-AI guidance emphasizes lifecycle risk discovery, protection, governance, observability, and evaluations. Those controls should be implemented as product requirements, not postponed until launch.
 
-## 8. Domain model
+### 8. Domain model
 
-### Structural hierarchy
+#### Structural hierarchy
 
 ```mermaid
 flowchart TD
-    O[Organization] --> P[Portfolio]
-    P --> R[Property]
-  R --> U[Unit]
-    U --> L[Lease and occupancy]
-    L --> F[Charges, payments, deposits]
-    U --> M[Assets, inspections, maintenance]
+		O[Organization] --> P[Portfolio]
+		P --> R[Property]
+	R --> U[Unit]
+		U --> L[Lease and occupancy]
+		L --> F[Charges, payments, deposits]
+		U --> M[Assets, inspections, maintenance]
 ```
 
-### Principal entities
+#### Principal entities
 
 | Domain               | Key entities                                                                                            |
 | -------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -276,7 +337,7 @@ flowchart TD
 | Governance           | AuditEvent, AccessEvent, RetentionPolicy, ExportRequest, Incident                                       |
 | AI                   | AIInteraction, ToolCall, EvidenceReference, Recommendation, HumanDecision, Feedback, EvaluationResult   |
 
-### Non-negotiable modeling rules
+#### Non-negotiable modeling rules
 
 - Use globally unique, opaque identifiers; never expose sequential database IDs as authorization controls.
 - Every tenant-owned record includes `organization_id` and is protected in application authorization and at the data layer.
@@ -288,70 +349,70 @@ flowchart TD
 - Audits capture actor, organization, action, target, timestamp, origin, correlation ID, and relevant before/after metadata.
 - AI output is not a source-of-truth record until accepted through a normal domain command.
 
-## 9. Recommended solution architecture
+### 9. Recommended solution architecture
 
-### Architecture style
+#### Architecture style
 
 Use a **modular monolith with asynchronous workers** for the pilot and early commercial product.
 
 ```mermaid
 flowchart TB
-    subgraph Channels
-      LW[Landlord web]
-      TP[Tenant PWA]
-      PA[Platform admin]
-      MSG[Messaging adapters]
-    end
-    subgraph Application
-      API[API and authorization]
-      DOM[Modular business domains]
-      JOB[Jobs and notifications]
-      AIG[AI gateway and agent tools]
-    end
-    subgraph Data
-      PG[(PostgreSQL)]
-      OBJ[(Document storage)]
-      IDX[(Authorized search index)]
-      EVT[(Outbox and event stream)]
-    end
-    subgraph External
-      PAY[Payment providers]
-      IDP[Customer identity]
-      MODEL[AI models]
-      COMMS[Email, SMS, messaging]
-    end
-    LW --> API
-    TP --> API
-    PA --> API
-    MSG --> API
-    API --> DOM
-    API --> AIG
-    DOM --> PG
-    DOM --> OBJ
-    DOM --> EVT
-    EVT --> JOB
-    AIG --> IDX
-    AIG --> DOM
-    AIG --> MODEL
-    API --> IDP
-    JOB --> PAY
-    JOB --> COMMS
+		subgraph Channels
+			LW[Landlord web]
+			TP[Tenant PWA]
+			PA[Platform admin]
+			MSG[Messaging adapters]
+		end
+		subgraph Application
+			API[API and authorization]
+			DOM[Modular business domains]
+			JOB[Jobs and notifications]
+			AIG[AI gateway and agent tools]
+		end
+		subgraph Data
+			PG[(PostgreSQL)]
+			OBJ[(Document storage)]
+			IDX[(Authorized search index)]
+			EVT[(Outbox and event stream)]
+		end
+		subgraph External
+			PAY[Payment providers]
+			IDP[Customer identity]
+			MODEL[AI models]
+			COMMS[Email, SMS, messaging]
+		end
+		LW --> API
+		TP --> API
+		PA --> API
+		MSG --> API
+		API --> DOM
+		API --> AIG
+		DOM --> PG
+		DOM --> OBJ
+		DOM --> EVT
+		EVT --> JOB
+		AIG --> IDX
+		AIG --> DOM
+		AIG --> MODEL
+		API --> IDP
+		JOB --> PAY
+		JOB --> COMMS
 ```
 
-### Recommended Microsoft-oriented implementation
+#### Recommended Microsoft-oriented implementation
 
 The accepted initial product implementation is:
 
 - **Frontend:** Next.js/React progressive web app, responsive and installable.
 - **Backend:** Fastify modular monolith with shared Zod contracts and
-  framework-independent TypeScript domain packages.
+	framework-independent TypeScript domain packages.
 - **Database:** Managed PostgreSQL with organization-scoped data and row-level security as defense in depth.
 - **Files:** Azure Blob Storage with private containers, short-lived access, malware scanning, and version metadata.
 - **Identity:** Microsoft Entra External ID for customer sign-up/sign-in; application roles and organization memberships remain in the product domain.
 - **Runtime:** Azure Container Apps with public web and API ingress and a
-  no-ingress worker.
+	no-ingress worker.
 - **Async work:** Transactional outbox plus Azure Service Bus and idempotent
-  background consumers.
+	background consumers.
 - **Secrets:** Managed identities and Azure Key Vault; no production secrets in code, prompts, logs, or client bundles.
 - **Observability:** Structured logs, metrics, traces, correlation IDs, business events, alerting, and an audit trail.
 - **AI:** Microsoft Foundry or another approved model provider behind the application’s AI gateway; retrieval and tools remain controlled by the application.
@@ -359,27 +420,16 @@ The accepted initial product implementation is:
 
 Microsoft’s Azure Architecture Center treats multitenancy as a set of explicit business and technical tradeoffs, including identity, data isolation, resource sharing, noisy-neighbor risk, cost, and governance. Entra External ID supports self-service customer sign-up, sign-in, and reset flows. PostgreSQL row-level security can default-deny access when enabled without an applicable policy. These are helpful building blocks, but application authorization and security tests remain mandatory.
 
-### Module boundaries
+#### Module boundaries
 
-Start with one deployable API but enforce dependencies:
-
-1. Identity and organization
-2. Party and relationship
-3. Property and unit
-4. Leasing and occupancy
-5. Billing and ledger
-6. Payments and reconciliation
-7. Maintenance and inspection
-8. Document and communication
-9. Reporting
-10. AI orchestration
-11. Integration adapters
+Start with one deployable API but enforce the module boundaries cataloged in the
+[supporting domain-model summary](../contracts/keyforta-domain-driven-design.md#initial-bounded-modules).
 
 Modules communicate through public application commands, queries, and events—not by reaching into another module’s internal tables. Split a module into a service only when scaling, deployment independence, regulation, or team ownership provides measurable value.
 
-## 10. Security, privacy, and trust baseline
+### 10. Security, privacy, and trust baseline
 
-### Access model
+#### Access model
 
 - Authentication proves the user identity.
 - Organization membership establishes which customer account the user can enter.
@@ -388,7 +438,7 @@ Modules communicate through public application commands, queries, and events—n
 - Vendor access is limited to assigned work, necessary property access data, and a defined time window.
 - Support impersonation is disabled by default; any controlled support access is time-limited, justified, visible, and audited.
 
-### Required controls before external landlords
+#### Required controls before external landlords
 
 - MFA for platform administrators and landlord administrators
 - Strong session management and customer account recovery
@@ -405,7 +455,7 @@ Modules communicate through public application commands, queries, and events—n
 - AI prompt-injection tests, tool allowlists, output validation, and permission-aware retrieval
 - Recovery and break-glass procedures
 
-## 11. Quality attributes and initial targets
+### 11. Quality attributes and initial targets
 
 | Attribute                | Pilot target                                                                  | Commercial target                                                 |
 | ------------------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -420,9 +470,9 @@ Modules communicate through public application commands, queries, and events—n
 
 Targets should become service-level objectives only after real pilot measurements establish realistic thresholds.
 
-## 12. Delivery roadmap and gates
+### 12. Delivery roadmap and gates
 
-### Phase 0 — Product truth and risk definition
+#### Phase 0 — Product truth and risk definition
 
 Deliver:
 
@@ -435,7 +485,7 @@ Deliver:
 
 Exit gate: All sample rent schedules can be calculated manually and agreed upon; no unresolved ambiguity changes the financial ledger design.
 
-### Phase 1 — Initial apartment operations
+#### Phase 1 — Initial apartment operations
 
 Deliver:
 
@@ -447,7 +497,7 @@ Deliver:
 
 Exit gate: Run at least two complete billing cycles with all pilot apartments; reconcile every charge and payment; resolve defects; confirm tenants can understand their statements.
 
-### Phase 2 — Controlled landlord beta
+#### Phase 2 — Controlled landlord beta
 
 Deliver:
 
@@ -461,7 +511,7 @@ Deliver:
 
 Exit gate: A small group of external landlords completes onboarding and recurring operations without developer intervention; support load and unit economics are measured.
 
-### Phase 3 — Rental marketplace
+#### Phase 3 — Rental marketplace
 
 Deliver only after supply and operations are proven:
 
@@ -472,7 +522,7 @@ Deliver only after supply and operations are proven:
 
 Exit gate: Measurable improvement in vacancy duration, qualified inquiries, or lease conversion without unacceptable fraud or support cost.
 
-### Phase 4 — Broader real estate
+#### Phase 4 — Broader real estate
 
 Potential bounded products:
 
@@ -486,9 +536,9 @@ Potential bounded products:
 
 Each is a separate product hypothesis. Do not put all of them into the first roadmap.
 
-## 13. Pilot success measures
+### 13. Pilot success measures
 
-### Operational
+#### Operational
 
 - Percentage of occupied units with an active digital lease
 - Percentage of scheduled charges generated without correction
@@ -498,7 +548,7 @@ Each is a separate product hypothesis. Do not put all of them into the first roa
 - Maintenance first-response and resolution times
 - Lease expirations acted upon before deadline
 
-### Trust and product quality
+#### Trust and product quality
 
 - Disputed balances and cause
 - Duplicate financial postings
@@ -507,7 +557,7 @@ Each is a separate product hypothesis. Do not put all of them into the first roa
 - Support requests per occupied unit
 - Successful backup restoration and incident drills
 
-### AI
+#### AI
 
 - Factual accuracy on a versioned evaluation set
 - Percentage of factual answers with valid evidence references
@@ -519,7 +569,7 @@ Each is a separate product hypothesis. Do not put all of them into the first roa
 
 The product should not optimize “number of AI conversations.” It should optimize correct task completion, trust, time saved, and business outcomes.
 
-## 14. First delivery backlog
+### 14. First delivery backlog
 
 | Epic                            | Outcome                                                          | Representative acceptance test                                                          |
 | ------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -532,45 +582,45 @@ The product should not optimize “number of AI conversations.” It should opti
 | E7 Read-only AI                 | Users can ask questions safely                                   | Every lease/finance answer cites authorized records or explicitly says it cannot answer |
 | E8 Operations and quality       | The pilot can run and recover professionally                     | Monitoring detects a failure and a tested restore meets the pilot recovery target       |
 
-## 15. Documentation-as-code foundation
+### 15. Documentation-as-code foundation
 
-Recommended repository structure:
+Current consolidated documentation structure:
 
 ```text
-myhouse-platform/
-  apps/
-    web/
-    api/
-    worker/
-  docs/
-    product/
-      VISION.md
-      PRD.md
-      PILOT-SCENARIOS.md
-    architecture/
-      CONTEXT.md
-      DOMAIN-MODEL.md
-      DATA-MODEL.md
-      SECURITY.md
-      INTEGRATIONS.md
-      adr/
-    ai/
-      AI-SYSTEM-CARD.md
-      TOOL-POLICY.md
-      EVALUATION-PLAN.md
-      evals/
-    operations/
-      SLOS.md
-      RUNBOOKS.md
-      INCIDENT-RESPONSE.md
-  infra/
-  tests/
-    acceptance/
-    authorization/
-    integration/
+keyforta-property/
+	apps/
+		public-web/
+		portal-web/
+		admin-web/
+		api/
+		jobs/
+		mcp-server/
+	docs/
+		README.md
+		adr/
+		product/
+			README.md
+			PRD.md
+			PILOT_RULEBOOK.md
+			PILOT_ROLE_USE_CASES.md
+			IMPLEMENTATION_STATUS.md
+			IMPLEMENTATION_PLAN.md
+		ai/
+			AI_SYSTEM_CARD.md
+			TOOL_POLICY.md
+			EVALUATION_PLAN.md
+		operations/
+			README.md
+			RELEASE_CHECKLIST.md
+			focused incident runbooks
+		engineering/
+		architecture/adr/
+	infra/
+	packages/
+	harness/
 ```
 
-### Definition of done for every capability
+#### Definition of done for every capability
 
 - User story and acceptance criteria approved
 - Domain rule and permissions documented
@@ -583,7 +633,7 @@ myhouse-platform/
 - AI-enabled capabilities include evaluation cases, evidence rules, safe fallback, and human approval policy
 - Documentation updated in the same change
 
-## 16. Decisions required before implementation
+### 16. Decisions required before implementation
 
 | Decision                          | Why it matters                                                | Recommended starting position                                                                                                                                     |
 | --------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -595,7 +645,7 @@ myhouse-platform/
 | SaaS pricing                      | Determines organization, subscription, and limits model       | Defer price; measure support and infrastructure cost per active unit during pilot                                                                                 |
 | Public product name               | Must remain credible beyond apartments and DRC                | Use “KEYFORTA” as the public product name; preserve existing technical identifiers until a deliberate migration is approved                                       |
 
-## 17. Immediate next actions
+### 17. Immediate next actions
 
 1. Create the pilot property/unit inventory and assign stable unit codes.
 2. Confirm with DRC counsel the selected three-month refundable guarantee plus one advance-rent structure and its contract wording.
@@ -608,7 +658,7 @@ myhouse-platform/
 9. Build a thin vertical slice: sign in → unit → lease terms → charge schedule → payment → receipt → grounded AI explanation.
 10. Run the vertical slice with synthetic data before importing real identity, lease, or payment documents.
 
-## 18. Architecture references
+### 18. Architecture references
 
 - Microsoft, [Architect multitenant solutions on Azure](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/overview)
 - Microsoft, [Multitenancy checklist on Azure](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/checklist)

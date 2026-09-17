@@ -26,6 +26,47 @@
 | `X-Webhook-Signature` | Provider callbacks | Provider-specific signed payload |
 | `X-Webhook-Timestamp` | Provider callbacks | Replay-protection timestamp |
 
+### Protected request flow
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor User
+  participant Client as Browser or API client
+  participant API as Fastify API boundary
+  participant JWKS as Entra JWKS endpoint
+  participant Policy as Authorization policy
+  participant DB as PostgreSQL and RLS
+
+  User->>Client: Initiate protected action
+  Client->>API: HTTPS request with bearer token
+  opt Signing key is not cached
+    API->>JWKS: Fetch signing keys over HTTPS
+    JWKS-->>API: JSON Web Key Set
+  end
+  API->>API: Validate signature, issuer, audience, and claims
+  API->>DB: Resolve active membership and resource context
+  DB-->>API: Trusted organization and relationship context
+  API->>Policy: Evaluate actor, role, resource, state, and time
+  alt Denied or context mismatch
+    Policy-->>API: Deny by default
+    API-->>Client: Sanitized 401, 403, or 404 with request ID
+  else Authorized
+    Policy-->>API: Permit command or query
+    API->>DB: Execute with trusted transaction context
+      DB->>DB: Enforce row-level policies
+      opt Mutation or privileged read
+        API->>DB: Append correlated audit evidence
+      end
+    DB-->>API: Authorized result
+    API-->>Client: Response envelope with request ID
+  end
+```
+
+The external identity establishes a subject only. Organization and resource
+access come from protected server state and are enforced again by PostgreSQL
+row-level policies.
+
 ## 3. Response envelopes
 
 ### Single resource
@@ -325,3 +366,93 @@ Errors must not include stack traces, secrets, access tokens, raw provider paylo
 Webhook handlers verify signature, timestamp tolerance, provider event ID, and replay status before enqueueing work. They return `202 Accepted` after durable receipt, not after all business processing completes.
 
 The outbox record and aggregate mutation commit together. Consumers use an inbox record keyed by consumer and event ID. Failed messages retry with backoff, then move to a visible dead-letter state. Reconciliation jobs must surface unresolved payments and provider mismatches.
+
+## Appendix A. Supporting integration diagrams and evidence
+
+This supporting appendix preserves the former integration boundaries and
+evidence. It does not replace the normative API and event contract. Provider
+status remains evidence rather than business truth, and every provider boundary
+retains its required fallback.
+
+### Integration Boundaries
+
+Integrations are adapters around KEYFORTA’s authoritative state.
+
+#### Initial adapter categories
+
+| Category  | Inbound responsibility                             | Outbound responsibility                             |
+| --------- | -------------------------------------------------- | --------------------------------------------------- |
+| Identity  | Verified external subject and authentication event | Sign-in and account-recovery journey                |
+| Payment   | Authenticated, replayable transaction status event | Payment request or instructions                     |
+| Messaging | Delivery status and authorized user reply          | Notification rendered from an approved template     |
+| Document  | Signature, scan, or extraction result              | Versioned document prepared for an authorized user  |
+| AI model  | Structured candidate output and usage metadata     | Minimum necessary prompt, evidence, and tool result |
+
+#### Adapter rules
+
+- The domain never imports a provider SDK.
+- Inbound messages are authenticated, schema-validated, idempotent, and stored
+  with provider and correlation references.
+- Retries use bounded backoff and a dead-letter or exception queue.
+- Provider success does not imply domain success; reconciliation links both.
+- Personal data sent to a provider is minimized and governed by documented
+  purpose, consent or other authority, retention, region, and deletion rules.
+- Every provider requires a failure mode, fallback path, and replacement plan.
+
+#### Provider callback sequence
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Provider as External provider
+  participant API as Provider callback boundary
+  participant Receipt as webhook_receipts
+  participant Processor as Integration processor
+  participant Policy as Authorization policy
+  participant Domain as Domain command handler
+  participant DB as PostgreSQL transaction
+  participant Ops as Operations
+
+  Provider->>API: Callback with signature, timestamp, and provider event ID
+  API->>API: Verify signature and timestamp tolerance
+  API->>API: Check replay status and provider event identity
+  API->>API: Validate callback schema
+  alt Authentication, replay, or schema validation fails
+    API-->>Provider: Sanitized rejection with request ID
+  else Callback is valid
+    API->>Receipt: Record provider event ID, payload hash, and verification result
+    alt Provider event ID already recorded
+      Receipt-->>API: Existing durable receipt
+      API-->>Provider: Sanitized duplicate acknowledgement
+    else New durable receipt
+      Receipt-->>API: Receipt persisted
+      API-->>Provider: 202 Accepted after durable receipt
+      rect rgb(245, 245, 245)
+        Note over Processor,Ops: Accepted target asynchronous path, not active in the current schema or runtime
+        Processor->>Receipt: Claim callback for processing
+        Processor->>Policy: Authorize organization, resource, and command
+        alt Command is authorized and valid
+          Policy-->>Processor: Permit
+          Processor->>Domain: Invoke authorized domain command
+          Domain->>DB: Begin transaction
+          Domain->>DB: Mutate aggregate and append audit_events
+          Domain->>DB: Append versioned outbox_events event
+          DB-->>Domain: Atomic commit of aggregate, audit, and outbox
+          Domain-->>Processor: Domain result
+          Processor->>Receipt: Mark processed with correlation reference
+        else Unauthorized or invalid domain transition
+          Policy-->>Processor: Deny or command rejects state
+          Processor->>Receipt: Record sanitized processing failure
+        else Dependency or processing failure
+          Processor->>Receipt: Record attempt and sanitized error
+          Processor->>Processor: Retry with bounded backoff
+          Processor-->>Ops: Surface unresolved callback or provider mismatch
+          Ops->>Processor: Authorize controlled retry or reconciliation
+          Processor->>Domain: Reconcile through an authorized domain command
+        end
+      end
+    end
+  end
+
+  Note over Provider,DB: Provider status is evidence, not ledger or business truth, and PostgreSQL domain state remains authoritative
+```

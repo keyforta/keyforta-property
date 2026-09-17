@@ -29,5 +29,5 @@ description: "Trace existing product behavior, users, and authoritative requirem
 ## Resources
 
 - [Product requirements](../../../docs/product/PRD.md)
-- [Domain contracts](../../../docs/keyforta-domain-contracts.md)
+- [Domain contracts](../../../docs/contracts/keyforta-domain-contracts.md)
 - [Requirements gaps](../../../docs/engineering/REQUIREMENTS_GAPS.md)

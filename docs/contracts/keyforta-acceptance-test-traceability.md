@@ -6,6 +6,34 @@
 
 Automated tests use the IDs below in test names, fixtures, or test metadata. A feature is not complete until every required scenario is linked to an executable test or an approved documented exception.
 
+### Requirement-to-evidence chain
+
+```mermaid
+flowchart LR
+	Requirement["Requirement ID<br/>matrix row"]
+	Scenario["Acceptance scenario<br/>observable behavior"]
+	Executable["Executable test<br/>ID in name, fixture, or metadata"]
+	Layer["Test layer<br/>unit, API, database, security, or smoke"]
+	Gate["CI gate<br/>required workflow result"]
+	Evidence["Release evidence<br/>SHA-bound run or documented exception"]
+	Gap["Current linkage gap<br/>the matrix names required evidence,<br/>but executable test paths and IDs<br/>are not enumerated here"]
+
+	Requirement --> Scenario
+	Scenario -. "link not yet visible end to end" .-> Executable
+	Executable --> Layer --> Gate --> Evidence
+	Gap -.-> Executable
+
+	classDef gap fill:#fff3cd,stroke:#8a6d00,color:#332800;
+	class Gap gap;
+```
+
+The target chain is complete only when a reviewer can follow the requirement ID
+to a specific executable test and onward to the gate and release record. The
+current matrix records scenarios and required evidence types, but it does not
+enumerate executable test files or demonstrate that every test carries the
+corresponding ID. That missing linkage remains a visible verification gap and
+must not be interpreted as test coverage.
+
 ## 2. Traceability matrix
 
 | ID | Requirement | Acceptance scenario | Required evidence |

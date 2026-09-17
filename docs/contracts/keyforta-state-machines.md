@@ -2,6 +2,10 @@
 
 **Status:** Normative lifecycle contract v1.0
 
+The diagrams in this document visualize this normative contract. They do not
+assert a direct mapping to the target SQL verification enum; the unresolved
+verification vocabulary mismatch is recorded in the requirements-gap report.
+
 ## 1. Transition format
 
 Each transition has a command, authorized actor, guard, side effects, emitted event, and audit record. Invalid transitions return `STATE_CONFLICT`. The backend must not expose a generic status update.
@@ -12,6 +16,17 @@ Each transition has a command, authorized actor, guard, side effects, emitted ev
 not_started → submitted → under_review → approved
                                └───────→ rejected
 approved → expired
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> not_started
+    not_started --> submitted: SubmitPropertyForVerification
+    submitted --> under_review: StartPropertyReview
+    under_review --> approved: ApprovePropertyVerification
+    under_review --> rejected: RejectPropertyVerification
+    rejected --> submitted: SubmitPropertyForVerification
+    approved --> expired: ExpirePropertyVerification
 ```
 
 | From | Command | Actor | Guard | To | Event |
@@ -34,6 +49,23 @@ draft → submitted_for_manager_review → changes_requested → resubmitted
 draft/submitted/changes_requested/resubmitted → withdrawn
 ```
 
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> submitted_for_manager_review
+    submitted_for_manager_review --> changes_requested
+    submitted_for_manager_review --> approved
+    submitted_for_manager_review --> rejected
+    changes_requested --> resubmitted
+    resubmitted --> changes_requested
+    resubmitted --> approved
+    resubmitted --> rejected
+    draft --> withdrawn
+    submitted_for_manager_review --> withdrawn
+    changes_requested --> withdrawn
+    resubmitted --> withdrawn
+```
+
 Guards: required data and consent before submission; applicant may edit only draft or changes-requested versions; only authorized landlord/manager decides; decision reason is mandatory; approval does not activate a lease.
 
 ## 4. Lease
@@ -41,6 +73,17 @@ Guards: required data and consent before submission; applicant may edit only dra
 ```text
 draft → offered → accepted → signed → active → ended
                                       └──────→ terminated
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> offered
+    offered --> accepted
+    accepted --> signed
+    signed --> active
+    active --> ended
+    active --> terminated
 ```
 
 Guards: offer requires valid terms; acceptance requires tenant acknowledgement; signing requires exact terms version; activation requires no overlapping active lease, required parties, availability, and required acknowledgements; termination requires effective date and reason; signed terms are immutable.
@@ -56,7 +99,25 @@ generated/due/overdue/partially_paid → adjusted or waived by command
 posted → reversed → replaced
 ```
 
-`overdue` is derived from property-local time, due date, grace policy, and outstanding balance. A posted charge is never edited in place.
+```mermaid
+stateDiagram-v2
+    [*] --> scheduled
+    scheduled --> generated
+    generated --> due
+    due --> partially_paid
+    partially_paid --> paid
+    due --> overdue
+    partially_paid --> overdue
+    generated --> waived
+    due --> waived
+    overdue --> waived
+    partially_paid --> waived
+```
+
+`overdue` is derived from property-local time, due date, grace policy, and
+outstanding balance. Adjustment, reversal, and replacement are explicit
+append-only correction operations, not invented in-place lifecycle states. A
+posted charge is never edited in place.
 
 ### Payment
 
@@ -64,6 +125,22 @@ posted → reversed → replaced
 initiated → pending → received → allocated → reconciled
                   └──→ failed
 received/allocated/reconciled → refunded or reversed
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> initiated
+    initiated --> pending
+    pending --> received
+    pending --> failed
+    received --> allocated
+    allocated --> reconciled
+    received --> refunded
+    allocated --> refunded
+    reconciled --> refunded
+    received --> reversed
+    allocated --> reversed
+    reconciled --> reversed
 ```
 
 Guards: provider callback signature and replay checks; positive amount; explicit currency; allocation does not exceed payment or charge balance; refund/reversal references original effect.
@@ -75,6 +152,26 @@ submitted → triaged → assigned → accepted → scheduled → in_progress
                                                         → completed → confirmed
 completed/confirmed → reopened → triaged
 submitted/triaged/assigned/accepted/scheduled → cancelled
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> submitted
+    submitted --> triaged
+    triaged --> assigned
+    assigned --> accepted
+    accepted --> scheduled
+    scheduled --> in_progress
+    in_progress --> completed
+    completed --> confirmed
+    completed --> reopened
+    confirmed --> reopened
+    reopened --> triaged
+    submitted --> cancelled
+    triaged --> cancelled
+    assigned --> cancelled
+    accepted --> cancelled
+    scheduled --> cancelled
 ```
 
 | Transition | Required guard |
@@ -98,14 +195,51 @@ document_created → version_uploaded → review_pending → approved
 approved → active_version_selected → archived
 ```
 
-Access grants are independently stateful:
+```mermaid
+stateDiagram-v2
+    [*] --> document_created
+    document_created --> version_uploaded
+    version_uploaded --> review_pending
+    review_pending --> approved
+    review_pending --> rejected
+    approved --> active_version_selected
+    active_version_selected --> archived
+```
+
+Document access grants are created active and are independently stateful:
+
+```text
+active → expired
+     └──→ revoked
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> active
+    active --> expired
+    active --> revoked
+```
+
+Privileged support access has a separate approval lifecycle:
 
 ```text
 requested → approved → active → expired
-                   └──────→ revoked
+                                     └──────→ revoked
 ```
 
-Guards: one exact active version where required; content hash recorded; access is relationship/scoped/expiring; private storage reference only; legal hold blocks archive/deletion.
+```mermaid
+stateDiagram-v2
+    [*] --> requested
+    requested --> approved
+    approved --> active
+    active --> expired
+    active --> revoked
+```
+
+Guards: one exact active version where required; content hash recorded; access
+is relationship/scoped/expiring; private storage reference only; legal hold
+blocks archive/deletion. Privileged support access additionally requires a
+reason, target, scope, expiry, approver, and visibility.
 
 ## 8. Operator verification and eligibility
 
@@ -114,6 +248,19 @@ not_started → submitted → under_review → verified
                                └───────→ rejected
 verified → suspended → verified
 verified → expired → submitted
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> not_started
+    not_started --> submitted
+    submitted --> under_review
+    under_review --> verified
+    under_review --> rejected
+    verified --> suspended
+    suspended --> verified
+    verified --> expired
+    expired --> submitted
 ```
 
 An operator may publish a service offer only in `verified` state. Verification does not grant access to any property. An assignment and active access window are still required.

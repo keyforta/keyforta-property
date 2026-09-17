@@ -4,6 +4,10 @@ KEYFORTA is delivered through thin, testable vertical slices. Each change must
 update requirements, implementation, automated evidence, and operating guidance
 together.
 
+This document owns sequencing and exit evidence, not current delivery status.
+Use [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md) for the single
+source-backed status summary.
+
 ## Collaboration loop
 
 1. Confirm the business decision and acceptance examples.
@@ -15,9 +19,6 @@ together.
 ## Delivery sequence
 
 ### Foundation — Party, relationship, and jurisdiction policy
-
-**Status:** Implemented and locally verified on 2026-09-16. No DRC counsel
-approval has been provided, so counsel-dependent capabilities remain disabled.
 
 - Evolve the operational PostgreSQL migration lineage forward without replacing
   or rewriting migrations already recorded in the deployment ledger.
@@ -38,11 +39,6 @@ owner and counsel evidence; cross-organization access is denied; existing public
 discovery tests remain green.
 
 ### Current release — Public rental discovery
-
-**Status:** Public-discovery API, PostgreSQL persistence, filters, projection,
-visit-inquiry validation, and duplicate suppression are locally verified.
-Browser integration, pull request, CI, dev deployment, distributed abuse
-controls, and operating-window evidence remain.
 
 - Deliver a French-first rental-search homepage and controlled public
   catalogue.
@@ -70,9 +66,6 @@ select a unit and inspect the verified signing breakdown in the browser.
 
 ### Increment 2 — Persistence and tenant isolation
 
-**Status:** Foundation, landlord-controlled manager property assignments, and
-safe property/unit lifecycle commands implemented.
-
 - Record an ADR for PostgreSQL tenancy and migration strategy.
 - Add organizations, memberships, properties, units, and audit context.
 - Let landlords create and update properties and units with optimistic
@@ -95,8 +88,9 @@ other’s records, even when client-supplied identifiers are manipulated.
 
 ### Increment 3 — Identity and leasing
 
-**Status:** OIDC, role boundary, draft creation, and append-only lease revision
-and archival implemented; invitations and accepted-lease activation remain.
+The application provenance, evidence, and invitation details in this increment
+remain proposed where they exceed the approved PRD boundary; see the product
+authority/application-scope gap before implementation.
 
 - Add landlord and tenant sign-in, invitations, and least-privilege roles.
 - Let landlords create an audited lease draft for an unleased unit by selecting
@@ -125,9 +119,6 @@ landlords, and only clean files can be downloaded through the authorized API.
 schedule; a tenant sees only the accepted version for their lease.
 
 ### Increment 4 — Payments, ledger, and receipts
-
-**Status:** Idempotent posting, immutable receipt/ledger history, and linked
-payment reversal/replacement implemented; allocations and statements remain.
 
 - Record manual cash, bank, and mobile-money evidence.
 - Post idempotent payments, allocations, reversals, and numbered receipts.

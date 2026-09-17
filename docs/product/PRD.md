@@ -15,7 +15,8 @@ Operate the initial Kinshasa apartments through two complete, reconciled
 billing cycles using one secure system.
 
 The public website, tenant portal, manager/admin portal, and landlord portal are
-defined in [Product Role Use Cases](PILOT_ROLE_USE_CASES.md).
+described in the draft [Product Role Use Cases](PILOT_ROLE_USE_CASES.md). That
+draft supports this PRD but does not define approved requirements.
 
 An accepted tenant can enter an authenticated access-confirmation workspace.
 Lease, payment, receipt, and maintenance views remain unavailable until their
@@ -55,37 +56,34 @@ tenant-scoped contracts and authorization tests are implemented.
 8. AI answers about money or leases cite authorized source records or abstain.
 9. The system continues core workflows while AI is unavailable.
 
-## Implemented product capabilities
+## Delivery status
 
-- The French-first public website explains KEYFORTA to landlords, managers, and
-  tenants and provides a controlled catalogue, listing details, visit inquiries,
-  contact, privacy, and secure sign-in paths without exposing private records or
-  accepting public rental applications.
-- Invited tenants can submit a structured application for human review. Tenant
-  identity records preserve nom, postnom, and prénom as distinct required
-  fields. Current addresses preserve avenue and number, quartier, commune,
-  postal code, city, and province as distinct required fields. A landlord can
-  record one append-only approval or refusal with required notes; neither
-  outcome reserves a unit, creates a lease, or moves money.
-- Invited tenants can upload versioned identity, income, address, and rental
-  reference evidence as PDF, JPEG, or PNG files up to 10 MB. Files remain
-  unavailable until Microsoft Defender for Storage reports them clean, and all
-  access is authorized and proxied by the API.
-- Authenticated landlord, manager, and auditor portfolio reads return real
-  organization-scoped property, unit, and lease records.
-- Tenant roles and identities outside the requested organization cannot read
-  the operational portfolio.
-- The portfolio dashboard derives unit and contractual-rent summaries from these
-  records and does not substitute synthetic records when the portfolio is empty.
-- Landlords can create, list, and revoke expiring manager and tenant
-  invitations. Recipients join only after signing in with the invited email;
-  invitation links reveal their token only at creation. A landlord who loses a
-  pending link can replace it, which revokes the old invitation and displays a
-  fresh link once.
-- Landlords can activate a lease draft explicitly. Activation creates an
-  immutable accepted version instead of changing the draft in place.
-- Every new lease draft records its provenance. A KEYFORTA application must
-  be approved by a human, belong to the same organization and tenant, and be
-  unused by another lease series. Historical or externally concluded leases
-  remain importable only with an explicit landlord justification. Approval
-  never creates, reserves, or activates a lease automatically.
+Delivery evidence changes more frequently than approved requirements. The
+current source-backed summary lives in
+[`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md); this PRD remains the
+authority for scope, exclusions, and acceptance outcomes.
+
+## Approved capability constraints
+
+- Invited-tenant applications preserve nom, postnom, and prénom as distinct
+   required identity fields and avenue/number, quartier, commune, postal code,
+   city, and province as distinct current-address fields.
+- Application approval or refusal is one append-only human decision with
+   required notes. Neither outcome reserves a unit, creates a lease, or moves
+   money.
+- Application evidence is versioned PDF, JPEG, or PNG up to 10 MB. It remains
+   unavailable until the approved malware-scan control reports it clean, and
+   every access requires fresh authorization under ADR-006.
+- Manager and tenant invitations expire and are revocable. The raw token is
+   revealed only at creation; replacing a lost pending link revokes the old
+   invitation and reveals a fresh token once. A recipient joins only after
+   signing in with the invited email address.
+- Portfolio and operational views show the truthful empty state when no records
+  exist; they never substitute synthetic records in an authenticated workflow.
+- Lease activation is an explicit landlord decision that appends an immutable
+   accepted version instead of changing a draft in place.
+- Every lease draft records provenance. A referenced KEYFORTA application must
+   be human-approved, belong to the same organization and tenant, and remain
+   unused by another lease series. Historical or externally concluded leases
+   require an explicit landlord justification. Approval never creates,
+   reserves, or activates a lease automatically.

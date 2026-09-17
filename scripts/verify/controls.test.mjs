@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { checkArchitecture } from "./architecture-boundaries.mjs";
+import { validateMermaidDocuments } from "./mermaid-diagrams.mjs";
 import { scanSecrets } from "./secret-scan.mjs";
 
 function withTemporaryFile(source, assertion) {
@@ -12,6 +13,17 @@ function withTemporaryFile(source, assertion) {
   try {
     writeFileSync(file, source);
     assertion(file);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+}
+
+async function withTemporaryMarkdown(source, assertion) {
+  const directory = mkdtempSync(join(tmpdir(), "keyforta-diagram-test-"));
+  const file = join(directory, "fixture.md");
+  try {
+    writeFileSync(file, source);
+    await assertion(file);
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }
@@ -38,5 +50,33 @@ test("architecture checker rejects application imports from shared code", () => 
 test("architecture checker accepts shared type imports", () => {
   withTemporaryFile('import type { ToolResult } from "@keyforta/types";', (file) => {
     assert.deepEqual(checkArchitecture([file]), []);
+  });
+});
+
+test("Mermaid checker accepts a valid fenced diagram", async () => {
+  await withTemporaryMarkdown("```mermaid\nflowchart LR\n  A --> B\n```\n", async (file) => {
+    assert.deepEqual(await validateMermaidDocuments([file]), {
+      diagramCount: 1,
+      failures: [],
+    });
+  });
+});
+
+test("Mermaid checker fails closed on malformed syntax", async () => {
+  await withTemporaryMarkdown("```mermaid\nflowchart LR\n  A -- B\n```\n", async (file) => {
+    const result = await validateMermaidDocuments([file]);
+    assert.equal(result.diagramCount, 1);
+    assert.equal(result.failures.length, 1);
+    assert.match(result.failures[0], /fixture\.md diagram 1/);
+  });
+});
+
+test("Mermaid checker fails closed on an unclosed fence", async () => {
+  await withTemporaryMarkdown("```mermaid\nflowchart LR\n  A --> B\n", async (file) => {
+    const result = await validateMermaidDocuments([file]);
+    assert.equal(result.diagramCount, 1);
+    assert.deepEqual(result.failures, [
+      `${file} diagram 1 at line 1: unclosed Mermaid fence`,
+    ]);
   });
 });

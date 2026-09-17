@@ -29,4 +29,4 @@ description: "Clarify and version a proposed requirement without erasing prior d
 ## Resources
 
 - [Requirements gaps](../../../docs/engineering/REQUIREMENTS_GAPS.md)
-- [Acceptance traceability](../../../docs/keyforta-acceptance-test-traceability.md)
+- [Acceptance traceability](../../../docs/contracts/keyforta-acceptance-test-traceability.md)

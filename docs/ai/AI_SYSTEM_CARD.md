@@ -5,7 +5,11 @@
 KEYFORTA AI helps authorized users retrieve, explain, classify, summarize, and
 draft work related to their property relationship.
 
-## Initial capabilities
+## Approved future capabilities
+
+Only synthetic `system.health` is implemented, and its deployment path remains
+inactive. The following tenant-data capabilities remain deferred until their
+authorization, privacy, evaluation, operations, and release gates pass:
 
 - Explain an authorized tenant balance and cite its charges and payments
 - Explain an authorized lease clause and cite the exact document version
@@ -32,7 +36,7 @@ routes the user to the deterministic workflow or a human.
 
 KEYFORTA exposes a standalone, authenticated, read-only MCP service
 (`apps/mcp-server`) for Claude and ChatGPT-compatible remote MCP clients. The
-active slice returns only synthetic service metadata through the
+implemented inactive slice returns only synthetic service metadata through the
 `system.health` capability tool.
 
 The service performs no outbound Anthropic or OpenAI API call, holds no
