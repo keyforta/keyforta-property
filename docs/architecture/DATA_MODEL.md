@@ -1,10 +1,11 @@
 # Data Model Direction
 
-The first persistence implementation uses PostgreSQL under
-[ADR-0004](adr/0004-postgresql-tenancy-and-migrations.md). The initial migration
-and PostgreSQL integration test establish the organization, property, lease,
-payment, receipt, balanced ledger, audit, and RLS foundation. Additional entity
-groups remain incremental work.
+The persistence implementation follows accepted
+[organization-isolation](../adr/ADR-002-organization-isolation.md),
+[production-persistence](../adr/ADR-010-production-persistence-boundary.md), and
+[migration-lineage](../adr/ADR-013-operational-migration-lineage.md) decisions.
+Executable migrations and PostgreSQL integration tests establish the current
+foundation; this document remains a supporting conceptual view.
 
 ## Principal entity groups
 
@@ -172,5 +173,7 @@ replacement and its receipt evidence remain the normative target continuation.
 - AI retrieval indexes carry the same organization and record permissions as
   their sources and can be rebuilt from authoritative records.
 
-Physical schema changes must follow ADR-0004 and keep migration, authorization,
-idempotency, immutability, and RLS isolation tests green.
+Physical schema changes must follow the canonical executable lineage in
+[`infra/postgres/migrations`](../../infra/postgres/migrations/) and keep
+migration, authorization, idempotency, immutability, and RLS isolation tests
+green.

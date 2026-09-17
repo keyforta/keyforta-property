@@ -3,8 +3,9 @@
 **Status:** Descriptive companion to [Product Role Use Cases](PILOT_ROLE_USE_CASES.md)
 **Snapshot:** 2026-09-17
 
-These diagrams visualize approved journeys and current delivery status. They do
-not add or change requirements; `PILOT_ROLE_USE_CASES.md` remains authoritative.
+These diagrams visualize journeys and current delivery status. They do not add
+or change requirements; the approved PRD and controlling contracts remain
+authoritative, while `PILOT_ROLE_USE_CASES.md` is pending product-owner validation.
 Mobile and desktop use the same responsive web experiences. Native applications
 are out of scope.
 
@@ -150,15 +151,15 @@ flowchart LR
 ```mermaid
 flowchart LR
   subgraph Landlord[Landlord]
-    A["Create expiring tenant invitation [API]"]
-    B["Reveal invitation token once [API]"]
-    BR["Replace lost pending link; revoke old invitation [API]"]
+    A["Create expiring tenant invitation [PLAN]"]
+    B["Reveal invitation token once [PLAN]"]
+    BR["Replace lost pending link; revoke old invitation [PLAN]"]
     H["Review submitted application and scan status [PLAN]"]
     J{"Record one human decision with notes [PLAN]"}
     RJ["Reject: no reservation, lease, or money movement [PLAN]"]
   end
   subgraph Tenant[Invited tenant]
-    C["Open invitation and sign in with invited email [API]"]
+    C["Open invitation and sign in with invited email [PLAN]"]
     D["Complete structured application [PLAN]"]
     V["Validation error: correct application or file [PLAN]"]
     E["Upload versioned PDF, JPEG, or PNG evidence up to 10 MB [PLAN]"]
@@ -169,11 +170,11 @@ flowchart LR
     NA["Lease, payment, receipt, and maintenance views unavailable [PLAN]"]
   end
   subgraph Authorization[Invitation, evidence, and membership controls]
-    I["Validate token, expiry, status, and exact email [API]"]
-    ID["Denied: invalid, expired, revoked, used, or email mismatch [API]"]
+    I["Validate token, expiry, status, and exact email [PLAN]"]
+    ID["Denied: invalid, expired, revoked, used, or email mismatch [PLAN]"]
     S["Defender scan result [PLAN]"]
     CL["Clean evidence available after fresh authorization by short-lived signed URL [PLAN]"]
-    M["Create tenant identity and active organization membership [API]"]
+    M["Create tenant identity and active organization membership [PLAN]"]
   end
 
   A --> B --> C --> I
@@ -200,9 +201,9 @@ flowchart LR
   subgraph Landlord[Landlord]
     A["Select explicit organization context [API]"]
     B["Open portfolio [API]"]
-    E["Empty portfolio: show no synthetic replacement records [API]"]
+    E["Empty portfolio: show no synthetic replacement records [PLAN]"]
     C["Search bounded properties, units, leases, and active managers [API]"]
-    I["Create, replace, or revoke manager or tenant invitation [API]"]
+    I["Create, replace, or revoke manager or tenant invitation [PLAN]"]
     D["Select unleased unit and active tenant; enter exact terms [API]"]
     P{"Choose draft provenance [API]"}
     PA["Approved same-organization, same-tenant application; unused [API]"]

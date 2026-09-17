@@ -8,7 +8,7 @@ This is the normative target relational model for the backend implementation. Th
 
 The target SQL is authoritative for intended PostgreSQL column types, enum names, constraints, indexes, and policies. Operational differences must be explicit, additive migration steps toward this design; the abbreviated table descriptions below explain ownership and intent and do not replace either SQL artifact set.
 
-## 0. Executable artifacts
+## 0. Target reference artifacts
 
 | Artifact | Purpose |
 | --- | --- |
@@ -17,7 +17,11 @@ The target SQL is authoritative for intended PostgreSQL column types, enum names
 | [`V003__keyforta_reference_seed.sql`](./database/V003__keyforta_reference_seed.sql) | Idempotent reference data for currencies, locales, roles, policy keys, maintenance categories, and event schemas |
 | [`backup-retention-runbook.md`](./database/backup-retention-runbook.md) | Azure PostgreSQL/Blob backup, retention, restore testing, deletion, and legal-hold procedures |
 
-The reference composition order is `V001 → V002 → V003`. Deployment applies only ordered migrations from `infra/postgres/migrations` through the migration role, records their checksums in the deployment ledger, and tests both clean installation and upgrade from the previous schema.
+The intended reference composition order is `V001 → V002 → V003`; its current
+composition and jurisdiction defaults have unresolved gaps and it is not a
+deployment input. Deployment applies only ordered migrations from
+`infra/postgres/migrations` through the migration role, records checksums in the
+deployment ledger, and tests clean installation and forward upgrade.
 
 ## 1. Conventions
 

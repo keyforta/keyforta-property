@@ -76,7 +76,7 @@ flowchart LR
     PlanRecord --> Artifact
     Digests --> PlanRecord
     Attest --> Artifact
-    Scan --> Artifact
+    Scan --> Review
     WhatIf --> Artifact
   end
 
@@ -111,7 +111,9 @@ flowchart LR
   class Gap gap;
 ```
 
-The plan artifact consolidates pre-deployment evidence. Deployment outputs are
+The plan artifact contains the plan record, attestations, and `what-if` output.
+Blocking image-scan results remain workflow logs and are reviewed separately;
+they are not part of the 30-day plan artifact. Deployment outputs are
 currently distributed across the deploy workflow result and summary, Azure
 revision and migration execution records, smoke observations, and the manually
 maintained release record. There is no single consolidated post-deployment

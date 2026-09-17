@@ -1,6 +1,6 @@
 # KEYFORTA: AI-First Real Estate Platform Blueprint
 
-**Status:** Product and solution blueprint v0.1  
+**Status:** Historical and proposed product/solution context v0.1; does not override the approved PRD, contracts, or ADRs
 **Initial pilot:** Celestin Mbuyamba's apartments in Kinshasa, Democratic Republic of the Congo  
 **Long-term direction:** A professional, multi-tenant real-estate platform serving landlords, tenants, property managers, vendors, agents, buyers, and investors
 

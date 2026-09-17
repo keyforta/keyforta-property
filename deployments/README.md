@@ -1,11 +1,11 @@
-# KEYFORTA deployment templates
+# KEYFORTA deployment images
 
-The `azure/` directory contains KEYFORTA Azure workflow and container templates.
-They are deliberately outside `.github/workflows/` and application directories,
-so they cannot deploy or become production images implicitly.
+`azure/docker/` contains the active container build definitions consumed by the
+gated GitHub deployment workflows. Workflow YAML controls build context,
+scanning, digest publication, and deployment; these files cannot deploy alone.
 
-The infrastructure in `../infra/` is canonical and may be compiled or reviewed.
-Do not activate the deployment templates until the API runtime, public-web
-container contract, database migration reconciliation, GitHub environment, OIDC
-identity, reviewed Azure plan, rollback evidence, and explicit human deployment
-approval are present.
+Infrastructure definitions remain under `../infra/`. Every deployment still
+requires the runtime/container contract, migration reconciliation, OIDC and
+GitHub environment readiness, reviewed plan evidence, rollback evidence, and
+explicit protected-environment approval in the
+[`release checklist`](../docs/operations/RELEASE_CHECKLIST.md).

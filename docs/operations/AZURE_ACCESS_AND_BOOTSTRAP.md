@@ -51,7 +51,7 @@ managed identities. External ID issuer and endpoint values may belong to a
 different tenant and must not be substituted for the Azure resource tenant.
 
 The customer app registration must emit the optional `email` claim in access
-tokens and ID tokens, and `ENTRA_SCOPES` must include `email`. B2B guest UPNs
+tokens and ID tokens, and `ENTRA_API_SCOPE` must include `email`. B2B guest UPNs
 use a transformed `#EXT#` value and must never be treated as the invited email
 address.
 
@@ -260,9 +260,9 @@ az bicep build --file infra/bicep/database-access.bicep
 Run repository and container validation:
 
 ```bash
-pnpm check
-docker build --file apps/api/Dockerfile .
-docker build --file apps/public-web/Dockerfile .
+pnpm verify
+docker build --file deployments/azure/docker/api.Dockerfile .
+docker build --file deployments/azure/docker/public-web.Dockerfile .
 ```
 
 Poll a migration execution by passing the job name and execution name

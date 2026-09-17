@@ -4,7 +4,8 @@
 **Scope:** Public website, tenant portal, manager portal, and landlord portal
 
 Companion visualization: [User Flow Diagrams](USER_FLOW_DIAGRAMS.md). This
-document remains authoritative for role boundaries and requirements.
+draft provides detailed role boundaries and requirement proposals under the
+approved PRD; it requires product-owner validation before it becomes authority.
 
 ## Role boundaries
 
@@ -133,14 +134,9 @@ records.
    required, **then** no lease activation, refund, pricing change, legal notice,
    or money movement occurs without an authorized human decision.
 
-**Implementation status (2026-09-10):** The public experience is available.
-Landlord and manager workspaces provide role-enforced portfolio reads and manual
-payment recording; landlords can also review active managers and assign or
-revoke property access without entering technical identifiers. Landlords can
-also create an unaccepted lease draft with an exact contractual rent from
-authorized unit and tenant choices. Lease activation and versioning, statements,
-maintenance, approvals, exports, and the tenant portal remain future vertical
-slices and are not represented as working UI.
+Current delivery evidence is summarized in
+[`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md). This draft retains
+role requirements and does not establish implementation status.
 
 ## Functional requirements
 
@@ -169,15 +165,8 @@ slices and are not represented as working UI.
   abuse and duplicate submission, and linked internally to the responsible
   organization without exposing that relationship publicly.
 
-**Implementation status (2026-09-10):** REQ-001 through REQ-003 and REQ-024
-through REQ-026 are implemented by the French-first public website, controlled
-listing catalogue, listing detail, visit inquiry, contact page, privacy page,
-and secure sign-in entry. REQ-027 has validation, a honeypot, duplicate
-suppression, database constraints, and internal organization linkage;
-distributed abuse controls remain tracked before external beta. The contact
-address can be configured through `NEXT_PUBLIC_CONTACT_EMAIL` before
-deployment. Publishing remains an authorized internal operation until the
-manager portal implements its management screen. The protected operation must
+Implementation evidence for these requirements is maintained in
+[`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md). The protected publication operation must
 preserve the publisher, organization, correlation ID, and publication or
 withdrawal time as immutable audit evidence.
 

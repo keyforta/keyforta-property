@@ -57,8 +57,8 @@ flowchart LR
     Web -->|"3. Public API crossing: Cross-organization read/write; SQL or object-ID injection"| API
     Providers -->|"4. Callback crossing: Duplicate or altered payment; untrusted and replayable input"| API
     API -->|"5. Data crossing: Cross-organization read/write; parameterized queries and forced RLS"| PG
-    API -->|"6. Evidence crossing: Malicious or exposed evidence; validated private upload and API-proxied download"| Blob
-    Providers -->|"7. Scan-result crossing: Malicious or exposed evidence; exact clean result required"| Blob
+    API -.->|"6. TARGET evidence crossing: validated private upload and ADR-006 authorized download"| Blob
+    Providers -.->|"7. TARGET scan-result crossing: exact clean result required"| Blob
     Jobs -->|"8. Worker crossing: Duplicate or altered payment; idempotent outbox and inbox processing"| PG
     Jobs -->|"9. Provider crossing: Duplicate or altered payment; authenticated adapter and reconciliation"| Providers
     GitHub -->|"10. Delivery crossing: CI/deployment compromise; OIDC, exact revision, environment gate"| Control
@@ -75,17 +75,17 @@ flowchart LR
 
 ## Abuse cases and mitigations
 
-| Abuse case                                   | Existing mitigation                                                                             | Residual risk / action                                                           |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Cross-organization read/write                | Server authorization, membership/assignment checks, forced RLS, negative integration tests      | Expand tests with every data path; treat any leak as critical                    |
-| Session/token theft or redirect manipulation | OIDC PKCE, exact CORS origin, fixed public callback, HTTPS endpoint validation                 | Browser token storage, MFA, and External ID policy require security review        |
-| Duplicate or altered payment                 | Organization-scoped idempotency/provider uniqueness, balanced ledger, reversal/replacement      | Provider authentication adapter and reconciliation evidence remain release gates |
-| Malicious or exposed evidence                | Private Blob, signature/size/MIME checks, opaque names, Defender-gated proxy download           | Monitor scan age/quota and exercise malicious upload runbook                     |
-| SQL or object-ID injection                   | Zod contracts, parameterized queries, resource authorization, RLS                               | Continue negative and cross-org tests                                            |
-| Anonymous viewing-inquiry flooding           | Honeypot, per-replica IP rate limit, listing/email duplicate suppression                        | Shared edge or distributed limiter remains required before external beta          |
-| CI/deployment compromise                     | GitHub OIDC, exact-SHA plan evidence, immutable tags, environment gate                          | Enable platform secret/code scanning and review action pinning                   |
-| AI prompt/tool abuse                         | No direct database, narrow typed authorized tools, human high-impact decisions, AI-off fallback | Runtime AI remains deferred until executable evals pass                          |
-| Sensitive telemetry disclosure               | Sanitized API errors and logging conventions                                                    | Structured telemetry implementation and retention approval pending               |
+| Abuse case | Control status and mitigation | Residual risk / action |
+| --- | --- | --- |
+| Cross-organization read/write | Implemented in current data paths: server authorization, membership checks, forced RLS, and negative integration tests | Expand tests with every data path; treat any leak as critical |
+| Session/token theft or redirect manipulation | Partial: OIDC PKCE, exact CORS origin, fixed callback, and HTTPS endpoint validation | Browser token storage, MFA, and External ID policy require security review |
+| Duplicate or altered payment | Foundation: organization-scoped uniqueness, balanced ledger, and reversal/replacement | Provider authentication and reconciliation evidence remain release gates |
+| Malicious or exposed evidence | Approved target: private Blob, validation, scan gating, and ADR-006 authorized download | No current evidence route; approve and exercise a runbook before activation |
+| SQL or object-ID injection | Implemented in current paths: Zod contracts, parameterized queries, resource authorization, and RLS | Continue negative and cross-organization tests |
+| Anonymous viewing-inquiry flooding | Partial: honeypot, per-replica rate limit, and duplicate suppression | Shared edge or distributed limiter remains required before external beta |
+| CI/deployment compromise | Implemented repository controls: GitHub OIDC, exact-SHA evidence, immutable tags, and environment gate | GitHub administration remains an external control |
+| AI prompt/tool abuse | Current synthetic MCP only: no database, tenant data, write tool, or autonomous decision | Tenant-data AI remains deferred until executable evaluations pass |
+| Sensitive telemetry disclosure | Partial: sanitized API errors and logging conventions | Structured telemetry implementation and retention approval pending |
 
 Security assumptions: Azure/GitHub identity controls are administered correctly,
 managed identity object IDs are trusted configuration, TLS endpoints are valid,

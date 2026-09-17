@@ -1,6 +1,9 @@
 # Admin web
 
-The privileged Keyforta platform administration console. It owns organization/user administration, verification review, configuration, support access, reporting, reconciliation oversight, and audit review.
+The current privileged platform console reviews landlord-onboarding
+applications and records allowlisted human decisions. Broader organization,
+verification, support, reporting, reconciliation, and audit capabilities remain
+planned and are not current UI behavior.
 
 This app is separate from the operational portal. It must consume `@keyforta/contracts`, `@keyforta/api-client`, and `@keyforta/authorization`; every privileged action requires server-side authorization and an audit event.
 
