@@ -1,0 +1,121 @@
+name: API security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_DB: keyforta_dast
+          POSTGRES_PASSWORD: synthetic-dast-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d keyforta_dast"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:synthetic-dast-password@127.0.0.1:5432/keyforta_dast
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          version: 11.19.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build synthetic API
+        run: pnpm --filter @keyforta/api... build
+
+      - name: Migrate synthetic database
+        run: node apps/api/dist/migrate.js
+
+      - name: Prepare loopback OpenAPI contract
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import YAML from 'yaml';
+          const contract = YAML.parse(readFileSync('docs/openapi.yaml', 'utf8'));
+          contract.servers = [{ url: 'http://127.0.0.1:3000/api/v1' }];
+          writeFileSync('dast-openapi.yaml', YAML.stringify(contract));
+          NODE
+          grep -Fx '  - url: http://127.0.0.1:3000/api/v1' dast-openapi.yaml
+          ! grep -F 'api.keyforta.com' dast-openapi.yaml
+
+      - name: Start synthetic API
+        run: |
+          setsid env API_HOST=127.0.0.1 API_PORT=3000 NODE_ENV=production \
+            CORS_ALLOWED_ORIGIN=http://127.0.0.1:3000 \
+            DATABASE_URL="$DATABASE_URL" \
+            ENTRA_AUDIENCE=00000000-0000-4000-8000-000000000000 \
+            ENTRA_ISSUER=https://synthetic-dast.invalid/ \
+            ENTRA_JWKS_URI=https://synthetic-dast.invalid/jwks.json \
+            pnpm --filter @keyforta/api start > synthetic-api.log 2>&1 &
+          echo "$!" > synthetic-api.pid
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/ready \
+              | grep -F '"status":"ready"' >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat synthetic-api.log
+          exit 1
+
+      - name: Scan synthetic API with OWASP ZAP
+        run: |
+          mkdir --mode=0777 zap-reports
+          docker run --rm --network host \
+            --volume "$PWD:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:2.17.0@sha256:781a2bdaea47324e7bab583e2263f21d257b0aee61ed51521a5be45f5f5081ef \
+            zap-api-scan.py \
+              -t /zap/wrk/dast-openapi.yaml \
+              -f openapi \
+              -J zap-reports/zap-report.json \
+              -r zap-reports/zap-report.html \
+              -w zap-reports/zap-report.md
+
+      - name: Stop synthetic API
+        if: always()
+        run: |
+          if [ -f synthetic-api.pid ]; then
+            kill -- "-$(cat synthetic-api.pid)" 2>/dev/null || true
+          fi
+
+      - name: Preserve API security evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: api-security-${{ github.sha }}
+          path: |
+            synthetic-api.log
+            zap-reports/
+          if-no-files-found: warn
+          retention-days: 14

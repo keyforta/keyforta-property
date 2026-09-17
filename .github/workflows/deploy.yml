@@ -184,12 +184,29 @@ jobs:
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
+            output_file=foundation-what-if.json
+            if [ "${{ inputs.operation }}" = "deploy-foundation" ]; then
+              output_file=current-foundation-what-if.json
+            fi
             az deployment group what-if \
               --resource-group "$RESOURCE_GROUP" \
               --name "keyforta-${ENVIRONMENT}-foundation" \
               --template-file infra/bicep/foundation.bicep \
               --parameters "@infra/config/${ENVIRONMENT}.parameters.json" \
-              --parameters azureTenantId="${{ vars.AZURE_TENANT_ID }}"
+              --parameters azureTenantId="${{ vars.AZURE_TENANT_ID }}" \
+              --no-pretty-print \
+              --result-format FullResourcePayloads \
+              --output json > "$output_file"
+
+      - name: Verify reviewed foundation plan still applies
+        if: inputs.operation == 'deploy-foundation'
+        run: |
+          jq -S '.changes | sort_by(.resourceId)' plan-evidence/foundation-what-if.json > reviewed-foundation-what-if.json
+          jq -S '.changes | sort_by(.resourceId)' current-foundation-what-if.json > current-normalized-foundation-what-if.json
+          if ! diff -u reviewed-foundation-what-if.json current-normalized-foundation-what-if.json; then
+            echo "Foundation resources drifted from the reviewed plan; run a new plan." >&2
+            exit 1
+          fi
 
       - name: Deploy foundation
         if: inputs.operation == 'deploy-foundation'
@@ -226,6 +243,33 @@ jobs:
             echo "APP_DEFAULT_DOMAIN=$default_domain" >> "$GITHUB_ENV"
             echo "API_PUBLIC_BASE_URL=https://ca-keyforta-${ENVIRONMENT}-api.${default_domain}/api/v1" >> "$GITHUB_ENV"
             echo "ADMIN_PUBLIC_BASE_URL=https://ca-keyforta-${ENVIRONMENT}-admin.${default_domain}" >> "$GITHUB_ENV"
+
+      - name: Load reviewed application images
+        if: inputs.operation == 'deploy'
+        run: |
+          load_image() {
+            key="$1"
+            repository="$2"
+            value=$(sed -n "s/^${key}=//p" plan-evidence/deployment-plan.txt)
+            expected_prefix="$REGISTRY_SERVER/$repository@sha256:"
+            digest=${value#"$expected_prefix"}
+            if [ "$value" = "$digest" ] || ! [[ "$digest" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Plan evidence has an invalid $key reference." >&2
+              exit 1
+            fi
+            printf '%s=%s\n' "${key^^}" "$value" >> "$GITHUB_ENV"
+          }
+
+          case "$DEPLOYMENT_SCOPE" in
+            full)
+              load_image api_image keyforta-api
+              load_image web_image keyforta-public-web
+              load_image admin_image keyforta-admin-web
+              ;;
+            api|postgres) load_image api_image keyforta-api ;;
+            public-web) load_image web_image keyforta-public-web ;;
+            admin-web) load_image admin_image keyforta-admin-web ;;
+          esac
 
       - name: Inspect public-web hostname state
         id: hostname-state
@@ -356,78 +400,31 @@ jobs:
             | grep -iFx "access-control-allow-origin: ${ADMIN_PUBLIC_BASE_URL}" \
             || { echo "Deploy the API or use full scope before admin-web." >&2; exit 1; }
 
-      - name: Preview database access changes
-        if: inputs.operation != 'deploy-foundation' && steps.foundation-state.outputs.exists == 'true' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
-        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
-        with:
-          inlineScript: |
-            az deployment group what-if \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "keyforta-${ENVIRONMENT}-database-access" \
-              --template-file infra/bicep/database-access.bicep \
-              --parameters postgresServerName="$POSTGRES_SERVER" \
-                azureTenantId="${{ vars.AZURE_TENANT_ID }}" \
-                administratorObjectId="$MIGRATION_PRINCIPAL_ID" \
-                administratorPrincipalName="$MIGRATION_IDENTITY" \
-                dbaObjectId="$DBA_OBJECT_ID" \
-                dbaPrincipalName="$DBA_PRINCIPAL_NAME" \
-                dbaPrincipalType="$DBA_PRINCIPAL_TYPE" \
-                dbaClientIpAddress="$DBA_CLIENT_IP"
-
-      - name: Preview database job changes
-        if: inputs.operation != 'deploy-foundation' && steps.foundation-state.outputs.exists == 'true' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
-        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
-        with:
-          inlineScript: |
-            az deployment group what-if \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "keyforta-${ENVIRONMENT}-migration-job" \
-              --template-file infra/bicep/migration-job.bicep \
-              --parameters environment="$ENVIRONMENT" \
-                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
-                registryName="$REGISTRY_NAME" \
-                migrationIdentityName="$MIGRATION_IDENTITY" \
-                apiIdentityName="$API_IDENTITY" \
-                postgresServerName="$POSTGRES_SERVER" \
-                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
-      - name: Preview development seed job changes
-        if: inputs.operation != 'deploy-foundation' && steps.foundation-state.outputs.exists == 'true' && env.DEPLOYMENT_SCOPE == 'full'
-        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
-        with:
-          inlineScript: |
-            az deployment group what-if \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "keyforta-${ENVIRONMENT}-seed-job" \
-              --template-file infra/bicep/seed-job.bicep \
-              --parameters environment="$ENVIRONMENT" \
-                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
-                registryName="$REGISTRY_NAME" \
-                migrationIdentityName="$MIGRATION_IDENTITY" \
-                postgresServerName="$POSTGRES_SERVER" \
-                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
-
-      - name: Configure PostgreSQL Entra administrator
-        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
-        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
-        with:
-          inlineScript: |
-            az deployment group create \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "keyforta-${ENVIRONMENT}-database-access" \
-              --template-file infra/bicep/database-access.bicep \
-              --parameters postgresServerName="$POSTGRES_SERVER" \
-                azureTenantId="${{ vars.AZURE_TENANT_ID }}" \
-                administratorObjectId="$MIGRATION_PRINCIPAL_ID" \
-                administratorPrincipalName="$MIGRATION_IDENTITY" \
-                dbaObjectId="$DBA_OBJECT_ID" \
-                dbaPrincipalName="$DBA_PRINCIPAL_NAME" \
-                dbaPrincipalType="$DBA_PRINCIPAL_TYPE" \
-                dbaClientIpAddress="$DBA_CLIENT_IP"
-
       - name: Build and push immutable images
-        if: inputs.operation == 'deploy'
+        if: inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true'
         run: |
           az acr login --name "$REGISTRY_NAME"
+
+          reject_existing_tag() {
+            repository="$1"
+            existing=$(az acr repository show-tags \
+              --name "$REGISTRY_NAME" \
+              --repository "$repository" \
+              --query "[?@=='$DEPLOYMENT_SHA'] | [0]" -o tsv)
+            if [ -n "$existing" ]; then
+              echo "Immutable image tag $repository:$DEPLOYMENT_SHA already exists; use its original reviewed plan." >&2
+              exit 1
+            fi
+          }
+          if [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "postgres" ]; then
+            reject_existing_tag keyforta-api
+          fi
+          if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "public-web" ]; then
+            reject_existing_tag keyforta-public-web
+          fi
+          if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
+            reject_existing_tag keyforta-admin-web
+          fi
 
           api_status=0
           web_status=0
@@ -436,25 +433,39 @@ jobs:
           web_pid=""
           admin_pid=""
           if [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "postgres" ]; then
-            docker build --file deployments/azure/docker/api.Dockerfile --tag "$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" . &
+            docker buildx build \
+              --file deployments/azure/docker/api.Dockerfile \
+              --label "org.opencontainers.image.revision=$DEPLOYMENT_SHA" \
+              --provenance=mode=max \
+              --sbom=true \
+              --push \
+              --tag "$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" . &
             api_pid=$!
           fi
           if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "public-web" ]; then
-            docker build \
+            docker buildx build \
               --build-arg NEXT_PUBLIC_ENTRA_API_SCOPE="${{ vars.ENTRA_API_SCOPE }}" \
               --build-arg NEXT_PUBLIC_ENTRA_AUTHORITY="${{ vars.ENTRA_AUTHORITY }}" \
               --build-arg NEXT_PUBLIC_ENTRA_CLIENT_ID="${{ vars.PUBLIC_ENTRA_CLIENT_ID }}" \
               --file deployments/azure/docker/public-web.Dockerfile \
+              --label "org.opencontainers.image.revision=$DEPLOYMENT_SHA" \
+              --provenance=mode=max \
+              --sbom=true \
+              --push \
               --tag "$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" . &
             web_pid=$!
           fi
           if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
-            docker build \
+            docker buildx build \
               --build-arg VITE_ENTRA_API_SCOPE="${{ vars.ENTRA_API_SCOPE }}" \
               --build-arg VITE_ENTRA_AUTHORITY="${{ vars.ENTRA_AUTHORITY }}" \
               --build-arg VITE_ENTRA_CLIENT_ID="${{ vars.ADMIN_ENTRA_CLIENT_ID }}" \
               --build-arg VITE_KEYFORTA_API_BASE_URL="$API_PUBLIC_BASE_URL" \
               --file deployments/azure/docker/admin-web.Dockerfile \
+              --label "org.opencontainers.image.revision=$DEPLOYMENT_SHA" \
+              --provenance=mode=max \
+              --sbom=true \
+              --push \
               --tag "$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA" . &
             admin_pid=$!
           fi
@@ -477,14 +488,261 @@ jobs:
           test "$admin_status" -eq 0
 
           if [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "postgres" ]; then
-            docker push "$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
+            api_digest=$(az acr repository show --name "$REGISTRY_NAME" --image "keyforta-api:$DEPLOYMENT_SHA" --query digest -o tsv)
+            [[ "$api_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            echo "API_IMAGE=$REGISTRY_SERVER/keyforta-api@$api_digest" >> "$GITHUB_ENV"
           fi
           if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "public-web" ]; then
-            docker push "$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA"
+            web_digest=$(az acr repository show --name "$REGISTRY_NAME" --image "keyforta-public-web:$DEPLOYMENT_SHA" --query digest -o tsv)
+            [[ "$web_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            echo "WEB_IMAGE=$REGISTRY_SERVER/keyforta-public-web@$web_digest" >> "$GITHUB_ENV"
           fi
           if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
-            docker push "$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA"
+            admin_digest=$(az acr repository show --name "$REGISTRY_NAME" --image "keyforta-admin-web:$DEPLOYMENT_SHA" --query digest -o tsv)
+            [[ "$admin_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            echo "ADMIN_IMAGE=$REGISTRY_SERVER/keyforta-admin-web@$admin_digest" >> "$GITHUB_ENV"
           fi
+
+          lock_image() {
+            image="$1:$DEPLOYMENT_SHA"
+            az acr repository update --name "$REGISTRY_NAME" --image "$image" --write-enabled false >/dev/null
+            test "$(az acr repository show --name "$REGISTRY_NAME" --image "$image" --query writeEnabled -o tsv)" = "false"
+          }
+          if [ -n "$api_pid" ]; then lock_image keyforta-api; fi
+          if [ -n "$web_pid" ]; then lock_image keyforta-public-web; fi
+          if [ -n "$admin_pid" ]; then lock_image keyforta-admin-web; fi
+
+      - name: Verify application image attestations
+        if: inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true'
+        run: |
+          verify_attestations() {
+            name="$1"
+            image="$2"
+            test -n "$image"
+            docker buildx imagetools inspect "$image" --format '{{json .SBOM}}' > "${name}-sbom.json"
+            docker buildx imagetools inspect "$image" --format '{{json .Provenance}}' > "${name}-provenance.json"
+            jq --exit-status 'type == "object" and length > 0' "${name}-sbom.json" >/dev/null
+            jq --exit-status 'type == "object" and length > 0' "${name}-provenance.json" >/dev/null
+          }
+          if [ -n "$API_IMAGE" ]; then verify_attestations api "$API_IMAGE"; fi
+          if [ -n "$WEB_IMAGE" ]; then verify_attestations web "$WEB_IMAGE"; fi
+          if [ -n "$ADMIN_IMAGE" ]; then verify_attestations admin "$ADMIN_IMAGE"; fi
+
+      - name: Scan immutable API image
+        if: inputs.operation == 'plan' && env.API_IMAGE != ''
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.API_IMAGE }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Scan immutable public web image
+        if: inputs.operation == 'plan' && env.WEB_IMAGE != ''
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.WEB_IMAGE }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Scan immutable admin web image
+        if: inputs.operation == 'plan' && env.ADMIN_IMAGE != ''
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.ADMIN_IMAGE }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Preview database and job changes
+        if: inputs.operation != 'deploy-foundation' && steps.foundation-state.outputs.exists == 'true' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
+        run: |
+          prefix=""
+          if [ "${{ inputs.operation }}" = "deploy" ]; then prefix="current-"; fi
+          az deployment group what-if \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "keyforta-${ENVIRONMENT}-database-access" \
+            --template-file infra/bicep/database-access.bicep \
+            --parameters postgresServerName="$POSTGRES_SERVER" \
+              azureTenantId="${{ vars.AZURE_TENANT_ID }}" \
+              administratorObjectId="$MIGRATION_PRINCIPAL_ID" \
+              administratorPrincipalName="$MIGRATION_IDENTITY" \
+              dbaObjectId="$DBA_OBJECT_ID" \
+              dbaPrincipalName="$DBA_PRINCIPAL_NAME" \
+              dbaPrincipalType="$DBA_PRINCIPAL_TYPE" \
+              dbaClientIpAddress="$DBA_CLIENT_IP" \
+            --no-pretty-print --result-format FullResourcePayloads --output json \
+            > "${prefix}database-access-what-if.json"
+          az deployment group what-if \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "keyforta-${ENVIRONMENT}-migration-job" \
+            --template-file infra/bicep/migration-job.bicep \
+            --parameters environment="$ENVIRONMENT" \
+              containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+              registryName="$REGISTRY_NAME" \
+              migrationIdentityName="$MIGRATION_IDENTITY" \
+              apiIdentityName="$API_IDENTITY" \
+              postgresServerName="$POSTGRES_SERVER" \
+              apiImage="$API_IMAGE" \
+            --no-pretty-print --result-format FullResourcePayloads --output json \
+            > "${prefix}migration-job-what-if.json"
+          if [ "$DEPLOYMENT_SCOPE" = "full" ]; then
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-seed-job" \
+              --template-file infra/bicep/seed-job.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                migrationIdentityName="$MIGRATION_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$API_IMAGE" \
+              --no-pretty-print --result-format FullResourcePayloads --output json \
+              > "${prefix}seed-job-what-if.json"
+          fi
+
+      - name: Verify reviewed database and job plans still apply
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
+        run: |
+          compare_plan() {
+            name="$1"
+            jq -S '.changes | sort_by(.resourceId)' "plan-evidence/${name}-what-if.json" > "reviewed-${name}-what-if.json"
+            jq -S '.changes | sort_by(.resourceId)' "current-${name}-what-if.json" > "current-normalized-${name}-what-if.json"
+            if ! diff -u "reviewed-${name}-what-if.json" "current-normalized-${name}-what-if.json"; then
+              echo "$name resources drifted from the reviewed plan; run a new plan." >&2
+              exit 1
+            fi
+          }
+          compare_plan database-access
+          compare_plan migration-job
+          if [ "$DEPLOYMENT_SCOPE" = "full" ]; then compare_plan seed-job; fi
+
+      - name: Preview public-web hostname bootstrap
+        if: (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            output_file=hostname-bootstrap-what-if.json
+            if [ "${{ inputs.operation }}" = "deploy" ]; then
+              output_file=current-hostname-bootstrap-what-if.json
+            fi
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$API_IMAGE" \
+                webImage="$WEB_IMAGE" \
+                adminImage="$ADMIN_IMAGE" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                bindWebCertificates=false \
+              --no-pretty-print --result-format FullResourcePayloads --output json \
+              > "$output_file"
+
+      - name: Preview application changes
+        if: env.DEPLOYMENT_SCOPE != 'postgres' && (inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true'))
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            output_file=application-what-if.json
+            if [ "${{ inputs.operation }}" = "deploy" ]; then
+              output_file=current-application-what-if.json
+            fi
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps" \
+              --template-file infra/bicep/apps.bicep \
+              --no-pretty-print \
+              --result-format FullResourcePayloads \
+              --output json \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$API_IMAGE" \
+                webImage="$WEB_IMAGE" \
+                adminImage="$ADMIN_IMAGE" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                bindWebCertificates=true \
+              > "$output_file"
+
+      - name: Verify reviewed application plan still applies
+        if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'
+        run: |
+          normalize_what_if() {
+            jq -S '{
+              changes: [
+                .changes[]
+                | {
+                    resourceId: (.resourceId | ascii_downcase),
+                    changeType,
+                    before,
+                    after,
+                    delta
+                  }
+              ] | sort_by(.resourceId)
+            }' "$1"
+          }
+          normalize_what_if plan-evidence/application-what-if.json > reviewed-application-what-if.json
+          normalize_what_if current-application-what-if.json > current-normalized-application-what-if.json
+          if ! diff -u reviewed-application-what-if.json current-normalized-application-what-if.json; then
+            echo "Application resources drifted from the reviewed plan; run a new plan." >&2
+            exit 1
+          fi
+
+      - name: Verify reviewed hostname bootstrap plan still applies
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
+        run: |
+          jq -S '.changes | sort_by(.resourceId)' plan-evidence/hostname-bootstrap-what-if.json > reviewed-hostname-bootstrap-what-if.json
+          jq -S '.changes | sort_by(.resourceId)' current-hostname-bootstrap-what-if.json > current-normalized-hostname-bootstrap-what-if.json
+          if ! diff -u reviewed-hostname-bootstrap-what-if.json current-normalized-hostname-bootstrap-what-if.json; then
+            echo "Hostname bootstrap resources drifted from the reviewed plan; run a new plan." >&2
+            exit 1
+          fi
+
+      - name: Configure PostgreSQL Entra administrator
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-database-access" \
+              --template-file infra/bicep/database-access.bicep \
+              --parameters postgresServerName="$POSTGRES_SERVER" \
+                azureTenantId="${{ vars.AZURE_TENANT_ID }}" \
+                administratorObjectId="$MIGRATION_PRINCIPAL_ID" \
+                administratorPrincipalName="$MIGRATION_IDENTITY" \
+                dbaObjectId="$DBA_OBJECT_ID" \
+                dbaPrincipalName="$DBA_PRINCIPAL_NAME" \
+                dbaPrincipalType="$DBA_PRINCIPAL_TYPE" \
+                dbaClientIpAddress="$DBA_CLIENT_IP"
 
       - name: Deploy migration job
         if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
@@ -501,7 +759,7 @@ jobs:
                 migrationIdentityName="$MIGRATION_IDENTITY" \
                 apiIdentityName="$API_IDENTITY" \
                 postgresServerName="$POSTGRES_SERVER" \
-                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
+                apiImage="$API_IMAGE"
 
       - name: Apply database migrations
         if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
@@ -510,7 +768,8 @@ jobs:
             --name "caj-keyforta-${ENVIRONMENT}-migration" \
             --resource-group "$RESOURCE_GROUP" \
             --query name -o tsv)
-          for attempt in {1..60}; do
+          echo "MIGRATION_EXECUTION=$execution" >> "$GITHUB_ENV"
+          for attempt in {1..96}; do
             result=$(az containerapp job execution show \
               --name "caj-keyforta-${ENVIRONMENT}-migration" \
               --job-execution-name "$execution" \
@@ -522,6 +781,7 @@ jobs:
             esac
             sleep 10
           done
+          echo "Migration execution $execution did not reach a terminal status after the 900-second replica timeout." >&2
           exit 1
 
       - name: Deploy dormant development seed job
@@ -538,67 +798,7 @@ jobs:
                 registryName="$REGISTRY_NAME" \
                 migrationIdentityName="$MIGRATION_IDENTITY" \
                 postgresServerName="$POSTGRES_SERVER" \
-                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
-
-      - name: Preview public-web hostname bootstrap
-        if: (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
-        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
-        with:
-          inlineScript: |
-            az deployment group what-if \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "keyforta-${ENVIRONMENT}-apps-hostname-bootstrap" \
-              --template-file infra/bicep/apps.bicep \
-              --parameters environment="$ENVIRONMENT" \
-                deploymentScope="$DEPLOYMENT_SCOPE" \
-                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
-                registryName="$REGISTRY_NAME" \
-                apiIdentityName="$API_IDENTITY" \
-                webIdentityName="$WEB_IDENTITY" \
-                postgresServerName="$POSTGRES_SERVER" \
-                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
-                webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
-                adminImage="$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA" \
-                databaseUserName="$API_IDENTITY" \
-                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
-                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
-                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
-                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
-                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
-                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
-                webCanonicalHostName="$WEB_CANONICAL_HOST" \
-                webWwwHostName="$WEB_WWW_HOST" \
-                bindWebCertificates=false
-
-      - name: Preview application changes
-        if: env.DEPLOYMENT_SCOPE != 'postgres' && (inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true'))
-        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
-        with:
-          inlineScript: |
-            az deployment group what-if \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "keyforta-${ENVIRONMENT}-apps" \
-              --template-file infra/bicep/apps.bicep \
-              --parameters environment="$ENVIRONMENT" \
-                deploymentScope="$DEPLOYMENT_SCOPE" \
-                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
-                registryName="$REGISTRY_NAME" \
-                apiIdentityName="$API_IDENTITY" \
-                webIdentityName="$WEB_IDENTITY" \
-                postgresServerName="$POSTGRES_SERVER" \
-                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
-                webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
-                adminImage="$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA" \
-                databaseUserName="$API_IDENTITY" \
-                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
-                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
-                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
-                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
-                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
-                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
-                webCanonicalHostName="$WEB_CANONICAL_HOST" \
-                webWwwHostName="$WEB_WWW_HOST" \
-                bindWebCertificates=true
+                apiImage="$API_IMAGE"
 
       - name: Bootstrap public-web hostnames
         if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
@@ -616,9 +816,9 @@ jobs:
                 apiIdentityName="$API_IDENTITY" \
                 webIdentityName="$WEB_IDENTITY" \
                 postgresServerName="$POSTGRES_SERVER" \
-                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
-                webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
-                adminImage="$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA" \
+                apiImage="$API_IMAGE" \
+                webImage="$WEB_IMAGE" \
+                adminImage="$ADMIN_IMAGE" \
                 databaseUserName="$API_IDENTITY" \
                 entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
@@ -646,9 +846,9 @@ jobs:
                 apiIdentityName="$API_IDENTITY" \
                 webIdentityName="$WEB_IDENTITY" \
                 postgresServerName="$POSTGRES_SERVER" \
-                apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
-                webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
-                adminImage="$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA" \
+                apiImage="$API_IMAGE" \
+                webImage="$WEB_IMAGE" \
+                adminImage="$ADMIN_IMAGE" \
                 databaseUserName="$API_IDENTITY" \
                 entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
@@ -785,6 +985,9 @@ jobs:
             echo "run_id=$GITHUB_RUN_ID"
             echo "scope=$PLAN_SCOPE"
             echo "hostname_bootstrap=$hostname_bootstrap"
+            echo "api_image=${API_IMAGE:-not-applicable}"
+            echo "web_image=${WEB_IMAGE:-not-applicable}"
+            echo "admin_image=${ADMIN_IMAGE:-not-applicable}"
           } > deployment-plan.txt
 
       - name: Upload deployment plan evidence
@@ -792,6 +995,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: deployment-plan-${{ env.DEPLOYMENT_SHA }}
-          path: deployment-plan.txt
+          path: |
+            deployment-plan.txt
+            *-what-if.json
+            *-sbom.json
+            *-provenance.json
           if-no-files-found: error
           retention-days: 30

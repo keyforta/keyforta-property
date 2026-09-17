@@ -23,6 +23,9 @@ runbook is the executable procedure for OIDC callback failures.
 The [`MCP dev activation and containment`](MCP_DEV_RUNBOOK.md) runbook governs
 the synthetic-only ChatGPT dev connector, including cost, monitoring, emergency
 disable, and immutable-revision rollback.
+The [`backup, recovery, and retention`](../database/backup-retention-runbook.md)
+runbook defines restore authorization, isolation, stop conditions, verification,
+evidence, and the controls that remain undeployed in the synthetic pilot.
 
 Every runbook must identify detection, severity, containment, owner,
 communication, recovery, evidence preservation, and follow-up actions.
@@ -71,12 +74,14 @@ communication, recovery, evidence preservation, and follow-up actions.
 
 ## Deployment and migration failure
 
-1. Stop promotion when `what-if`, image build, migration job, or application smoke test
-   fails. Do not route traffic to an unvalidated revision.
-2. Preserve the workflow run, commit SHA, deployment operations, migration-job
-   execution, and Container Apps logs without copying tokens or connection data.
+1. Stop promotion when `what-if`, image build, attestation, vulnerability scan,
+   migration job, or application smoke test fails. Do not route traffic to an
+   unvalidated revision.
+2. Preserve the workflow run, commit SHA, reviewed image digests, SBOM/provenance,
+   scan results, `what-if`, migration-job execution, and Container Apps logs
+   without copying tokens or connection data.
 3. For application failure, move traffic to the previously validated immutable
-   revision or redeploy its SHA-tagged images.
+   revision or redeploy its reviewed digest-addressed images.
 4. Database changes use forward corrective migrations. Restore only through an
    approved recovery decision when forward correction cannot preserve data.
 5. Re-run the migration job; already recorded migration filenames are skipped.

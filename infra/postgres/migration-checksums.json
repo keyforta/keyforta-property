@@ -1,0 +1,22 @@
+{
+  "0001_initial.sql": "74d7ad8bb25ea90306e06f315a7e341a6b8f20d85362ecfeb795c59921968e24",
+  "0002_public_listings.sql": "15d47e97bac1629ccff321dc52be54ab814456e4d118d4fd86992124b3c812bc",
+  "0003_serialize_public_listing_inquiries.sql": "8e43f5b5745d5c59d653e9a07783dacb546ae3e6723f3585922e3a9e5fb6e1fc",
+  "0004_manager_property_assignments.sql": "eeba399c9ba0a1be7abccabad02857c21e7e8e686a154058da2597f0d98f47a4",
+  "0005_list_portfolio_managers.sql": "88901aa3cd95f3b82155b3867e5dbef6a9c79a87447c89fcf969006dc71d033d",
+  "0006_create_lease_drafts.sql": "855d012a57750fac1f17487fbb3d48beff190745b6079f74435626f61144d93a",
+  "0007_portfolio_lifecycle.sql": "7adfa6fc21e8fc9f03ee400df4ca40de36e081b5180307247e92c75f39c30dc4",
+  "0008_membership_invitations.sql": "953b559fa7759aa78afcb49da7e30b0f75f3241a88fb50eab22f577daf54908b",
+  "0009_tenant_applications.sql": "f3ebb5da7df3ae6f176d40b3d26328f35944c8ca02e7d90ad4cd5e54958cbef8",
+  "0010_tenant_application_reviews.sql": "5502b11a7cb95c45dfa1a7a399c6def602f5c08fe9d828d818f276141bcb7066",
+  "0011_tenant_application_documents.sql": "6077d34e233c6858ff755b91ba31173e8717bbc9a50c21b6059d409fc038b6f7",
+  "0012_lease_provenance.sql": "58eafd0879aed582ed8b4f79543afc6e538ffa4cb3d99f82325ee119dd8851f2",
+  "0013_tenant_application_review_status.sql": "b49fd7b015888b2d46daab9b4edbba99b3e866dbd63c406e66116ec5a760260a",
+  "0014_public_listing_inquiry_contract.sql": "a29245ea4615b575cfbd180546d642d621cc2dcc60c8a79bb7e879e7349009bc",
+  "0015_party_and_jurisdiction_policy_foundation.sql": "b80774a96643913b09d65a0cabb288c20dbea11818e69b0ad67c0c2c097840f1",
+  "0016_bounded_public_listing_pagination.sql": "d8b38bdb12f195409ea3e4f83ecf1b3936e0c4b96bce84638e723865a61f0123",
+  "0017_public_listing_publication_control.sql": "c379eba057999aeb9180ba0bf0fe9ee4adce93cf90ddccf810d0848288db8e40",
+  "0018_landlord_onboarding.sql": "6f431e82c4d67f4262f92690597f4e26102af124be5b062e743ac7a1e7040352",
+  "0019_runtime_schema_readiness.sql": "f925ccb3669c22b6d9a370ec6b399819886081fc6d7e9120a587fa96a6098893",
+  "0020_fix_publication_property_reference.sql": "0f23c86138f2e9f45e4c210f61ac82be7b430335ca54c4918eb94413e8350fcb"
+}

@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim AS build
+FROM node:24-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS build
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -29,7 +29,7 @@ COPY packages/types packages/types
 COPY packages/ui packages/ui
 RUN pnpm --filter @keyforta/admin-web build
 
-FROM nginxinc/nginx-unprivileged:1.29.4-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.29.4-alpine@sha256:a6c4f61f456b85b8fdf7ec7ab28cc3e299440e6fb4a9dea520e5fd8fd440025e AS runtime
 COPY deployments/azure/docker/admin-web.nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build --chown=nginx:nginx /workspace/apps/admin-web/dist /usr/share/nginx/html
 USER nginx

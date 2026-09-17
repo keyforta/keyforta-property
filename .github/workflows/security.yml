@@ -1,0 +1,82 @@
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Scan commit range for secrets
+        uses: trufflesecurity/trufflehog@f714bf454f350590f4a24c3ddb1aef02c35bf5b6 # v3.97.5
+        with:
+          base: ${{ github.event.pull_request.base.sha || github.event.before }}
+          head: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Reject historical migration rewrites
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ "$BASE_SHA" =~ ^0+$ ]]; then
+            BASE_SHA=$(git rev-list --max-parents=0 "$HEAD_SHA")
+          fi
+          changes=$(git diff --name-status "$BASE_SHA" "$HEAD_SHA" -- infra/postgres/migrations)
+          if awk 'NF && $1 !~ /^A/ { found=1 } END { exit found ? 0 : 1 }' <<< "$changes"; then
+            echo "Existing migrations are immutable; add a forward migration instead." >&2
+            echo "$changes" >&2
+            exit 1
+          fi
+
+      - name: Run Semgrep SAST
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+        with:
+          config: p/default
+
+      - name: Scan repository
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          skip-dirs: .git
+
+      - name: Compile MCP template for fallback scan
+        run: az bicep build --file infra/bicep/mcp.bicep --outfile mcp.arm.json
+
+      - name: Scan Bicep security configuration
+        run: |
+          docker run --rm \
+            --volume "$PWD:/repo:ro" \
+            bridgecrew/checkov:3.3.17@sha256:41c4701c6a56d8952e5aba7a420f871c8b70b57da94eb4f142dcdf7295bb0be3 \
+            --directory /repo/infra/bicep \
+            --framework bicep \
+            --skip-path /repo/infra/bicep/mcp.bicep \
+            --skip-check CKV_AZURE_35,CKV_AZURE_43,CKV_AZURE_59,CKV_AZURE_139,CKV_AZURE_163,CKV_AZURE_166,CKV_AZURE_206 \
+            --quiet \
+            --compact
+          docker run --rm \
+            --volume "$PWD:/repo:ro" \
+            bridgecrew/checkov:3.3.17@sha256:41c4701c6a56d8952e5aba7a420f871c8b70b57da94eb4f142dcdf7295bb0be3 \
+            --file /repo/mcp.arm.json \
+            --framework arm \
+            --quiet \
+            --compact

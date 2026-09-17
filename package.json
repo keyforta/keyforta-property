@@ -20,7 +20,7 @@
     "storybook": "turbo run storybook",
     "build:widgets": "turbo run build --filter='./tools/*/*'",
     "test:controls": "node --test scripts/verify/controls.test.mjs",
-    "test:workflows": "node --test .github/tests/workflow-concurrency.test.mjs",
+    "test:workflows": "node --test .github/tests/*.test.mjs",
     "turbo:build": "turbo run build",
     "turbo:check": "turbo run check",
     "turbo:test": "turbo run test",
