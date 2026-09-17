@@ -3,7 +3,7 @@ import type {
   PublicPropertyProjection,
 } from "@keyforta/contracts";
 
-import type { DatabaseClient } from "../database.js";
+import type { DatabaseSession } from "../database.js";
 
 import {
   InvalidPublicPropertyCursorError,
@@ -130,7 +130,7 @@ function toProjection(row: PublicListingRow): PublicPropertyProjection {
 }
 
 export function createPostgresPublicPropertyGateway(
-  client: DatabaseClient,
+  client: DatabaseSession,
 ): PublicPropertyGateway {
   return {
     async findById(propertyId) {

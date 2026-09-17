@@ -11,7 +11,7 @@
   },
   "scripts": {
     "check": "pnpm test",
-    "test": "node --test test/mcp.test.js"
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@keyforta/types": "workspace:*",

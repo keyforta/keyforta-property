@@ -16,10 +16,20 @@ Automated tests use the IDs below in test names, fixtures, or test metadata. A f
 | AUTH-004 | Manager delegation scope | Manager can act only inside effective invited portfolio | Policy and API test |
 | AUTH-005 | Expired operator access | Operator loses property/job detail access after access window | Time-controlled authorization test |
 | AUTH-006 | Support access | Support actor requires approved reason, scope, and expiry | Governance test and audit assertion |
+| AUTH-007 | Platform administrator bootstrap | Only a verified Entra object ID in the environment allowlist can access landlord onboarding review | Authentication and API authorization test |
+| ONBOARD-001 | Empty initialization | Fresh schema contains no demonstration or customer business records | Migration integration test |
+| ONBOARD-002 | Authenticated landlord application | Verified prospective landlord can submit one pending application; unauthenticated and duplicate pending submissions are rejected | API and database test |
+| ONBOARD-003 | Atomic landlord provisioning | Admin approval creates exactly one organization and active landlord membership or rolls back entirely | Database transaction test |
+| ONBOARD-004 | Rejected application isolation | Rejection creates no organization or membership and preserves immutable decision evidence | Database and audit test |
+| ONBOARD-005 | Review authorization | Non-allowlisted identities cannot list or decide applications and receive no application details | API authorization test |
 | PROP-001 | Property publication | Unverified/incomplete property cannot publish | Aggregate and API test |
 | PROP-002 | Unit uniqueness | Duplicate unit label in one property is rejected | Database constraint test |
 | PROP-003 | Pricing history | New pricing version does not alter signed lease terms | Domain test |
 | PROP-004 | Verification workflow | Submit, review, approve, reject, expire, and resubmit follow state machine | State-machine test |
+| PROP-005 | Listing manager assignment | Active landlord can assign themselves or another eligible same-organization member; exactly one assignment remains active | Database and API authorization test |
+| PROP-006 | Manager-only listing control | Assigned manager can publish or withdraw listings for units in that property; unassigned landlord and managers are denied | Database and API authorization test |
+| PROP-007 | Assignment revocation and reassignment | Revocation or replacement immediately removes prior listing authority and preserves immutable assignment history | Database transaction and audit test |
+| PROP-008 | Listing cross-organization isolation | Assignment and listing identifiers from another organization fail without disclosing resource existence | Database and API authorization test |
 | LEASE-001 | Application completeness | Incomplete application cannot submit | Application policy test |
 | LEASE-002 | Application authorization | Only authorized landlord/manager can decide | Authorization test |
 | LEASE-003 | Application versioning | Submitted version remains immutable and resubmission creates a new version | Persistence test |

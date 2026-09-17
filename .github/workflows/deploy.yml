@@ -57,6 +57,7 @@ jobs:
       DEPLOYMENT_SHA: ${{ inputs.commit_sha || github.sha }}
       DEPLOYMENT_SCOPE: ${{ inputs.deployment_scope }}
       ENVIRONMENT: dev
+      PLATFORM_ADMIN_OBJECT_IDS: ${{ vars.PLATFORM_ADMIN_OBJECT_IDS }}
       RESOURCE_GROUP: rg-keyforta-dev-san
       WEB_CANONICAL_HOST: keyforta.com
       WEB_WWW_HOST: www.keyforta.com
@@ -76,8 +77,8 @@ jobs:
       - name: Verify deployment scope capability
         run: |
           case "$DEPLOYMENT_SCOPE" in
-            api|full|postgres|public-web) ;;
-            admin-web|mcp|portal-web)
+            admin-web|api|full|postgres|public-web) ;;
+            mcp|portal-web)
               echo "Deployment scope '$DEPLOYMENT_SCOPE' is reserved but has no approved image and Azure resource definition yet." >&2
               exit 1
               ;;
@@ -132,6 +133,20 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify application identity configuration
+        env:
+          ADMIN_ENTRA_CLIENT_ID: ${{ vars.ADMIN_ENTRA_CLIENT_ID }}
+          ENTRA_API_SCOPE: ${{ vars.ENTRA_API_SCOPE }}
+          ENTRA_AUTHORITY: ${{ vars.ENTRA_AUTHORITY }}
+          PUBLIC_ENTRA_CLIENT_ID: ${{ vars.PUBLIC_ENTRA_CLIENT_ID }}
+        run: |
+          [[ "${{ vars.ENTRA_AUDIENCE }}" =~ ^[0-9a-fA-F-]{36}$ ]]
+          [[ "$ADMIN_ENTRA_CLIENT_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+          [[ "$PUBLIC_ENTRA_CLIENT_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+          [[ "$PLATFORM_ADMIN_OBJECT_IDS" =~ ^[0-9a-fA-F-]{36}(,[0-9a-fA-F-]{36})*$ ]]
+          [[ "$ENTRA_AUTHORITY" == https://*.ciamlogin.com/* ]]
+          [[ "$ENTRA_API_SCOPE" == api://${{ vars.ENTRA_AUDIENCE }}/* ]]
 
       - name: Determine deployment plan scope
         id: foundation-state
@@ -188,6 +203,13 @@ jobs:
             echo "WEB_IDENTITY=$(echo "$outputs" | jq -r '.webIdentityName.value')" >> "$GITHUB_ENV"
             echo "DOCUMENT_STORAGE_ACCOUNT=$(echo "$outputs" | jq -r '.documentStorageAccountName.value')" >> "$GITHUB_ENV"
             echo "TENANT_APPLICATION_CONTAINER=$(echo "$outputs" | jq -r '.tenantApplicationContainerName.value')" >> "$GITHUB_ENV"
+            default_domain=$(az containerapp env show \
+              --name "$(echo "$outputs" | jq -r '.containerAppsEnvironmentName.value')" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query properties.defaultDomain -o tsv)
+            echo "APP_DEFAULT_DOMAIN=$default_domain" >> "$GITHUB_ENV"
+            echo "API_PUBLIC_BASE_URL=https://ca-keyforta-${ENVIRONMENT}-api.${default_domain}/api/v1" >> "$GITHUB_ENV"
+            echo "ADMIN_PUBLIC_BASE_URL=https://ca-keyforta-${ENVIRONMENT}-admin.${default_domain}" >> "$GITHUB_ENV"
 
       - name: Inspect public-web hostname state
         id: hostname-state
@@ -301,6 +323,23 @@ jobs:
             *) echo "POSTGRES_DBA_PRINCIPAL_TYPE must be User or Group" >&2; exit 1 ;;
           esac
 
+      - name: Verify admin API dependency
+        if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE == 'admin-web'
+        run: |
+          api_fqdn=$(az containerapp show \
+            --name "ca-keyforta-${ENVIRONMENT}-api" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          test -n "$api_fqdn"
+          curl --fail --silent --show-error \
+            --header "origin: ${ADMIN_PUBLIC_BASE_URL}" \
+            --dump-header admin-api-preflight-headers.txt \
+            --output /dev/null \
+            "https://${api_fqdn}/health"
+          tr -d '\r' < admin-api-preflight-headers.txt \
+            | grep -iFx "access-control-allow-origin: ${ADMIN_PUBLIC_BASE_URL}" \
+            || { echo "Deploy the API or use full scope before admin-web." >&2; exit 1; }
+
       - name: Preview database access changes
         if: inputs.operation != 'deploy-foundation' && steps.foundation-state.outputs.exists == 'true' && (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres')
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
@@ -376,19 +415,37 @@ jobs:
 
           api_status=0
           web_status=0
+          admin_status=0
           api_pid=""
           web_pid=""
+          admin_pid=""
           if [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "postgres" ]; then
             docker build --file deployments/azure/docker/api.Dockerfile --tag "$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" . &
             api_pid=$!
           fi
           if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "public-web" ]; then
-            docker build --file deployments/azure/docker/public-web.Dockerfile --tag "$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" . &
+            docker build \
+              --build-arg NEXT_PUBLIC_ENTRA_API_SCOPE="${{ vars.ENTRA_API_SCOPE }}" \
+              --build-arg NEXT_PUBLIC_ENTRA_AUTHORITY="${{ vars.ENTRA_AUTHORITY }}" \
+              --build-arg NEXT_PUBLIC_ENTRA_CLIENT_ID="${{ vars.PUBLIC_ENTRA_CLIENT_ID }}" \
+              --file deployments/azure/docker/public-web.Dockerfile \
+              --tag "$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" . &
             web_pid=$!
+          fi
+          if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
+            docker build \
+              --build-arg VITE_ENTRA_API_SCOPE="${{ vars.ENTRA_API_SCOPE }}" \
+              --build-arg VITE_ENTRA_AUTHORITY="${{ vars.ENTRA_AUTHORITY }}" \
+              --build-arg VITE_ENTRA_CLIENT_ID="${{ vars.ADMIN_ENTRA_CLIENT_ID }}" \
+              --build-arg VITE_KEYFORTA_API_BASE_URL="$API_PUBLIC_BASE_URL" \
+              --file deployments/azure/docker/admin-web.Dockerfile \
+              --tag "$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA" . &
+            admin_pid=$!
           fi
 
           if [ -n "$api_pid" ]; then wait "$api_pid" || api_status=$?; fi
           if [ -n "$web_pid" ]; then wait "$web_pid" || web_status=$?; fi
+          if [ -n "$admin_pid" ]; then wait "$admin_pid" || admin_status=$?; fi
 
           if [ "$api_status" -ne 0 ]; then
             echo "::error title=API container build failed::docker build exited with status $api_status"
@@ -396,14 +453,21 @@ jobs:
           if [ "$web_status" -ne 0 ]; then
             echo "::error title=Web container build failed::docker build exited with status $web_status"
           fi
+          if [ "$admin_status" -ne 0 ]; then
+            echo "::error title=Admin container build failed::docker build exited with status $admin_status"
+          fi
           test "$api_status" -eq 0
           test "$web_status" -eq 0
+          test "$admin_status" -eq 0
 
           if [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "postgres" ]; then
             docker push "$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA"
           fi
           if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "public-web" ]; then
             docker push "$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA"
+          fi
+          if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
+            docker push "$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA"
           fi
 
       - name: Deploy migration job
@@ -478,10 +542,12 @@ jobs:
                 postgresServerName="$POSTGRES_SERVER" \
                 apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
                 webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
+                adminImage="$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA" \
                 databaseUserName="$API_IDENTITY" \
                 entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
@@ -506,10 +572,12 @@ jobs:
                 postgresServerName="$POSTGRES_SERVER" \
                 apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
                 webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
+                adminImage="$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA" \
                 databaseUserName="$API_IDENTITY" \
                 entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
@@ -534,10 +602,12 @@ jobs:
                 postgresServerName="$POSTGRES_SERVER" \
                 apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
                 webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
+                adminImage="$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA" \
                 databaseUserName="$API_IDENTITY" \
                 entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
@@ -562,10 +632,12 @@ jobs:
                 postgresServerName="$POSTGRES_SERVER" \
                 apiImage="$REGISTRY_SERVER/keyforta-api:$DEPLOYMENT_SHA" \
                 webImage="$REGISTRY_SERVER/keyforta-public-web:$DEPLOYMENT_SHA" \
+                adminImage="$REGISTRY_SERVER/keyforta-admin-web:$DEPLOYMENT_SHA" \
                 databaseUserName="$API_IDENTITY" \
                 entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
@@ -576,7 +648,7 @@ jobs:
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'
         run: |
           web_url="https://${WEB_CANONICAL_HOST}"
-          if [ "$DEPLOYMENT_SCOPE" != "api" ]; then
+          if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "public-web" ]; then
             curl --fail --retry 12 --retry-all-errors --retry-delay 10 "${web_url}/"
             www_path="/properties?city=Kinshasa"
             www_status=$(curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 \
@@ -592,7 +664,7 @@ jobs:
             tr -d '\r' < www-headers.txt \
               | grep -iFx "location: ${web_url}${www_path}"
           fi
-          if [ "$DEPLOYMENT_SCOPE" != "public-web" ]; then
+          if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
             api_fqdn=$(az containerapp show \
               --name "ca-keyforta-${ENVIRONMENT}-api" \
               --resource-group "$RESOURCE_GROUP" \
@@ -626,16 +698,29 @@ jobs:
               "${api_url}/health"
             ! grep -qi '^access-control-allow-origin:' denied-origin-headers.txt
           fi
+          if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
+            curl --fail --retry 12 --retry-all-errors --retry-delay 10 "${ADMIN_PUBLIC_BASE_URL}/"
+            curl --fail --retry 12 --retry-all-errors --retry-delay 10 "${ADMIN_PUBLIC_BASE_URL}/auth/callback"
+            curl --fail --retry 12 --retry-delay 10 \
+              --header "origin: ${ADMIN_PUBLIC_BASE_URL}" \
+              --dump-header admin-api-headers.txt \
+              "${api_url}/ready"
+            tr -d '\r' < admin-api-headers.txt \
+              | grep -iFx "access-control-allow-origin: ${ADMIN_PUBLIC_BASE_URL}"
+          fi
 
           {
             echo "## Dev deployment"
             echo "- Revision: \`${DEPLOYMENT_SHA}\`"
             echo "- Scope: \`${DEPLOYMENT_SCOPE}\`"
-            if [ "$DEPLOYMENT_SCOPE" != "api" ]; then
+            if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "public-web" ]; then
               echo "- Web: ${web_url}"
             fi
-            if [ "$DEPLOYMENT_SCOPE" != "public-web" ]; then
+            if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
               echo "- API: ${api_url}"
+            fi
+            if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
+              echo "- Admin: ${ADMIN_PUBLIC_BASE_URL}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

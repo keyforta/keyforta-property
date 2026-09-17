@@ -2,7 +2,7 @@ import '../src/styles.css';
 
 export const metadata = {
   description: 'Discover verified rental properties and manage rental relationships with clarity.',
-  icons: { icon: '/keyforta-app-icon.png' },
+  icons: { icon: '/assets/brand/keyforta-app-icon.png' },
   title: 'KEYFORTA - Find and manage property with confidence',
 };
 

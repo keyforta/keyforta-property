@@ -1,0 +1,14 @@
+.listing-state {
+  display: grid;
+  grid-column: 1/-1;
+  justify-items: center;
+  gap: 18px;
+  min-height: 180px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.listing-state.page {
+  align-content: center;
+  min-height: 55vh;
+}

@@ -287,3 +287,43 @@ button {
     display: none;
   }
 }
+
+.admin-header {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px clamp(18px, 5vw, 64px);
+  background: #172e28;
+  color: #fff;
+}
+.admin-actions { display: flex; align-items: center; gap: 8px; }
+.admin-actions button { color: #fff; min-height: 44px; }
+.identity { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #dbeee4; }
+.page-heading { max-width: 760px; margin-bottom: 30px; }
+.page-heading .eyebrow { margin-top: 0; }
+.application-list { display: grid; gap: 16px; }
+.application-card { padding: clamp(20px, 4vw, 30px); background: #fff; border: 1px solid #dce7df; border-radius: 8px; }
+.application-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.application-heading .eyebrow { margin-top: 0; }
+.application-heading h2 { margin: 0; font-size: 1.45rem; letter-spacing: 0; }
+.application-card dl { display: flex; flex-wrap: wrap; gap: 14px 32px; margin: 22px 0; }
+.application-card dl div { display: grid; gap: 4px; }
+.application-card dt { color: #68776f; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.application-card dd { margin: 0; }
+.decision-actions { display: flex; gap: 10px; margin-top: 16px; }
+.decision-actions button { min-width: 110px; min-height: 44px; }
+.decision-evidence { padding-top: 18px; border-top: 1px solid #e4ebe7; }
+.decision-evidence p { margin-bottom: 0; line-height: 1.5; color: #526159; }
+.state-message, .denied-state { display: flex; align-items: center; gap: 10px; padding: 18px; border: 1px solid #cfded5; border-radius: 6px; background: #edf5f0; color: #285b47; }
+.state-message.error, .denied-state { border-color: #e2c9c4; background: #fff0ed; color: #842f26; }
+.denied-state { display: block; }
+.denied-state h2 { margin-top: 0; }
+@media (max-width: 700px) {
+  .admin-header { align-items: flex-start; flex-direction: column; }
+  .admin-actions { width: 100%; flex-wrap: wrap; }
+  .identity { width: 100%; max-width: none; }
+  .decision-actions { flex-direction: column; }
+  .decision-actions button { width: 100%; }
+}

@@ -2,7 +2,7 @@
 
 ## Structural hierarchy
 
-`Organization → Portfolio → Property → Building → Unit`
+`Organization → Portfolio → Property → Unit`
 
 ## Initial bounded modules
 

@@ -51,9 +51,10 @@ or tenant data in the record.
    - `api` previews and deploys only the API image and Container App. It does
      not configure PostgreSQL access or run migrations.
    - `public-web` previews and deploys only the public-web image and Container App.
-   - `full` composes `postgres`, `api`, and `public-web`, and reconciles the
+   - `admin-web` previews and deploys only the admin SPA image and Container App.
+   - `full` composes `postgres`, `api`, `public-web`, and `admin-web`, and reconciles the
      dormant development seed-job definition without executing it.
-   - `portal-web`, `admin-web`, and `mcp` are reserved names that fail closed
+   - `portal-web` and `mcp` are reserved names that fail closed
      until separately approved images and Azure resource definitions exist.
 3. On a fresh resource group, review the `foundation`-scoped plan and dispatch
    `operation=deploy-foundation` with its run ID. Then dispatch `operation=plan`
@@ -69,6 +70,10 @@ or tenant data in the record.
   selected scope so configuration drift remains visible.
 7. For `postgres` or `full`, preserve the migration execution name and verify it
   reaches `Succeeded`.
+   Migration `0017` stops without changing assignment history if a property has
+   multiple active managers; an authorized operator must revoke the duplicates
+  and retain that audit evidence before retrying. Migration `0020` repairs the
+  publication function and establishes the schema marker required by API readiness.
 8. For application scopes, preserve the deployed revision names and workflow summary.
 9. For a public-domain cutover, verify the Cloudflare records are DNS-only,
    preserve the prior records, and confirm the reviewed API CORS deployment
@@ -111,6 +116,8 @@ must never be used for production or replaced with ad hoc database commands.
 - Confirm API liveness remains healthy and database-backed readiness remains
   ready on every active revision.
 - Confirm the previous application revision remains available for rollback.
+- Verify the admin callback returns control to the SPA, one allowlisted Object
+  ID can list pending applications, and an unlisted Object ID is denied.
 
 ## Initial operating window
 

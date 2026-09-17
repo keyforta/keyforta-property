@@ -36,6 +36,16 @@ describePostgres("PostgreSQL public discovery integration", () => {
       alter role keyforta_test_runtime login password 'synthetic-test-runtime-password' noinherit;
       grant keyforta_runtime to keyforta_test_runtime;
 
+      delete from app.public_listing_publication_events
+      where organization_id in (
+        '00000000-0000-4000-8000-000000000900',
+        '00000000-0000-4000-8000-000000000901'
+      );
+      delete from app.manager_property_assignment_events
+      where organization_id in (
+        '00000000-0000-4000-8000-000000000900',
+        '00000000-0000-4000-8000-000000000901'
+      );
       delete from app.public_listing_inquiries
       where organization_id in (
         '00000000-0000-4000-8000-000000000900',
@@ -47,6 +57,11 @@ describePostgres("PostgreSQL public discovery integration", () => {
         '00000000-0000-4000-8000-000000000901'
       );
       delete from app.units
+      where organization_id in (
+        '00000000-0000-4000-8000-000000000900',
+        '00000000-0000-4000-8000-000000000901'
+      );
+      delete from app.manager_property_assignments
       where organization_id in (
         '00000000-0000-4000-8000-000000000900',
         '00000000-0000-4000-8000-000000000901'
@@ -70,13 +85,34 @@ describePostgres("PostgreSQL public discovery integration", () => {
       insert into app.organizations (id, name) values
         ('00000000-0000-4000-8000-000000000900', 'Synthetic organization A'),
         ('00000000-0000-4000-8000-000000000901', 'Synthetic organization B');
-      insert into app.properties (id, organization_id, name, address) values
-        ('00000000-0000-4000-8000-000000000910', '00000000-0000-4000-8000-000000000900', 'Synthetic A', 'Private A'),
-        ('00000000-0000-4000-8000-000000000911', '00000000-0000-4000-8000-000000000901', 'Synthetic B', 'Private B');
-      insert into app.units (id, organization_id, property_id, label) values
-        ('00000000-0000-4000-8000-000000000920', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Published'),
-        ('00000000-0000-4000-8000-000000000921', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Draft'),
-        ('00000000-0000-4000-8000-000000000922', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000911', 'Published');
+      insert into app.users (id, external_subject, display_name) values
+        ('00000000-0000-4000-8000-000000000950', 'synthetic-landlord-a', 'Synthetic Landlord A'),
+        ('00000000-0000-4000-8000-000000000951', 'synthetic-manager-a', 'Synthetic Manager A'),
+        ('00000000-0000-4000-8000-000000000952', 'synthetic-manager-b', 'Synthetic Manager B')
+      on conflict (external_subject) do update set display_name = excluded.display_name;
+      insert into app.memberships (organization_id, user_id, role, active) values
+        ('00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000950', 'landlord', true),
+        ('00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000951', 'manager', true),
+        ('00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000952', 'manager', true);
+      insert into app.properties (
+        id, organization_id, name, address, verification_status, publication_status
+      ) values
+        ('00000000-0000-4000-8000-000000000910', '00000000-0000-4000-8000-000000000900', 'Synthetic A', 'Private A', 'verified', 'published'),
+        ('00000000-0000-4000-8000-000000000911', '00000000-0000-4000-8000-000000000901', 'Synthetic B', 'Private B', 'verified', 'published');
+      insert into app.units (
+        id, organization_id, property_id, label, publication_status, availability_status
+      ) values
+        ('00000000-0000-4000-8000-000000000920', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Published', 'published', 'available'),
+        ('00000000-0000-4000-8000-000000000921', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Draft', 'published', 'available'),
+        ('00000000-0000-4000-8000-000000000922', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000911', 'Published', 'published', 'available');
+      insert into app.manager_property_assignments (
+        organization_id, property_id, manager_user_id, assigned_by_user_id
+      ) values (
+        '00000000-0000-4000-8000-000000000900',
+        '00000000-0000-4000-8000-000000000910',
+        '00000000-0000-4000-8000-000000000951',
+        '00000000-0000-4000-8000-000000000950'
+      );
       insert into app.public_listings (
         id, organization_id, unit_id, slug, title, summary, city, district,
         bedrooms, bathrooms, monthly_rent_minor, currency, available_from,
@@ -101,7 +137,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     const result = await client.query<{ count: string }>(
       "select count(*)::text as count from app.schema_migrations",
     );
-    expect(result.rows[0]?.count).toBe("16");
+    expect(result.rows[0]?.count).toBe("20");
   });
 
   it("maps users to parties without inventing legal or consent facts", async () => {
@@ -354,6 +390,335 @@ describePostgres("PostgreSQL public discovery integration", () => {
       "published-org-b",
       "published-org-a",
     ]);
+  });
+
+  it("uses one lifecycle eligibility predicate for list, detail, and inquiry", async () => {
+    const lifecycleCases = [
+      {
+        disable: `update app.properties set verification_status = 'pending'
+          where id = '00000000-0000-4000-8000-000000000911'`,
+        restore: `update app.properties set verification_status = 'verified'
+          where id = '00000000-0000-4000-8000-000000000911'`,
+      },
+      {
+        disable: `update app.properties set publication_status = 'paused'
+          where id = '00000000-0000-4000-8000-000000000911'`,
+        restore: `update app.properties set publication_status = 'published'
+          where id = '00000000-0000-4000-8000-000000000911'`,
+      },
+      {
+        disable: `update app.units set publication_status = 'paused'
+          where id = '00000000-0000-4000-8000-000000000922'`,
+        restore: `update app.units set publication_status = 'published'
+          where id = '00000000-0000-4000-8000-000000000922'`,
+      },
+      {
+        disable: `update app.units set availability_status = 'unavailable'
+          where id = '00000000-0000-4000-8000-000000000922'`,
+        restore: `update app.units set availability_status = 'available'
+          where id = '00000000-0000-4000-8000-000000000922'`,
+      },
+      {
+        disable: `update app.public_listings set status = 'withdrawn'
+          where id = '00000000-0000-4000-8000-000000000932'`,
+        restore: `update app.public_listings set status = 'published'
+          where id = '00000000-0000-4000-8000-000000000932'`,
+      },
+    ];
+
+    for (const [index, lifecycleCase] of lifecycleCases.entries()) {
+      await client.query(lifecycleCase.disable);
+      await runtimeClient.query("begin");
+      await runtimeClient.query("set local role keyforta_runtime");
+      try {
+        const listed = await runtimeClient.query<{ slug: string }>(
+          "select slug from app.list_public_listings(null, null, null)",
+        );
+        const page = await runtimeClient.query<{
+          items: Array<{ slug: string }>;
+        }>(
+          "select items from app.list_public_listings_page($1, $2, $3, $4, $5, $6, $7)",
+          [null, null, null, null, "created_at_desc", null, 100],
+        );
+        const detail = await runtimeClient.query(
+          "select * from app.get_public_listing($1)",
+          ["published-org-b"],
+        );
+        const inquiry = await runtimeClient.query<{ accepted: boolean }>(
+          `select app.create_public_listing_inquiry(
+            $1, $2, $3, $4, $5, $6, $7, $8
+          ) as accepted`,
+          [
+            "published-org-b",
+            "Synthetic Hidden Visitor",
+            `hidden-${index}@example.test`,
+            null,
+            null,
+            "Synthetic inquiry for an ineligible listing",
+            "en",
+            `synthetic-hidden-inquiry-${index}`,
+          ],
+        );
+        await runtimeClient.query("commit");
+
+        expect(listed.rows.map(({ slug }) => slug)).not.toContain(
+          "published-org-b",
+        );
+        expect(page.rows[0]?.items.map(({ slug }) => slug)).not.toContain(
+          "published-org-b",
+        );
+        expect(detail.rowCount).toBe(0);
+        expect(inquiry.rows[0]?.accepted).toBe(false);
+      } catch (error) {
+        await runtimeClient.query("rollback");
+        throw error;
+      } finally {
+        await client.query(lifecycleCase.restore);
+      }
+    }
+  });
+
+  it("authorizes only the assigned property manager, including a self-assigned landlord", async () => {
+    const setPublication = async (
+      subject: string,
+      organizationId: string,
+      published: boolean,
+      correlationId: string,
+    ) => {
+      await runtimeClient.query("begin");
+      await runtimeClient.query("set local role keyforta_runtime");
+      try {
+        await runtimeClient.query("select * from app.resolve_actor($1, $2)", [
+          subject,
+          organizationId,
+        ]);
+        await runtimeClient.query(
+          "select set_config('app.correlation_id', $1, true)",
+          [correlationId],
+        );
+        const result = await runtimeClient.query<{ changed: boolean }>(
+          "select app.set_public_listing_publication($1, $2) as changed",
+          ["00000000-0000-4000-8000-000000000930", published],
+        );
+        await runtimeClient.query("commit");
+        return result.rows[0]?.changed;
+      } catch (error) {
+        await runtimeClient.query("rollback");
+        throw error;
+      }
+    };
+
+    expect(
+      await setPublication(
+        "synthetic-landlord-a",
+        "00000000-0000-4000-8000-000000000900",
+        false,
+        "synthetic-unassigned-landlord",
+      ),
+    ).toBe(false);
+    expect(
+      await setPublication(
+        "synthetic-manager-a",
+        "00000000-0000-4000-8000-000000000900",
+        false,
+        "synthetic-manager-withdrawal",
+      ),
+    ).toBe(true);
+
+    await runtimeClient.query("begin");
+    await runtimeClient.query("set local role keyforta_runtime");
+    await runtimeClient.query("select * from app.resolve_actor($1, $2)", [
+      "synthetic-landlord-a",
+      "00000000-0000-4000-8000-000000000900",
+    ]);
+    await runtimeClient.query(
+      "select set_config('app.correlation_id', $1, true)",
+      ["synthetic-landlord-self-assignment"],
+    );
+    const assignment = await runtimeClient.query<{ changed: boolean }>(
+      "select app.set_manager_property_assignment($1, $2, true) as changed",
+      [
+        "00000000-0000-4000-8000-000000000910",
+        "00000000-0000-4000-8000-000000000950",
+      ],
+    );
+    await runtimeClient.query("commit");
+    expect(assignment.rows[0]?.changed).toBe(true);
+
+    const activeAssignments = await client.query<{
+      manager_user_id: string;
+    }>(`
+      select manager_user_id::text
+      from app.manager_property_assignments
+      where organization_id = '00000000-0000-4000-8000-000000000900'
+        and property_id = '00000000-0000-4000-8000-000000000910'
+        and revoked_at is null
+    `);
+    expect(activeAssignments.rows).toEqual([
+      { manager_user_id: "00000000-0000-4000-8000-000000000950" },
+    ]);
+
+    const assignmentEvents = await client.query<{
+      action: string;
+      manager_user_id: string;
+    }>(`
+      select action, manager_user_id::text
+      from app.manager_property_assignment_events
+      where organization_id = '00000000-0000-4000-8000-000000000900'
+        and property_id = '00000000-0000-4000-8000-000000000910'
+      order by occurred_at, id
+    `);
+    expect(assignmentEvents.rows).toEqual([
+      {
+        action: "revoked",
+        manager_user_id: "00000000-0000-4000-8000-000000000951",
+      },
+      {
+        action: "assigned",
+        manager_user_id: "00000000-0000-4000-8000-000000000950",
+      },
+    ]);
+    await expect(
+      client.query(
+        "delete from app.manager_property_assignment_events where organization_id = $1",
+        ["00000000-0000-4000-8000-000000000900"],
+      ),
+    ).rejects.toThrow(/manager assignment history is immutable/);
+
+    expect(
+      await setPublication(
+        "synthetic-manager-a",
+        "00000000-0000-4000-8000-000000000900",
+        true,
+        "synthetic-replaced-manager",
+      ),
+    ).toBe(false);
+    expect(
+      await setPublication(
+        "synthetic-landlord-a",
+        "00000000-0000-4000-8000-000000000900",
+        true,
+        "synthetic-self-manager-publication",
+      ),
+    ).toBe(true);
+
+    const events = await client.query<{
+      action: string;
+      actor_id: string;
+      correlation_id: string;
+      organization_id: string;
+    }>(`
+      select action, actor_id::text, correlation_id, organization_id::text
+      from app.public_listing_publication_events
+      where listing_id = '00000000-0000-4000-8000-000000000930'
+      order by occurred_at, id
+    `);
+    expect(events.rows).toEqual([
+      {
+        action: "withdrawn",
+        actor_id: "00000000-0000-4000-8000-000000000951",
+        correlation_id: "synthetic-manager-withdrawal",
+        organization_id: "00000000-0000-4000-8000-000000000900",
+      },
+      {
+        action: "published",
+        actor_id: "00000000-0000-4000-8000-000000000950",
+        correlation_id: "synthetic-self-manager-publication",
+        organization_id: "00000000-0000-4000-8000-000000000900",
+      },
+    ]);
+
+    await expect(
+      client.query(
+        "update app.public_listing_publication_events set correlation_id = 'changed' where listing_id = $1",
+        ["00000000-0000-4000-8000-000000000930"],
+      ),
+    ).rejects.toThrow(/publication history is immutable/);
+  });
+
+  it("denies unassigned, revoked, and cross-organization publication", async () => {
+    await client.query(`
+      update app.manager_property_assignments
+      set revoked_at = transaction_timestamp()
+      where organization_id = '00000000-0000-4000-8000-000000000900'
+        and property_id = '00000000-0000-4000-8000-000000000910'
+        and manager_user_id = '00000000-0000-4000-8000-000000000951'
+    `);
+
+    for (const [subject, organizationId] of [
+      ["synthetic-manager-a", "00000000-0000-4000-8000-000000000900"],
+      ["synthetic-manager-b", "00000000-0000-4000-8000-000000000901"],
+    ]) {
+      await runtimeClient.query("begin");
+      await runtimeClient.query("set local role keyforta_runtime");
+      try {
+        await runtimeClient.query("select * from app.resolve_actor($1, $2)", [
+          subject,
+          organizationId,
+        ]);
+        await runtimeClient.query(
+          "select set_config('app.correlation_id', $1, true)",
+          [`synthetic-denied-${subject}`],
+        );
+        const result = await runtimeClient.query<{ changed: boolean }>(
+          "select app.set_public_listing_publication($1, false) as changed",
+          ["00000000-0000-4000-8000-000000000930"],
+        );
+        await runtimeClient.query("commit");
+        expect(result.rows[0]?.changed).toBe(false);
+      } catch (error) {
+        await runtimeClient.query("rollback");
+        throw error;
+      }
+    }
+  });
+
+  it("denies manager-created assignments", async () => {
+    await runtimeClient.query("begin");
+    await runtimeClient.query("set local role keyforta_runtime");
+    try {
+      await runtimeClient.query("select * from app.resolve_actor($1, $2)", [
+        "synthetic-manager-a",
+        "00000000-0000-4000-8000-000000000900",
+      ]);
+      await runtimeClient.query(
+        "select set_config('app.correlation_id', $1, true)",
+        ["synthetic-manager-self-assignment"],
+      );
+      const result = await runtimeClient.query<{ changed: boolean }>(
+        "select app.set_manager_property_assignment($1, $2, true) as changed",
+        [
+          "00000000-0000-4000-8000-000000000910",
+          "00000000-0000-4000-8000-000000000951",
+        ],
+      );
+      await runtimeClient.query("commit");
+      expect(result.rows[0]?.changed).toBe(false);
+    } catch (error) {
+      await runtimeClient.query("rollback");
+      throw error;
+    }
+  });
+
+  it("denies direct runtime listing status mutation", async () => {
+    await runtimeClient.query("begin");
+    await runtimeClient.query("set local role keyforta_runtime");
+    try {
+      await runtimeClient.query(
+        "select set_config('app.organization_id', $1, true)",
+        ["00000000-0000-4000-8000-000000000900"],
+      );
+      await expect(
+        runtimeClient.query(
+          "update app.public_listings set status = 'withdrawn' where id = $1",
+          ["00000000-0000-4000-8000-000000000930"],
+        ),
+      ).rejects.toThrow(/permission denied/);
+      await runtimeClient.query("rollback");
+    } catch (error) {
+      await runtimeClient.query("rollback");
+      throw error;
+    }
   });
 
   it("filters and paginates published listings inside PostgreSQL", async () => {

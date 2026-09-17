@@ -1,0 +1,35 @@
+{
+  "brand": "KEYFORTA",
+  "concept": "Interlocking Passage",
+  "colors": {
+    "aubergine": "#24162E",
+    "mineralTeal": "#267C78",
+    "burnishedCopper": "#C47A4A",
+    "softBone": "#F3EEE7"
+  },
+  "fontTreatment": "Montserrat-style geometric uppercase sans-serif",
+  "minimumSymbolDigital": "16px",
+  "noTagline": true,
+  "assets": {
+    "primary": { "svg": "/assets/brand/keyforta-logo-primary.svg", "png": "/assets/brand/keyforta-logo-primary.png" },
+    "symbol": {
+      "svg": "/assets/brand/keyforta-symbol.svg",
+      "png": "/assets/brand/keyforta-symbol.png",
+      "monochromeSvg": "/assets/brand/keyforta-symbol-monochrome.svg",
+      "monochromePng": "/assets/brand/keyforta-symbol-monochrome.png",
+      "reversedSvg": "/assets/brand/keyforta-symbol-reversed.svg",
+      "reversedPng": "/assets/brand/keyforta-symbol-reversed.png"
+    },
+    "wordmark": {
+      "svg": "/assets/brand/keyforta-wordmark.svg",
+      "png": "/assets/brand/keyforta-wordmark.png",
+      "monochromeSvg": "/assets/brand/keyforta-wordmark-monochrome.svg",
+      "monochromePng": "/assets/brand/keyforta-wordmark-monochrome.png",
+      "reversedSvg": "/assets/brand/keyforta-wordmark-reversed.svg",
+      "reversedPng": "/assets/brand/keyforta-wordmark-reversed.png"
+    },
+    "monochrome": { "svg": "/assets/brand/keyforta-logo-monochrome.svg", "png": "/assets/brand/keyforta-logo-monochrome.png" },
+    "reversed": { "svg": "/assets/brand/keyforta-logo-reversed.svg", "png": "/assets/brand/keyforta-logo-reversed.png" },
+    "appIcon": { "svg": "/assets/brand/keyforta-app-icon.svg", "png": "/assets/brand/keyforta-app-icon.png" }
+  }
+}

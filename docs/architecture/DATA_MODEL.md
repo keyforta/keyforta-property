@@ -12,7 +12,7 @@ groups remain incremental work.
 | ------------ | ------------------------------------------------------------------------- |
 | Organization | Organization, Membership, Role, Invitation                                |
 | Party        | Person, Company, ContactMethod, PartyRole, Consent                        |
-| Property     | Portfolio, Property, Building, Unit, Asset, Meter, Media                  |
+| Property     | Portfolio, Property, Unit, Asset, Meter, Media                            |
 | Lease        | Lease, LeaseVersion, LeaseParty, Occupancy, Handover                      |
 | Pricing      | RentRule, Concession, DepositRule, ChargeSchedule                         |
 | Finance      | Charge, LedgerEntry, Payment, Allocation, Receipt, Reconciliation         |

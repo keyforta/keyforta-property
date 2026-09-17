@@ -1,8 +1,8 @@
-import { localizeProperty, money } from "../data/content.js";
 import { Badge, makeStyles, mergeClasses } from "@fluentui/react-components";
 import { CheckmarkCircle20Filled } from "@fluentui/react-icons";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { formatMinorMoney } from "../services/public-properties.js";
 
 const useStyles = makeStyles({
   root: {
@@ -129,8 +129,9 @@ const useStyles = makeStyles({
 export function PropertyCard({ lang, item, position = 0 }) {
   const { t } = useTranslation();
   const styles = useStyles();
-  const p = localizeProperty(item, lang);
   const variant = position % 3;
+  const available = new Intl.DateTimeFormat(lang === "fr" ? "fr-FR" : "en-US", { dateStyle: "medium" })
+    .format(new Date(`${item.availableFrom}T00:00:00`));
 
   return (
     <Link
@@ -139,35 +140,35 @@ export function PropertyCard({ lang, item, position = 0 }) {
         variant === 1 && styles.copper,
         variant === 2 && styles.aubergine,
       )}
-      to={`/property/${p.id}`}
+      to={`/property/${item.id}`}
     >
       <div className={styles.image}>
         <img
           className={styles.photo}
-          src={p.image}
-          alt={p.imageAlt}
+          src={item.imageUrl || item.imageUrls[0]}
+          alt={t("property.image_alt", { name: item.name })}
           loading={position < 3 ? "eager" : "lazy"}
           fetchPriority={position === 0 ? "high" : "auto"}
         />
         <Badge className={styles.badge} appearance="filled" color="subtle">
-          {p.available}
+          {t("property.available_from", { date: available })}
         </Badge>
       </div>
       <div className={styles.body}>
         <span className={styles.price}>
-          {money(p.price, lang)}{" "}
+          {formatMinorMoney(item.monthlyRentMinor, item.currency, lang)}{" "}
           <small className={styles.priceUnit}>{t("property.per_month")}</small>
         </span>
-        <h3 className={styles.title}>{p.title}</h3>
+        <h3 className={styles.title}>{item.name}</h3>
         <p className={styles.meta}>
-          {p.area}, Kinshasa · {t("property.bedroom", { count: p.beds })} ·{" "}
-          {t("property.bathroom", { count: p.baths })}
+          {item.district}, {item.city} · {t("property.bedroom", { count: item.bedrooms })} ·{" "}
+          {t("property.bathroom", { count: item.bathrooms })}
         </p>
         <p className={styles.verification}>
           <span className={styles.checkmark} aria-hidden="true">
             <CheckmarkCircle20Filled />
           </span>
-          {p.verified}
+          {t("property.published")}
         </p>
       </div>
     </Link>

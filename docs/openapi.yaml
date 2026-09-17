@@ -44,6 +44,25 @@ paths:
       security: []
       requestBody: { $ref: '#/components/requestBodies/OperatorRegistration' }
       responses: { '202': { $ref: '#/components/responses/PublicRequestAccepted' } }
+  /landlord-onboarding-applications:
+    post:
+      tags: [Identity]
+      operationId: submitLandlordOnboardingApplication
+      requestBody: { $ref: '#/components/requestBodies/LandlordOnboardingApplication' }
+      responses: { '201': { $ref: '#/components/responses/LandlordOnboardingApplication' }, '400': { $ref: '#/components/responses/Problem' }, '401': { $ref: '#/components/responses/Problem' }, '409': { $ref: '#/components/responses/Problem' }, '503': { $ref: '#/components/responses/Problem' } }
+    get:
+      tags: [Administration]
+      operationId: listLandlordOnboardingApplications
+      description: Requires a verified Entra oid in the configured platform-admin allowlist. Denied identities receive a generic not-found response.
+      responses: { '200': { $ref: '#/components/responses/LandlordOnboardingApplicationList' }, '401': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' }, '503': { $ref: '#/components/responses/Problem' } }
+  /landlord-onboarding-applications/{applicationId}/decision:
+    post:
+      tags: [Administration]
+      operationId: decideLandlordOnboardingApplication
+      description: Requires a verified Entra oid in the configured platform-admin allowlist.
+      parameters: [{ $ref: '#/components/parameters/LandlordOnboardingApplicationId' }]
+      requestBody: { $ref: '#/components/requestBodies/LandlordOnboardingDecision' }
+      responses: { '200': { $ref: '#/components/responses/LandlordOnboardingApplication' }, '400': { $ref: '#/components/responses/Problem' }, '401': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' }, '409': { $ref: '#/components/responses/Problem' }, '503': { $ref: '#/components/responses/Problem' } }
   /me:
     get:
       tags: [Identity]
@@ -79,6 +98,10 @@ paths:
     get: { tags: [Inventory], operationId: getProperty, security: [], parameters: [{ $ref: '#/components/parameters/PublicPropertyId' }], responses: { '200': { $ref: '#/components/responses/PublicProperty' } } }
     patch: { tags: [Inventory], operationId: updateProperty, parameters: [{ $ref: '#/components/parameters/PropertyId' }, { $ref: '#/components/parameters/IfMatch' }], requestBody: { $ref: '#/components/requestBodies/Patch' }, responses: { '200': { $ref: '#/components/responses/Property' } } }
     delete: { tags: [Inventory], operationId: archiveProperty, parameters: [{ $ref: '#/components/parameters/PropertyId' }], responses: { '204': { description: Archived } } }
+  /public-listings/{listingId}/publish:
+    post: { tags: [Inventory], operationId: publishPublicListing, parameters: [{ $ref: '#/components/parameters/PublicListingId' }, { $ref: '#/components/parameters/OrganizationContext' }], responses: { '200': { $ref: '#/components/responses/PublicListingPublication' }, '400': { $ref: '#/components/responses/Problem' }, '401': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' }, '503': { $ref: '#/components/responses/Problem' } } }
+  /public-listings/{listingId}/withdraw:
+    post: { tags: [Inventory], operationId: withdrawPublicListing, parameters: [{ $ref: '#/components/parameters/PublicListingId' }, { $ref: '#/components/parameters/OrganizationContext' }], responses: { '200': { $ref: '#/components/responses/PublicListingPublication' }, '400': { $ref: '#/components/responses/Problem' }, '401': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' }, '503': { $ref: '#/components/responses/Problem' } } }
   /units:
     get: { tags: [Inventory], operationId: listUnits, parameters: [{ $ref: '#/components/parameters/Pagination' }], responses: { '200': { $ref: '#/components/responses/List' } } }
     post: { tags: [Inventory], operationId: createUnit, requestBody: { $ref: '#/components/requestBodies/Unit' }, responses: { '201': { $ref: '#/components/responses/Unit' } } }
@@ -137,6 +160,9 @@ components:
     PublicPropertyLimit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
     PublicPropertySort: { name: sort, in: query, schema: { type: string, enum: [created_at_desc, name_asc, name_desc], default: created_at_desc } }
     PublicPropertyId: { name: propertyId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$' } }
+    PublicListingId: { name: listingId, in: path, required: true, schema: { type: string, format: uuid } }
+    LandlordOnboardingApplicationId: { name: applicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    OrganizationContext: { name: x-organization-id, in: header, required: true, description: Requested organization context; the authenticated subject must have an active effective membership, schema: { type: string, format: uuid } }
     IfMatch: { name: If-Match, in: header, schema: { type: string } }
     IdempotencyKey: { name: Idempotency-Key, in: header, schema: { type: string, maxLength: 128 } }
     OrganizationId: { name: organizationId, in: path, required: true, schema: { type: string } }
@@ -156,6 +182,8 @@ components:
     ViewingRequest: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ViewingRequestInput' } } } }
     LandlordRegistration: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LandlordRegistrationInput' } } } }
     OperatorRegistration: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OperatorRegistrationInput' } } } }
+    LandlordOnboardingApplication: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LandlordOnboardingApplicationInput' } } } }
+    LandlordOnboardingDecision: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LandlordOnboardingDecisionInput' } } } }
     Organization: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OrganizationInput' } } } }
     ManagerInvitation: { required: true, content: { application/json: { schema: { type: object, required: [email, organizationId], properties: { email: { type: string, format: email }, organizationId: { type: string } } } } } }
     Property: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PropertyInput' } } } }
@@ -180,6 +208,10 @@ components:
     Property: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     PublicProperty: { description: Published public-safe property, content: { application/json: { schema: { $ref: '#/components/schemas/PublicPropertyEnvelope' } } } }
     PublicPropertyList: { description: Published public-safe properties, content: { application/json: { schema: { $ref: '#/components/schemas/PublicPropertyListEnvelope' } } } }
+    PublicListingPublication: { description: Listing publication state changed, content: { application/json: { schema: { $ref: '#/components/schemas/PublicListingPublicationEnvelope' } } } }
+    LandlordOnboardingApplication: { description: Landlord onboarding application, content: { application/json: { schema: { $ref: '#/components/schemas/LandlordOnboardingApplicationEnvelope' } } } }
+    LandlordOnboardingApplicationList: { description: Landlord onboarding review queue, content: { application/json: { schema: { $ref: '#/components/schemas/LandlordOnboardingApplicationListEnvelope' } } } }
+    Problem: { description: Correlated error response, content: { application/json: { schema: { $ref: '#/components/schemas/Problem' } } } }
     Unit: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     Application: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     Lease: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
@@ -205,6 +237,12 @@ components:
     PublicPropertyProjection: { type: object, required: [id, name, address, city, district, summary, bedrooms, bathrooms, monthlyRentMinor, currency, availableFrom, amenities, imageUrls], properties: { id: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$' }, name: { type: string }, address: { type: string, description: Approved approximate location only }, city: { type: string }, district: { type: string }, summary: { type: string }, bedrooms: { type: integer, minimum: 0 }, bathrooms: { type: integer, minimum: 1 }, areaSquareMeters: { type: integer, minimum: 1 }, monthlyRentMinor: { type: string, pattern: '^[1-9][0-9]*$' }, currency: { type: string, pattern: '^[A-Z]{3}$' }, availableFrom: { type: string, format: date }, amenities: { type: array, items: { type: string } }, imageUrl: { type: string }, imageUrls: { type: array, minItems: 1, items: { type: string } } }, additionalProperties: false }
     PublicPropertyEnvelope: { type: object, required: [data, meta], properties: { data: { $ref: '#/components/schemas/PublicPropertyProjection' }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
     PublicPropertyListEnvelope: { type: object, required: [items, total, nextCursor, meta], properties: { items: { type: array, items: { $ref: '#/components/schemas/PublicPropertyProjection' } }, total: { type: integer, minimum: 0 }, nextCursor: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$', nullable: true }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
+    PublicListingPublicationEnvelope: { type: object, required: [data, meta], properties: { data: { type: object, required: [listingId, status], properties: { listingId: { type: string, format: uuid }, status: { type: string, enum: [published, withdrawn] } }, additionalProperties: false }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
+    LandlordOnboardingApplicationInput: { type: object, required: [applicantName, proposedOrganizationName], properties: { applicantName: { type: string, minLength: 2, maxLength: 120 }, proposedOrganizationName: { type: string, minLength: 2, maxLength: 160 } }, additionalProperties: false }
+    LandlordOnboardingDecisionInput: { type: object, required: [decision, reason], properties: { decision: { type: string, enum: [approved, rejected] }, reason: { type: string, minLength: 3, maxLength: 1000 } }, additionalProperties: false }
+    LandlordOnboardingApplication: { type: object, required: [id, applicantName, proposedOrganizationName, status, submittedAt, decidedAt, decisionReason], properties: { id: { type: string, format: uuid }, applicantName: { type: string }, proposedOrganizationName: { type: string }, status: { type: string, enum: [pending, approved, rejected] }, submittedAt: { type: string, format: date-time }, decidedAt: { type: [string, 'null'], format: date-time }, decisionReason: { type: [string, 'null'] } }, additionalProperties: false }
+    LandlordOnboardingApplicationEnvelope: { type: object, required: [data, meta], properties: { data: { $ref: '#/components/schemas/LandlordOnboardingApplication' }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
+    LandlordOnboardingApplicationListEnvelope: { type: object, required: [items, meta], properties: { items: { type: array, items: { $ref: '#/components/schemas/LandlordOnboardingApplication' } }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
     Envelope: { type: object, required: [data, auditEventId], properties: { data: { type: object, additionalProperties: true }, auditEventId: { type: string } } }
     ListEnvelope: { type: object, required: [items, total], properties: { items: { type: array, items: { type: object, additionalProperties: true } }, total: { type: integer }, nextCursor: { type: string, nullable: true } } }
     OrganizationInput: { type: object, required: [name, timezone], properties: { name: { type: string }, timezone: { type: string } } }

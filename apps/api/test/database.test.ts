@@ -1,7 +1,30 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Client } from "pg";
+import { Client, type Pool } from "pg";
 
-import { createDatabasePool } from "../src/database.js";
+import {
+  assertRuntimeDatabaseReady,
+  createDatabasePool,
+  createRuntimeDatabaseClient,
+} from "../src/database.js";
+
+describe("assertRuntimeDatabaseReady", () => {
+  it("accepts only the current runtime schema marker", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ ready: true }] });
+
+    await expect(assertRuntimeDatabaseReady({ query })).resolves.toBeUndefined();
+    expect(query).toHaveBeenCalledWith(
+      "select app.runtime_schema_v0020_ready() as ready",
+    );
+  });
+
+  it("rejects a missing runtime schema marker", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+
+    await expect(assertRuntimeDatabaseReady({ query })).rejects.toThrow(
+      "The runtime database schema is not ready.",
+    );
+  });
+});
 
 describe("createDatabasePool", () => {
   afterEach(() => {
@@ -57,5 +80,61 @@ describe("createDatabasePool", () => {
     );
 
     await pool.end();
+  });
+});
+
+describe("createRuntimeDatabaseClient", () => {
+  it("runs a callback in one runtime-role transaction", async () => {
+    const statements: string[] = [];
+    const connection = {
+      query: vi.fn(async (text: string) => {
+        statements.push(text);
+        return { rows: text === "select protected_operation()" ? [{ ok: true }] : [] };
+      }),
+      release: vi.fn(),
+    };
+    const pool = {
+      connect: vi.fn(async () => connection),
+    } as unknown as Pool;
+    const client = createRuntimeDatabaseClient(pool);
+
+    await expect(client.transaction(async (session) => {
+      const result = await session.query("select protected_operation()");
+      return result.rows[0];
+    })).resolves.toEqual({ ok: true });
+
+    expect(statements).toEqual([
+      "begin",
+      "set local role keyforta_runtime",
+      "select protected_operation()",
+      "commit",
+    ]);
+    expect(connection.release).toHaveBeenCalledOnce();
+  });
+
+  it("rolls back and releases the connection when a callback fails", async () => {
+    const statements: string[] = [];
+    const connection = {
+      query: vi.fn(async (text: string) => {
+        statements.push(text);
+        return { rows: [] };
+      }),
+      release: vi.fn(),
+    };
+    const pool = {
+      connect: vi.fn(async () => connection),
+    } as unknown as Pool;
+    const client = createRuntimeDatabaseClient(pool);
+
+    await expect(client.transaction(async () => {
+      throw new Error("synthetic command failure");
+    })).rejects.toThrow("synthetic command failure");
+
+    expect(statements).toEqual([
+      "begin",
+      "set local role keyforta_runtime",
+      "rollback",
+    ]);
+    expect(connection.release).toHaveBeenCalledOnce();
   });
 });

@@ -1,19 +1,26 @@
-import { buildApp } from "./app.js";
+import { buildApp, parseCorsOrigins } from "./app.js";
 import {
+  createEntraPrincipalAuthenticator,
+  parsePlatformAdminObjectIds,
+} from "./authentication.js";
+import {
+  assertRuntimeDatabaseReady,
   createDatabasePool,
   createRuntimeDatabaseClient,
 } from "./database.js";
+import { createPostgresLandlordOnboardingGateway } from "./onboarding/gateway.js";
 import { developmentPublicProperties } from "./properties/development-data.js";
 import { createMemoryPublicPropertyGateway } from "./properties/gateway.js";
 import { createPostgresPublicPropertyGateway } from "./properties/postgres-gateway.js";
+import { createPostgresPublicListingPublicationGateway } from "./properties/publication-gateway.js";
 import {
   createMemoryPublicViewingRequestGateway,
   createPostgresPublicViewingRequestGateway,
 } from "./properties/viewing-gateway.js";
 
 const isProduction = process.env.NODE_ENV === "production";
-const corsAllowedOrigin = process.env.CORS_ALLOWED_ORIGIN;
-if (isProduction && !corsAllowedOrigin) {
+const corsAllowedOrigins = parseCorsOrigins(process.env.CORS_ALLOWED_ORIGIN);
+if (isProduction && corsAllowedOrigins.length === 0) {
   throw new Error("CORS_ALLOWED_ORIGIN is required in production.");
 }
 const databasePool = isProduction ? createDatabasePool() : undefined;
@@ -32,16 +39,52 @@ const publicViewingRequests = databaseClient
           .map((property) => property.id),
       ),
     );
+const entraConfiguration = {
+  audience: process.env.ENTRA_AUDIENCE,
+  issuer: process.env.ENTRA_ISSUER,
+  jwksUri: process.env.ENTRA_JWKS_URI,
+};
+if (
+  isProduction &&
+  (!entraConfiguration.audience ||
+    !entraConfiguration.issuer ||
+    !entraConfiguration.jwksUri)
+) {
+  throw new Error("ENTRA_AUDIENCE, ENTRA_ISSUER, and ENTRA_JWKS_URI are required in production.");
+}
+const authenticator =
+  entraConfiguration.audience &&
+  entraConfiguration.issuer &&
+  entraConfiguration.jwksUri
+    ? createEntraPrincipalAuthenticator({
+        audience: entraConfiguration.audience,
+        issuer: entraConfiguration.issuer,
+        jwksUri: entraConfiguration.jwksUri,
+      })
+    : undefined;
+const publicListingPublication = databaseClient
+  ? createPostgresPublicListingPublicationGateway(databaseClient)
+  : undefined;
+const landlordOnboarding = databaseClient
+  ? createPostgresLandlordOnboardingGateway(databaseClient)
+  : undefined;
+const platformAdminObjectIds = parsePlatformAdminObjectIds(
+  process.env.PLATFORM_ADMIN_OBJECT_IDS,
+);
 const port = Number(process.env.API_PORT ?? "3000");
 const host = process.env.API_HOST ?? "127.0.0.1";
 
 try {
   const app = await buildApp({
-    ...(corsAllowedOrigin ? { corsOrigin: corsAllowedOrigin } : {}),
+    ...(authenticator ? { authenticator } : {}),
+    ...(corsAllowedOrigins.length > 0 ? { corsOrigin: corsAllowedOrigins } : {}),
+    ...(landlordOnboarding ? { landlordOnboarding } : {}),
+    ...(publicListingPublication ? { publicListingPublication } : {}),
+    platformAdminObjectIds,
     publicProperties,
     publicViewingRequests,
     readiness: async () => {
-      await databaseClient?.query("select 1");
+      if (databaseClient) await assertRuntimeDatabaseReady(databaseClient);
     },
   });
 

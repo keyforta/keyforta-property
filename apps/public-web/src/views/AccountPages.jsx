@@ -1,10 +1,14 @@
 import './AccountPages.styles.css';
 import { Button, Field, Input, Textarea } from '@fluentui/react-components';
 import { ArrowRight20Regular } from '@fluentui/react-icons';
-import { useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { StatusMessage } from '../components/StatusMessage.jsx';
+import {
+  landlordOnboardingAuth,
+  submitLandlordOnboardingApplication,
+} from '../services/landlord-onboarding.js';
 
 export function SignInPage({ lang }) {
   const navigate = useNavigate();
@@ -118,6 +122,8 @@ export function SignupPage({ lang, role, onSubmit }) {
   const operator = role === 'operator';
   const [status, setStatus] = useState('');
 
+  if (!operator) return <LandlordSignupPage />;
+
   return (
     <section className="page content-page shell auth-page">
       <div className="workspace-login-card signup-card">
@@ -138,17 +144,92 @@ export function SignupPage({ lang, role, onSubmit }) {
           <Field label={t('full_name')}><Input name="name" required /></Field>
           <Field label={t('email')}><Input name="email" type="email" required /></Field>
           <Field label={t('property_pages.phone')}><Input name="phone" type="tel" required /></Field>
-          {operator ? (
-            <>
-              <Field label={t('account.signup.services_offered')}><Input name="services" placeholder={t('account.signup.services_placeholder')} required /></Field>
-              <Field label={t('account.signup.service_coverage')}><Input name="coverage" defaultValue={t('account.signup.coverage_default')} required /></Field>
-            </>
-          ) : (
-            <Field label={t('account.signup.company_name')}><Input name="organization" required /></Field>
-          )}
+          <Field label={t('account.signup.services_offered')}><Input name="services" placeholder={t('account.signup.services_placeholder')} required /></Field>
+          <Field label={t('account.signup.service_coverage')}><Input name="coverage" defaultValue={t('account.signup.coverage_default')} required /></Field>
           <Button className="button copper" type="submit">{t('account.signup.create')}</Button>
           <StatusMessage className="form-status show" intent="success" message={status} />
         </form>
+        <Link className="login-switch" to="/signin">{t('account.signup.back')}</Link>
+      </div>
+    </section>
+  );
+}
+
+function LandlordSignupPage() {
+  const { t } = useTranslation();
+  const auth = useSyncExternalStore(
+    landlordOnboardingAuth.subscribe,
+    landlordOnboardingAuth.getSnapshot,
+    landlordOnboardingAuth.getSnapshot,
+  );
+  const [submission, setSubmission] = useState({ status: 'idle', message: '' });
+
+  useEffect(() => {
+    landlordOnboardingAuth.initialize();
+  }, []);
+
+  async function submit(event) {
+    event.preventDefault();
+      const form = event.currentTarget;
+    setSubmission({ status: 'submitting', message: '' });
+    try {
+        const values = Object.fromEntries(new FormData(form));
+      await submitLandlordOnboardingApplication({
+        applicantName: values.applicantName,
+        proposedOrganizationName: values.proposedOrganizationName,
+      });
+      setSubmission({ status: 'success', message: t('account.signup.landlord_success') });
+        form.reset();
+    } catch (error) {
+      const message = error?.code === 'PENDING_APPLICATION_EXISTS'
+        ? t('account.signup.landlord_duplicate')
+        : t('account.signup.landlord_error');
+      setSubmission({ status: 'error', message });
+    }
+  }
+
+  return (
+    <section className="page content-page shell auth-page">
+      <div className="workspace-login-card signup-card">
+        <p className="eyebrow">{t('account.signup.landlord_eyebrow')}</p>
+        <h1>{t('account.signup.landlord_title')}</h1>
+        <p className="muted">{t('account.signup.landlord_intro')}</p>
+
+        {auth.status === 'loading' && <StatusMessage message={t('account.signup.auth_loading')} />}
+        {auth.status === 'unavailable' && <StatusMessage intent="warning" message={t('account.signup.auth_unavailable')} />}
+        {auth.status === 'error' && <StatusMessage intent="error" message={t('account.signup.auth_error')} />}
+        {auth.status === 'signed-out' && (
+          <Button className="button copper" type="button" onClick={() => landlordOnboardingAuth.signIn()}>
+            {t('account.signup.sign_in')}
+          </Button>
+        )}
+        {auth.status === 'authenticating' && <StatusMessage message={t('account.signup.auth_redirecting')} />}
+        {auth.status === 'signed-in' && (
+          <>
+            <div className="signed-in-row">
+              <span>{t('account.signup.signed_in_as', { name: auth.account.name || auth.account.username })}</span>
+              <Button appearance="subtle" type="button" onClick={() => landlordOnboardingAuth.signOut()}>
+                {t('account.signup.sign_out')}
+              </Button>
+            </div>
+            <form className="form-grid" id="landlord-onboarding-form" onSubmit={submit}>
+              <Field label={t('full_name')}>
+                <Input name="applicantName" maxLength={120} minLength={2} autoComplete="name" required />
+              </Field>
+              <Field label={t('account.signup.company_name')}>
+                <Input name="proposedOrganizationName" maxLength={160} minLength={2} required />
+              </Field>
+              <Button className="button copper" type="submit" disabled={submission.status === 'submitting'}>
+                {submission.status === 'submitting' ? t('account.signup.submitting') : t('account.signup.create')}
+              </Button>
+              <StatusMessage
+                className="form-status show"
+                intent={submission.status === 'error' ? 'error' : 'success'}
+                message={submission.message}
+              />
+            </form>
+          </>
+        )}
         <Link className="login-switch" to="/signin">{t('account.signup.back')}</Link>
       </div>
     </section>

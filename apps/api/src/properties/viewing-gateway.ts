@@ -1,6 +1,6 @@
 import type { PublicViewingRequestInput } from "@keyforta/contracts";
 
-import type { DatabaseClient } from "../database.js";
+import type { DatabaseSession } from "../database.js";
 
 export interface PublicViewingRequestCommand extends PublicViewingRequestInput {
   correlationId: string;
@@ -21,7 +21,7 @@ export function createMemoryPublicViewingRequestGateway(
 }
 
 export function createPostgresPublicViewingRequestGateway(
-  client: DatabaseClient,
+  client: DatabaseSession,
 ): PublicViewingRequestGateway {
   return {
     async create(command) {

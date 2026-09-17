@@ -564,6 +564,21 @@ test("application Bicep uses managed certificates for both public web domains", 
   assert.match(template, /var webPublicBaseUrl = 'https:\/\/\$\{webCanonicalHostName\}'/);
 });
 
+test("admin deployment remains secretless and independently authorized", () => {
+  const template = readFileSync("infra/bicep/apps.bicep", "utf8");
+  const dockerfile = readFileSync(
+    "deployments/azure/docker/admin-web.Dockerfile",
+    "utf8",
+  );
+  assert.match(template, /resource admin 'Microsoft\.App\/containerApps/);
+  assert.match(template, /name: 'PLATFORM_ADMIN_OBJECT_IDS', value: platformAdminObjectIds/);
+  assert.match(template, /\$\{webPublicBaseUrl\},\$\{adminPublicBaseUrl\}/);
+  assert.match(template, /output adminFqdn string/);
+  assert.match(dockerfile, /USER nginx/);
+  assert.match(dockerfile, /ARG VITE_ENTRA_CLIENT_ID/);
+  assert.doesNotMatch(dockerfile, /CLIENT_SECRET|PASSWORD|TOKEN=/i);
+});
+
 function workflowScript(name) {
   const workflow = workflows[name];
   const document = YAML.parse(readFileSync(workflow.file, "utf8"));
@@ -571,7 +586,9 @@ function workflowScript(name) {
     (candidate) => candidate.name === workflow.step,
   );
   assert.ok(step?.run, `Missing run block for ${workflow.step}`);
-  return step.run.replaceAll("${{ github.sha }}", "test-sha");
+  return step.run
+    .replaceAll("${{ github.sha }}", "test-sha")
+    .replaceAll(/\$\{\{ vars\.[A-Z0-9_]+ \}\}/g, "synthetic-value");
 }
 
 function executable(directory, name, source) {
@@ -603,15 +620,15 @@ fi
 component=unknown
 for argument in "$@"; do
   case "$argument" in
-    deployments/azure/docker/api.Dockerfile) component=api ;;
-    deployments/azure/docker/public-web.Dockerfile) component=web ;;
+    *deployments/azure/docker/api.Dockerfile*) component=api ;;
+    *deployments/azure/docker/public-web.Dockerfile*) component=web ;;
+    *deployments/azure/docker/admin-web.Dockerfile*) component=admin ;;
   esac
 done
+if [ "$component" = unknown ]; then exit 19; fi
 touch "$TEST_STATE/$component.started"
-other=api
-if [ "$component" = api ]; then other=web; fi
 if [ "$DEPLOYMENT_SCOPE" = full ]; then
-  while [ ! -f "$TEST_STATE/$other.started" ]; do
+  while [ "$(find "$TEST_STATE" -name '*.started' | wc -l | tr -d ' ')" -lt 3 ]; do
     sleep 0.01
   done
 fi
@@ -634,6 +651,7 @@ exit "$result"
         timeout: 5000,
         env: {
           ...process.env,
+          API_PUBLIC_BASE_URL: "https://api.example.test/api/v1",
           DEPLOYMENT_SHA: "test-sha",
           DEPLOYMENT_SCOPE: scope,
           EVENTS_FILE: events,
@@ -662,9 +680,10 @@ for (const workflow of Object.keys(workflows)) {
     assert.equal(result.status, 0);
     assert.ok(result.events.includes("build:api"));
     assert.ok(result.events.includes("build:web"));
+    assert.ok(result.events.includes("build:admin"));
   });
 
-  for (const failures of ["api", "web", "api,web"]) {
+  for (const failures of ["api", "web", "admin", "api,web,admin"]) {
     test(`${workflow} blocks after ${failures} build failure`, () => {
       const result = runScenario(workflow, failures);
       assert.notEqual(result.status, 0);
@@ -674,8 +693,11 @@ for (const workflow of Object.keys(workflows)) {
       assert.ok(
         result.events.some((event) => event.startsWith("complete:web:")),
       );
+      assert.ok(
+        result.events.some((event) => event.startsWith("complete:admin:")),
+      );
       for (const component of failures.split(",")) {
-        const title = component === "api" ? "API" : "Web";
+        const title = component === "api" ? "API" : component === "web" ? "Web" : "Admin";
         assert.match(
           `${result.stdout}\n${result.stderr}`,
           new RegExp(`${title} container build failed`),
@@ -688,7 +710,7 @@ for (const workflow of Object.keys(workflows)) {
   }
 }
 
-test("deploy publishes both images only after successful builds", () => {
+test("deploy publishes all images only after successful builds", () => {
   const result = runScenario("deploy");
   const firstPush = result.events.findIndex((event) =>
     event.startsWith("push:"),
@@ -696,9 +718,10 @@ test("deploy publishes both images only after successful builds", () => {
   assert.equal(result.status, 0);
   assert.ok(firstPush > result.events.indexOf("build:api"));
   assert.ok(firstPush > result.events.indexOf("build:web"));
+  assert.ok(firstPush > result.events.indexOf("build:admin"));
   assert.equal(
     result.events.filter((event) => event.startsWith("push:")).length,
-    2,
+    3,
   );
 });
 
@@ -706,6 +729,7 @@ for (const [scope, expectedComponent] of [
   ["api", "api"],
   ["postgres", "api"],
   ["public-web", "web"],
+  ["admin-web", "admin"],
 ]) {
   test(`deploy ${scope} scope publishes only its required image`, () => {
     const result = runScenario("deploy", "", scope);
@@ -720,7 +744,7 @@ for (const [scope, expectedComponent] of [
     );
     assert.match(
       result.events.find((event) => event.startsWith("push:")) ?? "",
-      new RegExp(`keyforta-${expectedComponent === "web" ? "public-web" : "api"}:`),
+      new RegExp(`keyforta-${expectedComponent === "web" ? "public-web" : expectedComponent === "admin" ? "admin-web" : "api"}:`),
     );
   });
 }
@@ -740,6 +764,23 @@ test("deploy exposes exact component scopes and binds deploys to plan scope", ()
   const step = (name) => steps.find((candidate) => candidate.name === name);
 
   assert.equal(step("Verify deployment scope capability")?.if, undefined);
+  assert.match(step("Verify admin API dependency")?.if ?? "", /admin-web/);
+  assert.match(
+    step("Verify admin API dependency")?.run ?? "",
+    /access-control-allow-origin: \$\{ADMIN_PUBLIC_BASE_URL\}/,
+  );
+  assert.match(
+    step("Verify admin API dependency")?.run ?? "",
+    /Deploy the API or use full scope before admin-web/,
+  );
+  assert.ok(
+    steps.indexOf(step("Verify admin API dependency")) <
+      steps.indexOf(step("Build and push immutable images")),
+  );
+  assert.ok(
+    steps.indexOf(step("Verify admin API dependency")) <
+      steps.indexOf(step("Deploy applications")),
+  );
   assert.match(step("Verify deployment intent")?.run ?? "", /expected_scope="\$DEPLOYMENT_SCOPE"/);
   assert.match(step("Verify deployment intent")?.run ?? "", /grep -Fx "scope=\$expected_scope"/);
   for (const name of [
@@ -752,4 +793,18 @@ test("deploy exposes exact component scopes and binds deploys to plan scope", ()
   assert.match(step("Deploy migration job")?.if ?? "", /DEPLOYMENT_SCOPE == 'postgres'/);
   assert.doesNotMatch(step("Deploy migration job")?.if ?? "", /DEPLOYMENT_SCOPE == 'api'/);
   assert.match(step("Deploy applications")?.if ?? "", /DEPLOYMENT_SCOPE != 'postgres'/);
+  for (const name of [
+    "Preview public-web hostname bootstrap",
+    "Preview application changes",
+    "Bootstrap public-web hostnames",
+    "Deploy applications",
+  ]) {
+    const script = step(name)?.with?.inlineScript ?? "";
+    assert.match(script, /platformAdminObjectIds="\$PLATFORM_ADMIN_OBJECT_IDS"/);
+    assert.match(script, /adminImage="\$REGISTRY_SERVER\/keyforta-admin-web:\$DEPLOYMENT_SHA"/);
+  }
+  const publish = step("Build and push immutable images")?.run ?? "";
+  assert.match(publish, /NEXT_PUBLIC_ENTRA_CLIENT_ID/);
+  assert.match(publish, /VITE_ENTRA_CLIENT_ID/);
+  assert.match(publish, /keyforta-admin-web:\$DEPLOYMENT_SHA/);
 });

@@ -88,7 +88,7 @@ The backend should use these module names and ownership boundaries. Names may be
 | --- | --- | --- |
 | `identity-organization` | External identity link, party, profile, organization, membership, invitation, role assignment | Property ownership, lease rights, or job assignment |
 | `party-relationship` | Effective-dated relationships and relationship-based eligibility | Authentication or arbitrary role grants |
-| `property-inventory` | Property, building/space, unit, availability, pricing versions, publication | Lease terms or payment balances |
+| `property-inventory` | Property, unit, availability, pricing versions, publication | Lease terms or payment balances |
 | `leasing-occupancy` | Viewing request, rental application, offer, lease, occupancy period, renewal, move-out | Ledger postings or payment-provider state |
 | `billing-ledger` | Charge schedules, charges, ledger accounts, posted entries, reversals, adjustments | Provider settlement status |
 | `payments-reconciliation` | Payment intent, received payment, allocation, refund, provider callback, reconciliation exception | Authoritative charge or ledger mutation outside its commands |
@@ -123,13 +123,13 @@ An aggregate is the transactional consistency boundary. A command is the only su
 
 - **Owns:** property identity, address, time zone, organization scope, verification and publication state.
 - **Commands:** `CreateProperty`, `UpdateProperty`, `SubmitPropertyForVerification`, `PublishProperty`, `UnpublishProperty`, `ArchiveProperty`, `AssignManager`.
-- **Rules:** a property belongs to one organization; publication requires ownership/management authority and required data; manager delegation is effective-dated; archived properties cannot accept new applications.
+- **Rules:** a property belongs to one organization and contains units; publication requires required data; each property has at most one active assigned listing manager; only an active landlord may assign themselves or another eligible same-organization member; assignment is effective-dated and audited; archived properties cannot accept new applications.
 
 #### `Unit`
 
 - **Owns:** unit identity, property relationship, physical facts, availability, and effective-dated pricing.
 - **Commands:** `CreateUnit`, `UpdateUnit`, `SetUnitPricing`, `PublishUnit`, `PauseUnit`, `MarkUnitOccupied`, `MarkUnitVacant`.
-- **Rules:** label is unique within a property; occupied units cannot be published as available; pricing history is retained; signed lease terms are not rewritten by later pricing changes.
+- **Rules:** label is unique within a property; only the property's active assigned manager may create, update, publish, pause, or withdraw its unit listings; ownership alone grants no listing authority; occupied units cannot be published as available; pricing history is retained; signed lease terms are not rewritten by later pricing changes.
 
 ### 4.3 Leasing and occupancy
 
@@ -279,7 +279,7 @@ One command transaction must include the aggregate mutation, audit event, and ou
 
 ```text
 organizations, external_identities, parties, profiles, memberships, invitations,
-relationships, properties, buildings, units, unit_pricing_versions,
+relationships, properties, units, unit_pricing_versions,
 viewing_requests, rental_applications, rental_application_versions,
 leases, lease_term_versions, occupancy_periods,
 charge_schedules, charges, ledger_accounts, ledger_entries,
