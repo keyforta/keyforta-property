@@ -88,6 +88,12 @@ test("DAST scans only a synthetic loopback API and always cleans up", () => {
   assert.doesNotMatch(scripts, /https:\/\/api\.keyforta\.com/);
   assert.ok(job.steps.some((step) => step.name === "Stop synthetic API" && step.if === "always()"));
   assert.match(scripts, /setsid env API_HOST=/);
+  assert.match(scripts, /NODE_ENV=production/);
+  assert.match(scripts, /CORS_ALLOWED_ORIGIN=/);
+  assert.match(scripts, /ENTRA_AUDIENCE=/);
+  assert.match(scripts, /ENTRA_ISSUER=/);
+  assert.match(scripts, /ENTRA_JWKS_URI=/);
+  assert.match(scripts, /grep -F '"status":"ready"'/);
   assert.match(scripts, /node apps\/api\/dist\/migrate\.js/);
   assert.match(scripts, /mkdir --mode=0777 zap-reports/);
   assert.match(scripts, /kill -- "-\$\(cat synthetic-api\.pid\)"/);

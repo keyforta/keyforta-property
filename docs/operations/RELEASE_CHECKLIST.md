@@ -37,7 +37,9 @@ or tenant data in the record.
   projection boundaries for every changed data path.
 - Run `pnpm verify`; CI must also pass with PostgreSQL integration tests enabled.
 - Review dependency audit, Semgrep, TruffleHog, Trivy filesystem, Checkov Bicep,
-  and loopback-only ZAP results. Scanner failures block promotion.
+  and loopback-only ZAP results. ZAP runs the production persistence path against
+  a migrated synthetic PostgreSQL database and requires database readiness.
+  Scanner failures block promotion.
 - Review migration compatibility. Migrations are forward-only and must tolerate
   being re-run through the migration runner.
 - Identify the previous validated deployment SHA and the signals that would

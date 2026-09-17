@@ -71,12 +71,17 @@ jobs:
 
       - name: Start synthetic API
         run: |
-          setsid env API_HOST=127.0.0.1 API_PORT=3000 NODE_ENV=development \
+          setsid env API_HOST=127.0.0.1 API_PORT=3000 NODE_ENV=production \
+            CORS_ALLOWED_ORIGIN=http://127.0.0.1:3000 \
             DATABASE_URL="$DATABASE_URL" \
+            ENTRA_AUDIENCE=00000000-0000-4000-8000-000000000000 \
+            ENTRA_ISSUER=https://synthetic-dast.invalid/ \
+            ENTRA_JWKS_URI=https://synthetic-dast.invalid/jwks.json \
             pnpm --filter @keyforta/api start > synthetic-api.log 2>&1 &
           echo "$!" > synthetic-api.pid
           for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3000/ready >/dev/null; then
+            if curl --fail --silent http://127.0.0.1:3000/ready \
+              | grep -F '"status":"ready"' >/dev/null; then
               exit 0
             fi
             sleep 1
