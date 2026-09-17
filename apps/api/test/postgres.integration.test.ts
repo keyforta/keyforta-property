@@ -7,10 +7,12 @@ const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 const describePostgres = testDatabaseUrl ? describe : describe.skip;
 
 describePostgres("PostgreSQL public discovery integration", () => {
-  const pool = new Pool({ connectionString: testDatabaseUrl });
-  const runtimeDatabaseUrl = testDatabaseUrl
-    ? new URL(testDatabaseUrl)
-    : undefined;
+  const adminPool = new Pool({ connectionString: testDatabaseUrl });
+  const databaseName = `keyforta_public_discovery_${process.pid}`;
+  const databaseUrl = testDatabaseUrl ? new URL(testDatabaseUrl) : undefined;
+  if (databaseUrl) databaseUrl.pathname = `/${databaseName}`;
+  const pool = new Pool({ connectionString: databaseUrl?.toString() });
+  const runtimeDatabaseUrl = databaseUrl ? new URL(databaseUrl) : undefined;
   if (runtimeDatabaseUrl) {
     runtimeDatabaseUrl.username = "keyforta_test_runtime";
     runtimeDatabaseUrl.password = "synthetic-test-runtime-password";
@@ -22,6 +24,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
   let runtimeClient: PoolClient;
 
   beforeAll(async () => {
+    await adminPool.query(`create database ${databaseName}`);
     client = await pool.connect();
     await applyMigrations(client);
     await client.query(`
@@ -35,52 +38,6 @@ describePostgres("PostgreSQL public discovery integration", () => {
       $$;
       alter role keyforta_test_runtime login password 'synthetic-test-runtime-password' noinherit;
       grant keyforta_runtime to keyforta_test_runtime;
-
-      delete from app.public_listing_publication_events
-      where organization_id in (
-        '00000000-0000-4000-8000-000000000900',
-        '00000000-0000-4000-8000-000000000901'
-      );
-      delete from app.manager_property_assignment_events
-      where organization_id in (
-        '00000000-0000-4000-8000-000000000900',
-        '00000000-0000-4000-8000-000000000901'
-      );
-      delete from app.public_listing_inquiries
-      where organization_id in (
-        '00000000-0000-4000-8000-000000000900',
-        '00000000-0000-4000-8000-000000000901'
-      );
-      delete from app.public_listings
-      where organization_id in (
-        '00000000-0000-4000-8000-000000000900',
-        '00000000-0000-4000-8000-000000000901'
-      );
-      delete from app.units
-      where organization_id in (
-        '00000000-0000-4000-8000-000000000900',
-        '00000000-0000-4000-8000-000000000901'
-      );
-      delete from app.manager_property_assignments
-      where organization_id in (
-        '00000000-0000-4000-8000-000000000900',
-        '00000000-0000-4000-8000-000000000901'
-      );
-      delete from app.properties
-      where organization_id in (
-        '00000000-0000-4000-8000-000000000900',
-        '00000000-0000-4000-8000-000000000901'
-      );
-      delete from app.memberships
-      where organization_id in (
-        '00000000-0000-4000-8000-000000000900',
-        '00000000-0000-4000-8000-000000000901'
-      );
-      delete from app.organizations
-      where id in (
-        '00000000-0000-4000-8000-000000000900',
-        '00000000-0000-4000-8000-000000000901'
-      );
 
       insert into app.organizations (id, name) values
         ('00000000-0000-4000-8000-000000000900', 'Synthetic organization A'),
@@ -130,6 +87,12 @@ describePostgres("PostgreSQL public discovery integration", () => {
     client?.release();
     await runtimePool.end();
     await pool.end();
+    await adminPool.query(
+      "select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()",
+      [databaseName],
+    );
+    await adminPool.query(`drop database if exists ${databaseName}`);
+    await adminPool.end();
   });
 
   it("applies every migration and reruns without changing the ledger", async () => {
