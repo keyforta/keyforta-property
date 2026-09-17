@@ -35,7 +35,30 @@
 | LEG-019 | AI assistance | AI is advisory/read-only unless an authorized human executes a normal command; source records, model, policy, and human action are recorded. | Approved implementation policy | Security/product owner |
 | LEG-020 | Children and vulnerable persons | Do not intentionally collect child data in the MVP; route any exceptional case to a documented privacy/legal review. | Approved implementation policy | Product/privacy owner |
 
-## 3. Required policy configuration
+## 3. Commercial blocker approval records
+
+[Issue #48](https://github.com/keyforta/keyforta-property/issues/48) tracks
+collection of the approval records below; it is not approval evidence. The
+repository does not currently identify the individual approvers or contain the
+required dated evidence. The role descriptions below identify who must be
+assigned, not who has approved a decision.
+
+| ID | Required approving owner(s) | Evidence reference | Decision date | Status |
+| --- | --- | --- | --- | --- |
+| LEG-003 | Named qualified DRC counsel; named product and finance owners must also accept the commercial rule | Not provided | Not recorded | Legal blocker for commercial launch |
+| LEG-005 | Named qualified DRC counsel; named product owner must also accept the commercial rule | Not provided | Not recorded | Legal blocker for commercial launch |
+| LEG-008 | Named qualified DRC counsel; named product and security owners must also accept the signing and evidence controls | Not provided | Not recorded | Legal blocker for commercial launch |
+| LEG-009 | Named privacy owner and named qualified DRC counsel; named product and security owners must also accept the operational controls | Not provided | Not recorded | Legal blocker for commercial launch |
+| LEG-011 | Named privacy owner and named qualified DRC counsel; named product and security owners must also accept the operational controls | Not provided | Not recorded | Legal blocker for commercial launch |
+| LEG-013 | Named security and privacy owners and named qualified DRC counsel; named product owner must also accept the hosting boundary | Not provided | Not recorded | Legal blocker for production data |
+| LEG-015 | Named finance owner and named qualified DRC counsel; named product and security owners and the selected provider must also accept their responsibilities | Not provided | Not recorded | Legal blocker for commercial payments |
+
+No row may move out of a blocking status until its evidence reference identifies
+the approved artifact and records every named human approver and decision date.
+Product approval of a synthetic hypothesis does not satisfy qualified-counsel or
+functional-owner approval.
+
+## 4. Required policy configuration
 
 The backend must model these as versioned policy records rather than constants:
 
@@ -57,7 +80,7 @@ ai_use_policy
 
 Each policy has `policyKey`, `jurisdictionCode`, `version`, `status`, `effectiveFrom`, `effectiveTo`, `approvedBy`, `approvedAt`, `sourceReference`, and a structured rule payload. A policy cannot become active without an owner decision and required legal approval flag.
 
-## 4. Minimum privacy inventory
+## 5. Minimum privacy inventory
 
 | Data class | Examples | Default access |
 | --- | --- | --- |
@@ -71,7 +94,7 @@ Each policy has `policyKey`, `jurisdictionCode`, `version`, `status`, `effective
 | Audit/support | Actor, target, reason, before/after metadata | Security/platform and approved support scope |
 | AI metadata | Sources, model, policy, output, human action | Authorized users; no hidden expansion |
 
-## 5. Legal release gate
+## 6. Legal release gate
 
 The backend may be implemented before all legal decisions are final. Production commercial launch may not enable lease execution, screening, regulated payment automation, or jurisdiction-specific notices until the relevant `Legal blocker` records have signed approval evidence. The software must fail closed or route to manual review when the required policy version is absent.
 

@@ -64,6 +64,25 @@ A qualified DRC reviewer must confirm the terminology, refundability, lawful
 deductions, required notices, receipt content, and contract language. Until
 then, the approved rules are product hypotheses used only with synthetic data.
 
+### Commercial activation status
+
+[Issue #48](https://github.com/keyforta/keyforta-property/issues/48) tracks the
+missing commercial approval package; the issue itself is not approval evidence.
+The legal decision register records no named qualified counsel, privacy,
+finance, or security approver, no approval artifact, and no decision date for
+the commercial blockers. The product decision recorded above does not replace
+those approvals.
+
+Until the register contains the required dated evidence:
+
+- the guarantee and advance-rent rules remain synthetic hypotheses;
+- lease execution, signature reliance, termination, renewal, and
+  jurisdiction-specific notices remain disabled or manual;
+- collection-method and payment-provider automation remain unapproved;
+- real tenant data must not be collected or hosted; and
+- retention timing, irreversible deletion, and data-subject-request handling
+  must not be promised as approved policy.
+
 ## Synthetic examples and scenarios
 
 ### Pilot Scenarios
