@@ -14,7 +14,7 @@
     "dev:all": "pnpm --parallel --filter './apps/*-web' dev",
     "check:apps": "pnpm --recursive run check",
     "check:architecture": "node scripts/verify/architecture-boundaries.mjs",
-    "check:diagrams": "node scripts/verify/mermaid-diagrams.mjs docs",
+    "check:diagrams": "node scripts/verify/mermaid-diagrams.mjs docs infra/README.md",
     "check:secrets": "node scripts/verify/secret-scan.mjs",
     "build:apps": "pnpm --recursive run build",
     "test": "turbo run test",

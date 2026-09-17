@@ -74,3 +74,29 @@ Each policy has `policyKey`, `jurisdictionCode`, `version`, `status`, `effective
 ## 5. Legal release gate
 
 The backend may be implemented before all legal decisions are final. Production commercial launch may not enable lease execution, screening, regulated payment automation, or jurisdiction-specific notices until the relevant `Legal blocker` records have signed approval evidence. The software must fail closed or route to manual review when the required policy version is absent.
+
+## Appendix A. Engineering privacy baseline
+
+This appendix provides supporting engineering guidance. Approved legal
+decisions and the register entries above control if this baseline differs from
+them. Record-specific retention timing remains unresolved under `LEG-011`; do
+not promise deletion timing until the product, privacy, and legal owners approve
+the retention schedule.
+
+Data minimization, purpose limitation, organization isolation, and human review
+apply to identity, tenancy, property, contractual, financial, communication,
+document, audit, and future model data. Use synthetic fixtures and never copy real
+records, documents, payment details, or transcripts into source, issues, prompts,
+or test evidence.
+
+Collect only fields required by approved contracts. Restrict access by role,
+organization, assignment, and resource. Keep evidence private and scan-gated;
+keep access and decision evidence correlated. Exports and deletion requests must
+be authenticated, authorized, auditable, and account for immutable financial/legal
+records and backups. Do not promise deletion timing until the product, privacy,
+and legal owners approve the record-specific retention schedule recorded as a gap.
+
+Privacy review is required for new fields, telemetry, providers, regions, model
+usage, exports, retention changes, or broader support access. Threat-model the data
+flow, identify controller/processor ownership, document retention and recovery,
+and test denial and cross-organization isolation before release.
