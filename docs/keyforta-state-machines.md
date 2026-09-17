@@ -2,6 +2,10 @@
 
 **Status:** Normative lifecycle contract v1.0
 
+The diagrams in this document visualize this normative contract. They do not
+assert a direct mapping to the target SQL verification enum; the unresolved
+verification vocabulary mismatch is recorded in the requirements-gap report.
+
 ## 1. Transition format
 
 Each transition has a command, authorized actor, guard, side effects, emitted event, and audit record. Invalid transitions return `STATE_CONFLICT`. The backend must not expose a generic status update.

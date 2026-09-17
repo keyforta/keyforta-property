@@ -11,4 +11,5 @@ allowBuilds:
 overrides:
   '@fluentui/react-tabster': 9.26.14
   keyborg: 2.6.0
+  lodash-es: 4.18.1
   tabster: 8.5.5

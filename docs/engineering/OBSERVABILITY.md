@@ -14,6 +14,48 @@ backup-age monitoring, and an exercised on-call escalation path are not yet
 implemented. Do not interpret log availability as an SLO or incident-response
 guarantee.
 
+```mermaid
+flowchart LR
+  subgraph Runtime["Implemented runtime evidence"]
+    Apps["API, public web and admin Container Apps"]
+    Mcp["MCP bounded audit events when activated"]
+    Correlation["Server-generated API correlation IDs"]
+    LA["Log Analytics workspace: 30-day retention"]
+    Apps -->|"console and platform logs"| LA
+    Correlation --> Apps
+    Mcp -.->|"bounded events"| LA
+  end
+
+  subgraph Delivery["Implemented GitHub evidence"]
+    Plan["Plan workflow"]
+    Artifacts["30-day artifacts: what-if, digest, SBOM, provenance"]
+    Logs["Workflow logs: image scan, migration and smoke outcomes"]
+    Plan --> Artifacts
+    Plan --> Logs
+  end
+
+  subgraph Missing["Absent or unexercised controls"]
+    Dashboards["No dashboards or approved SLI views"]
+    Alerts["No alert rules or backup-age monitor"]
+    Traces["No OpenTelemetry distributed traces"]
+    Paging["No exercised paging or on-call escalation"]
+  end
+
+  LA -.->|"manual query only"| Dashboards
+  LA -.-> Alerts
+  Apps -.-> Traces
+  Alerts -.-> Paging
+
+  classDef implemented fill:#e8f5e9,stroke:#2e7d32,color:#102a13
+  classDef absent fill:#f3f4f6,stroke:#6b7280,color:#374151,stroke-dasharray:2 4
+  class Apps,Mcp,Correlation,LA,Plan,Artifacts,Logs implemented
+  class Dashboards,Alerts,Traces,Paging absent
+```
+
+Solid green nodes are implemented evidence paths. Gray dotted nodes are absent
+or unexercised and must not be inferred from Log Analytics retention or GitHub
+artifact availability.
+
 ## Signals
 
 - Emit structured request start/end and sanitized failure events with timestamp,

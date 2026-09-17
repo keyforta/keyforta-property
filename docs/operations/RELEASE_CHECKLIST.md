@@ -7,30 +7,116 @@ run, migration execution, and Azure revision are the durable evidence chain.
 ## Release control flow
 
 ```mermaid
-flowchart TD
-  PR[Reviewed pull request] --> Gates{Required CI and security gates pass?}
-  Gates -- No --> Fix[Fix source, tests, or controls]
-  Fix --> PR
-  Gates -- Yes --> Merge[Merge immutable commit to main]
-  Merge --> Plan[Run scoped deployment plan]
-  Plan --> Evidence[Produce what-if, image digests, SBOM, provenance, and scans]
-  Evidence --> Review{Human review accepts plan evidence?}
-  Review -- No --> Stop[Stop promotion]
-  Review -- Yes --> Approval{Protected dev environment approved?}
-  Approval -- No --> Stop
-  Approval -- Yes --> Deploy[Deploy exact SHA, scope, plan run, and digests]
-  Deploy --> Scope{Selected scope}
-  Scope -- postgres --> Migration[Run forward migrations]
-  Scope -- full --> Migration
-  Scope -- api, public-web, or admin-web --> Revision[Create application revision]
-  Migration --> Ready[Verify migration and database readiness]
-  Ready --> IncludesApp{Scope includes applications?}
-  IncludesApp -- Yes, full --> Revision
-  IncludesApp -- No, postgres only --> Observe
-  Revision --> Smoke[Run smoke and authorization checks]
-  Smoke --> Observe[Observe initial operating window]
-  Observe --> Record[Complete release evidence record]
+flowchart LR
+  subgraph Source["Source and CI"]
+    PR["Reviewed pull request"] --> Gates{"Required CI and security gates pass?"}
+    Gates -->|"no"| Fix["Fix source, tests, or controls"]
+    Fix --> PR
+    Gates -->|"yes"| Merge["Merge immutable full SHA to main"]
+  end
+
+  subgraph PlanLane["Plan run: GitHub dev environment"]
+    PlanApproval{"Environment approval before job starts"}
+    PlanApproval --> Plan["Dispatch exact SHA and scope"]
+    Plan --> Push["Build and push new SHA tag to ACR"]
+    Push --> Digest["Resolve digest, lock tag, verify SBOM and provenance, scan"]
+    Digest --> WhatIf["Run scoped Azure what-if"]
+    WhatIf --> Evidence["Upload 30-day SHA-bound plan artifact"]
+  end
+
+  subgraph Human["Human control between runs"]
+    Review{"Review digests, scans, attestations, what-if, cost and exposure"}
+    Stop["Stop promotion or request a new plan"]
+    Review -->|"reject"| Stop
+  end
+
+  subgraph DeployLane["Deploy run: GitHub dev environment"]
+    DeployApproval{"Environment approval before job starts"}
+    DeployApproval --> Import["Fetch exact plan run and import digest references"]
+    Import --> Drift["Re-run normalized what-if and reject drift"]
+    Drift --> Mutate["First Azure mutation uses repository at sha256 digest"]
+    Mutate --> Scope{"Reviewed application scope"}
+    Scope -->|"postgres or full"| Migration["Configure Entra access, deploy job, run forward migrations"]
+    Scope -->|"api, public-web, admin-web or full"| Apps["Deploy selected Container Apps"]
+    Migration -->|"full"| Apps
+    Migration -->|"postgres"| Observe["Record evidence and observe"]
+    Apps --> Smoke["Smoke public, API, CORS and admin boundaries"]
+    Smoke --> Observe
+  end
+
+  subgraph McpLane["Separate Deploy MCP workflow"]
+    McpPlan["Approved plan run pushes MCP SHA image and uploads hashed evidence"]
+    McpReview{"Separate human review and deploy approval"}
+    McpDeploy["Recheck drift, deploy healthy revision, switch 100 percent traffic, smoke"]
+    McpPlan --> McpReview --> McpDeploy
+  end
+
+  Merge --> PlanApproval
+  Evidence --> Review
+  Review -->|"accept"| DeployApproval
+  Merge -.-> McpPlan
 ```
+
+## Release evidence lineage
+
+This evidence view expands the existing control flow without replacing its
+plan, review, deploy, migration, smoke, or rollback controls.
+
+```mermaid
+flowchart LR
+  Merge["Merge SHA on main"]
+
+  subgraph Plan["Plan run - protected dev environment"]
+    PlanRecord["deployment-plan.txt<br/>SHA, run ID, scope, digest references"]
+    Digests["Immutable registry digests"]
+    Attest["SBOM and provenance JSON"]
+    Scan["Blocking image scan logs"]
+    WhatIf["Scoped Azure what-if JSON"]
+    Artifact["deployment-plan-SHA artifact<br/>30-day retention"]
+    PlanRecord --> Artifact
+    Digests --> PlanRecord
+    Attest --> Artifact
+    Scan --> Artifact
+    WhatIf --> Artifact
+  end
+
+  Review["Human review<br/>plan run and release decision"]
+
+  subgraph Deploy["Approved deploy run - same SHA and scope"]
+    Approval["Protected environment approval<br/>before job starts"]
+    Import["Import exact plan artifact and digests"]
+    Drift["Re-run normalized what-if<br/>reject drift"]
+    Mutation["Approved Azure mutation"]
+    Revision["Container App revision names"]
+    Migration["Migration execution name and status<br/>for postgres or full"]
+    Smoke["Workflow smoke result and summary"]
+    Approval --> Import --> Drift --> Mutation
+    Mutation --> Revision
+    Mutation --> Migration
+    Revision --> Smoke
+    Migration --> Smoke
+  end
+
+  ReleaseRecord["Release record in pull request or linked issue<br/>CI and security URLs, plan and deploy runs,<br/>digests, revisions, migration, smoke, observation, rollback"]
+  Gap["Current evidence gap<br/>no single consolidated post-deployment artifact"]
+
+  Merge --> PlanRecord
+  Merge --> Digests
+  Artifact --> Review --> Approval
+  Smoke --> ReleaseRecord
+  Artifact --> ReleaseRecord
+  Gap -.-> ReleaseRecord
+
+  classDef gap fill:#fff3cd,stroke:#8a6d00,color:#332800;
+  class Gap gap;
+```
+
+The plan artifact consolidates pre-deployment evidence. Deployment outputs are
+currently distributed across the deploy workflow result and summary, Azure
+revision and migration execution records, smoke observations, and the manually
+maintained release record. There is no single consolidated post-deployment
+artifact; the release record is therefore the required index across those
+durable sources and must not claim evidence that was not preserved.
 
 ## Release record
 
@@ -88,8 +174,9 @@ or tenant data in the record.
    - `admin-web` previews and deploys only the admin SPA image and Container App.
    - `full` composes `postgres`, `api`, `public-web`, and `admin-web`, and reconciles the
      dormant development seed-job definition without executing it.
-   - `portal-web` and `mcp` are reserved names that fail closed
-     until separately approved images and Azure resource definitions exist.
+   - `portal-web` remains a reserved name that fails closed. MCP is intentionally
+     excluded from this workflow and uses the separately approved `Deploy MCP`
+     plan, evidence, approval, deploy, traffic-switch, and smoke-test path.
 3. On a fresh resource group, review the `foundation`-scoped plan and dispatch
    `operation=deploy-foundation` with its run ID. Then dispatch `operation=plan`
    again for the same SHA; do not deploy jobs or applications from a
@@ -173,6 +260,36 @@ avoids reconciling unrelated components. Image builds and migration executions
 still incur their normal transient cost. Roll an application scope back by
 redeploying a reviewed previous immutable SHA; recover a PostgreSQL change only
 through a reviewed forward corrective migration.
+
+## Rollout and rollback states
+
+```mermaid
+stateDiagram-v2
+  [*] --> Planned: exact SHA and scope planned
+  Planned --> Reviewed: evidence accepted by a human
+  Reviewed --> AppsDeploying: application deploy approved
+  AppsDeploying --> AppsObserved: migrations first when postgres or full, then apps and smoke
+  AppsObserved --> Complete: operating window accepted
+  AppsObserved --> PriorShaPlan: application regression
+  PriorShaPlan --> PriorShaRedeploy: plan and approve previous immutable SHA
+  PriorShaRedeploy --> AppsObserved: redeploy digest and verify revision
+
+  Reviewed --> McpStaged: separate MCP deploy approved
+  McpStaged --> McpHealthy: new multiple-mode revision healthy
+  McpHealthy --> McpLive: explicit 100 percent traffic switch
+  McpLive --> McpPriorTraffic: MCP regression
+  McpPriorTraffic --> McpLive: explicitly restore traffic to healthy prior revision
+
+  AppsDeploying --> ForwardCorrection: schema failure stops promotion
+  ForwardCorrection --> Planned: reviewed forward-only corrective migration
+
+  AppsObserved --> DnsEvidence: custom-domain rollback requested
+  DnsEvidence --> DnsRestore: preserve DNS, hostname, certificate and revision evidence
+  DnsRestore --> DnsVerified: restore prior DNS first and verify resolution
+  DnsVerified --> SeparateCleanup: Azure binding or certificate deletion needs separate reviewed mechanism
+  DnsRestore --> Stopped: one-hostname partial state or unresolved DNS
+  SeparateCleanup --> AppsObserved: verify prior HTTPS origin and API CORS
+```
 
 For custom-domain rollback, first preserve the current DNS and Azure hostname,
 certificate, and revision evidence. In a reviewed forward change, restore the

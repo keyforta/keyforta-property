@@ -3,6 +3,9 @@
 **Status:** Draft for validation  
 **Scope:** Public website, tenant portal, manager portal, and landlord portal
 
+Companion visualization: [User Flow Diagrams](USER_FLOW_DIAGRAMS.md). This
+document remains authoritative for role boundaries and requirements.
+
 ## Role boundaries
 
 | Experience      | Primary user                                      | Purpose                                                                          | Operating boundary                                                             |

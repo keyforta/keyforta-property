@@ -47,11 +47,16 @@ flowchart TB
   Maintenance --> MaintenanceReport[Maintenance report]
   MaintenanceReport --> Evidence[Maintenance evidence]
   Evidence --> Document
-  Document --> DocumentVersion[Immutable document version]
+  Document[Document] --> DocumentVersion[Immutable document version]
   Audit[Append-only audit event] -. correlates .-> Membership
   Audit -. correlates .-> LeaseVersion
   Audit -. correlates .-> Payment
   Audit -. correlates .-> Maintenance
+
+  subgraph PlatformScope[Platform-scoped identity records]
+    Identity
+    Party
+  end
 
   subgraph OrganizationScope[Organization-scoped records]
     Organization
@@ -69,15 +74,62 @@ flowchart TB
     Maintenance
     WorkOrder
     MaintenanceReport
+    Evidence
+  end
+
+  subgraph ConditionalScope[Organization or platform scope, determined by policy]
     Document
     DocumentVersion
-    Evidence
     Audit
   end
 ```
 
 This is a conceptual view of the principal relationships, not a replacement for
 the normative columns, constraints, or executable migration lineage.
+
+## Immutable payment correction lineage
+
+```mermaid
+flowchart LR
+  Command[Authorized correction command<br/>trusted actor and correlation]
+
+  subgraph Implemented[Implemented posting and reversal lineage]
+    Original[Original posted payment<br/>retained unchanged]
+    OriginalLedger[Original balanced ledger entries]
+    OriginalReceipt[Immutable receipt]
+    Reversal[Linked negative reversal<br/>reverses_payment_id]
+    ReversalLedger[Balanced reversal entries<br/>sum to zero]
+    Audit[Audit event with actor<br/>and correlation ID]
+    Guard[Update and delete blocked<br/>payments, receipts, ledger entries]
+  end
+
+  subgraph Target[Normative target continuation]
+    Replacement[Optional idempotent replacement payment]
+    ReplacementLedger[Balanced replacement entries]
+    ReplacementReceipt[Replacement receipt evidence]
+  end
+
+  Command --> Reversal
+  Original -->|retained and referenced by| Reversal
+  Original --> OriginalLedger
+  Original --> OriginalReceipt
+  Reversal --> ReversalLedger
+  Reversal --> Audit
+  Command --> Audit
+  Reversal -. when correction requires reposting .-> Replacement
+  Replacement --> ReplacementLedger
+  Replacement --> ReplacementReceipt
+  Guard -. rejects mutation of .-> Original
+  Guard -. rejects mutation of .-> OriginalReceipt
+  Guard -. rejects mutation of .-> OriginalLedger
+  Guard -. rejects mutation of .-> Reversal
+  Guard -. rejects mutation of .-> ReversalLedger
+```
+
+This is a correction-lineage view, not a full ERD. The original payment,
+receipt, postings, reversal link, balanced reversal entries, and correlated
+audit event are implemented in the operational lineage. Atomic optional
+replacement and its receipt evidence remain the normative target continuation.
 
 ## Required persistence conventions
 

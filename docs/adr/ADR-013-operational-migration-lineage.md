@@ -26,6 +26,39 @@ records. A capability that requires approval fails closed when its applicable
 policy, owner evidence, counsel evidence, or effective activation is absent or
 invalid. No migration seeds legal conclusions, consent, or approval evidence.
 
+## Migration authority and execution lineage
+
+```mermaid
+flowchart LR
+  subgraph Target[Normative target design]
+    Docs[Production data model and DDD documents]
+  end
+
+  subgraph Implemented[Implemented operational lineage]
+    Migrations[Canonical infra/postgres migrations]
+    Runner[Checksummed migration runner]
+    Ledger[app.schema_migrations<br/>version, SHA-256 checksum, applied_at]
+    Tests[Clean install, forward upgrade,<br/>and rerun tests]
+    Correction[New additive forward correction]
+    PreviousImage[Previous application image]
+  end
+
+  Docs -. incrementally reconciled through review .-> Migrations
+  Migrations --> Runner
+  Runner -->|apply once in filename order| Ledger
+  Ledger -->|checksum mismatch fails| Runner
+  Tests -->|exercise executable history| Runner
+  Ledger -->|existing history is never rewritten| Correction
+  Correction --> Migrations
+  PreviousImage -->|application rollback only| Runner
+  PreviousImage -. does not reverse schema .-> Ledger
+```
+
+The diagram distinguishes authority from intent: the documents describe the
+normative target, while the migration directory, runner, ledger, and tests are
+the implemented executable path. Database rollback is not implied; corrections
+remain forward-only even when the application image is rolled back.
+
 ## Consequences
 
 - Existing migration files and checksums are never rewritten.

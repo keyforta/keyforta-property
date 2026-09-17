@@ -18,6 +18,8 @@ This documentation package is the backend implementation handoff for the KEYFORT
 12. [`architecture/`](./architecture/) — supporting system, security, integration, and Azure design detail.
 13. [`operations/`](./operations/) — runbooks, release checks, service objectives, and Azure bootstrap guidance.
 14. [`ai/`](./ai/) — AI system card, tool policy, and evaluation plan.
+15. [`DIAGRAMS.md`](./DIAGRAMS.md) — Mermaid diagram catalog, ownership, authority, and review triggers.
+16. [`product/USER_FLOW_DIAGRAMS.md`](./product/USER_FLOW_DIAGRAMS.md) — descriptive user journeys and current delivery status; role use cases remain authoritative.
 
 When supporting material conflicts with the numbered implementation contracts,
 `openapi.yaml`, `database/`, or `adr/`, the authoritative source controls and the

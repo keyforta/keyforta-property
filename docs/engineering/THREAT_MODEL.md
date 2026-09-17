@@ -21,6 +21,58 @@ malicious or compromised members, cross-organization users, replaying providers,
 malicious files/documents, supply-chain attackers, compromised CI identities, and
 operators making mistakes.
 
+## Numbered threat-boundary data flow
+
+Edge labels use the abuse-case names below so each trust crossing can be traced
+to its existing mitigation and residual action. Dashed flows are inactive or
+deferred; they do not describe a production capability.
+
+```mermaid
+flowchart LR
+    subgraph EXT[External and untrusted boundary]
+        Users[Users]
+        Admins[Administrators]
+        Providers[Payment, identity, and scan providers]
+        GitHub[GitHub workflows]
+        Models[Model clients]
+    end
+
+    subgraph APP[KEYFORTA application trust boundary]
+        Web[Public and authenticated web]
+        API[Authorized API]
+        MCP[MCP service: synthetic-only]
+        Jobs[Background jobs]
+        FutureAI[Future tenant-data AI: INACTIVE / DEFERRED]
+    end
+
+    subgraph DATA[Managed data trust boundary]
+        PG[(PostgreSQL with forced RLS)]
+        Blob[(Private Blob storage)]
+        Telemetry[(Sanitized telemetry and audit)]
+        Control[Azure deployment and operations control]
+    end
+
+    Users -->|"1. Browser crossing: Session/token theft or redirect manipulation; Anonymous viewing-inquiry flooding"| Web
+    Admins -->|"2. Privileged operations crossing: CI/deployment compromise; least privilege and audit"| Control
+    Web -->|"3. Public API crossing: Cross-organization read/write; SQL or object-ID injection"| API
+    Providers -->|"4. Callback crossing: Duplicate or altered payment; untrusted and replayable input"| API
+    API -->|"5. Data crossing: Cross-organization read/write; parameterized queries and forced RLS"| PG
+    API -->|"6. Evidence crossing: Malicious or exposed evidence; validated private upload and API-proxied download"| Blob
+    Providers -->|"7. Scan-result crossing: Malicious or exposed evidence; exact clean result required"| Blob
+    Jobs -->|"8. Worker crossing: Duplicate or altered payment; idempotent outbox and inbox processing"| PG
+    Jobs -->|"9. Provider crossing: Duplicate or altered payment; authenticated adapter and reconciliation"| Providers
+    GitHub -->|"10. Delivery crossing: CI/deployment compromise; OIDC, exact revision, environment gate"| Control
+    Control -->|"11. Workload deployment crossing: CI/deployment compromise; managed identity and immutable artifact"| API
+    API -->|"12. Observability crossing: Sensitive telemetry disclosure; sanitized structured events"| Telemetry
+    MCP -->|"13. Audit crossing: Sensitive telemetry disclosure; bounded metadata only"| Telemetry
+    Models -->|"14. Current MCP crossing: AI prompt/tool abuse; authenticated synthetic system.health only"| MCP
+    Models -.->|"15. INACTIVE / DEFERRED: AI prompt/tool abuse; separately approved narrow authorized tools only"| FutureAI
+    FutureAI -.->|"16. INACTIVE / DEFERRED: application authorization boundary; no direct model data-store access"| API
+
+    classDef deferred fill:#f4f4f4,stroke:#666,stroke-dasharray: 5 5,color:#222;
+    class FutureAI deferred;
+```
+
 ## Abuse cases and mitigations
 
 | Abuse case                                   | Existing mitigation                                                                             | Residual risk / action                                                           |

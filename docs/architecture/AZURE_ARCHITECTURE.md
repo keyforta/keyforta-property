@@ -70,12 +70,14 @@ flowchart TD
 ### Model Context Protocol Boundary
 
 `apps/mcp-server` is a standalone authenticated read-only MCP service accepted
-by [ADR-012](../adr/ADR-012-standalone-mcp-service.md). It is not part of the
-deployed topology: no Container App, ingress, identity registration, or
-workflow scope is provisioned for it, and it runs only in local and test
-environments. It never imports API implementation modules, connects to
-PostgreSQL, or calls a model provider. Activation requires separate
-infrastructure, identity, cost, ingress, and deployment approval.
+by [ADR-012](../adr/ADR-012-standalone-mcp-service.md). Its separate Bicep and
+`Deploy MCP` workflow can provision a Container App, managed identity, ACR pull
+grant, ingress, and optional managed certificate in the pilot environment. The
+capability is approved but inactive and is not part of the application `Deploy`
+workflow. It never imports API implementation modules, connects to PostgreSQL,
+or calls a model provider. Activation still requires the protected `dev`
+environment approval, the bounded MCP budget, reviewed plan evidence, approved
+client configuration, and a separate traffic switch.
 
 ### Data Storage and External Services
 
@@ -184,6 +186,77 @@ flowchart LR
 | Deployment           | Manual, reviewed registry digest |
 | Public web origin     | `https://keyforta.com`        |
 | DNS authority         | Cloudflare, DNS-only records  |
+
+### Repository-defined pilot topology
+
+```mermaid
+flowchart TB
+    Actor["GitHub Actions OIDC"]
+    DNS["Cloudflare DNS-only: keyforta.com and www"]
+    McpDNS["Cloudflare CNAME: mcp.keyforta.com"]
+
+    subgraph Dev["dev resource group: South Africa North"]
+        ACR["ACR Basic: public network, admin disabled"]
+        LA["Log Analytics: 30-day retention"]
+        CAE["Container Apps environment: consumption, no zone redundancy"]
+        API["API Container App: external ingress, scale to zero"]
+        Public["Public web Container App: external ingress, scale to zero"]
+        Admin["Admin Container App: external ingress, scale to zero"]
+        MCP["MCP Container App: approved and inactive, multiple revisions"]
+        Migration["Migration Container Apps job: forward-only runner"]
+        PG[("PostgreSQL 16 B1ms: public network, Azure-services firewall, no HA, no geo backup")]
+        Blob["Blob Storage LRS: public network, private container, 7-day soft delete"]
+        Defender["Defender for Storage: on-upload malware scan"]
+        Certs["Managed certificates: apex HTTP and www CNAME"]
+        McpCert["MCP managed certificate: optional CNAME binding"]
+        ApiId["API managed identity: ACR pull, Blob contributor, PostgreSQL runtime"]
+        WebId["Shared web identity: ACR pull for public and admin"]
+        MigrationId["Migration identity: ACR pull and PostgreSQL administrator"]
+        McpId["MCP identity: approved and inactive, ACR pull only"]
+    end
+
+    Deferred["Deferred or absent: portal app, worker app, private endpoints, VNet integration, HA, geo backup"]
+
+    Actor -->|"plan pushes SHA tags and deploys reviewed digests"| ACR
+    Actor -->|"reviewed Bicep mutations"| CAE
+    ACR --> API
+    ACR --> Public
+    ACR --> Admin
+    ACR -.-> MCP
+    ACR --> Migration
+    CAE --> API
+    CAE --> Public
+    CAE --> Admin
+    CAE -.-> MCP
+    CAE --> Migration
+    CAE -->|"platform and application logs"| LA
+    API -->|"Entra SQL over public endpoint"| PG
+    Migration -->|"Entra administrator and migrations"| PG
+    API -->|"OAuth data plane"| Blob
+    Blob --> Defender
+    ApiId --> API
+    WebId --> Public
+    WebId --> Admin
+    MigrationId --> Migration
+    McpId -.-> MCP
+    DNS --> Public
+    Certs --> Public
+    McpDNS -.-> MCP
+    McpCert -.-> MCP
+    Deferred -.-> CAE
+
+    classDef capable fill:#e8f5e9,stroke:#2e7d32,color:#102a13
+    classDef inactive fill:#fff8e1,stroke:#b26a00,color:#3d2900,stroke-dasharray:6 4
+    classDef deferred fill:#f3f4f6,stroke:#6b7280,color:#374151,stroke-dasharray:2 4
+    class ACR,LA,CAE,API,Public,Admin,Migration,PG,Blob,Defender,Certs,ApiId,WebId,MigrationId capable
+    class MCP,McpDNS,McpCert,McpId inactive
+    class Deferred deferred
+```
+
+Solid green nodes are deployment-capable in the application workflow and
+foundation Bicep. Amber dashed nodes are separately deployment-capable but
+approved/inactive MCP scope. Gray dotted nodes are deferred or absent. The
+diagram describes repository capability, not proof that a resource is live.
 
 Production architecture is intentionally undefined until pilot evidence sets
 availability, recovery, compliance, and budget requirements.
