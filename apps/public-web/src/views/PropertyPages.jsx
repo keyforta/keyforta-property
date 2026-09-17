@@ -25,6 +25,7 @@ import { ListingError, ListingLoading, ListingNotFound } from "../components/Lis
 import { StatusMessage } from "../components/StatusMessage.jsx";
 import { usePublicProperties, usePublicProperty } from "../hooks/use-public-properties.js";
 import { formatMinorMoney } from "../services/public-properties.js";
+import { submitViewingRequest } from "../services/viewing-requests.js";
 
 const usePropertyPageStyles = makeStyles({
   filters: {
@@ -342,12 +343,6 @@ export function PropertyDetailPage({ lang, propertyId }) {
         <Link className="button" to={`/view/${property.id}`}>
           {t("property_pages.request_viewing")}
         </Link>
-        <Link
-          className="button secondary application-link"
-          to={`/apply/${property.id}`}
-        >
-          {t("property_pages.apply_unit")}
-        </Link>
         <Link className="text-link" to="/trust">
           {t("property_pages.verification_link")}{" "}
           <ArrowRight20Regular aria-hidden="true" />
@@ -357,90 +352,39 @@ export function PropertyDetailPage({ lang, propertyId }) {
   );
 }
 
-export function RentalApplicationPage({ lang, propertyId, onSubmit }) {
+export function ViewingRequestPage({ lang, propertyId }) {
   const { t } = useTranslation();
   const { data: property, error, loading, retry } = usePublicProperty(propertyId);
-  const [status, setStatus] = useState("");
+  const [submission, setSubmission] = useState({ status: "idle", message: "" });
 
   if (loading) return <ListingLoading />;
   if (error) return <section className="page content-page shell"><ListingError onRetry={retry} /></section>;
   if (!property) return <ListingNotFound />;
 
-  return (
-    <section className="page content-page shell auth-page">
-      <div className="application-card">
-        <p className="eyebrow">{t("property_pages.application_eyebrow")}</p>
-        <h1>
-          {t("property_pages.application_title", {
-            title: property.name,
-          })}
-        </h1>
-        <p className="muted">{t("property_pages.application_intro")}</p>
-        <form
-          className="form-grid"
-          id="rental-application-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = event.currentTarget;
-            const values = Object.fromEntries(new FormData(form));
-            setStatus(onSubmit(values));
-            form.reset();
-          }}
-        >
-          <input type="hidden" name="propertyId" value={property.id} readOnly />
-          <Field label={t("full_name")}>
-            <Input name="name" required />
-          </Field>
-          <Field label={t("email")}>
-            <Input name="email" type="email" required />
-          </Field>
-          <Field label={t("property_pages.phone")}>
-            <Input name="phone" type="tel" required />
-          </Field>
-          <Field label={t("property_pages.current_address")}>
-            <Input name="currentAddress" required />
-          </Field>
-          <Field label={t("property_pages.occupants")}>
-            <Input name="occupants" type="number" min="1" required />
-          </Field>
-          <Field label={t("property_pages.income_source")}>
-            <Input name="incomeSource" required />
-          </Field>
-          <Field label={t("property_pages.monthly_income")}>
-            <Input name="monthlyIncome" type="number" min="0" required />
-          </Field>
-          <Field label={t("property_pages.move_in_date")}>
-            <Input name="moveInDate" type="date" required />
-          </Field>
-          <Field label={t("property_pages.references")}>
-            <Textarea name="notes" required />
-          </Field>
-          <label className="check-label">
-            <input name="consent" type="checkbox" required />{" "}
-            {t("property_pages.consent")}
-          </label>
-          <Button className="button copper" type="submit">
-            {t("property_pages.submit_application")}
-          </Button>
-          <StatusMessage
-            className="form-status show"
-            intent="success"
-            message={status}
-          />
-        </form>
-      </div>
-    </section>
-  );
-}
-
-export function ViewingRequestPage({ lang, propertyId, onSubmit }) {
-  const { t } = useTranslation();
-  const { data: property, error, loading, retry } = usePublicProperty(propertyId);
-  const [status, setStatus] = useState("");
-
-  if (loading) return <ListingLoading />;
-  if (error) return <section className="page content-page shell"><ListingError onRetry={retry} /></section>;
-  if (!property) return <ListingNotFound />;
+  async function submit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = Object.fromEntries(new FormData(form));
+    setSubmission({ status: "submitting", message: "" });
+    try {
+      await submitViewingRequest({
+        propertyId: property.id,
+        name: values.name,
+        email: values.email,
+        locale: lang,
+        ...(values.phone ? { phone: values.phone } : {}),
+        ...(values.preferredAt ? { preferredAt: new Date(values.preferredAt).toISOString() } : {}),
+        ...(values.message ? { message: values.message } : {}),
+      });
+      setSubmission({ status: "success", message: t("status.viewing_requested") });
+      form.reset();
+    } catch (submitError) {
+      const message = submitError?.code === "RATE_LIMITED"
+        ? t("status.viewing_rate_limited")
+        : t("status.viewing_error");
+      setSubmission({ status: "error", message });
+    }
+  }
 
   return (
     <section className="page content-page shell auth-page">
@@ -451,12 +395,7 @@ export function ViewingRequestPage({ lang, propertyId, onSubmit }) {
         <form
           className="form-grid"
           id="viewing-request-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = event.currentTarget;
-            setStatus(onSubmit(Object.fromEntries(new FormData(form))));
-            form.reset();
-          }}
+          onSubmit={submit}
         >
           <input type="hidden" name="propertyId" value={property.id} readOnly />
           <Field label={t("full_name")}>
@@ -474,10 +413,14 @@ export function ViewingRequestPage({ lang, propertyId, onSubmit }) {
           <Field label={t("property_pages.viewing_message")}>
             <Textarea name="message" maxLength={1000} />
           </Field>
-          <Button className="button copper" type="submit">
-            {t("property_pages.submit_viewing")}
+          <Button className="button copper" type="submit" disabled={submission.status === "submitting"}>
+            {t(submission.status === "submitting" ? "property_pages.submitting_viewing" : "property_pages.submit_viewing")}
           </Button>
-          <StatusMessage className="form-status show" intent="success" message={status} />
+          <StatusMessage
+            className="form-status show"
+            intent={submission.status === "error" ? "error" : "success"}
+            message={submission.message}
+          />
         </form>
         <Link className="text-link" to={`/property/${property.id}`}>
           <ArrowLeft20Regular aria-hidden="true" /> {t("property_pages.back_to_property")}

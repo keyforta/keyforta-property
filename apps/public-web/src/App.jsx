@@ -15,7 +15,6 @@ import {
   HomePage,
   PropertiesPage,
   PropertyDetailPage,
-  RentalApplicationPage,
   ViewingRequestPage,
   TextContentPage,
 } from './views/index.js';
@@ -40,7 +39,6 @@ const routeMetadata = [
   { path: '/properties', handle: { name: 'properties' } },
   { path: '/property/:propertyId', handle: { name: 'property' } },
   { path: '/view/:propertyId', handle: { name: 'viewing' } },
-  { path: '/apply/:propertyId', handle: { name: 'apply' } },
   { path: '/how', handle: { name: 'how' } },
   { path: '/landlords', handle: { name: 'landlords' } },
   { path: '/trust', handle: { name: 'trust' } },
@@ -75,14 +73,9 @@ function PropertyDetailRoute({ lang }) {
   return <PropertyDetailPage lang={lang} propertyId={propertyId} />;
 }
 
-function ViewingRoute({ lang, onSubmit }) {
+function ViewingRoute({ lang }) {
   const { propertyId } = useParams();
-  return <ViewingRequestPage lang={lang} propertyId={propertyId} onSubmit={onSubmit} />;
-}
-
-function ApplyRoute({ lang, onSubmit }) {
-  const { propertyId } = useParams();
-  return <RentalApplicationPage lang={lang} propertyId={propertyId} onSubmit={onSubmit} />;
+  return <ViewingRequestPage lang={lang} propertyId={propertyId} />;
 }
 
 function LoginRoute({ lang, onSubmit }) {
@@ -223,34 +216,6 @@ export default function App() {
     return message;
   }
 
-  function handleRentalApplication(values) {
-    const { propertyId, consent, occupants, monthlyIncome, ...answers } = values;
-    appendRow('kf-rental-applications', {
-      unitId: propertyId,
-      answers: {
-        ...answers,
-        occupants: Number(occupants),
-        monthlyIncome: Number(monthlyIncome),
-        consent: consent === 'on',
-      },
-      documentIds: [],
-    });
-    const message = t('status.application_submitted');
-    notify(message);
-    return message;
-  }
-
-  function handleViewingRequest(values) {
-    appendRow('kf-viewing-requests', {
-      ...values,
-      locale: lang,
-      ...(values.preferredAt ? { preferredAt: new Date(values.preferredAt).toISOString() } : {}),
-    });
-    const message = t('status.viewing_requested');
-    notify(message);
-    return message;
-  }
-
   function handleInviteSubmit(values) {
     appendRow('kf-manager-invitations', values);
     const message = t('status.invitation_saved');
@@ -338,8 +303,7 @@ export default function App() {
             <Route path="/voice" element={<HomePage lang={lang} voiceRoute voiceText={voiceText} voiceStatus={voiceStatus} voiceVoices={voiceVoices} voiceChoice={voiceChoice} onVoiceChoice={setVoiceChoice} onVoiceText={setVoiceText} onVoicePlay={handleVoicePlay} onVoiceStop={handleVoiceStop} onOpenAccess={openAccess} />} />
             <Route path="/properties" element={<PropertiesPage lang={lang} filters={filters} onFilterChange={(name, value) => setFilters((state) => (name === 'reset' ? { area: '', beds: '', max: '', sort: 'recommended' } : { ...state, [name]: value }))} />} />
             <Route path="/property/:propertyId" element={<PropertyDetailRoute lang={lang} />} />
-            <Route path="/view/:propertyId" element={<ViewingRoute lang={lang} onSubmit={handleViewingRequest} />} />
-            <Route path="/apply/:propertyId" element={<ApplyRoute lang={lang} onSubmit={handleRentalApplication} />} />
+            <Route path="/view/:propertyId" element={<ViewingRoute lang={lang} />} />
             <Route path="/how" element={<TextContentPage lang={lang} kind="how" />} />
             <Route path="/landlords" element={<TextContentPage lang={lang} kind="landlords" />} />
             <Route path="/trust" element={<TextContentPage lang={lang} kind="trust" />} />

@@ -11,11 +11,11 @@ that behavior is available.
 | Capability | Status | Repository evidence or boundary |
 | --- | --- | --- |
 | Public property catalogue and detail | Implemented | Public web API proxies and Fastify `GET /api/v1/properties` routes |
-| Public viewing inquiry | API only | Public web proxy and Fastify `POST /api/v1/viewing-requests` provide validation, rate limiting, persistence, and duplicate handling; the current browser form still uses browser-local storage |
+| Public viewing inquiry | Implemented | Public web form calls the Fastify `POST /api/v1/viewing-requests` route directly through the public web proxy, with server-side validation, rate limiting, persistence, and duplicate handling; the browser only reflects the server's accepted/error/rate-limited outcome and stores no application data |
 | Listing publication and withdrawal | API only | Protected Fastify publication commands; no current portal management screen |
 | Landlord onboarding application and human admin decision | Implemented | Public signup flow, admin onboarding console, protected API routes, PostgreSQL gateway, and authorization tests |
 | Authenticated role portal | Mock/prototype | `portal-web` uses a labeled browser-local demo session and sample records; it has no approved deployment path |
-| Public rental application prototype | Non-authoritative mock and product conflict | Legacy public-web route stores browser-local data; approved PRD excludes public rental applications |
+| Public rental application prototype | Removed | The excluded browser-local `/apply/:propertyId` prototype has been removed; the approved PRD excludes public rental applications and the route now redirects home instead of collecting data |
 | Tenant application, evidence upload/scanning, and access confirmation | Planned | Target contracts and persistence foundations exist; no current tenant application or evidence API route |
 | Operational portfolio, invitations, lease activation, statements, and maintenance workflows | Planned user-facing delivery | Some lower-layer contracts or persistence foundations exist; they are not exposed by the current deployable API |
 | Payments and immutable correction foundations | Foundation only | Operational migrations and tests protect posting/reversal invariants; allocation and statement workflows remain incomplete |

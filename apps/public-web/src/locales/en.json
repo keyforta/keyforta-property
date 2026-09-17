@@ -44,8 +44,9 @@
     "bathroom_other": "{{count}} bathrooms"
   },
   "status": {
-    "application_submitted": "Application submitted for manager review.",
     "viewing_requested": "Your viewing request has been received.",
+    "viewing_error": "Your viewing request could not be submitted. Try again.",
+    "viewing_rate_limited": "Too many viewing requests. Try again in a moment.",
     "invitation_saved": "Invitation saved.",
     "service_offer_saved": "Service offer published.",
     "access_request_saved": "Request saved. Reference {{reference}}.",
@@ -379,21 +380,10 @@
     "preferred_time": "Preferred date and time",
     "viewing_message": "Message (optional)",
     "submit_viewing": "Send viewing request",
+    "submitting_viewing": "Sending...",
     "back_to_property": "Back to property",
-    "apply_unit": "Apply to rent this unit",
     "verification_link": "How verification works",
-    "application_eyebrow": "Rental application",
-    "application_title": "Apply for {{title}}.",
-    "application_intro": "Complete this application for review by the property manager.",
-    "phone": "Phone number",
-    "current_address": "Current address",
-    "occupants": "Number of occupants",
-    "income_source": "Employment or source of income",
-    "monthly_income": "Monthly income",
-    "move_in_date": "Desired move-in date",
-    "references": "References or additional information",
-    "consent": "I confirm that the information is complete and may be reviewed by the manager.",
-    "submit_application": "Submit application for review"
+    "phone": "Phone number"
   },
   "account": {
     "signin": {
@@ -588,7 +578,6 @@
     "properties": "Properties - KEYFORTA",
     "property": "Property detail - KEYFORTA",
     "viewing": "Request a viewing - KEYFORTA",
-    "apply": "Rental application - KEYFORTA",
     "how": "How it works - KEYFORTA",
     "landlords": "For landlords and managers - KEYFORTA",
     "trust": "Trust and safety - KEYFORTA",

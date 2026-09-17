@@ -84,6 +84,7 @@ const requiredFiles = [
   'src/services/storage.js',
   'src/services/public-properties.js',
   'src/services/landlord-onboarding.js',
+  'src/services/viewing-requests.js',
   'src/hooks/use-public-properties.js',
   'src/styles.css',
   'public/assets/brand/keyforta-app-icon.png',
@@ -198,6 +199,15 @@ assert.match(onboardingProxy, /landlordOnboardingApplicationInputSchema[\s\S]*au
 const propertyPages = await readFile(resolve(appRoot, 'src/views/PropertyPages.jsx'), 'utf8');
 const publicPropertiesService = await readFile(resolve(appRoot, 'src/services/public-properties.js'), 'utf8');
 const propertyStyles = await readFile(resolve(appRoot, 'src/views/PropertyPages.styles.css'), 'utf8');
+const viewingRequestsService = await readFile(resolve(appRoot, 'src/services/viewing-requests.js'), 'utf8');
+const viewsIndex = await readFile(resolve(appRoot, 'src/views/index.js'), 'utf8');
+assert.doesNotMatch(propertyPages, /RentalApplicationPage|apply_unit|\/apply\//, 'The excluded public rental-application prototype must not remain in the public property views.');
+assert.doesNotMatch(viewsIndex, /RentalApplicationPage/, 'The excluded rental-application prototype must not be exported.');
+assert.doesNotMatch(app, /RentalApplicationPage|handleRentalApplication|kf-rental-applications|path="\/apply/, 'The public app must not route to or persist the excluded rental-application prototype.');
+assert.match(viewingRequestsService, /publicViewingRequestInputSchema[\s\S]*fetch\(['"]\/api\/v1\/viewing-requests['"]/, 'The viewing-request service must validate input and call the real API.');
+assert.match(propertyPages, /await submitViewingRequest\(\{[\s\S]*?propertyId: property\.id/, 'The viewing form must submit through the real API instead of local storage.');
+assert.doesNotMatch(propertyPages, /appendRow\(['"]kf-viewing-requests['"]/, 'Viewing inquiries must not be stored indefinitely in the browser.');
+assert.match(propertyPages, /submitError\?\.code === ['"]RATE_LIMITED['"][\s\S]*?status\.viewing_rate_limited/, 'A rate-limited viewing submission must show a truthful, distinct status.');
 assert.doesNotMatch(
   propertyPages,
   /Filter20Regular|styles\.action|property_pages\.apply_filters/,

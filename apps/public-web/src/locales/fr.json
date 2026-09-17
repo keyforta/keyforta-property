@@ -44,8 +44,9 @@
     "bathroom_other": "{{count}} salles de bains"
   },
   "status": {
-    "application_submitted": "Candidature envoyee pour examen par le gestionnaire.",
     "viewing_requested": "Votre demande de visite a ete recue.",
+    "viewing_error": "Votre demande de visite n'a pas pu etre envoyee. Reessayez.",
+    "viewing_rate_limited": "Trop de demandes de visite. Reessayez dans un instant.",
     "invitation_saved": "Invitation enregistree.",
     "service_offer_saved": "Offre de services publiee.",
     "access_request_saved": "Demande enregistree. Reference {{reference}}.",
@@ -379,21 +380,10 @@
     "preferred_time": "Date et heure souhaitees",
     "viewing_message": "Message (facultatif)",
     "submit_viewing": "Envoyer la demande de visite",
+    "submitting_viewing": "Envoi en cours...",
     "back_to_property": "Retour au bien",
-    "apply_unit": "Deposer une candidature",
     "verification_link": "Comment fonctionne la verification",
-    "application_eyebrow": "Candidature locative",
-    "application_title": "Candidater pour {{title}}.",
-    "application_intro": "Completez ce dossier pour examen par le gestionnaire.",
-    "phone": "Numero de telephone",
-    "current_address": "Adresse actuelle",
-    "occupants": "Nombre d occupants",
-    "income_source": "Emploi ou source de revenu",
-    "monthly_income": "Revenu mensuel",
-    "move_in_date": "Date d installation souhaitee",
-    "references": "References ou informations complementaires",
-    "consent": "Je confirme que les informations sont completes et peuvent etre examinees par le gestionnaire.",
-    "submit_application": "Envoyer la candidature"
+    "phone": "Numero de telephone"
   },
   "account": {
     "signin": {
@@ -588,7 +578,6 @@
     "properties": "Biens - KEYFORTA",
     "property": "Detail du bien - KEYFORTA",
     "viewing": "Demander une visite - KEYFORTA",
-    "apply": "Candidature locative - KEYFORTA",
     "how": "Fonctionnement - KEYFORTA",
     "landlords": "Proprietaires et gestionnaires - KEYFORTA",
     "trust": "Confiance et securite - KEYFORTA",
