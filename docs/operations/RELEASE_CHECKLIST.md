@@ -15,10 +15,12 @@ Create one record in the pull request or linked issue and keep it current.
 | Owner        | Person responsible for the release decision            |
 | Commit       | Immutable full SHA from `main`                      |
 | CI           | Successful workflow URL for that SHA                   |
+| Security     | SAST, secret, dependency/IaC, DAST, and image-scan evidence |
 | Deployment   | Approved `dev` workflow run URL                        |
 | Scope        | Reviewed deployment scope                              |
 | Migration    | For `postgres` or `full`, job execution and status     |
 | Seed         | Optional seed workflow URL, execution name, and status |
+| Images       | Reviewed registry digests for the selected scope       |
 | Revision     | For application scopes, deployed Container App revisions |
 | Smoke tests  | URLs tested, UTC time, and result                      |
 | Observation  | End time and reviewer for the initial operating window |
@@ -34,7 +36,8 @@ or tenant data in the record.
 - Confirm authorization, organization isolation, audit behavior, and public
   projection boundaries for every changed data path.
 - Run `pnpm verify`; CI must also pass with PostgreSQL integration tests enabled.
-- Review dependency audit and container builds from CI.
+- Review dependency audit, Semgrep, TruffleHog, Trivy filesystem, Checkov Bicep,
+  and loopback-only ZAP results. Scanner failures block promotion.
 - Review migration compatibility. Migrations are forward-only and must tolerate
   being re-run through the migration runner.
 - Identify the previous validated deployment SHA and the signals that would
@@ -46,7 +49,8 @@ or tenant data in the record.
 2. Select the narrowest supported scope and dispatch `Deploy` with
    `operation=plan` for the immutable merge SHA:
    - `postgres` previews PostgreSQL Entra access, the migration job, and
-     forward migrations. It builds the immutable API image because that image
+    forward migrations. The plan builds, attests, scans, and records the
+    immutable API image because that image
      contains the migration runner, but it does not deploy the API application.
    - `api` previews and deploys only the API image and Container App. It does
      not configure PostgreSQL access or run migrations.
@@ -62,12 +66,15 @@ or tenant data in the record.
    foundation-only plan.
 4. Review all available Azure `what-if` results for deletes, replacements,
    public exposure, privilege expansion, and unexpected cost.
+  Review each selected image digest, SBOM, and provenance record in the plan
+  artifact, and the blocking High/Critical Trivy result in the workflow log.
 5. Dispatch the same SHA and scope with `operation=deploy`, provide the reviewed
   plan's workflow run ID, and approve the protected `dev` environment. The
    workflow must retrieve plan evidence whose artifact name, scope, contents,
    and run ID match that SHA before deployment can continue.
-6. Confirm the deploy run repeats `what-if` for only the resources owned by the
-  selected scope so configuration drift remains visible.
+6. Confirm the deploy run imports only the reviewed digest references, performs
+  no image build or push, repeats `what-if`, and rejects normalized drift before
+  the first Azure mutation.
 7. For `postgres` or `full`, preserve the migration execution name and verify it
   reaches `Succeeded`.
    Migration `0017` stops without changing assignment history if a property has

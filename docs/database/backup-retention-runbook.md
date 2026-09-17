@@ -6,6 +6,16 @@
 
 This runbook defines the controls required before production traffic. It does not replace Azure service configuration, the provider's shared-responsibility terms, or jurisdiction-specific legal approval.
 
+## Current pilot implementation
+
+The `dev` foundation currently provides seven-day PostgreSQL automated-backup
+retention, seven-day Blob soft delete, locally redundant storage,
+password-disabled PostgreSQL authentication, and 30-day Container Apps log
+retention. It does not provide logical backup jobs, private endpoints, HA,
+geo-redundant backup, backup alerts, or verified restore evidence. The environment
+must remain synthetic-only until a separately approved isolated restore exercise
+records observed RPO/RTO.
+
 ## 1. Recovery objectives and ownership
 
 Record the approved SLO, RPO, and RTO in an environment ADR before launch. Until those values are approved, do not advertise them publicly.
@@ -67,6 +77,15 @@ At least quarterly, after a major migration, and after a material backup configu
 8. Record duration, restore point, data loss window, failures, corrective actions, and owner sign-off.
 
 A backup is not considered verified until the restored system can pass the application smoke suite without using production credentials or real outbound provider delivery.
+
+The exercise record must contain the authorized change reference, source backup
+identifier, isolated target, requested and actual restore points, start/end UTC
+times, observed loss window, migration ledger result, isolation checks, smoke-test
+result, cleanup status, corrective actions, reviewer, and evidence location. Stop
+without restoring when the target is not isolated, credentials are production
+runtime credentials, the backup identity is over-privileged, or cleanup authority
+is absent. Executing the exercise requires explicit infrastructure and cost
+approval; this runbook alone grants no deployment authority.
 
 ## 4. Object-storage protection
 

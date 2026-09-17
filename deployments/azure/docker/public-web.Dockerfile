@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim AS build
+FROM node:24-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS build
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -31,7 +31,7 @@ COPY packages/types packages/types
 COPY packages/ui packages/ui
 RUN pnpm --filter @keyforta/public-web build
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:24-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS runtime
 ENV HOSTNAME=0.0.0.0
 ENV NODE_ENV=production
 ENV PORT=8080

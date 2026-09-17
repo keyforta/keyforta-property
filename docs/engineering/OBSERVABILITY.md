@@ -1,7 +1,18 @@
 # Observability conventions
 
-This is the implementation contract for future telemetry work; it does not claim
-instrumentation that is not present.
+This document separates deployed pilot evidence from the implementation contract
+for future telemetry work.
+
+## Current pilot state
+
+The Azure foundation routes Container Apps logs to one Log Analytics workspace
+with 30-day retention. API requests receive server-generated correlation IDs,
+deployment workflows preserve migration, smoke-test, image-digest, SBOM,
+provenance, vulnerability-scan, and `what-if` evidence, and the MCP boundary
+records bounded audit events. Dashboards, alert rules, distributed tracing,
+backup-age monitoring, and an exercised on-call escalation path are not yet
+implemented. Do not interpret log availability as an SLO or incident-response
+guarantee.
 
 ## Signals
 

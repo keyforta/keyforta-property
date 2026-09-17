@@ -181,7 +181,7 @@ flowchart LR
 | PostgreSQL           | Burstable B1ms, no HA        |
 | Backup retention     | 7 days                       |
 | Log retention        | 30 days                      |
-| Deployment           | Manual, immutable commit SHA |
+| Deployment           | Manual, reviewed registry digest |
 | Public web origin     | `https://keyforta.com`        |
 | DNS authority         | Cloudflare, DNS-only records  |
 

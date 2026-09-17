@@ -21,6 +21,17 @@ deployment time. Templates compile independently before `what-if` is allowed.
 The bootstrap administrator creates each environment resource group before the
 resource-group-scoped foundation deployment runs.
 
+Security CI scans Bicep with digest-pinned Checkov. The exact exclusions cover
+the approved synthetic-pilot topology: public service endpoints
+(`CKV_AZURE_35`, `CKV_AZURE_59`, `CKV_AZURE_139`), external plan-time Trivy
+instead of ACR-native scanning and quarantine (`CKV_AZURE_163`,
+`CKV_AZURE_166`), the statically unprovable generated storage name
+(`CKV_AZURE_43`), and deferred geo-replication (`CKV_AZURE_206`). Checkov 3.3.17
+cannot parse `mcp.bicep`, so that exact file is excluded from Checkov while
+its compiler-generated ARM template is scanned separately and it remains
+covered by required recursive Bicep compilation. Any broader
+exclusion requires architecture and security approval.
+
 `config/external-identity.dev.bicepparam` records the approved development
 customer-identity tenant name and residency choice. South Africa (`ZA`) maps to
 Microsoft Entra External ID's Europe data region. Tenant country and initial
@@ -63,8 +74,14 @@ managed certificates secure `keyforta.com` and `www.keyforta.com`; the `www`
 host redirects permanently to the canonical apex host. Cloudflare remains the
 authoritative DNS provider, but these traffic records must remain DNS-only so
 Azure can issue and renew the certificates.
-The deployment workflow actively builds the API, public-web, and admin-web Dockerfiles under
-`deployments/azure/docker/`. The empty `deployments/azure/workflows/` directory
+The deployment workflow builds the API, public-web, and admin-web Dockerfiles
+under `deployments/azure/docker/` only during `operation=plan`. It publishes
+BuildKit SBOM/provenance, blocks on High/Critical image findings, resolves ACR
+digests, locks each SHA-tagged manifest against later writes, and stores those
+references with normalized `what-if` evidence. The
+deploy operation imports the reviewed digests, rebuilds nothing, rejects drift,
+and passes only digest-addressed images to Bicep. The empty
+`deployments/azure/workflows/` directory
 is reserved and has no active deployment authority; GitHub discovers workflows
 only under `.github/workflows/`.
 
@@ -116,9 +133,9 @@ the component scope does not create another server.
   recorded operation when access ends.
 - Deploy only the `dev` environment during the private pilot.
 - Prefer the narrowest scope. Scoped reconciliation adds no standing resources,
-  although selected image builds and migration job executions retain their
-  normal transient cost. Roll applications back to a previously reviewed
-  immutable SHA; correct schema defects with a reviewed forward migration.
+  although selected plan-time image builds and migration job executions retain
+  their normal transient cost. Roll applications back to a previously reviewed
+  immutable digest and revision; correct schema defects with a reviewed forward migration.
 - Do not add general document storage, Key Vault, Service Bus, workers, HA, or production
   resources without a reviewed requirement and cost estimate.
 

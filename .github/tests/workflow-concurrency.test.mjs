@@ -618,14 +618,29 @@ function executable(directory, name, source) {
   chmodSync(file, 0o755);
 }
 
-function runScenario(workflow, failures = "", scope = "full") {
+function runScenario(workflow, failures = "", scope = "full", existingTags = "") {
   const directory = mkdtempSync(join(tmpdir(), "keyforta-workflow-test-"));
   try {
     const events = join(directory, "events");
     executable(
       directory,
       "az",
-      '#!/usr/bin/env bash\nset -eu\necho az >> "$EVENTS_FILE"\n',
+      `#!/usr/bin/env bash
+set -eu
+echo az >> "$EVENTS_FILE"
+if [[ "$*" == *"acr repository show "* && "$*" == *"--query writeEnabled"* ]]; then
+  printf 'false\n'
+  exit 0
+fi
+if [[ "$*" == *"acr repository show-tags"* ]]; then
+  for repository in \${EXISTING_TAGS//,/ }; do
+    if [[ "$*" == *"--repository $repository"* ]]; then printf '%s\n' "$DEPLOYMENT_SHA"; fi
+  done
+fi
+if [[ "$*" == *"acr repository show "* && "$*" == *"--image"* ]]; then
+  printf 'sha256:%064d\n' 1
+fi
+`,
     );
     executable(
       directory,
@@ -634,10 +649,6 @@ function runScenario(workflow, failures = "", scope = "full") {
 set -eu
 command_name="$1"
 shift
-if [ "$command_name" = push ]; then
-  echo "push:$1" >> "$EVENTS_FILE"
-  exit 0
-fi
 component=unknown
 for argument in "$@"; do
   case "$argument" in
@@ -660,6 +671,7 @@ case ",$FAILURES," in
   *) result=0 ;;
 esac
 echo "complete:$component:$result" >> "$EVENTS_FILE"
+if [ "$result" -eq 0 ]; then echo "publish:$component" >> "$EVENTS_FILE"; fi
 exit "$result"
 `,
     );
@@ -676,7 +688,9 @@ exit "$result"
           DEPLOYMENT_SHA: "test-sha",
           DEPLOYMENT_SCOPE: scope,
           EVENTS_FILE: events,
+          EXISTING_TAGS: existingTags,
           FAILURES: failures,
+          GITHUB_ENV: join(directory, "github-env"),
           PATH: `${directory}:${process.env.PATH}`,
           REGISTRY_NAME: "test-registry",
           REGISTRY_SERVER: "registry.example.test",
@@ -724,26 +738,25 @@ for (const workflow of Object.keys(workflows)) {
           new RegExp(`${title} container build failed`),
         );
       }
-      if (workflow === "deploy") {
-        assert.ok(!result.events.some((event) => event.startsWith("push:")));
-      }
     });
   }
 }
 
-test("deploy publishes all images only after successful builds", () => {
+test("deploy plan publishes every successfully built image", () => {
   const result = runScenario("deploy");
-  const firstPush = result.events.findIndex((event) =>
-    event.startsWith("push:"),
-  );
   assert.equal(result.status, 0);
-  assert.ok(firstPush > result.events.indexOf("build:api"));
-  assert.ok(firstPush > result.events.indexOf("build:web"));
-  assert.ok(firstPush > result.events.indexOf("build:admin"));
   assert.equal(
-    result.events.filter((event) => event.startsWith("push:")).length,
+    result.events.filter((event) => event.startsWith("publish:")).length,
     3,
   );
+});
+
+test("deploy rejects an existing immutable image tag before building", () => {
+  const result = runScenario("deploy", "", "api", "keyforta-api");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Immutable image tag keyforta-api:test-sha already exists/);
+  assert.equal(result.events.some((event) => event.startsWith("build:")), false);
+  assert.equal(result.events.some((event) => event.startsWith("publish:")), false);
 });
 
 for (const [scope, expectedComponent] of [
@@ -760,12 +773,12 @@ for (const [scope, expectedComponent] of [
       [`build:${expectedComponent}`],
     );
     assert.equal(
-      result.events.filter((event) => event.startsWith("push:")).length,
+      result.events.filter((event) => event.startsWith("publish:")).length,
       1,
     );
-    assert.match(
-      result.events.find((event) => event.startsWith("push:")) ?? "",
-      new RegExp(`keyforta-${expectedComponent === "web" ? "public-web" : expectedComponent === "admin" ? "admin-web" : "api"}:`),
+    assert.equal(
+      result.events.find((event) => event.startsWith("publish:")),
+      `publish:${expectedComponent}`,
     );
   });
 }
@@ -796,21 +809,21 @@ test("deploy exposes exact component scopes and binds deploys to plan scope", ()
   );
   assert.ok(
     steps.indexOf(step("Verify admin API dependency")) <
-      steps.indexOf(step("Build and push immutable images")),
+      steps.indexOf(step("Deploy applications")),
   );
   assert.ok(
-    steps.indexOf(step("Verify admin API dependency")) <
-      steps.indexOf(step("Deploy applications")),
+    steps.indexOf(step("Verify reviewed hostname bootstrap plan still applies")) <
+      steps.indexOf(step("Bootstrap public-web hostnames")),
   );
   assert.match(step("Verify deployment intent")?.run ?? "", /expected_scope="\$DEPLOYMENT_SCOPE"/);
   assert.match(step("Verify deployment intent")?.run ?? "", /grep -Fx "scope=\$expected_scope"/);
-  for (const name of [
-    "Preview database access changes",
-    "Preview database job changes",
-    "Preview development seed job changes",
-  ]) {
-    assert.match(step(name)?.if ?? "", /inputs\.operation != 'deploy-foundation'/);
-  }
+  assert.match(step("Preview database and job changes")?.if ?? "", /inputs\.operation != 'deploy-foundation'/);
+  assert.match(step("Preview database and job changes")?.run ?? "", /apiImage="\$API_IMAGE"/);
+  assert.match(step("Verify reviewed database and job plans still apply")?.run ?? "", /compare_plan database-access/);
+  assert.ok(
+    steps.indexOf(step("Verify reviewed database and job plans still apply")) <
+      steps.indexOf(step("Configure PostgreSQL Entra administrator")),
+  );
   assert.match(step("Deploy migration job")?.if ?? "", /DEPLOYMENT_SCOPE == 'postgres'/);
   assert.doesNotMatch(step("Deploy migration job")?.if ?? "", /DEPLOYMENT_SCOPE == 'api'/);
   assert.match(step("Deploy applications")?.if ?? "", /DEPLOYMENT_SCOPE != 'postgres'/);
@@ -822,7 +835,7 @@ test("deploy exposes exact component scopes and binds deploys to plan scope", ()
   ]) {
     const script = step(name)?.with?.inlineScript ?? "";
     assert.match(script, /platformAdminObjectIds="\$PLATFORM_ADMIN_OBJECT_IDS"/);
-    assert.match(script, /adminImage="\$REGISTRY_SERVER\/keyforta-admin-web:\$DEPLOYMENT_SHA"/);
+    assert.match(script, /adminImage="\$ADMIN_IMAGE"/);
   }
   const publish = step("Build and push immutable images")?.run ?? "";
   assert.match(publish, /NEXT_PUBLIC_ENTRA_CLIENT_ID/);
