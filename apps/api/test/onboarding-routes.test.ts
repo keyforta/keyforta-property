@@ -161,6 +161,40 @@ describe("landlord onboarding routes", () => {
     expect(response.json().error.code).toBe("PENDING_APPLICATION_EXISTS");
   });
 
+  it("rate limits onboarding submissions by client address before the gateway", async () => {
+    const configured = dependencies();
+    const app = await buildApp({
+      ...configured,
+      landlordOnboardingRateLimitMax: 1,
+    });
+    apps.push(app);
+
+    const first = await app.inject({
+      headers: { authorization: "Bearer applicant-token" },
+      method: "POST",
+      payload: {
+        applicantName: "Ada Landlord",
+        proposedOrganizationName: "Ada Estates",
+      },
+      remoteAddress: "203.0.113.10",
+      url: "/api/v1/landlord-onboarding-applications",
+    });
+    const limited = await app.inject({
+      headers: { authorization: "Bearer applicant-token" },
+      method: "POST",
+      payload: {
+        applicantName: "Grace Landlord",
+        proposedOrganizationName: "Grace Estates",
+      },
+      remoteAddress: "203.0.113.10",
+      url: "/api/v1/landlord-onboarding-applications",
+    });
+
+    expect(first.statusCode).toBe(201);
+    expect(limited.statusCode).toBe(429);
+    expect(configured.submissions).toHaveLength(1);
+  });
+
   it("allows an allowlisted object ID to list and decide without an organization header", async () => {
     const configured = dependencies();
     const app = await buildApp(configured);

@@ -36,6 +36,7 @@ export interface AppDependencies {
   authenticator?: PrincipalAuthenticator;
   corsOrigin?: string | string[] | boolean;
   landlordOnboarding?: LandlordOnboardingGateway;
+  landlordOnboardingRateLimitMax?: number;
   platformAdminObjectIds?: ReadonlySet<string>;
   publicListingPublication?: PublicListingPublicationGateway;
   publicProperties?: PublicPropertyGateway;
@@ -430,48 +431,59 @@ export async function buildApp(
   registerPublicationCommand("publish", true);
   registerPublicationCommand("withdraw", false);
 
-  app.post("/api/v1/landlord-onboarding-applications", async (request, reply) => {
-    if (!dependencies.authenticator || !dependencies.landlordOnboarding) {
-      return reply.status(503).send(problem(
-        request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
-        "Landlord onboarding is temporarily unavailable.",
-      ));
-    }
-    const principal = await authenticate(
-      request.headers.authorization,
-      dependencies.authenticator,
-    );
-    if (!principal) {
-      return reply.status(401).send(problem(
-        request.id, 401, "UNAUTHENTICATED", "Unauthorized",
-        "A valid bearer credential is required.",
-      ));
-    }
-    const parsedInput = landlordOnboardingApplicationInputSchema.safeParse(request.body);
-    if (!parsedInput.success) {
-      return reply.status(400).send(problem(
-        request.id, 400, "VALIDATION_ERROR", "Validation Error",
-        "The landlord onboarding application is invalid.",
-        parsedInput.error.flatten(),
-      ));
-    }
-    const application = await dependencies.landlordOnboarding.submit({
-      ...parsedInput.data,
-      applicantObjectId: principal.objectId,
-      applicantSubject: principal.subject,
-      correlationId: request.id,
-    });
-    if (!application) {
-      return reply.status(409).send(problem(
-        request.id, 409, "PENDING_APPLICATION_EXISTS", "Conflict",
-        "A pending landlord onboarding application already exists.",
-      ));
-    }
-    return reply.status(201).send({
-      data: landlordOnboardingApplicationSchema.parse(application),
-      meta: { requestId: request.id },
-    });
-  });
+  app.post(
+    "/api/v1/landlord-onboarding-applications",
+    {
+      config: {
+        rateLimit: {
+          max: dependencies.landlordOnboardingRateLimitMax ?? 5,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.landlordOnboarding) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "Landlord onboarding is temporarily unavailable.",
+        ));
+      }
+      const principal = await authenticate(
+        request.headers.authorization,
+        dependencies.authenticator,
+      );
+      if (!principal) {
+        return reply.status(401).send(problem(
+          request.id, 401, "UNAUTHENTICATED", "Unauthorized",
+          "A valid bearer credential is required.",
+        ));
+      }
+      const parsedInput = landlordOnboardingApplicationInputSchema.safeParse(request.body);
+      if (!parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The landlord onboarding application is invalid.",
+          parsedInput.error.flatten(),
+        ));
+      }
+      const application = await dependencies.landlordOnboarding.submit({
+        ...parsedInput.data,
+        applicantObjectId: principal.objectId,
+        applicantSubject: principal.subject,
+        correlationId: request.id,
+      });
+      if (!application) {
+        return reply.status(409).send(problem(
+          request.id, 409, "PENDING_APPLICATION_EXISTS", "Conflict",
+          "A pending landlord onboarding application already exists.",
+        ));
+      }
+      return reply.status(201).send({
+        data: landlordOnboardingApplicationSchema.parse(application),
+        meta: { requestId: request.id },
+      });
+    },
+  );
 
   app.get("/api/v1/landlord-onboarding-applications", async (request, reply) => {
     if (!dependencies.authenticator || !dependencies.landlordOnboarding) {

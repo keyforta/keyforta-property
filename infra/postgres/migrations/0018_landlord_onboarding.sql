@@ -15,9 +15,8 @@ create table app.landlord_onboarding_applications (
   decided_at timestamptz
 );
 
-create unique index landlord_onboarding_one_pending_applicant
-  on app.landlord_onboarding_applications (applicant_object_id)
-  where status = 'pending';
+create unique index landlord_onboarding_one_application_per_applicant
+  on app.landlord_onboarding_applications (applicant_object_id);
 create index landlord_onboarding_review_queue
   on app.landlord_onboarding_applications (status, submitted_at, id);
 
@@ -75,7 +74,6 @@ begin
   if exists (
     select 1 from app.landlord_onboarding_applications
     where applicant_object_id = requested_applicant_object_id
-      and status = 'pending'
   ) then
     return;
   end if;

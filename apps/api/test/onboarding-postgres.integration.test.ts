@@ -68,7 +68,7 @@ describePostgres("PostgreSQL landlord onboarding", () => {
     });
   });
 
-  it("allows only one pending application for an immutable applicant identity", async () => {
+  it("allows only one durable application for an immutable applicant identity", async () => {
     const parameters = [
       "synthetic-applicant-duplicate",
       "00000000-0000-4000-8000-000000000711",
@@ -84,13 +84,22 @@ describePostgres("PostgreSQL landlord onboarding", () => {
       "select * from app.submit_landlord_onboarding_application($1, $2, $3, $4, $5)",
       [...parameters.slice(0, 4), "submit-duplicate-02"],
     );
+    await runtimeQuery(
+      "select * from app.decide_landlord_onboarding_application($1, $2, $3, $4, $5, $6)",
+      [created.rows[0]?.id, "synthetic-platform-admin", "00000000-0000-4000-8000-000000000702",
+        "rejected", "Duplicate test application.", "reject-duplicate-01"],
+    );
+    const afterDecision = await runtimeQuery(
+      "select * from app.submit_landlord_onboarding_application($1, $2, $3, $4, $5)",
+      [...parameters.slice(0, 4), "submit-duplicate-03"],
+    );
 
     expect(created.rowCount).toBe(1);
     expect(duplicate.rowCount).toBe(0);
+    expect(afterDecision.rowCount).toBe(0);
     const count = await client.query<{ count: string }>(`
       select count(*)::text as count from app.landlord_onboarding_applications
       where applicant_object_id = '00000000-0000-4000-8000-000000000711'
-        and status = 'pending'
     `);
     expect(count.rows[0]?.count).toBe("1");
   });
