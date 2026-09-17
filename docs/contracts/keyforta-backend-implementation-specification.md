@@ -398,6 +398,9 @@ The architecture is implementation-ready, but the backend is not production-read
 ### 8.1 General rules
 
 - Base path: `/api/v1`.
+- `docs/openapi.yaml` is the named HTTP wire authority. Shared schemas and
+  implemented Fastify routes must match it; unresolved route inventory conflicts
+  remain recorded in `docs/engineering/REQUIREMENTS_GAPS.md`.
 - Public discovery routes do not require authentication and return only published, public-safe data.
 - All authenticated routes require a validated bearer access token.
 - Use JSON over HTTPS and ISO-8601 timestamps in UTC.
@@ -425,7 +428,8 @@ Collection response:
 {
   "items": [],
   "meta": { "requestId": "req_01..." },
-  "nextCursor": null
+  "nextCursor": null,
+  "total": 0
 }
 ```
 
@@ -437,7 +441,7 @@ The implementation team must provide these routes or record an approved equivale
 | --- | --- | --- |
 | Identity | `GET /me`, `GET /organizations`, `GET /memberships` | `POST /onboarding/landlords`, `POST /onboarding/maintenance-operators`, `POST /manager-invitations`, `POST /manager-invitations/{id}/accept`, membership suspension/role commands |
 | Property | `GET /properties`, `GET /properties/{id}`, `GET /properties/{id}/units`, `GET /units/{id}` | Create/update/archive property; create/update/publish/pause unit; submit/approve property verification |
-| Discovery | `GET /public/properties`, `GET /public/properties/{id}`, `GET /public/units/{id}` | `POST /public/units/{id}/viewing-requests`, `POST /public/units/{id}/rental-applications` when onboarding allows an authenticated applicant |
+| Discovery | `GET /properties`, `GET /properties/{id}`, `GET /public/units/{id}` | `POST /viewing-requests`, `POST /public/units/{id}/rental-applications` when onboarding allows an authenticated applicant |
 | Leasing | `GET /rental-applications`, `GET /rental-applications/{id}`, `GET /leases`, `GET /leases/{id}`, `GET /leases/{id}/occupancy` | Application submit/changes/resubmit/approve/reject/withdraw; lease offer/accept/sign/activate/renew/terminate/move-in/move-out |
 | Billing | `GET /leases/{id}/charges`, `GET /charges/{id}`, `GET /leases/{id}/ledger` | Create/close schedule; generate charges; adjust/waive charge; reverse/replacement entry |
 | Payments | `GET /payments`, `GET /payments/{id}`, `GET /reconciliation-batches` | Payment intent, record/allocate/refund/reverse/reconcile payment; close reconciliation batch |

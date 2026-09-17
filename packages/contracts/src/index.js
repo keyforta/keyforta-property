@@ -7,6 +7,48 @@ export const resources = ['organizations', 'profiles', 'memberships', 'invitatio
 export const maintenanceStatuses = ['submitted', 'triaged', 'assigned', 'accepted', 'scheduled', 'in_progress', 'completed', 'confirmed', 'reopened'];
 export const commands = ['createOrganization', 'inviteManager', 'acceptInvitation', 'submitRentalApplication', 'requestApplicationChanges', 'approveApplication', 'rejectApplication', 'createLeaseFromApplication', 'signLease', 'activateLease', 'generateCharges', 'recordPayment', 'allocatePayment', 'reconcilePayment', 'publishServiceOffer', 'triage', 'assign', 'accept', 'schedule', 'start', 'complete', 'confirm', 'reopen', 'approveQuote', 'rejectQuote', 'submitReport'];
 export const apiResponse = (data) => ({ data });
+export const apiBasePath = '/api/v1';
+export const apiWireAuthority = Object.freeze({
+	document: 'docs/openapi.yaml',
+	name: 'OpenAPI',
+});
+
+export const metaSchema = z.object({
+	requestId: z.string().min(1).max(128),
+}).strict();
+
+export const problemSchema = z.object({
+	error: z.object({
+		code: z.string().min(1),
+		details: z.unknown(),
+		message: z.string().min(1),
+		traceId: z.string().min(1).max(128),
+	}).strict(),
+}).strict();
+
+export const envelopeSchema = (dataSchema) => z.object({
+	auditEventId: z.string().min(1).optional(),
+	data: dataSchema,
+	meta: metaSchema,
+}).strict();
+
+export const listEnvelopeSchema = (itemSchema) => z.object({
+	items: z.array(itemSchema),
+	meta: metaSchema,
+	nextCursor: z.string().min(1).max(128).nullable().optional(),
+	total: z.number().int().nonnegative(),
+}).strict();
+
+export const runtimeHttpOperations = Object.freeze({
+	listProperties: { method: 'GET', path: '/properties', authentication: 'anonymous' },
+	getProperty: { method: 'GET', path: '/properties/{propertyId}', authentication: 'anonymous' },
+	publishPublicListing: { method: 'POST', path: '/public-listings/{listingId}/publish', authentication: 'required' },
+	withdrawPublicListing: { method: 'POST', path: '/public-listings/{listingId}/withdraw', authentication: 'required' },
+	submitLandlordOnboardingApplication: { method: 'POST', path: '/landlord-onboarding-applications', authentication: 'required' },
+	listLandlordOnboardingApplications: { method: 'GET', path: '/landlord-onboarding-applications', authentication: 'required' },
+	decideLandlordOnboardingApplication: { method: 'POST', path: '/landlord-onboarding-applications/{applicationId}/decision', authentication: 'required' },
+	requestViewing: { method: 'POST', path: '/viewing-requests', authentication: 'anonymous' },
+});
 
 export const publicPropertyIdSchema = z.string().trim().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
 
@@ -72,6 +114,14 @@ export const publicPropertyListResultSchema = z.object({
 	total: z.number().int().nonnegative(),
 }).strip();
 
+export const publicPropertyEnvelopeSchema = envelopeSchema(publicPropertyProjectionSchema);
+export const publicPropertyListEnvelopeSchema = z.object({
+	items: z.array(publicPropertyProjectionSchema),
+	meta: metaSchema,
+	nextCursor: publicPropertyIdSchema.nullable(),
+	total: z.number().int().nonnegative(),
+}).strict();
+
 export const publicViewingRequestInputSchema = z.object({
 	email: z.email().max(254),
 	locale: z.enum(['en', 'fr']).optional(),
@@ -86,6 +136,20 @@ export const publicViewingRequestInputSchema = z.object({
 export const publicRequestReceiptSchema = z.object({
 	reference: z.string().min(1).max(200),
 	status: z.literal('accepted'),
+}).strict();
+
+export const publicRequestReceiptEnvelopeSchema = envelopeSchema(publicRequestReceiptSchema);
+
+export const publicListingPublicationEnvelopeSchema = envelopeSchema(z.object({
+	listingId: publicListingIdSchema,
+	status: z.enum(['published', 'withdrawn']),
+}).strict());
+
+export const landlordOnboardingApplicationEnvelopeSchema = envelopeSchema(landlordOnboardingApplicationSchema);
+
+export const landlordOnboardingApplicationListEnvelopeSchema = z.object({
+	items: z.array(landlordOnboardingApplicationSchema),
+	meta: metaSchema,
 }).strict();
 
 export const publicWebOperations = Object.freeze({

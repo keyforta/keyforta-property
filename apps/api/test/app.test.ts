@@ -1,4 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  problemSchema,
+  publicListingPublicationEnvelopeSchema,
+  publicPropertyEnvelopeSchema,
+  publicPropertyListEnvelopeSchema,
+  publicRequestReceiptEnvelopeSchema,
+} from "@keyforta/contracts";
 
 import { buildApp, parseCorsOrigins } from "../src/app.js";
 import { createMemoryPublicPropertyGateway } from "../src/properties/gateway.js";
@@ -194,6 +201,7 @@ describe("KEYFORTA API runtime", () => {
       code: "NOT_FOUND",
       traceId: expect.any(String),
     });
+    problemSchema.parse(body);
     expect(response.headers["x-request-id"]).toBe(body.error.traceId);
   });
 
@@ -267,7 +275,9 @@ describe("anonymous public property discovery", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
+    const body = response.json();
+    publicPropertyListEnvelopeSchema.parse(body);
+    expect(body).toEqual({
       items: [
         {
           address: "Gombe",
@@ -306,7 +316,9 @@ describe("anonymous public property discovery", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
+    const body = response.json();
+    publicPropertyEnvelopeSchema.parse(body);
+    expect(body).toEqual({
       data: {
         address: "Limete",
         amenities: ["Parking"],
@@ -520,7 +532,9 @@ describe("protected public listing publication", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
+    const body = response.json();
+    publicListingPublicationEnvelopeSchema.parse(body);
+    expect(body).toEqual({
       data: { listingId, status: published ? "published" : "withdrawn" },
       meta: { requestId: `publication-${command}` },
     });
@@ -621,7 +635,9 @@ describe("anonymous public viewing requests", () => {
     });
 
     expect(response.statusCode).toBe(202);
-    expect(response.json()).toEqual({
+    const body = response.json();
+    publicRequestReceiptEnvelopeSchema.parse(body);
+    expect(body).toEqual({
       data: { reference: "viewing-request-01", status: "accepted" },
       meta: { requestId: "viewing-request-01" },
     });

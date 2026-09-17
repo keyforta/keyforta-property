@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  landlordOnboardingApplicationEnvelopeSchema,
+  landlordOnboardingApplicationListEnvelopeSchema,
+} from "@keyforta/contracts";
 
 import { buildApp } from "../src/app.js";
 import type {
@@ -131,6 +135,7 @@ describe("landlord onboarding routes", () => {
       url: "/api/v1/landlord-onboarding-applications",
     });
     expect(accepted.statusCode).toBe(201);
+    landlordOnboardingApplicationEnvelopeSchema.parse(accepted.json());
     expect(configured.submissions).toEqual([{
       applicantName: "Ada Landlord",
       applicantObjectId,
@@ -216,8 +221,10 @@ describe("landlord onboarding routes", () => {
     });
 
     expect(listed.statusCode).toBe(200);
+    landlordOnboardingApplicationListEnvelopeSchema.parse(listed.json());
     expect(listed.json().items).toEqual([pendingApplication]);
     expect(decided.statusCode).toBe(200);
+    landlordOnboardingApplicationEnvelopeSchema.parse(decided.json());
     expect(configured.decisions).toEqual([{
       administratorObjectId: adminObjectId,
       administratorSubject: "synthetic-admin",

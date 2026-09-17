@@ -7,6 +7,10 @@
 - Base URL: `https://api.keyforta.com/api/v1`.
 - Local base URL: `http://localhost:3000/api/v1`.
 - Transport: HTTPS in every non-local environment; JSON request and response bodies; UTF-8.
+- `docs/openapi.yaml` is the named HTTP wire authority. This document describes
+  the domain API/event contract and must be synchronized with OpenAPI for
+  enabled routes; unresolved route inventory questions remain in the engineering
+  requirements-gap report.
 - Public routes are explicitly marked `PUBLIC` below and return only published, public-safe fields.
 - Protected routes require a bearer token issued for KEYFORTA's configured identity provider.
 - Authorization is deny-by-default and is evaluated server-side for organization, role, relationship, resource, action, state, and effective time.
@@ -88,11 +92,12 @@ row-level policies.
 {
   "items": [],
   "meta": { "requestId": "req_01J..." },
-  "nextCursor": null
+  "nextCursor": null,
+  "total": 0
 }
 ```
 
-Collection queries accept `cursor`, `limit` (default 25, maximum 100), stable `sort`, and context-specific filters. `total` is optional for expensive queries and must not be used to bypass authorization.
+Collection queries accept `cursor`, `limit` (default 25, maximum 100), stable `sort`, and context-specific filters. When `total` is present, it is computed after authorization and must not be used to bypass authorization.
 
 ## 4. Resource schemas
 
@@ -195,13 +200,13 @@ The following endpoint inventory is normative for MVP. A route may be renamed on
 | Method and route | Access | Request contract | Success |
 | --- | --- | --- | --- |
 | `GET /me` | Protected | No body | `200 ProfileSummary` |
-| `POST /onboarding/landlords` | Protected | organization name, locale, time zone, currency | `201 Organization + Membership` |
+| `POST /landlord-onboarding-applications` | Protected | applicant and proposed organization name | `201 LandlordOnboardingApplication` |
 | `POST /onboarding/maintenance-operators` | Protected | profile, service categories, coverage, evidence references | `201 OperatorProfile` |
 | `GET /organizations` | Protected | cursor/filter | `200 Organization[]` |
 | `POST /manager-invitations` | Protected | email, scope, expiresAt | `201 Invitation` |
 | `POST /manager-invitations/{id}/accept` | Protected | optional profile completion | `200 Membership` |
-| `GET /public/properties` | Public | city, type, cursor, limit | `200 PublicProperty[]` |
-| `GET /public/properties/{id}` | Public | none | `200 PublicPropertyDetail` |
+| `GET /properties` | Public | city, type, cursor, limit | `200 PublicProperty[]` |
+| `GET /properties/{id}` | Public | none | `200 PublicPropertyDetail` |
 | `GET /public/units/{id}` | Public | none | `200 PublicUnitDetail` |
 | `GET /properties` | Protected | authorized filters, cursor, limit | `200 Property[]` |
 | `POST /properties` | Protected | property input | `201 Property` |
@@ -218,7 +223,7 @@ The following endpoint inventory is normative for MVP. A route may be renamed on
 | `POST /units/{id}/publish` | Protected | none | `200 Unit` |
 | `POST /units/{id}/pause` | Protected | reason | `200 Unit` |
 | `POST /units/{id}/pricing` | Protected | money + effectiveFrom | `201 PricingVersion` |
-| `POST /public/units/{id}/viewing-requests` | Public/limited | requester, requested window | `201 ViewingRequest` |
+| `POST /viewing-requests` | Public/limited | requester, requested window | `202 Accepted` |
 | `POST /units/{id}/rental-applications` | Protected | application draft | `201 Application` |
 | `GET /rental-applications` | Protected | authorized filters | `200 Application[]` |
 | `GET /rental-applications/{id}` | Protected | none | `200 Application` |
