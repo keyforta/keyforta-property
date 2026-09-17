@@ -86,7 +86,7 @@ DECLARE
     table_name text;
 BEGIN
     FOREACH table_name IN ARRAY ARRAY[
-        'organizations', 'memberships', 'invitations', 'properties', 'buildings',
+        'organizations', 'memberships', 'invitations', 'properties',
         'units', 'unit_pricing_versions', 'rental_applications',
         'rental_application_versions', 'leases', 'lease_term_versions',
         'inspections', 'occupancy_periods', 'charge_schedules', 'charges',

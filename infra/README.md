@@ -13,12 +13,21 @@ unused managed services are deferred until pilot evidence justifies them.
 | `bicep/seed-job.bicep`        | Dormant, manually triggered synthetic data job for `dev` only     |
 | `bicep/apps.bicep`            | Public web and API, managed identities, and ACR access            |
 | `bicep/database-access.bicep` | PostgreSQL Entra administrators and narrow DBA workstation access |
+| `bicep/external-identity.bicep` | External ID tenant and dedicated Azure resource group           |
 
 Foundation parameter files live in `config/`. Tenant IDs and application
 registration values remain GitHub environment variables and are supplied at
 deployment time. Templates compile independently before `what-if` is allowed.
 The bootstrap administrator creates each environment resource group before the
 resource-group-scoped foundation deployment runs.
+
+`config/external-identity.dev.bicepparam` records the approved development
+customer-identity tenant name and residency choice. South Africa (`ZA`) maps to
+Microsoft Entra External ID's Europe data region. Tenant country and initial
+domain choices are immutable; review `what-if` before creation. The Base A0
+tenant uses External ID monthly active user billing. Deleting its Azure resource
+is not a routine rollback and must not be attempted after customer identities or
+application registrations exist.
 
 The ordered SQL migrations in `postgres/migrations/` create organization,
 party, effective membership, jurisdiction-policy, property, unit, lease,
@@ -46,13 +55,15 @@ Never put real people, properties, identities, payment details, or production
 exports in a seed.
 
 The public web container builds a standalone Next.js server and runs it as an
-unprivileged Node user. Browsers call the public API directly; API CORS permits
-only `https://keyforta.com` and does not permit credentialed requests. Azure
+unprivileged Node user. The admin SPA runs as an unprivileged Nginx user on its
+native Container Apps HTTPS FQDN. Browsers call the public API directly; API
+CORS permits only `https://keyforta.com` and the exact admin FQDN, and does not
+permit credentialed requests. Azure
 managed certificates secure `keyforta.com` and `www.keyforta.com`; the `www`
 host redirects permanently to the canonical apex host. Cloudflare remains the
 authoritative DNS provider, but these traffic records must remain DNS-only so
 Azure can issue and renew the certificates.
-The deployment workflow actively builds the API and public-web Dockerfiles under
+The deployment workflow actively builds the API, public-web, and admin-web Dockerfiles under
 `deployments/azure/docker/`. The empty `deployments/azure/workflows/` directory
 is reserved and has no active deployment authority; GitHub discovers workflows
 only under `.github/workflows/`.
@@ -66,9 +77,10 @@ The deployment workflow uses a SHA-bound, scope-bound plan:
 | `postgres`   | PostgreSQL Entra access, migration image and job, forward migrations |
 | `api`        | API image and Container App only |
 | `public-web` | Public-web image and Container App only |
-| `full`       | PostgreSQL, API, public web, and dormant development seed-job definition |
+| `admin-web`  | Admin-web image and Container App only |
+| `full`       | PostgreSQL, API, public web, admin web, and dormant development seed-job definition |
 
-The `portal-web`, `admin-web`, and `mcp` names are reserved in the workflow but
+The `portal-web` and `mcp` names are reserved in the workflow but
 fail before Azure sign-in because those applications do not yet have approved
 container images and Azure resource definitions. A `postgres` deployment uses
 the API image as its checksummed migration runner but does not deploy the API
@@ -88,6 +100,9 @@ the component scope does not create another server.
   the configured web origin and enforce authentication and authorization in the API.
 - Use managed identities and Azure RBAC. Do not use registry admin credentials,
   storage keys, Service Bus connection strings, or long-lived GitHub secrets.
+- Keep browser client IDs, authority, delegated scope, and platform-admin object
+  IDs in the protected GitHub `dev` environment. They are identifiers, not
+  credentials. Never add client secrets or access tokens to browser builds.
 - Keep tenant application evidence in the private Blob container. Defender
   on-upload scanning must write Blob Index Tags; API download remains blocked
   until the result is exactly clean. Verify seven-day Blob soft delete and the

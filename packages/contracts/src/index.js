@@ -10,6 +10,34 @@ export const apiResponse = (data) => ({ data });
 
 export const publicPropertyIdSchema = z.string().trim().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
 
+export const organizationIdSchema = z.uuid();
+export const publicListingIdSchema = z.uuid();
+export const landlordOnboardingApplicationIdSchema = z.uuid();
+
+export const landlordOnboardingApplicationInputSchema = z.object({
+	applicantName: z.string().trim().min(2).max(120),
+	proposedOrganizationName: z.string().trim().min(2).max(160),
+}).strict();
+
+export const landlordOnboardingDecisionInputSchema = z.object({
+	decision: z.enum(['approved', 'rejected']),
+	reason: z.string().trim().min(3).max(1000),
+}).strict();
+
+export const landlordOnboardingApplicationSchema = z.object({
+	applicantName: z.string(),
+	decidedAt: z.iso.datetime().nullable(),
+	decisionReason: z.string().nullable(),
+	id: landlordOnboardingApplicationIdSchema,
+	proposedOrganizationName: z.string(),
+	status: z.enum(['pending', 'approved', 'rejected']),
+	submittedAt: z.iso.datetime(),
+}).strip();
+
+export const landlordOnboardingApplicationListSchema = z.object({
+	items: z.array(landlordOnboardingApplicationSchema),
+}).strip();
+
 export const publicPropertyProjectionSchema = z.object({
 	address: z.string(),
 	amenities: z.array(z.string()),

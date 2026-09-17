@@ -67,7 +67,7 @@ These are design assumptions to validate, not legal conclusions:
    - Maintenance worker/vendor, with limited access
 
 2. **Property registry**
-   - Organization, portfolio, property, building, floor, and unit
+  - Organization, portfolio, property, and unit
    - Unit type, rooms, amenities, condition, photos, meter identifiers, and occupancy status
    - Ownership and management relationships effective over time
    - Controlled public listing projection with approved photos, approximate
@@ -254,8 +254,7 @@ Microsoft’s current responsible-AI guidance emphasizes lifecycle risk discover
 flowchart TD
     O[Organization] --> P[Portfolio]
     P --> R[Property]
-    R --> B[Building or block]
-    B --> U[Unit]
+  R --> U[Unit]
     U --> L[Lease and occupancy]
     L --> F[Charges, payments, deposits]
     U --> M[Assets, inspections, maintenance]
@@ -267,7 +266,7 @@ flowchart TD
 | -------------------- | ------------------------------------------------------------------------------------------------------- |
 | Identity and tenancy | Organization, OrganizationMember, User, Role, Permission, Invitation                                    |
 | Parties              | Party, Person, Company, ContactMethod, Address, PartyRole, Consent, Verification                        |
-| Property             | Portfolio, Property, Building, Unit, Amenity, Asset, Meter, Media, OwnershipInterest, ManagementMandate |
+| Property             | Portfolio, Property, Unit, Amenity, Asset, Meter, Media, OwnershipInterest, ManagementMandate           |
 | Marketing            | Listing, ListingChannel, Inquiry, Viewing, Application, ApplicationDocument                             |
 | Lease                | Lease, LeaseParty, LeaseVersion, Term, Occupancy, Renewal, Termination, Handover                        |
 | Pricing              | RentRule, Concession, FeeRule, DepositRule, ChargeSchedule                                              |

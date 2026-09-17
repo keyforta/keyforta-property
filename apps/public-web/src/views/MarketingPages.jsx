@@ -11,9 +11,12 @@ import {
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { localizeProperty, properties } from '../data/content.js';
+import { ListingError, ListingLoading } from '../components/ListingRequestState.jsx';
 import { PropertyCard } from '../components/PropertyCard.jsx';
 import { StatusMessage } from '../components/StatusMessage.jsx';
+import { usePublicProperties } from '../hooks/use-public-properties.js';
+
+const marketingHeroImageUrl = '/assets/properties/ngaliema-river.jpg';
 
 function HeroTypewriter({ label, messages }) {
   const [reduceMotion, setReduceMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -98,13 +101,12 @@ export function HomePage({
   onOpenAccess,
 }) {
   const { t } = useTranslation();
+  const { data: propertyResult, error: propertyError, loading: propertiesLoading, retry: retryProperties } = usePublicProperties({ limit: '3' });
+  const properties = propertyResult?.items || [];
   const audienceItems = t('marketing.audience.items', { returnObjects: true, defaultValue: [] });
   const audienceRoutes = ['/properties', '/signup/landlord', '/signin', '/signup/operator'];
-  const heroProperty = localizeProperty(properties[0], lang);
-  const neighborhoodCount = new Set(properties.map(({ area }) => area)).size;
   const collectionProofs = [
-    [String(properties.length).padStart(2, '0'), t('marketing.proof.homes')],
-    [String(neighborhoodCount).padStart(2, '0'), t('marketing.proof.neighborhoods')],
+    [String(propertyResult?.total || 0).padStart(2, '0'), t('marketing.proof.homes')],
     [t('marketing.proof.terms_value'), t('marketing.proof.terms')],
     [t('marketing.proof.viewings_value'), t('marketing.proof.viewings')],
   ];
@@ -131,7 +133,7 @@ export function HomePage({
     <div className={`page${voiceRoute ? ' voice-page' : ''}`}>
       <section
         className="shell hero"
-        style={{ backgroundImage: `linear-gradient(90deg, rgba(31, 17, 36, .92) 0%, rgba(31, 17, 36, .68) 48%, rgba(31, 17, 36, .2) 100%), url("${heroProperty.image}")` }}
+        style={{ backgroundImage: `linear-gradient(90deg, rgba(31, 17, 36, .92) 0%, rgba(31, 17, 36, .68) 48%, rgba(31, 17, 36, .2) 100%), url("${marketingHeroImageUrl}")` }}
       >
         <div className="hero-copy">
           <p className="eyebrow">{t('marketing.eyebrow')}</p>
@@ -185,7 +187,7 @@ export function HomePage({
         <Field label={t('marketing.search.area')}>
           <Select name="area" defaultValue="">
             <option value="">{t('marketing.search.any_area')}</option>
-            {[...new Set(properties.map((item) => item.area))].map((area) => <option key={area} value={area}>{area}</option>)}
+            {[...new Set(properties.map((item) => item.district))].map((district) => <option key={district} value={district}>{district}</option>)}
           </Select>
         </Field>
         <Field label={t('marketing.search.bedrooms')}>
@@ -216,7 +218,11 @@ export function HomePage({
             </div>
             <p>{t('marketing.featured.intro')}</p>
           </div>
-          <div className="cards">{properties.slice(0, 3).map((item, index) => <PropertyCard key={item.id} lang={lang} item={item} position={index} />)}</div>
+          <div className="cards">
+            {propertiesLoading ? <ListingLoading /> : propertyError ? <ListingError onRetry={retryProperties} /> : properties.length
+              ? properties.slice(0, 3).map((item, index) => <PropertyCard key={item.id} lang={lang} item={item} position={index} />)
+              : <div className="empty">{t('property_pages.empty')}</div>}
+          </div>
           <div className="card-actions">
             <Link className="button secondary" to="/properties">
               {t('marketing.featured.view_all')}
@@ -282,8 +288,8 @@ export function HomePage({
           </div>
           <div className="video-frame">
             <video controls playsInline preload="metadata" aria-describedby="video-description">
-              <source src="keyforta-marketing-video.mp4" type="video/mp4" />
-              <track kind="captions" srcLang="en" label={t('marketing.video.captions')} src="keyforta-marketing-video.vtt" default />
+              <source src="/assets/marketing/keyforta-marketing-video.mp4" type="video/mp4" />
+              <track kind="captions" srcLang="en" label={t('marketing.video.captions')} src="/assets/marketing/keyforta-marketing-video.vtt" default />
             </video>
             <p id="video-description" className="sr-only">
               {t('marketing.video.description')}

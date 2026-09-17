@@ -670,7 +670,7 @@ body {
   right: 0;
   width: 150px;
   height: 54px;
-  background: url("/keyforta-logo-monochrome.png") center/contain no-repeat;
+  background: url("/assets/brand/keyforta-logo-monochrome.png") center/contain no-repeat;
   opacity: 0.1;
   pointer-events: none;
 }

@@ -169,6 +169,8 @@ The following endpoint inventory is normative for MVP. A route may be renamed on
 | `POST /properties/{id}/submit-verification` | Protected | evidence references | `200 Property` |
 | `POST /properties/{id}/publish` | Protected | reason if required | `200 Property` |
 | `POST /properties/{id}/archive` | Protected | reason | `200 Property` |
+| `POST /public-listings/{id}/publish` | Protected + organization context | none | `200 ListingPublication` |
+| `POST /public-listings/{id}/withdraw` | Protected + organization context | none | `200 ListingPublication` |
 | `GET /properties/{id}/units` | Protected | cursor, limit | `200 Unit[]` |
 | `POST /properties/{id}/units` | Protected | unit input | `201 Unit` |
 | `PATCH /units/{id}` | Protected | allowed draft fields + `If-Match` | `200 Unit` |

@@ -78,7 +78,7 @@ Relationships have `effectiveFrom`, optional `effectiveTo`, status, source, and 
 
 Owns the physical and commercial inventory hierarchy:
 
-`Portfolio → Property → Building / Space → Unit → Availability / Pricing`
+`Portfolio → Property → Unit → Availability / Pricing`
 
 Supports residential apartments, houses, and commercial spaces without changing the core identity of a property or unit.
 

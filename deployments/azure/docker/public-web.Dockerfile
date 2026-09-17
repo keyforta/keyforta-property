@@ -7,11 +7,28 @@ WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/public-web/package.json apps/public-web/package.json
+COPY packages/api-client/package.json packages/api-client/package.json
 COPY packages/brand/package.json packages/brand/package.json
+COPY packages/browser-auth/package.json packages/browser-auth/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/types/package.json packages/types/package.json
+COPY packages/ui/package.json packages/ui/package.json
 RUN pnpm install --frozen-lockfile
 
+ARG NEXT_PUBLIC_ENTRA_API_SCOPE
+ARG NEXT_PUBLIC_ENTRA_AUTHORITY
+ARG NEXT_PUBLIC_ENTRA_CLIENT_ID
+ENV NEXT_PUBLIC_ENTRA_API_SCOPE=$NEXT_PUBLIC_ENTRA_API_SCOPE
+ENV NEXT_PUBLIC_ENTRA_AUTHORITY=$NEXT_PUBLIC_ENTRA_AUTHORITY
+ENV NEXT_PUBLIC_ENTRA_CLIENT_ID=$NEXT_PUBLIC_ENTRA_CLIENT_ID
+
 COPY apps/public-web apps/public-web
+COPY packages/api-client packages/api-client
 COPY packages/brand packages/brand
+COPY packages/browser-auth packages/browser-auth
+COPY packages/contracts packages/contracts
+COPY packages/types packages/types
+COPY packages/ui packages/ui
 RUN pnpm --filter @keyforta/public-web build
 
 FROM node:24-bookworm-slim AS runtime

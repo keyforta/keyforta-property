@@ -19,7 +19,6 @@ import {
   ViewingRequestPage,
   TextContentPage,
 } from './views/index.js';
-import { localizeProperty, properties } from './data/content.js';
 import { buildPortalUrl, resolvePortalWebUrl } from './portal-url.js';
 import { appendRow } from './services/storage.js';
 
@@ -58,10 +57,6 @@ const routeMetadata = [
 ];
 
 function getPageTitle(routeInfo, lang, t) {
-  if (routeInfo.name === 'property') {
-    const item = localizeProperty(properties.find((row) => row.id === routeInfo.id) || properties[0], lang);
-    return `${item.title} - KEYFORTA`;
-  }
   return t(`page_title.${routeInfo.name}`, { defaultValue: t('page_title.home') });
 }
 
@@ -182,6 +177,11 @@ export default function App() {
   }, [lang, t]);
 
   function openAccess(interestValue) {
+    if (interestValue === 'landlord') {
+      setAccessOpen(false);
+      navigate('/signup/landlord');
+      return;
+    }
     setAccessInterest(interestValue || '');
     setAccessOpen(true);
   }
@@ -214,12 +214,8 @@ export default function App() {
     const registration = {
       ...values,
       locale: lang,
-      ...(values.role === 'maintenance_operator'
-        ? {
-            services: values.services.split(',').map((value) => value.trim()).filter(Boolean),
-            coverage: values.coverage.split(',').map((value) => value.trim()).filter(Boolean),
-          }
-        : {}),
+      services: values.services.split(',').map((value) => value.trim()).filter(Boolean),
+      coverage: values.coverage.split(',').map((value) => value.trim()).filter(Boolean),
     };
     appendRow('kf-registration-requests', registration);
     const message = t('status.registration_received');
@@ -277,6 +273,11 @@ export default function App() {
   }
 
   function handleAccessSubmit(values) {
+    if (values.role === 'landlord') {
+      setAccessOpen(false);
+      navigate('/signup/landlord');
+      return '';
+    }
     const reference = `KF-${Date.now().toString(36).toUpperCase()}`;
     appendRow('kf-access-requests', { ...values, locale: lang, reference });
     setAccessInterest(values.interest || '');

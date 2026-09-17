@@ -203,27 +203,10 @@ CREATE TABLE properties (
     CONSTRAINT properties_version_ck CHECK (version > 0)
 );
 
-CREATE TABLE buildings (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
-    property_id uuid NOT NULL REFERENCES properties(id) ON DELETE RESTRICT,
-    name text NOT NULL,
-    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    created_by uuid NOT NULL REFERENCES parties(id) ON DELETE RESTRICT,
-    updated_by uuid NOT NULL REFERENCES parties(id) ON DELETE RESTRICT,
-    version integer NOT NULL DEFAULT 1,
-    CONSTRAINT buildings_name_ck CHECK (length(trim(name)) > 0),
-    CONSTRAINT buildings_version_ck CHECK (version > 0),
-    CONSTRAINT buildings_property_name_uq UNIQUE (property_id, name)
-);
-
 CREATE TABLE units (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
     property_id uuid NOT NULL REFERENCES properties(id) ON DELETE RESTRICT,
-    building_id uuid REFERENCES buildings(id) ON DELETE RESTRICT,
     label text NOT NULL,
     unit_type unit_type NOT NULL,
     bedrooms smallint,
@@ -1099,7 +1082,6 @@ CREATE INDEX relationships_subject_idx ON relationships (subject_type, subject_i
 CREATE INDEX relationships_parties_idx ON relationships (from_party_id, to_party_id, status);
 CREATE INDEX properties_org_publication_idx ON properties (organization_id, publication_status);
 CREATE INDEX properties_address_gin_idx ON properties USING gin (address);
-CREATE INDEX buildings_property_idx ON buildings (property_id);
 CREATE INDEX units_property_availability_idx ON units (property_id, availability_status);
 CREATE INDEX units_org_publication_idx ON units (organization_id, publication_status);
 CREATE INDEX unit_pricing_unit_effective_idx ON unit_pricing_versions (unit_id, effective_from DESC);

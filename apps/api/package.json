@@ -19,6 +19,7 @@
     "@fastify/rate-limit": "10.3.0",
     "@keyforta/contracts": "workspace:*",
     "fastify": "5.12.3",
+    "jose": "^6.2.12",
     "pg": "^8.23.0",
     "pg-connection-string": "2.14.0"
   },

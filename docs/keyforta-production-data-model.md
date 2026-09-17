@@ -143,6 +143,20 @@ exact totals, and explicit invalid-cursor signaling. The API receives at most
 the requested page plus one look-ahead row and never exposes organization or
 unit identifiers through this projection.
 
+Operational migration `0017_public_listing_publication_control.sql` adds
+fail-closed property and unit lifecycle columns and one shared eligibility
+predicate for public list, detail, and inquiry functions. Each property contains
+units and has at most one active assigned listing manager. The assignee may be
+the landlord or another eligible same-organization manager, but ownership alone
+grants no unit-listing authority. Publication and withdrawal require that exact
+active assignment. Every assignment change and accepted listing transition
+appends immutable organization, actor, assignee or resource, correlation,
+action, and timestamp evidence. Runtime roles retain no direct listing-status
+or history mutation permission. Rollback is operational: revoke execute on the
+transition function to stop new changes, preserve existing evidence, and ship
+corrections as a later forward migration rather than dropping lifecycle data or
+history.
+
 ### `jurisdiction_policy_versions`, approval evidence, and activations
 
 Jurisdiction policy versions contain a capability key, jurisdiction code,
@@ -170,15 +184,9 @@ Constraints/indexes: valid effective range; indexes on subject and parties; excl
 
 Constraints/indexes: valid IANA time zone; no publication unless required ownership/management relationship exists; indexes `(organization_id, publication_status)`, city/search fields.
 
-### `buildings`
-
-`id uuid PK`, `organization_id uuid FK`, `property_id uuid FK`, `name text`, `metadata jsonb`, common audit columns.
-
-Constraints/indexes: unique `(property_id, name)`; property and organization must agree.
-
 ### `units`
 
-`id uuid PK`, `organization_id uuid FK`, `property_id uuid FK`, `building_id uuid`, `label text`, `unit_type text`, `bedrooms smallint`, `bathrooms numeric(4,1)`, `area numeric(12,2)`, `availability_status text`, `publication_status text`, common audit columns.
+`id uuid PK`, `organization_id uuid FK`, `property_id uuid FK`, `label text`, `unit_type text`, `bedrooms smallint`, `bathrooms numeric(4,1)`, `area numeric(12,2)`, `availability_status text`, `publication_status text`, common audit columns.
 
 Constraints/indexes: unique `(property_id, lower(label))`; non-negative physical values; property and organization must agree; indexes `(property_id, availability_status)`, `(organization_id, publication_status)`.
 

@@ -6,3 +6,4 @@ dist/
 keyforta-*.tar.gz
 upload/
 *.log
+.env.local

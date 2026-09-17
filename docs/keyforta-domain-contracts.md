@@ -41,14 +41,14 @@ Every invariant is enforced in the domain/application layer and protected by a d
 ### `Property`
 
 **Commands:** `CreateProperty`, `UpdateProperty`, `SubmitPropertyForVerification`, `ApprovePropertyVerification`, `RejectPropertyVerification`, `PublishProperty`, `UnpublishProperty`, `ArchiveProperty`, `AssignManager`
-**Events:** `PropertyCreated`, `PropertyUpdated`, `PropertyVerificationSubmitted`, `PropertyVerificationApproved`, `PropertyVerificationRejected`, `PropertyPublished`, `PropertyUnpublished`, `PropertyArchived`, `ManagerAssigned`
-**Invariants:** property belongs to one organization; address and property time zone are valid; publication requires ownership/management authority and required data; archived properties cannot accept applications.
+**Events:** `PropertyCreated`, `PropertyUpdated`, `PropertyVerificationSubmitted`, `PropertyVerificationApproved`, `PropertyVerificationRejected`, `PropertyPublished`, `PropertyUnpublished`, `PropertyArchived`, `ManagerAssigned`, `ManagerAssignmentRevoked`
+**Invariants:** property belongs to one organization and contains one or more units; address and property time zone are valid; each property has at most one active assigned listing manager; a landlord may assign themselves or another eligible same-organization member; ownership alone does not authorize unit-listing management; assignment changes retain immutable history; archived properties cannot accept applications.
 
 ### `Unit` and `PricingVersion`
 
-**Commands:** `CreateUnit`, `UpdateUnit`, `SetUnitPricing`, `PublishUnit`, `PauseUnit`, `MarkUnitOccupied`, `MarkUnitVacant`
+**Commands:** `CreateUnit`, `UpdateUnit`, `SetUnitPricing`, `CreateUnitListing`, `UpdateUnitListing`, `PublishUnit`, `PauseUnit`, `WithdrawUnitListing`, `MarkUnitOccupied`, `MarkUnitVacant`
 **Events:** `UnitCreated`, `UnitUpdated`, `UnitPricingChanged`, `UnitPublished`, `UnitPaused`, `UnitAvailabilityChanged`
-**Invariants:** unit label is unique within property; pricing intervals do not overlap; occupied units cannot be published as available; signed lease terms are not rewritten by later pricing.
+**Invariants:** unit label is unique within property; only the property's active assigned manager may manage its unit listings; pricing intervals do not overlap; occupied units cannot be published as available; signed lease terms are not rewritten by later pricing.
 
 ## 5. Leasing and occupancy
 

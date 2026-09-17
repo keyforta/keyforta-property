@@ -10,7 +10,7 @@ reviewed plan, `what-if` output, and explicit environment approval.
 - Primary region: South Africa North
 - Environment: one `dev` resource group for the private pilot
 - Resource prefix: `keyforta`
-- Microsoft Entra External ID tenant: not yet created
+- Microsoft Entra External ID tenant: `keyfortacustomers.onmicrosoft.com`
 
 Keep subscription, tenant, and client identifiers in GitHub environment
 configuration rather than source files. They are not passwords, but centralizing
@@ -32,19 +32,19 @@ Set these environment variables:
 | `POSTGRES_DBA_PRINCIPAL_NAME` | Approved DBA Entra principal name          |
 | `POSTGRES_DBA_PRINCIPAL_TYPE` | `User` or `Group`; defaults to `User`      |
 
-Customer identity bootstrap will require these non-secret application values;
-the deployment workflow does not currently inject browser identity settings:
+The deployment workflow consumes these non-secret application identifiers from
+the protected `dev` environment:
 
 | Variable                           | Purpose                                 |
 | ---------------------------------- | --------------------------------------- |
 | `ENTRA_AUDIENCE`                   | Expected API access-token audience      |
 | `ENTRA_ISSUER`                     | External ID token issuer                |
 | `ENTRA_JWKS_URI`                   | External ID signing-key endpoint        |
-| `ENTRA_AUTHORIZATION_ENDPOINT`     | OIDC authorization endpoint             |
-| `ENTRA_TOKEN_ENDPOINT`             | OIDC token endpoint                     |
-| `ENTRA_CLIENT_ID`                  | Public browser application registration |
-| `ENTRA_SCOPES`                     | OIDC and KEYFORTA API scopes            |
-| `KEYFORTA_DEFAULT_ORGANIZATION_ID` | Pilot organization configuration        |
+| `ENTRA_AUTHORITY`                  | External ID browser authority           |
+| `ENTRA_API_SCOPE`                  | Delegated API scope                     |
+| `PUBLIC_ENTRA_CLIENT_ID`           | Public-web SPA client ID                |
+| `ADMIN_ENTRA_CLIENT_ID`            | Admin-web SPA client ID                 |
+| `PLATFORM_ADMIN_OBJECT_IDS`        | Comma-separated approved administrator Entra object IDs |
 
 `AZURE_TENANT_ID` identifies the directory that owns Azure resources and
 managed identities. External ID issuer and endpoint values may belong to a
@@ -55,20 +55,18 @@ tokens and ID tokens, and `ENTRA_SCOPES` must include `email`. B2B guest UPNs
 use a transformed `#EXT#` value and must never be treated as the invited email
 address.
 
-## Temporary Pilot Customer Identity Onboarding
+## Customer Identity Onboarding
 
-Until the Microsoft Entra External ID tenant is configured, the pilot app
-registration is single-tenant. Before sending a KEYFORTA invitation link to
-an external manager or tenant, an authorized directory administrator must also
-invite that exact email address as an Entra B2B guest and the recipient must
-redeem Microsoft's directory invitation. The product invitation alone does not
-admit an identity to the Azure directory.
+The public and admin SPAs use the provisioned External ID email OTP user flow.
+Authentication alone grants no organization or platform access. The API derives
+the immutable object ID from the verified access token; landlord membership is
+created only after a separately authorized administrator approves the pending
+application.
 
-Directory guest status grants no KEYFORTA organization access. Membership is
-created only when the authenticated guest accepts the separate, expiring
-KEYFORTA invitation whose email matches the verified identity. Remove this
-temporary B2B bootstrap step after customer authentication moves to the reviewed
-External ID configuration.
+Platform administrator bootstrap is configuration-only: deployment owners pass
+approved immutable Entra object IDs through `PLATFORM_ADMIN_OBJECT_IDS`. An empty
+allowlist denies all onboarding review access. It does not create a platform or
+customer organization, user, or membership record.
 
 ### Local invitation email testing
 
@@ -83,9 +81,8 @@ devtunnel host -p 3000 --protocol http --allow-anonymous --expiration 1d \
 ```
 
 Set `KEYFORTA_PUBLIC_BASE_URL` in `apps/api/.env.local` to the reported HTTPS
-URL. Set `AUTH_PUBLIC_BASE_URL` in `apps/public-web/.env.local` to the same URL so both
-OAuth requests use `<tunnel-url>/api/auth/callback`, then add that callback to
-the app registration's public client redirect URIs without removing the
+URL. Configure the browser to use `<tunnel-url>/auth/callback`, then add that
+callback to the app registration's SPA redirect URIs without removing the
 localhost or deployed callbacks. Restart the local API and web app before
 issuing an invitation. Keep the tunnel process running until acceptance
 completes, then remove the temporary callback URI; a new tunnel URL requires a
@@ -93,10 +90,8 @@ new callback registration. Treat the anonymous tunnel URL as temporary access
 to the local web boundary and never use it for production or sensitive test
 data.
 
-For Azure deployments, `AUTH_PUBLIC_BASE_URL` is derived from the public web
-Container App FQDN by Bicep. The deployment smoke test verifies that the login
-redirect sends that exact origin plus `/api/auth/callback` to Entra. Keep this
-callback registered as a public-client redirect URI for the application.
+For Azure deployments, keep `https://keyforta.com/auth/callback` and the exact
+admin Container Apps FQDN plus `/auth/callback` registered as SPA redirects.
 
 Do not configure an Azure client secret, certificate, publish profile, registry
 password, database password, storage key, or Key Vault secret in GitHub.
@@ -218,25 +213,29 @@ psql "host=<server>.postgres.database.azure.com port=5432 dbname=keyforta user=<
 
 ## External ID Bootstrap
 
-Microsoft Entra External ID is not yet available for KEYFORTA. The application
-adapter is implemented but cannot authenticate users until an identity
-administrator completes these steps:
+The development External ID tenant was bootstrapped separately from the Azure
+application deployment. An identity administrator provisioned the CIAM
+directory, API registration and delegated scope, public and admin SPA
+registrations, consent, exact callback URIs, and the `KEYFORTA_SignUpSignIn`
+email OTP user flow. These Microsoft Graph resources are mandatory deployment
+prerequisites; the application workflow does not create or modify them.
 
-1. Create or select an External ID external tenant.
-2. Register the public browser and API applications.
-3. Configure local-account methods suitable for the DRC pilot.
-4. Configure redirect and logout URIs for each environment.
-5. Define API scopes and token audiences.
-6. Assign tenant administration to named people, not deployment workflows.
-7. Record recovery, MFA, break-glass, and offboarding procedures.
+Before planning any application deployment, the protected `dev` environment
+must supply the recorded audience, client IDs, authority, issuer, JWKS URI,
+scope, and administrator Object ID allowlist. The workflow fails closed unless
+the configured issuer publishes reachable HTTPS OpenID metadata with the exact
+configured issuer and JWKS URI, and the JWKS contains signing keys.
+
+The metadata check proves tenant endpoint consistency only. An identity
+administrator must separately review app registrations, delegated consent,
+callback URIs, email OTP user flow, named administrators, recovery, MFA,
+break-glass, and offboarding whenever those resources change. Do not grant the
+deployment identity Microsoft Graph write permissions to automate this review.
 
 Application identity proves a subject. KEYFORTA database membership still
 determines organization, role, property, unit, lease, and tenant access.
 
-Until this bootstrap is complete, the deployed application may serve public
-lease-schedule preview and health routes. Authentication and payment routes
-remain unavailable and fail closed; do not substitute the Azure resource tenant
-for the External ID customer tenant.
+Do not substitute the Azure resource tenant for the External ID customer tenant.
 
 ## Local Validation
 

@@ -596,7 +596,7 @@
   right: 25%;
   width: 180px;
   height: 180px;
-  background: url("/keyforta-symbol-reversed.png") center/contain no-repeat;
+  background: url("/assets/brand/keyforta-symbol-reversed.png") center/contain no-repeat;
   opacity: 0.09;
   pointer-events: none;
 }
@@ -611,7 +611,7 @@
   width: 58px;
   height: 58px;
   margin-bottom: 4px;
-  background: url("/keyforta-symbol.png") center/contain no-repeat;
+  background: url("/assets/brand/keyforta-symbol.png") center/contain no-repeat;
   opacity: 0.92;
 }
 .hero-media {
@@ -680,7 +680,7 @@
   right: 5%;
   width: 74px;
   height: 74px;
-  background: url("/keyforta-symbol-monochrome.png") center/contain no-repeat;
+  background: url("/assets/brand/keyforta-symbol-monochrome.png") center/contain no-repeat;
   opacity: 0.07;
   pointer-events: none;
 }
@@ -762,7 +762,7 @@
   width: 112px;
   height: 25px;
   margin-left: 12px;
-  background: url("/keyforta-wordmark-monochrome.png") center/contain no-repeat;
+  background: url("/assets/brand/keyforta-wordmark-monochrome.png") center/contain no-repeat;
   opacity: 0.18;
   flex: 0 0 auto;
 }
@@ -777,7 +777,7 @@
   bottom: 18px;
   width: 64px;
   height: 80px;
-  background: url("/keyforta-symbol-reversed.png") center/contain no-repeat;
+  background: url("/assets/brand/keyforta-symbol-reversed.png") center/contain no-repeat;
   opacity: 0.12;
   pointer-events: none;
 }
@@ -1141,7 +1141,7 @@
   text-shadow: 0 2px 28px rgba(20, 10, 24, 0.28);
 }
 .page > .hero > .hero-copy::before {
-  background-image: url("/keyforta-symbol-reversed.png");
+  background-image: url("/assets/brand/keyforta-symbol-reversed.png");
 }
 .page > .hero > .hero-media {
   display: flex;

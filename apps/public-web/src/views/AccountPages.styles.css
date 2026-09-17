@@ -85,6 +85,16 @@
   font-weight: 800;
   text-decoration: none;
 }
+.signed-in-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 22px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
 .demo-account:focus-visible {
   outline: 3px solid rgba(49, 91, 89, 0.32);
   outline-offset: 3px;

@@ -69,6 +69,8 @@ that tenant.
 
 An authenticated manager can perform daily administration for properties the
 landlord has assigned, while sensitive decisions remain under landlord control.
+Each property contains one or more units and has exactly one active assigned
+listing manager.
 
 **Acceptance scenarios**
 
@@ -87,6 +89,9 @@ landlord has assigned, while sensitive decisions remain under landlord control.
 6. **Given** an assignment is revoked, **when** the manager next reads the
    portfolio, **then** the property, its units, and its leases are immediately
    absent while prior audit records remain attributable.
+7. **Given** an active assignment to a property, **when** its manager creates,
+  updates, publishes, or withdraws a unit listing, **then** the operation is
+  authorized for that property only and retains correlated audit evidence.
 
 ### Landlord controls and reviews the portfolio (P1)
 
@@ -97,11 +102,13 @@ records.
 **Acceptance scenarios**
 
 1. **Given** an authorized landlord, **when** the landlord manages the portfolio,
-   **then** properties and units can be created, updated, archived, and assigned
-   to managers with an audit history.
-2. **Given** an active manager membership in the same organization, **when** the
-   landlord assigns or revokes a property, **then** the command is idempotent,
-   correlated, audited, and cannot target another organization.
+  **then** multiple properties and their units can be created, updated,
+  archived, and assigned to listing managers with an audit history.
+2. **Given** an active landlord or manager membership in the same organization,
+  **when** the landlord assigns that person, including themselves, as a
+  property's listing manager, **then** the command replaces any prior active
+  assignment, is correlated and audited, and cannot target another
+  organization.
 3. **Given** a large manager and property directory, **when** the landlord
    manages access, **then** server-side search, filters, manager selection, and
    bounded pages avoid loading or rendering the full manager-by-property matrix.
@@ -140,8 +147,14 @@ slices and are not represented as working UI.
   managers, and tenants in French-first language.
 - **REQ-002:** The public website must provide contact, privacy, security, and
   sign-in paths without exposing organization-owned data.
-- **REQ-003:** The public website must list only units explicitly approved for
-  publication and expose only approved marketing fields.
+- **REQ-003 v2:** The public website must list only units explicitly approved for
+  publication and expose only approved marketing fields. Public visibility
+  requires an approved property verification, a published property, a published
+  and available unit, and an active published listing. A property contains one
+  or more units and has at most one active assigned listing manager. Only that
+  manager may create,
+  update, publish, or withdraw its unit listings. A landlord may manage listings
+  only after assigning themselves as that property's manager.
 - **REQ-024:** Visitors must be able to filter published listings by district,
   minimum bedrooms, and maximum monthly rent.
 - **REQ-025:** A published listing must have a stable public detail page with
@@ -161,7 +174,9 @@ suppression, database constraints, and internal organization linkage;
 distributed abuse controls remain tracked before external beta. The contact
 address can be configured through `NEXT_PUBLIC_CONTACT_EMAIL` before
 deployment. Publishing remains an authorized internal operation until the
-manager portal implements its management screen.
+manager portal implements its management screen. The protected operation must
+preserve the publisher, organization, correlation ID, and publication or
+withdrawal time as immutable audit evidence.
 
 ### Tenant portal
 
@@ -182,7 +197,7 @@ manager portal implements its management screen.
 - **REQ-009:** A manager must see an operational dashboard only for assigned
   properties in authorized organizations.
 - **REQ-010:** A manager must be able to maintain property, unit, tenant,
-  occupancy, and draft lease records within delegated authority.
+  occupancy, unit listing, and draft lease records within delegated authority.
 - **REQ-011:** A manager must be able to record payment evidence and execute
   approved payment workflows with idempotency, receipts, allocations, and audit.
 - **REQ-012:** A manager must be able to triage, assign, update, and close
@@ -193,7 +208,8 @@ manager portal implements its management screen.
 ### Landlord portal
 
 - **REQ-014:** A landlord must be able to configure the organization's portfolio,
-  units, delegated managers, and role assignments.
+  units, delegated managers, and role assignments, including assigning
+  themselves or another eligible member as a property's listing manager.
 - **REQ-015:** A landlord must approve lease activation and retain every accepted
   lease version, acknowledgment, and supporting document.
 - **REQ-016:** A landlord must be able to review charges, payments, allocations,
@@ -219,6 +235,26 @@ manager portal implements its management screen.
 - **REQ-023:** All four experiences must remain usable on mobile devices and
   constrained connections, with French as the initial interface language.
 
+### Landlord onboarding and platform administration
+
+- **REQ-028:** A newly initialized environment must contain no demonstration or
+  customer organizations, memberships, properties, units, listings, leases, or
+  financial records. Required schema metadata and externally configured
+  platform-administrator authorization are not customer data.
+- **REQ-029:** A prospective landlord must authenticate with a verified identity
+  before submitting one pending onboarding application containing their name
+  and proposed organization name. Repeated submission by the same identity must
+  not create multiple pending applications.
+- **REQ-030:** Only a platform administrator whose verified Entra object ID is
+  present in the environment allowlist may list or decide landlord onboarding
+  applications. The allowlist must not be stored as seed data or grant customer
+  organization access.
+- **REQ-031:** Approving a pending landlord onboarding application must
+  atomically create one organization and one active landlord membership for the
+  applicant. Rejection creates neither. Every decision must preserve the
+  applicant identity, administrator identity, outcome, time, and correlation ID
+  as immutable audit evidence.
+
 ## Decision authority
 
 | Action                              | Public |       Tenant        |      Manager       | Landlord |
@@ -228,6 +264,7 @@ manager portal implements its management screen.
 | Request a visit                     |  Yes   |         Yes         |        Yes         |   Yes    |
 | View own tenancy and statement      |   No   |         Yes         | Only when assigned |   Yes    |
 | Manage property and unit records    |   No   |         No          |   When delegated   |   Yes    |
+| Manage unit listings                |   No   |         No          | Only when assigned | Only when self-assigned |
 | Prepare a lease draft               |   No   |         No          |        Yes         |   Yes    |
 | Accept own lease version            |   No   |         Yes         |         No         |    No    |
 | Activate or change lease terms      |   No   |         No          |      Propose       | Approve  |

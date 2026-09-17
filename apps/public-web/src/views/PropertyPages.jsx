@@ -18,11 +18,13 @@ import {
   Circle20Regular,
 } from "@fluentui/react-icons";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { localizeProperty, money, properties } from "../data/content.js";
 import { PropertyCard } from "../components/PropertyCard.jsx";
+import { ListingError, ListingLoading, ListingNotFound } from "../components/ListingRequestState.jsx";
 import { StatusMessage } from "../components/StatusMessage.jsx";
+import { usePublicProperties, usePublicProperty } from "../hooks/use-public-properties.js";
+import { formatMinorMoney } from "../services/public-properties.js";
 
 const usePropertyPageStyles = makeStyles({
   filters: {
@@ -97,23 +99,31 @@ const usePropertyPageStyles = makeStyles({
   },
 });
 
+function compareMinorMoney(left, right) {
+  const leftMinor = BigInt(left.monthlyRentMinor);
+  const rightMinor = BigInt(right.monthlyRentMinor);
+  return leftMinor < rightMinor ? -1 : leftMinor > rightMinor ? 1 : 0;
+}
+
 export function PropertiesPage({ lang, filters, onFilterChange }) {
   const { t } = useTranslation();
   const styles = usePropertyPageStyles();
   const form = filters;
-  let items = properties.filter(
-    (p) =>
-      (p.area + " Kinshasa").toLowerCase().includes(form.area.toLowerCase()) &&
-      p.beds >= Number(form.beds || 0) &&
-      p.price <= Number(form.max || 99999),
-  );
+  const query = Object.fromEntries(Object.entries({
+    district: form.area || undefined,
+    minBedrooms: form.beds || undefined,
+    maxMonthlyRentMinor: form.max ? `${form.max}00` : undefined,
+    limit: "24",
+  }).filter(([, value]) => value !== undefined));
+  const { data, error, loading, loadingMore, loadMore, retry } = usePublicProperties(query);
+  let items = data?.items || [];
 
   if (form.sort === "price-low")
-    items = [...items].sort((a, b) => a.price - b.price);
+    items = [...items].sort(compareMinorMoney);
   if (form.sort === "price-high")
-    items = [...items].sort((a, b) => b.price - a.price);
+    items = [...items].sort((a, b) => compareMinorMoney(b, a));
   if (form.sort === "beds")
-    items = [...items].sort((a, b) => b.beds - a.beds || a.price - b.price);
+    items = [...items].sort((a, b) => b.bedrooms - a.bedrooms || compareMinorMoney(a, b));
 
   return (
     <section className="page content-page shell">
@@ -204,17 +214,21 @@ export function PropertiesPage({ lang, filters, onFilterChange }) {
           />
         </Tooltip>
       </form>
-      <p
+      {!loading && !error && <p
         className="results-count"
         id="results-count"
         role="status"
         aria-live="polite"
         aria-atomic="true"
       >
-        {t("property_pages.results_count", { count: items.length })}
-      </p>
+        {t("property_pages.results_count", { count: data.total })}
+      </p>}
       <div className="cards" id="property-results">
-        {items.length ? (
+        {loading ? (
+          <ListingLoading />
+        ) : error ? (
+          <ListingError onRetry={retry} />
+        ) : items.length ? (
           items.map((item, index) => (
             <PropertyCard
               key={item.id}
@@ -227,17 +241,29 @@ export function PropertiesPage({ lang, filters, onFilterChange }) {
           <div className="empty">{t("property_pages.no_results")}</div>
         )}
       </div>
+      {data?.nextCursor && !error && <div className="load-more">
+        <Button appearance="outline" disabled={loadingMore} onClick={loadMore}>
+          {t(loadingMore ? "property_pages.loading_more" : "property_pages.load_more")}
+        </Button>
+      </div>}
     </section>
   );
 }
 
 export function PropertyDetailPage({ lang, propertyId }) {
   const { t } = useTranslation();
-  const p = localizeProperty(
-    properties.find((item) => item.id === propertyId) || properties[0],
-    lang,
-  );
-  const deposit = p.price * p.depositMonths;
+  const { data: property, error, loading, retry } = usePublicProperty(propertyId);
+
+  useEffect(() => {
+    if (property) document.title = `${property.name} - KEYFORTA`;
+  }, [property]);
+
+  if (loading) return <ListingLoading />;
+  if (error) return <section className="page content-page shell"><ListingError onRetry={retry} /></section>;
+  if (!property) return <ListingNotFound />;
+
+  const available = new Intl.DateTimeFormat(lang === "fr" ? "fr-FR" : "en-US", { dateStyle: "long" })
+    .format(new Date(`${property.availableFrom}T00:00:00`));
 
   return (
     <section className="page shell detail">
@@ -247,25 +273,25 @@ export function PropertyDetailPage({ lang, propertyId }) {
           {t("property_pages.back_to_properties")}
         </Link>
         <div className="detail-photo">
-          <img src={p.image} alt={p.imageAlt} />
+          <img src={property.imageUrl || property.imageUrls[0]} alt={t("property.image_alt", { name: property.name })} />
         </div>
         <div className="content-narrow">
           <div className="detail-facts">
             <span>
-              <strong>{t("property.bedroom", { count: p.beds })}</strong>
+              <strong>{t("property.bedroom", { count: property.bedrooms })}</strong>
             </span>
             <span>
-              <strong>{t("property.bathroom", { count: p.baths })}</strong>
+              <strong>{t("property.bathroom", { count: property.bathrooms })}</strong>
             </span>
             <span>
-              <strong>{p.area}</strong> {t("property_pages.neighborhood_label")}
+              <strong>{property.district}</strong> {t("property_pages.neighborhood_label")}
             </span>
           </div>
           <h2>{t("property_pages.about_home")}</h2>
-          <p>{p.description}</p>
+          <p>{property.summary}</p>
           <h2>{t("property_pages.included")}</h2>
           <div className="amenities">
-            {p.amenities.map((item) => (
+            {property.amenities.map((item) => (
               <span key={item}>{item}</span>
             ))}
           </div>
@@ -276,7 +302,7 @@ export function PropertyDetailPage({ lang, propertyId }) {
                 <span className="check-mark" aria-hidden="true">
                   <CheckmarkCircle20Filled />
                 </span>
-                {p.verified}
+                {t("property.published")}
               </p>
               <p>
                 <span className="pending-mark" aria-hidden="true">
@@ -295,19 +321,7 @@ export function PropertyDetailPage({ lang, propertyId }) {
               <h3>{t("property_pages.move_in_costs")}</h3>
               <div>
                 <span>{t("property_pages.monthly_rent")}</span>
-                <strong>{money(p.price, lang)}</strong>
-              </div>
-              <div>
-                <span>
-                  {t("property_pages.example_deposit", {
-                    count: p.depositMonths,
-                  })}
-                </span>
-                <strong>{money(deposit, lang)}</strong>
-              </div>
-              <div className="total">
-                <span>{t("property_pages.shown_before_commitment")}</span>
-                <strong>{money(p.price + deposit, lang)}</strong>
+                <strong>{formatMinorMoney(property.monthlyRentMinor, property.currency, lang)}</strong>
               </div>
               <small>{t("property_pages.mock_figures")}</small>
             </div>
@@ -315,22 +329,22 @@ export function PropertyDetailPage({ lang, propertyId }) {
         </div>
       </div>
       <aside className="detail-panel">
-        <p className="eyebrow">{p.available}</p>
-        <h1>{p.title}</h1>
-        <p className="meta">{p.area}, Kinshasa</p>
+        <p className="eyebrow">{t("property.available_from", { date: available })}</p>
+        <h1>{property.name}</h1>
+        <p className="meta">{property.district}, {property.city}</p>
         <p className="price">
-          {money(p.price, lang)} <small>{t("property.per_month")}</small>
+          {formatMinorMoney(property.monthlyRentMinor, property.currency, lang)} <small>{t("property.per_month")}</small>
         </p>
         <p>
-          {t("property.bedroom", { count: p.beds })} · {t("property.bathroom", { count: p.baths })} · 1{" "}
-          {t("property_pages.living_room")} · 1 {t("property_pages.kitchen")}
+          {t("property.bedroom", { count: property.bedrooms })} · {t("property.bathroom", { count: property.bathrooms })}
+          {property.areaSquareMeters ? ` · ${property.areaSquareMeters} m²` : ""}
         </p>
-        <Link className="button" to={`/view/${p.id}`}>
+        <Link className="button" to={`/view/${property.id}`}>
           {t("property_pages.request_viewing")}
         </Link>
         <Link
           className="button secondary application-link"
-          to={`/apply/${p.id}`}
+          to={`/apply/${property.id}`}
         >
           {t("property_pages.apply_unit")}
         </Link>
@@ -345,9 +359,12 @@ export function PropertyDetailPage({ lang, propertyId }) {
 
 export function RentalApplicationPage({ lang, propertyId, onSubmit }) {
   const { t } = useTranslation();
-  const property =
-    properties.find((item) => item.id === propertyId) || properties[0];
+  const { data: property, error, loading, retry } = usePublicProperty(propertyId);
   const [status, setStatus] = useState("");
+
+  if (loading) return <ListingLoading />;
+  if (error) return <section className="page content-page shell"><ListingError onRetry={retry} /></section>;
+  if (!property) return <ListingNotFound />;
 
   return (
     <section className="page content-page shell auth-page">
@@ -355,7 +372,7 @@ export function RentalApplicationPage({ lang, propertyId, onSubmit }) {
         <p className="eyebrow">{t("property_pages.application_eyebrow")}</p>
         <h1>
           {t("property_pages.application_title", {
-            title: localizeProperty(property, lang).title,
+            title: property.name,
           })}
         </h1>
         <p className="muted">{t("property_pages.application_intro")}</p>
@@ -418,14 +435,18 @@ export function RentalApplicationPage({ lang, propertyId, onSubmit }) {
 
 export function ViewingRequestPage({ lang, propertyId, onSubmit }) {
   const { t } = useTranslation();
-  const property = properties.find((item) => item.id === propertyId) || properties[0];
+  const { data: property, error, loading, retry } = usePublicProperty(propertyId);
   const [status, setStatus] = useState("");
+
+  if (loading) return <ListingLoading />;
+  if (error) return <section className="page content-page shell"><ListingError onRetry={retry} /></section>;
+  if (!property) return <ListingNotFound />;
 
   return (
     <section className="page content-page shell auth-page">
       <div className="application-card">
         <p className="eyebrow">{t("property_pages.viewing_eyebrow")}</p>
-        <h1>{t("property_pages.viewing_title", { title: localizeProperty(property, lang).title })}</h1>
+        <h1>{t("property_pages.viewing_title", { title: property.name })}</h1>
         <p className="muted">{t("property_pages.viewing_intro")}</p>
         <form
           className="form-grid"

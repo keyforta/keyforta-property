@@ -9,6 +9,36 @@ export const commands: string[];
 export function apiResponse<T>(data: T): { data: T };
 
 export const publicPropertyIdSchema: z.ZodString;
+export const organizationIdSchema: z.ZodString;
+export const publicListingIdSchema: z.ZodString;
+export const landlordOnboardingApplicationIdSchema: z.ZodString;
+
+export interface LandlordOnboardingApplicationInput {
+  applicantName: string;
+  proposedOrganizationName: string;
+}
+
+export interface LandlordOnboardingDecisionInput {
+  decision: "approved" | "rejected";
+  reason: string;
+}
+
+export interface LandlordOnboardingApplication {
+  applicantName: string;
+  decidedAt: string | null;
+  decisionReason: string | null;
+  id: string;
+  proposedOrganizationName: string;
+  status: "pending" | "approved" | "rejected";
+  submittedAt: string;
+}
+
+export const landlordOnboardingApplicationInputSchema: z.ZodType<LandlordOnboardingApplicationInput>;
+export const landlordOnboardingDecisionInputSchema: z.ZodType<LandlordOnboardingDecisionInput>;
+export const landlordOnboardingApplicationSchema: z.ZodType<LandlordOnboardingApplication>;
+export const landlordOnboardingApplicationListSchema: z.ZodType<{
+  items: LandlordOnboardingApplication[];
+}>;
 export const publicPropertyProjectionSchema: z.ZodType<PublicPropertyProjection>;
 export const publicPropertyListQuerySchema: z.ZodObject<{
   city: z.ZodOptional<z.ZodString>;

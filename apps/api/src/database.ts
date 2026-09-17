@@ -15,11 +15,26 @@ export interface DatabaseConfiguration {
   DATABASE_URL?: string;
 }
 
-export interface DatabaseClient {
+export interface DatabaseSession {
   query(
     text: string,
     parameters?: readonly unknown[],
   ): Promise<{ rows: readonly unknown[] }>;
+}
+
+export interface DatabaseClient extends DatabaseSession {
+  transaction<T>(operation: (session: DatabaseSession) => Promise<T>): Promise<T>;
+}
+
+export async function assertRuntimeDatabaseReady(
+  database: DatabaseSession,
+): Promise<void> {
+  const result = await database.query(
+    "select app.runtime_schema_v0020_ready() as ready",
+  );
+  if ((result.rows[0] as { ready?: unknown } | undefined)?.ready !== true) {
+    throw new Error("The runtime database schema is not ready.");
+  }
 }
 
 export function createDatabasePool(
@@ -63,11 +78,18 @@ export function createDatabasePool(
 export function createRuntimeDatabaseClient(pool: Pool): DatabaseClient {
   return {
     async query(text, parameters = []) {
+      return this.transaction((session) => session.query(text, parameters));
+    },
+    async transaction(operation) {
       const client = await pool.connect();
       try {
         await client.query("begin");
         await client.query("set local role keyforta_runtime");
-        const result = await client.query(text, [...parameters]);
+        const result = await operation({
+          async query(text, parameters = []) {
+            return client.query(text, [...parameters]);
+          },
+        });
         await client.query("commit");
         return result;
       } catch (error) {

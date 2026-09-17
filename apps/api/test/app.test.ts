@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { buildApp } from "../src/app.js";
+import { buildApp, parseCorsOrigins } from "../src/app.js";
 import { createMemoryPublicPropertyGateway } from "../src/properties/gateway.js";
 import { createMemoryPublicViewingRequestGateway } from "../src/properties/viewing-gateway.js";
+import type { PublicListingPublicationGateway } from "../src/properties/publication-gateway.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -66,6 +67,17 @@ afterEach(async () => {
 });
 
 describe("KEYFORTA API runtime", () => {
+  it("parses only exact secure CORS origins", () => {
+    expect(parseCorsOrigins("https://web.example.test,https://admin.example.test"))
+      .toEqual(["https://web.example.test", "https://admin.example.test"]);
+    expect(parseCorsOrigins("http://127.0.0.1:3000")).toEqual([
+      "http://127.0.0.1:3000",
+    ]);
+    expect(() => parseCorsOrigins("https://web.example.test/path")).toThrow();
+    expect(() => parseCorsOrigins("http://web.example.test")).toThrow();
+    expect(() => parseCorsOrigins("https://web.example.test,")).toThrow();
+  });
+
   it("allows only the configured browser origin", async () => {
     const app = await buildApp({ corsOrigin: "https://web.example.test" });
     apps.push(app);
@@ -86,6 +98,32 @@ describe("KEYFORTA API runtime", () => {
     );
     expect(denied.headers["access-control-allow-origin"]).toBeUndefined();
     expect(allowed.headers["access-control-allow-credentials"]).toBeUndefined();
+  });
+
+  it("allows only the configured public and admin browser origins", async () => {
+    const app = await buildApp({
+      corsOrigin: ["https://web.example.test", "https://admin.example.test"],
+    });
+    apps.push(app);
+
+    for (const origin of [
+      "https://web.example.test",
+      "https://admin.example.test",
+    ]) {
+      const response = await app.inject({
+        headers: { origin },
+        method: "GET",
+        url: "/health",
+      });
+      expect(response.headers["access-control-allow-origin"]).toBe(origin);
+    }
+
+    const denied = await app.inject({
+      headers: { origin: "https://attacker.example.test" },
+      method: "GET",
+      url: "/health",
+    });
+    expect(denied.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
   it("reports process health with a correlation ID", async () => {
@@ -232,7 +270,7 @@ describe("anonymous public property discovery", () => {
     expect(response.json()).toEqual({
       items: [
         {
-          address: "10 Market Street",
+          address: "Gombe",
           amenities: ["Water"],
           availableFrom: "2026-10-01",
           bathrooms: 1,
@@ -270,7 +308,7 @@ describe("anonymous public property discovery", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       data: {
-        address: "20 River Road",
+        address: "Limete",
         amenities: ["Parking"],
         availableFrom: "2026-10-15",
         bathrooms: 2,
@@ -342,6 +380,10 @@ describe("anonymous public property discovery", () => {
       expect(response.body).not.toContain("owner_private");
       expect(response.body).not.toContain("must not leave the API");
       expect(response.body).not.toContain("published");
+      expect(response.body).not.toContain("40 Boundary Road");
+      expect(response.json().items?.[0]?.address ?? response.json().data?.address).toBe(
+        "Bandalungwa",
+      );
     }
   });
 
@@ -426,6 +468,132 @@ describe("anonymous public property discovery", () => {
     });
     expect(response.headers["x-request-id"]).toBe(body.error.traceId);
     expect(response.body).not.toContain("private connection details");
+  });
+});
+
+describe("protected public listing publication", () => {
+  const listingId = "00000000-0000-4000-8000-000000000930";
+  const organizationId = "00000000-0000-4000-8000-000000000900";
+
+  function createDependencies(changed = true) {
+    const commands: Parameters<PublicListingPublicationGateway["setPublication"]>[0][] = [];
+    return {
+      authenticator: {
+        async authenticate(authorization: string) {
+          expect(authorization).toBe("Bearer synthetic-token");
+          return {
+            objectId: "00000000-0000-4000-8000-000000000701",
+            subject: "synthetic-landlord-a",
+          };
+        },
+      },
+      commands,
+      publicListingPublication: {
+        async setPublication(command: Parameters<PublicListingPublicationGateway["setPublication"]>[0]) {
+          commands.push(command);
+          return changed;
+        },
+      },
+    };
+  }
+
+  it.each([
+    ["publish", true],
+    ["withdraw", false],
+  ] as const)("authenticates and executes the %s command with trusted context", async (command, published) => {
+    const dependencies = createDependencies();
+    const app = await buildApp(dependencies);
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: {
+        authorization: "Bearer synthetic-token",
+        "x-organization-id": organizationId,
+        "x-request-id": `publication-${command}`,
+      },
+      method: "POST",
+      payload: {
+        organizationId: "00000000-0000-4000-8000-000000000999",
+        subject: "untrusted-body-subject",
+      },
+      url: `/api/v1/public-listings/${listingId}/${command}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      data: { listingId, status: published ? "published" : "withdrawn" },
+      meta: { requestId: `publication-${command}` },
+    });
+    expect(dependencies.commands).toEqual([{
+      correlationId: `publication-${command}`,
+      listingId,
+      organizationId,
+      published,
+      subject: "synthetic-landlord-a",
+    }]);
+  });
+
+  it("requires a configured authenticator and bearer credential", async () => {
+    const withoutVerifier = await buildApp({
+      publicListingPublication: createDependencies().publicListingPublication,
+    });
+    const withVerifier = await buildApp(createDependencies());
+    apps.push(withoutVerifier, withVerifier);
+
+    const unavailable = await withoutVerifier.inject({
+      headers: { "x-organization-id": organizationId },
+      method: "POST",
+      url: `/api/v1/public-listings/${listingId}/publish`,
+    });
+    const unauthenticated = await withVerifier.inject({
+      headers: { "x-organization-id": organizationId },
+      method: "POST",
+      url: `/api/v1/public-listings/${listingId}/publish`,
+    });
+
+    expect(unavailable.statusCode).toBe(503);
+    expect(unavailable.json().error.code).toBe("DEPENDENCY_UNAVAILABLE");
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(unauthenticated.json().error.code).toBe("UNAUTHENTICATED");
+  });
+
+  it("validates organization and listing IDs before invoking the gateway", async () => {
+    const dependencies = createDependencies();
+    const app = await buildApp(dependencies);
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: {
+        authorization: "Bearer synthetic-token",
+        "x-organization-id": "untrusted-organization",
+      },
+      method: "POST",
+      url: "/api/v1/public-listings/not-a-uuid/publish",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(dependencies.commands).toEqual([]);
+  });
+
+  it("does not disclose denied or cross-organization resources", async () => {
+    const dependencies = createDependencies(false);
+    const app = await buildApp(dependencies);
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: {
+        authorization: "Bearer synthetic-token",
+        "x-organization-id": organizationId,
+      },
+      method: "POST",
+      url: `/api/v1/public-listings/${listingId}/withdraw`,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error.code).toBe("NOT_FOUND");
+    expect(response.body).not.toContain("organization");
+    expect(response.body).not.toContain("authorization");
   });
 });
 

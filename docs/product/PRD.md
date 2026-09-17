@@ -23,7 +23,7 @@ tenant-scoped contracts and authorization tests are implemented.
 
 ## In scope
 
-- Organization, user, role, property, building, and unit records
+- Organization, user, role, property, and unit records
 - Controlled public listings and visit inquiries
 - Invited-tenant applications and explicit human review decisions
 - Tenant, co-tenant, guarantor, and contact relationships

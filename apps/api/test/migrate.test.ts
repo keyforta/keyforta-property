@@ -1,6 +1,29 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { PoolClient } from "pg";
 
-import { mapRuntimePrincipal } from "../src/migrate.js";
+import { applyMigration, mapRuntimePrincipal } from "../src/migrate.js";
+
+describe("applyMigration", () => {
+  it("blocks 0017 before its transaction when active assignments are ambiguous", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ "?column?": 1 }] });
+    const client = { query } as unknown as PoolClient;
+    const migration = "begin;\nselect true;\ncommit;";
+
+    await expect(
+      applyMigration(
+        client,
+        "0017_public_listing_publication_control.sql",
+        migration,
+      ),
+    ).rejects.toThrow(
+      "0017 blocked: revoke duplicate active manager assignments before retrying",
+    );
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).not.toHaveBeenCalledWith("begin");
+  });
+});
 
 describe("mapRuntimePrincipal", () => {
   afterEach(() => {
