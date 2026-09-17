@@ -21,6 +21,64 @@ groups remain incremental work.
 | Governance   | AuditEvent, AccessEvent, RetentionPolicy, Incident                        |
 | AI           | Interaction, ToolCall, EvidenceReference, HumanDecision, EvaluationResult |
 
+## Conceptual relationship map
+
+```mermaid
+flowchart TB
+  Identity[External identity] --> Party[Party]
+  Party --> Membership[Organization membership]
+  Organization[Organization isolation root] --> Membership
+  Organization --> Property
+  Property --> Unit
+  Unit --> Application[Tenant application]
+  Unit --> Lease
+  Party --> Application
+  Party --> LeaseParty[Lease party]
+  Lease --> LeaseParty
+  Lease --> LeaseVersion[Immutable lease versions]
+  Lease --> Charge
+  Payment --> Allocation
+  Charge --> Allocation
+  Payment --> Ledger[Balanced ledger entries]
+  Charge --> Ledger
+  Property --> Maintenance[Maintenance request]
+  Unit --> Maintenance
+  Maintenance --> WorkOrder[Work order and access window]
+  Maintenance --> MaintenanceReport[Maintenance report]
+  MaintenanceReport --> Evidence[Maintenance evidence]
+  Evidence --> Document
+  Document --> DocumentVersion[Immutable document version]
+  Audit[Append-only audit event] -. correlates .-> Membership
+  Audit -. correlates .-> LeaseVersion
+  Audit -. correlates .-> Payment
+  Audit -. correlates .-> Maintenance
+
+  subgraph OrganizationScope[Organization-scoped records]
+    Organization
+    Membership
+    Property
+    Unit
+    Application
+    Lease
+    LeaseParty
+    LeaseVersion
+    Charge
+    Payment
+    Allocation
+    Ledger
+    Maintenance
+    WorkOrder
+    MaintenanceReport
+    Document
+    DocumentVersion
+    Evidence
+    Audit
+  end
+```
+
+This is a conceptual view of the principal relationships, not a replacement for
+the normative columns, constraints, or executable migration lineage.
+
 ## Required persistence conventions
 
 - Tenant-owned rows carry `organization_id`; database row policies provide

@@ -4,6 +4,34 @@ This checklist tracks each KEYFORTA release from reviewed source through the
 initial operating window. The Git commit SHA, pull request, CI run, deployment
 run, migration execution, and Azure revision are the durable evidence chain.
 
+## Release control flow
+
+```mermaid
+flowchart TD
+  PR[Reviewed pull request] --> Gates{Required CI and security gates pass?}
+  Gates -- No --> Fix[Fix source, tests, or controls]
+  Fix --> PR
+  Gates -- Yes --> Merge[Merge immutable commit to main]
+  Merge --> Plan[Run scoped deployment plan]
+  Plan --> Evidence[Produce what-if, image digests, SBOM, provenance, and scans]
+  Evidence --> Review{Human review accepts plan evidence?}
+  Review -- No --> Stop[Stop promotion]
+  Review -- Yes --> Approval{Protected dev environment approved?}
+  Approval -- No --> Stop
+  Approval -- Yes --> Deploy[Deploy exact SHA, scope, plan run, and digests]
+  Deploy --> Scope{Selected scope}
+  Scope -- postgres --> Migration[Run forward migrations]
+  Scope -- full --> Migration
+  Scope -- api, public-web, or admin-web --> Revision[Create application revision]
+  Migration --> Ready[Verify migration and database readiness]
+  Ready --> IncludesApp{Scope includes applications?}
+  IncludesApp -- Yes, full --> Revision
+  IncludesApp -- No, postgres only --> Observe
+  Revision --> Smoke[Run smoke and authorization checks]
+  Smoke --> Observe[Observe initial operating window]
+  Observe --> Record[Complete release evidence record]
+```
+
 ## Release record
 
 Create one record in the pull request or linked issue and keep it current.

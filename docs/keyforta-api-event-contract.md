@@ -26,6 +26,47 @@
 | `X-Webhook-Signature` | Provider callbacks | Provider-specific signed payload |
 | `X-Webhook-Timestamp` | Provider callbacks | Replay-protection timestamp |
 
+### Protected request flow
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor User
+  participant Client as Browser or API client
+  participant API as Fastify API boundary
+  participant JWKS as Entra JWKS endpoint
+  participant Policy as Authorization policy
+  participant DB as PostgreSQL and RLS
+
+  User->>Client: Initiate protected action
+  Client->>API: HTTPS request with bearer token
+  opt Signing key is not cached
+    API->>JWKS: Fetch signing keys over HTTPS
+    JWKS-->>API: JSON Web Key Set
+  end
+  API->>API: Validate signature, issuer, audience, and claims
+  API->>DB: Resolve active membership and resource context
+  DB-->>API: Trusted organization and relationship context
+  API->>Policy: Evaluate actor, role, resource, state, and time
+  alt Denied or context mismatch
+    Policy-->>API: Deny by default
+    API-->>Client: Sanitized 401, 403, or 404 with request ID
+  else Authorized
+    Policy-->>API: Permit command or query
+    API->>DB: Execute with trusted transaction context
+      DB->>DB: Enforce row-level policies
+      opt Mutation or privileged read
+        API->>DB: Append correlated audit evidence
+      end
+    DB-->>API: Authorized result
+    API-->>Client: Response envelope with request ID
+  end
+```
+
+The external identity establishes a subject only. Organization and resource
+access come from protected server state and are enforced again by PostgreSQL
+row-level policies.
+
 ## 3. Response envelopes
 
 ### Single resource
