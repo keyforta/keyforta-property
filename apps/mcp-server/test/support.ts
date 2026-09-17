@@ -2,6 +2,7 @@ import { buildMcpServer } from "../src/app.js";
 import type { McpAuditRecord } from "../src/audit.js";
 import type { McpAuthenticator, McpPrincipal } from "../src/auth.js";
 import { createStaticAuthenticator, credentialScheme } from "../src/auth.js";
+import { LATEST_PROTOCOL_VERSION } from "../src/protocol.js";
 import { createSessionStore } from "../src/sessions.js";
 
 export const syntheticCredential = "synthetic-mcp-development-credential";
@@ -71,7 +72,7 @@ export function authorizationHeaders(
 
 export async function initializeSession(
   server: TestServer,
-  protocolVersion = "2025-06-18",
+  protocolVersion = LATEST_PROTOCOL_VERSION,
   headers: Record<string, string> = {},
 ): Promise<{ body: Record<string, unknown>; sessionId: string }> {
   const response = await server.app.inject({

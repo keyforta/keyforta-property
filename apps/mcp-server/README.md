@@ -15,7 +15,8 @@ tool. It is not deployed, not publicly reachable, and calls no model provider.
 - `GET /.well-known/oauth-protected-resource[/mcp]` — RFC 9728 metadata, served
   only when protected-resource metadata is configured
 
-Supported protocol versions are `2025-06-18` (latest) and `2025-03-26`.
+Supported protocol versions are `2025-11-25` (latest), `2025-06-18`, and
+`2025-03-26`.
 
 ## Boundaries
 
