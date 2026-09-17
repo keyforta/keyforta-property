@@ -16,6 +16,21 @@ jobs:
   api:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_DB: keyforta_dast
+          POSTGRES_PASSWORD: synthetic-dast-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d keyforta_dast"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:synthetic-dast-password@127.0.0.1:5432/keyforta_dast
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -39,6 +54,9 @@ jobs:
       - name: Build synthetic API
         run: pnpm --filter @keyforta/api... build
 
+      - name: Migrate synthetic database
+        run: node apps/api/dist/migrate.js
+
       - name: Prepare loopback OpenAPI contract
         run: |
           node --input-type=module <<'NODE'
@@ -54,6 +72,7 @@ jobs:
       - name: Start synthetic API
         run: |
           setsid env API_HOST=127.0.0.1 API_PORT=3000 NODE_ENV=development \
+            DATABASE_URL="$DATABASE_URL" \
             pnpm --filter @keyforta/api start > synthetic-api.log 2>&1 &
           echo "$!" > synthetic-api.pid
           for attempt in {1..30}; do
@@ -67,15 +86,16 @@ jobs:
 
       - name: Scan synthetic API with OWASP ZAP
         run: |
+          mkdir --mode=0777 zap-reports
           docker run --rm --network host \
             --volume "$PWD:/zap/wrk:rw" \
             ghcr.io/zaproxy/zaproxy:2.17.0@sha256:781a2bdaea47324e7bab583e2263f21d257b0aee61ed51521a5be45f5f5081ef \
             zap-api-scan.py \
               -t /zap/wrk/dast-openapi.yaml \
               -f openapi \
-              -J zap-report.json \
-              -r zap-report.html \
-              -w zap-report.md
+              -J zap-reports/zap-report.json \
+              -r zap-reports/zap-report.html \
+              -w zap-reports/zap-report.md
 
       - name: Stop synthetic API
         if: always()
@@ -91,8 +111,6 @@ jobs:
           name: api-security-${{ github.sha }}
           path: |
             synthetic-api.log
-            zap-report.json
-            zap-report.html
-            zap-report.md
+            zap-reports/
           if-no-files-found: warn
           retention-days: 14

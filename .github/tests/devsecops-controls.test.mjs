@@ -79,6 +79,8 @@ test("DAST scans only a synthetic loopback API and always cleans up", () => {
   assert.equal(workflow.on.pull_request_target, undefined);
   const job = workflow.jobs.api;
   assert.ok(job["timeout-minutes"] <= 15);
+  assert.match(job.services?.postgres?.image ?? "", /^postgres:\S+@sha256:[a-f0-9]{64}$/);
+  assert.match(job.env?.DATABASE_URL ?? "", /keyforta_dast/);
   const scripts = job.steps.map((step) => step.run ?? "").join("\n");
   assert.match(scripts, /http:\/\/127\.0\.0\.1:3000\/api\/v1/);
   assert.match(scripts, /ghcr\.io\/zaproxy\/zaproxy:2\.17\.0@sha256:[a-f0-9]{64}/);
@@ -86,6 +88,8 @@ test("DAST scans only a synthetic loopback API and always cleans up", () => {
   assert.doesNotMatch(scripts, /https:\/\/api\.keyforta\.com/);
   assert.ok(job.steps.some((step) => step.name === "Stop synthetic API" && step.if === "always()"));
   assert.match(scripts, /setsid env API_HOST=/);
+  assert.match(scripts, /node apps\/api\/dist\/migrate\.js/);
+  assert.match(scripts, /mkdir --mode=0777 zap-reports/);
   assert.match(scripts, /kill -- "-\$\(cat synthetic-api\.pid\)"/);
   assert.doesNotMatch(JSON.stringify(workflow), /\$\{\{\s*secrets\./);
 });
