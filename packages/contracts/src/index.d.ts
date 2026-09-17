@@ -42,7 +42,7 @@ export interface Meta {
 export interface Problem {
   error: {
     code: string;
-    details: unknown;
+    details: Record<string, unknown>;
     message: string;
     traceId: string;
   };

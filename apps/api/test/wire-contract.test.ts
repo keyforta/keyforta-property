@@ -18,8 +18,18 @@ function runtimeUrl(path: string) {
 }
 
 describe("OpenAPI runtime wire contract", () => {
-  it("registers every implemented operation exported by shared contracts", async () => {
-    const app = await buildApp();
+  it("registers every implemented operation with its declared authentication", async () => {
+    const app = await buildApp({
+      authenticator: { async authenticate() { return undefined; } },
+      landlordOnboarding: {
+        async decide() { return undefined; },
+        async list() { return []; },
+        async submit() { return undefined; },
+      },
+      publicListingPublication: {
+        async setPublication() { return false; },
+      },
+    });
     apps.push(app);
 
     for (const operation of Object.values(runtimeHttpOperations)) {
@@ -28,7 +38,14 @@ describe("OpenAPI runtime wire contract", () => {
         url: runtimeUrl(operation.path),
       });
 
-      expect(response.statusCode, `${operation.method} ${operation.path}`).not.toBe(404);
+      const operationLabel = `${operation.method} ${operation.path}`;
+      if (operation.authentication === "required") {
+        expect(response.statusCode, operationLabel).toBe(401);
+      } else {
+        expect(response.statusCode, operationLabel).not.toBe(401);
+        expect(response.statusCode, operationLabel).not.toBe(403);
+        expect(response.statusCode, operationLabel).not.toBe(404);
+      }
     }
   });
 });

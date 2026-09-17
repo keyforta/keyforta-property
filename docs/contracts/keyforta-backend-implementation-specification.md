@@ -398,9 +398,11 @@ The architecture is implementation-ready, but the backend is not production-read
 ### 8.1 General rules
 
 - Base path: `/api/v1`.
-- `docs/openapi.yaml` is the named HTTP wire authority. Shared schemas and
-  implemented Fastify routes must match it; unresolved route inventory conflicts
-  remain recorded in `docs/engineering/REQUIREMENTS_GAPS.md`.
+- Operations marked `x-keyforta-runtime: true` in `docs/openapi.yaml` are the
+  named HTTP wire authority for the implemented runtime slice. Shared schemas
+  and implemented Fastify routes must match that slice; unmarked operations are
+  target contracts whose unresolved conflicts remain recorded in
+  `docs/engineering/REQUIREMENTS_GAPS.md`.
 - Public discovery routes do not require authentication and return only published, public-safe data.
 - All authenticated routes require a validated bearer access token.
 - Use JSON over HTTPS and ISO-8601 timestamps in UTC.

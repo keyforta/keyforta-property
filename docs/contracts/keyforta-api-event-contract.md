@@ -7,10 +7,12 @@
 - Base URL: `https://api.keyforta.com/api/v1`.
 - Local base URL: `http://localhost:3000/api/v1`.
 - Transport: HTTPS in every non-local environment; JSON request and response bodies; UTF-8.
-- `docs/openapi.yaml` is the named HTTP wire authority. This document describes
-  the domain API/event contract and must be synchronized with OpenAPI for
-  enabled routes; unresolved route inventory questions remain in the engineering
-  requirements-gap report.
+- Operations marked `x-keyforta-runtime: true` in `docs/openapi.yaml` are the
+  named HTTP wire authority for the implemented runtime slice. Other operations
+  describe the target contract and are not claims of runtime availability. This
+  document describes the domain API/event contract and must be synchronized with
+  OpenAPI for enabled routes; unresolved route inventory questions remain in the
+  engineering requirements-gap report.
 - Public routes are explicitly marked `PUBLIC` below and return only published, public-safe fields.
 - Protected routes require a bearer token issued for KEYFORTA's configured identity provider.
 - Authorization is deny-by-default and is evaluated server-side for organization, role, relationship, resource, action, state, and effective time.

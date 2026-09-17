@@ -20,7 +20,7 @@ export const metaSchema = z.object({
 export const problemSchema = z.object({
 	error: z.object({
 		code: z.string().min(1),
-		details: z.unknown(),
+		details: z.record(z.string(), z.unknown()),
 		message: z.string().min(1),
 		traceId: z.string().min(1).max(128),
 	}).strict(),

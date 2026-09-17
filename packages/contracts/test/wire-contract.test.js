@@ -7,11 +7,25 @@ import { parse } from "yaml";
 import {
   apiBasePath,
   apiWireAuthority,
+  problemSchema,
   runtimeHttpOperations,
 } from "../src/index.js";
 
 const openApi = parse(
   readFileSync(new URL("../../../docs/openapi.yaml", import.meta.url), "utf8"),
+);
+
+const runtimeOpenApiOperations = Object.entries(openApi.paths).flatMap(
+  ([path, pathItem]) => Object.entries(pathItem)
+    .filter(([, operation]) => operation?.["x-keyforta-runtime"] === true)
+    .map(([method, operation]) => ({
+      authentication: Array.isArray(operation.security) && operation.security.length === 0
+        ? "anonymous"
+        : "required",
+      method: method.toUpperCase(),
+      operationId: operation.operationId,
+      path,
+    })),
 );
 
 test("OpenAPI is the named HTTP wire authority for implemented runtime operations", () => {
@@ -23,17 +37,29 @@ test("OpenAPI is the named HTTP wire authority for implemented runtime operation
     openApi.servers.every((server) => new URL(server.url).pathname.endsWith(apiBasePath)),
   );
 
-  for (const [operationId, operation] of Object.entries(runtimeHttpOperations)) {
-    const path = openApi.paths[operation.path];
-    assert.ok(path, `${operation.path} is missing from OpenAPI`);
-    const method = path[operation.method.toLowerCase()];
-    assert.ok(method, `${operation.method} ${operation.path} is missing from OpenAPI`);
-    assert.equal(method.operationId, operationId);
-    assert.equal(
-      Array.isArray(method.security) && method.security.length === 0,
-      operation.authentication === "anonymous",
-      `${operationId} authentication must match OpenAPI security`,
+  assert.deepEqual(
+    runtimeOpenApiOperations.sort((left, right) => left.operationId.localeCompare(right.operationId)),
+    Object.entries(runtimeHttpOperations)
+      .map(([operationId, operation]) => ({ operationId, ...operation }))
+      .sort((left, right) => left.operationId.localeCompare(right.operationId)),
+  );
+
+  for (const { operationId, method, path } of runtimeOpenApiOperations) {
+    const operation = openApi.paths[path][method.toLowerCase()];
+    assert.ok(
+      operation.parameters.some(
+        (parameter) => parameter.$ref === "#/components/parameters/RequestCorrelation",
+      ),
+      `${operationId} must document request correlation`,
     );
+    for (const response of Object.values(operation.responses)) {
+      const responseName = response.$ref.split("/").at(-1);
+      assert.equal(
+        openApi.components.responses[responseName].headers["X-Request-Id"].$ref,
+        "#/components/headers/RequestId",
+        `${operationId} ${responseName} must document response correlation`,
+      );
+    }
   }
 });
 
@@ -72,6 +98,26 @@ test("OpenAPI preserves stable envelopes, errors, and integer-minor-unit money f
   assert.equal(
     "amount" in openApi.components.schemas.Money.properties,
     false,
+  );
+});
+
+test("shared problem details are required objects", () => {
+  assert.equal(
+    problemSchema.safeParse({
+      error: { code: "TEST", message: "Test error", traceId: "request-1" },
+    }).success,
+    false,
+  );
+  assert.equal(
+    problemSchema.safeParse({
+      error: {
+        code: "TEST",
+        details: {},
+        message: "Test error",
+        traceId: "request-1",
+      },
+    }).success,
+    true,
   );
 });
 
