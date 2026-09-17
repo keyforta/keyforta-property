@@ -1,4 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  problemSchema,
+  publicListingPublicationEnvelopeSchema,
+  publicPropertyEnvelopeSchema,
+  publicPropertyListEnvelopeSchema,
+  publicRequestReceiptEnvelopeSchema,
+} from "@keyforta/contracts";
 
 import { buildApp, parseCorsOrigins } from "../src/app.js";
 import { createMemoryPublicPropertyGateway } from "../src/properties/gateway.js";
@@ -67,6 +74,44 @@ afterEach(async () => {
 });
 
 describe("KEYFORTA API runtime", () => {
+  it("serves only implemented API documentation when explicitly enabled", async () => {
+    const disabledApp = await buildApp();
+    const enabledApp = await buildApp({ apiDocs: true });
+    apps.push(disabledApp, enabledApp);
+
+    const disabled = await disabledApp.inject({
+      method: "GET",
+      url: "/api/docs/json",
+    });
+    const html = await enabledApp.inject({
+      method: "GET",
+      url: "/api/docs/",
+    });
+    const specification = await enabledApp.inject({
+      method: "GET",
+      url: "/api/docs/json",
+    });
+
+    expect(disabled.statusCode).toBe(404);
+    expect(html.statusCode).toBe(200);
+    expect(html.headers["content-type"]).toContain("text/html");
+    expect(specification.statusCode).toBe(200);
+
+    const document = specification.json();
+    expect(document.servers).toEqual([{ url: "/api/v1" }]);
+    expect(Object.keys(document.paths).sort()).toEqual([
+      "/landlord-onboarding-applications",
+      "/landlord-onboarding-applications/{applicationId}/decision",
+      "/properties",
+      "/properties/{propertyId}",
+      "/public-listings/{listingId}/publish",
+      "/public-listings/{listingId}/withdraw",
+      "/viewing-requests",
+    ]);
+    expect(document.paths["/properties"].post).toBeUndefined();
+    expect(document.paths["/leases"]).toBeUndefined();
+  });
+
   it("parses only exact secure CORS origins", () => {
     expect(parseCorsOrigins("https://web.example.test,https://admin.example.test"))
       .toEqual(["https://web.example.test", "https://admin.example.test"]);
@@ -194,6 +239,7 @@ describe("KEYFORTA API runtime", () => {
       code: "NOT_FOUND",
       traceId: expect.any(String),
     });
+    problemSchema.parse(body);
     expect(response.headers["x-request-id"]).toBe(body.error.traceId);
   });
 
@@ -267,7 +313,9 @@ describe("anonymous public property discovery", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
+    const body = response.json();
+    publicPropertyListEnvelopeSchema.parse(body);
+    expect(body).toEqual({
       items: [
         {
           address: "Gombe",
@@ -306,7 +354,9 @@ describe("anonymous public property discovery", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
+    const body = response.json();
+    publicPropertyEnvelopeSchema.parse(body);
+    expect(body).toEqual({
       data: {
         address: "Limete",
         amenities: ["Parking"],
@@ -520,7 +570,9 @@ describe("protected public listing publication", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
+    const body = response.json();
+    publicListingPublicationEnvelopeSchema.parse(body);
+    expect(body).toEqual({
       data: { listingId, status: published ? "published" : "withdrawn" },
       meta: { requestId: `publication-${command}` },
     });
@@ -621,7 +673,9 @@ describe("anonymous public viewing requests", () => {
     });
 
     expect(response.statusCode).toBe(202);
-    expect(response.json()).toEqual({
+    const body = response.json();
+    publicRequestReceiptEnvelopeSchema.parse(body);
+    expect(body).toEqual({
       data: { reference: "viewing-request-01", status: "accepted" },
       meta: { requestId: "viewing-request-01" },
     });

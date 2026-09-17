@@ -7,6 +7,46 @@ export const resources: string[];
 export const maintenanceStatuses: string[];
 export const commands: string[];
 export function apiResponse<T>(data: T): { data: T };
+export const apiBasePath: "/api/v1";
+export const apiWireAuthority: Readonly<{
+  document: "docs/openapi.yaml";
+  name: "OpenAPI";
+}>;
+
+export interface HttpOperation {
+  authentication: "anonymous" | "required";
+  method: "GET" | "POST" | "PATCH" | "DELETE";
+  path: string;
+}
+
+export const runtimeHttpOperations: Readonly<Record<string, HttpOperation>>;
+
+export const metaSchema: z.ZodType<Meta>;
+export const problemSchema: z.ZodType<Problem>;
+export function envelopeSchema<T extends z.ZodTypeAny>(dataSchema: T): z.ZodType<{
+  auditEventId?: string;
+  data: z.infer<T>;
+  meta: Meta;
+}>;
+export function listEnvelopeSchema<T extends z.ZodTypeAny>(itemSchema: T): z.ZodType<{
+  items: z.infer<T>[];
+  meta: Meta;
+  nextCursor?: string | null;
+  total: number;
+}>;
+
+export interface Meta {
+  requestId: string;
+}
+
+export interface Problem {
+  error: {
+    code: string;
+    details: Record<string, unknown>;
+    message: string;
+    traceId: string;
+  };
+}
 
 export const publicPropertyIdSchema: z.ZodString;
 export const organizationIdSchema: z.ZodString;
@@ -81,6 +121,17 @@ export interface PublicPropertyListResult {
 }
 
 export const publicPropertyListResultSchema: z.ZodType<PublicPropertyListResult>;
+export const publicPropertyEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: PublicPropertyProjection;
+  meta: Meta;
+}>;
+export const publicPropertyListEnvelopeSchema: z.ZodType<{
+  items: PublicPropertyProjection[];
+  meta: Meta;
+  nextCursor: string | null;
+  total: number;
+}>;
 
 export interface PublicViewingRequestInput {
   email: string;
@@ -97,6 +148,25 @@ export const publicViewingRequestInputSchema: z.ZodType<PublicViewingRequestInpu
 export const publicRequestReceiptSchema: z.ZodType<{
   reference: string;
   status: "accepted";
+}>;
+export const publicRequestReceiptEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: { reference: string; status: "accepted" };
+  meta: Meta;
+}>;
+export const publicListingPublicationEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: { listingId: string; status: "published" | "withdrawn" };
+  meta: Meta;
+}>;
+export const landlordOnboardingApplicationEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: LandlordOnboardingApplication;
+  meta: Meta;
+}>;
+export const landlordOnboardingApplicationListEnvelopeSchema: z.ZodType<{
+  items: LandlordOnboardingApplication[];
+  meta: Meta;
 }>;
 
 export const publicWebOperations: Readonly<Record<string, {

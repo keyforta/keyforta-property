@@ -2,6 +2,7 @@
 
 The current KEYFORTA modular-monolith API runtime exposes:
 
+- `GET /api/docs/` in non-production environments only
 - `GET /health`
 - `GET /ready`
 - `GET /api/v1/properties`
@@ -28,3 +29,9 @@ through 100 (default 20), and `sort` values `created_at_desc` (default),
 
 Run `pnpm --filter @keyforta/api test`, `typecheck`, and `build` from the
 repository root.
+
+Start the local API with
+`NODE_ENV=development pnpm --filter @keyforta/api dev`, then open
+`http://localhost:4000/api/docs/` to inspect and exercise the implemented
+operations. The explorer omits unimplemented target operations from OpenAPI and
+is unavailable when `NODE_ENV=production`.

@@ -20,6 +20,7 @@ import {
 } from "@keyforta/contracts";
 import Fastify, { type FastifyInstance } from "fastify";
 
+import { registerApiDocs } from "./api-docs.js";
 import type { Principal, PrincipalAuthenticator } from "./authentication.js";
 import type { LandlordOnboardingGateway } from "./onboarding/gateway.js";
 import {
@@ -33,6 +34,7 @@ const serviceName = "keyforta-api";
 const requestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
 export interface AppDependencies {
+  apiDocs?: boolean;
   authenticator?: PrincipalAuthenticator;
   corsOrigin?: string | string[] | boolean;
   landlordOnboarding?: LandlordOnboardingGateway;
@@ -186,6 +188,9 @@ export async function buildApp(
   );
 
   await app.register(helmet);
+  if (dependencies.apiDocs) {
+    await registerApiDocs(app);
+  }
   await app.register(rateLimit, {
     global: false,
   });
