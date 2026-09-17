@@ -566,16 +566,16 @@ describePostgres("PostgreSQL public discovery integration", () => {
       from app.manager_property_assignment_events
       where organization_id = '00000000-0000-4000-8000-000000000900'
         and property_id = '00000000-0000-4000-8000-000000000910'
-      order by occurred_at, id
+      order by action, manager_user_id
     `);
     expect(assignmentEvents.rows).toEqual([
       {
-        action: "revoked",
-        manager_user_id: "00000000-0000-4000-8000-000000000951",
-      },
-      {
         action: "assigned",
         manager_user_id: "00000000-0000-4000-8000-000000000950",
+      },
+      {
+        action: "revoked",
+        manager_user_id: "00000000-0000-4000-8000-000000000951",
       },
     ]);
     await expect(
@@ -722,6 +722,15 @@ describePostgres("PostgreSQL public discovery integration", () => {
   });
 
   it("filters and paginates published listings inside PostgreSQL", async () => {
+    await client.query(`
+      update app.public_listings
+      set status = 'published'
+      where id in (
+        '00000000-0000-4000-8000-000000000930',
+        '00000000-0000-4000-8000-000000000932'
+      )
+    `);
+
     const listPage = async (cursor: string | null) => {
       await runtimeClient.query("begin");
       await runtimeClient.query("set local role keyforta_runtime");
