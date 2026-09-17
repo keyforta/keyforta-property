@@ -348,6 +348,8 @@
     "no_results": "No properties match these filters.",
     "empty": "No published properties are available right now.",
     "loading": "Loading published properties...",
+    "load_more": "Load more properties",
+    "loading_more": "Loading more properties...",
     "error_title": "Properties could not be loaded",
     "error_message": "The listing service is temporarily unavailable.",
     "retry": "Try again",

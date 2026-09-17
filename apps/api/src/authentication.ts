@@ -34,6 +34,11 @@ export function parsePlatformAdminObjectIds(value: string | undefined): Readonly
 export function createEntraPrincipalAuthenticator(
   options: EntraPrincipalAuthenticatorOptions,
 ): PrincipalAuthenticator {
+  const issuerUrl = new URL(options.issuer);
+  if (issuerUrl.protocol !== "https:") {
+    throw new Error("The Entra issuer must use HTTPS.");
+  }
+
   const jwks = options.jwks ?? (() => {
     const jwksUrl = new URL(options.jwksUri);
     if (jwksUrl.protocol !== "https:") {
@@ -51,7 +56,7 @@ export function createEntraPrincipalAuthenticator(
         const { payload } = await jwtVerify(match[1], jwks, {
           algorithms: ["RS256"],
           audience: options.audience,
-          issuer: options.issuer,
+          issuer: issuerUrl.toString(),
           requiredClaims: ["exp", "sub", "oid"],
         });
         return typeof payload.sub === "string" && payload.sub.trim() &&

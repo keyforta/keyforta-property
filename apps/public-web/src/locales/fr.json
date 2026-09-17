@@ -348,6 +348,8 @@
     "no_results": "Aucun bien ne correspond a ces filtres.",
     "empty": "Aucun bien publie n est disponible pour le moment.",
     "loading": "Chargement des biens publies...",
+    "load_more": "Charger plus de biens",
+    "loading_more": "Chargement de biens supplementaires...",
     "error_title": "Impossible de charger les biens",
     "error_message": "Le service des annonces est temporairement indisponible.",
     "retry": "Reessayer",

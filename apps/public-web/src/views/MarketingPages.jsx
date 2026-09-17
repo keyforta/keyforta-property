@@ -101,14 +101,12 @@ export function HomePage({
   onOpenAccess,
 }) {
   const { t } = useTranslation();
-  const { data: propertyResult, error: propertyError, loading: propertiesLoading, retry: retryProperties } = usePublicProperties();
+  const { data: propertyResult, error: propertyError, loading: propertiesLoading, retry: retryProperties } = usePublicProperties({ limit: '3' });
   const properties = propertyResult?.items || [];
   const audienceItems = t('marketing.audience.items', { returnObjects: true, defaultValue: [] });
   const audienceRoutes = ['/properties', '/signup/landlord', '/signin', '/signup/operator'];
-  const neighborhoodCount = new Set(properties.map(({ district }) => district)).size;
   const collectionProofs = [
     [String(propertyResult?.total || 0).padStart(2, '0'), t('marketing.proof.homes')],
-    [String(neighborhoodCount).padStart(2, '0'), t('marketing.proof.neighborhoods')],
     [t('marketing.proof.terms_value'), t('marketing.proof.terms')],
     [t('marketing.proof.viewings_value'), t('marketing.proof.viewings')],
   ];

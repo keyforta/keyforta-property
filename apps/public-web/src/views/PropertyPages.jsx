@@ -113,8 +113,9 @@ export function PropertiesPage({ lang, filters, onFilterChange }) {
     district: form.area || undefined,
     minBedrooms: form.beds || undefined,
     maxMonthlyRentMinor: form.max ? `${form.max}00` : undefined,
+    limit: "24",
   }).filter(([, value]) => value !== undefined));
-  const { data, error, loading, retry } = usePublicProperties(query);
+  const { data, error, loading, loadingMore, loadMore, retry } = usePublicProperties(query);
   let items = data?.items || [];
 
   if (form.sort === "price-low")
@@ -240,6 +241,11 @@ export function PropertiesPage({ lang, filters, onFilterChange }) {
           <div className="empty">{t("property_pages.no_results")}</div>
         )}
       </div>
+      {data?.nextCursor && !error && <div className="load-more">
+        <Button appearance="outline" disabled={loadingMore} onClick={loadMore}>
+          {t(loadingMore ? "property_pages.loading_more" : "property_pages.load_more")}
+        </Button>
+      </div>}
     </section>
   );
 }

@@ -196,6 +196,7 @@ assert.match(onboardingService, /redirectUri: ['"]\/auth\/callback['"]/, 'Landlo
 assert.match(authCallback, /completeBrowserEntraRedirect\(\)/, 'The MSAL callback route must broadcast the response to its parent window.');
 assert.match(onboardingProxy, /landlordOnboardingApplicationInputSchema[\s\S]*authorization,[\s\S]*'content-type'/, 'The onboarding proxy must validate the body and forward only bounded API headers.');
 const propertyPages = await readFile(resolve(appRoot, 'src/views/PropertyPages.jsx'), 'utf8');
+const publicPropertiesService = await readFile(resolve(appRoot, 'src/services/public-properties.js'), 'utf8');
 const propertyStyles = await readFile(resolve(appRoot, 'src/views/PropertyPages.styles.css'), 'utf8');
 assert.doesNotMatch(
   propertyPages,
@@ -224,8 +225,12 @@ assert.equal(getLegacyRouteUrl({ hash: '#status', search: '' }), '/home#status')
 assert.equal(getLegacyRouteUrl({ hash: '#section', search: '' }), null);
 assert.equal(resolveApiBaseUrl(undefined), '/api/v1');
 assert.equal(resolveApiBaseUrl(' /custom/api/ '), '/custom/api');
+assert.equal(resolveApiBaseUrl('//attacker.example/api'), '/api/v1');
 assert.equal(resolveApiBaseUrl('javascript:alert(1)'), '/api/v1');
 assert.equal(resolveApiBaseUrl('https://api.example.test/api/v1/'), 'https://api.example.test/api/v1');
+assert.doesNotMatch(publicPropertiesService, /do\s*\{[\s\S]*while\s*\(cursor\)/, 'Public listings must use bounded page requests.');
+assert.match(marketingPages, /usePublicProperties\(\{ limit: ['"]3['"] \}\)/, 'The home page must request only its featured properties.');
+assert.match(propertyPages, /data\?\.nextCursor[\s\S]*?onClick=\{loadMore\}/, 'Property discovery must expose cursor pagination.');
 assert.equal(formatMinorMoney('40000', 'USD', 'en'), '$400');
 assert.equal(formatMinorMoney('40050', 'USD', 'fr'), '400,50 $');
 assert.equal(resolvePortalWebUrl(undefined, 'production'), null);

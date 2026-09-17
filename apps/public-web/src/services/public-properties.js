@@ -6,7 +6,9 @@ export function resolveApiBaseUrl(value) {
   const candidate = value?.trim();
   if (!candidate) return defaultBaseUrl;
 
-  if (candidate.startsWith('/')) return candidate.replace(/\/+$/, '') || defaultBaseUrl;
+  if (candidate.startsWith('/') && !candidate.startsWith('//')) {
+    return candidate.replace(/\/+$/, '') || defaultBaseUrl;
+  }
 
   try {
     const url = new URL(candidate);
@@ -22,22 +24,7 @@ const api = createApiClient({
 });
 
 export async function listPublicProperties(query = {}) {
-  const items = [];
-  let cursor;
-  let total = 0;
-
-  do {
-    const response = await api.list('properties', {
-      limit: '100',
-      ...query,
-      ...(cursor ? { cursor } : {}),
-    });
-    items.push(...response.items);
-    total = response.total;
-    cursor = response.nextCursor;
-  } while (cursor);
-
-  return { items, nextCursor: null, total };
+  return api.list('properties', { limit: '20', ...query });
 }
 
 export async function getPublicProperty(propertyId) {

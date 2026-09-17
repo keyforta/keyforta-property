@@ -213,25 +213,29 @@ psql "host=<server>.postgres.database.azure.com port=5432 dbname=keyforta user=<
 
 ## External ID Bootstrap
 
-Microsoft Entra External ID is not yet available for KEYFORTA. The application
-adapter is implemented but cannot authenticate users until an identity
-administrator completes these steps:
+The development External ID tenant was bootstrapped separately from the Azure
+application deployment. An identity administrator provisioned the CIAM
+directory, API registration and delegated scope, public and admin SPA
+registrations, consent, exact callback URIs, and the `KEYFORTA_SignUpSignIn`
+email OTP user flow. These Microsoft Graph resources are mandatory deployment
+prerequisites; the application workflow does not create or modify them.
 
-1. Create or select an External ID external tenant.
-2. Register the public browser and API applications.
-3. Configure local-account methods suitable for the DRC pilot.
-4. Configure redirect and logout URIs for each environment.
-5. Define API scopes and token audiences.
-6. Assign tenant administration to named people, not deployment workflows.
-7. Record recovery, MFA, break-glass, and offboarding procedures.
+Before planning any application deployment, the protected `dev` environment
+must supply the recorded audience, client IDs, authority, issuer, JWKS URI,
+scope, and administrator Object ID allowlist. The workflow fails closed unless
+the configured issuer publishes reachable HTTPS OpenID metadata with the exact
+configured issuer and JWKS URI, and the JWKS contains signing keys.
+
+The metadata check proves tenant endpoint consistency only. An identity
+administrator must separately review app registrations, delegated consent,
+callback URIs, email OTP user flow, named administrators, recovery, MFA,
+break-glass, and offboarding whenever those resources change. Do not grant the
+deployment identity Microsoft Graph write permissions to automate this review.
 
 Application identity proves a subject. KEYFORTA database membership still
 determines organization, role, property, unit, lease, and tenant access.
 
-Until this bootstrap is complete, the deployed application may serve public
-lease-schedule preview and health routes. Authentication and payment routes
-remain unavailable and fail closed; do not substitute the Azure resource tenant
-for the External ID customer tenant.
+Do not substitute the Azure resource tenant for the External ID customer tenant.
 
 ## Local Validation
 

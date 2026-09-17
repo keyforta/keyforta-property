@@ -57,6 +57,27 @@ test("deployment workflows pin every action to an immutable commit", () => {
   }
 });
 
+test("application deployment verifies the configured External ID tenant before planning", () => {
+  const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
+  const steps = document.jobs.deploy.steps;
+  const identity = steps.find(
+    (step) => step.name === "Verify application identity configuration",
+  );
+  const planning = steps.find(
+    (step) => step.name === "Determine deployment plan scope",
+  );
+
+  assert.ok(identity);
+  assert.ok(steps.indexOf(identity) < steps.indexOf(planning));
+  assert.equal(identity.env.ENTRA_ISSUER, "${{ vars.ENTRA_ISSUER }}");
+  assert.equal(identity.env.ENTRA_JWKS_URI, "${{ vars.ENTRA_JWKS_URI }}");
+  assert.match(identity.run, /metadata_url="\$\{ENTRA_AUTHORITY%\/\}\/v2\.0/);
+  assert.match(identity.run, /\.well-known\/openid-configuration/);
+  assert.match(identity.run, /\.issuer == \$issuer and \.jwks_uri == \$jwks_uri/);
+  assert.match(identity.run, /\.keys \| length > 0/);
+  assert.match(identity.run, /--proto '=https'/);
+});
+
 test("MCP deploy consumes a reviewed immutable image plan", () => {
   const document = YAML.parse(
     readFileSync(".github/workflows/deploy-mcp.yml", "utf8"),

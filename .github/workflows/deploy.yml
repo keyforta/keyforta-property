@@ -139,6 +139,8 @@ jobs:
           ADMIN_ENTRA_CLIENT_ID: ${{ vars.ADMIN_ENTRA_CLIENT_ID }}
           ENTRA_API_SCOPE: ${{ vars.ENTRA_API_SCOPE }}
           ENTRA_AUTHORITY: ${{ vars.ENTRA_AUTHORITY }}
+          ENTRA_ISSUER: ${{ vars.ENTRA_ISSUER }}
+          ENTRA_JWKS_URI: ${{ vars.ENTRA_JWKS_URI }}
           PUBLIC_ENTRA_CLIENT_ID: ${{ vars.PUBLIC_ENTRA_CLIENT_ID }}
         run: |
           [[ "${{ vars.ENTRA_AUDIENCE }}" =~ ^[0-9a-fA-F-]{36}$ ]]
@@ -147,6 +149,19 @@ jobs:
           [[ "$PLATFORM_ADMIN_OBJECT_IDS" =~ ^[0-9a-fA-F-]{36}(,[0-9a-fA-F-]{36})*$ ]]
           [[ "$ENTRA_AUTHORITY" == https://*.ciamlogin.com/* ]]
           [[ "$ENTRA_API_SCOPE" == api://${{ vars.ENTRA_AUDIENCE }}/* ]]
+          [[ "$ENTRA_ISSUER" == https://*.ciamlogin.com/*/v2.0 ]]
+          [[ "$ENTRA_JWKS_URI" == https://*.ciamlogin.com/* ]]
+
+          metadata_url="${ENTRA_AUTHORITY%/}/v2.0/.well-known/openid-configuration"
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+            "$metadata_url" --output entra-openid-configuration.json
+          jq --exit-status \
+            --arg issuer "$ENTRA_ISSUER" \
+            --arg jwks_uri "$ENTRA_JWKS_URI" \
+            '.issuer == $issuer and .jwks_uri == $jwks_uri' \
+            entra-openid-configuration.json >/dev/null
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+            "$ENTRA_JWKS_URI" | jq --exit-status '.keys | length > 0' >/dev/null
 
       - name: Determine deployment plan scope
         id: foundation-state

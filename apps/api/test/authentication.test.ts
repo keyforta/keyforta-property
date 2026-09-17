@@ -67,6 +67,18 @@ describe("Entra principal authentication", () => {
     })).toThrow("must use HTTPS");
   });
 
+  it.each([
+    "http://login.example.test/tenant/v2.0",
+    "not-an-issuer",
+  ])("rejects an invalid issuer configuration: %s", (issuer) => {
+    expect(() => createEntraPrincipalAuthenticator({
+      audience: "api://keyforta-test",
+      issuer,
+      jwks: async () => publicKey,
+      jwksUri: "https://login.example.test/keys",
+    })).toThrow();
+  });
+
   it("rejects a token without an immutable Entra object ID", async () => {
     await expect(
       authenticator().authenticate(`Bearer ${await token({ objectId: null })}`),
