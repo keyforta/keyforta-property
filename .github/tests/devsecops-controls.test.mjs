@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import YAML from "yaml";
 
@@ -130,8 +131,16 @@ test("security workflow rejects edits to existing migrations", () => {
     (step) => step.name === "Reject historical migration rewrites",
   );
   assert.match(guard?.run ?? "", /git diff --name-status/);
-  assert.match(guard?.run ?? "", /\$1 !~ \/\^A\//);
+  assert.match(guard?.run ?? "", /NF && \$1 !~ \/\^A\//);
   assert.match(guard?.run ?? "", /add a forward migration instead/);
+
+  const awkProgram = "NF && $1 !~ /^A/ { found=1 } END { exit found ? 0 : 1 }";
+  for (const allowed of ["", "A\tinfra/postgres/migrations/0021_example.sql"]){
+    assert.notEqual(spawnSync("awk", [awkProgram], { input: `${allowed}\n` }).status, 0);
+  }
+  for (const rejected of ["M\t0010.sql", "D\t0010.sql", "R100\t0010.sql\t0010_renamed.sql"]){
+    assert.equal(spawnSync("awk", [awkProgram], { input: `${rejected}\n` }).status, 0);
+  }
 });
 
 test("application delivery deploys only reviewed digest-addressed images", () => {

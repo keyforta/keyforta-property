@@ -38,7 +38,7 @@ jobs:
             BASE_SHA=$(git rev-list --max-parents=0 "$HEAD_SHA")
           fi
           changes=$(git diff --name-status "$BASE_SHA" "$HEAD_SHA" -- infra/postgres/migrations)
-          if awk '$1 !~ /^A/ { found=1 } END { exit found ? 0 : 1 }' <<< "$changes"; then
+          if awk 'NF && $1 !~ /^A/ { found=1 } END { exit found ? 0 : 1 }' <<< "$changes"; then
             echo "Existing migrations are immutable; add a forward migration instead." >&2
             echo "$changes" >&2
             exit 1
