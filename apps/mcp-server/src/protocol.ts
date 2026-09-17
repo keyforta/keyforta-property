@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const SUPPORTED_PROTOCOL_VERSIONS = [
+  "2025-11-25",
   "2025-06-18",
   "2025-03-26",
 ] as const;
@@ -9,7 +10,7 @@ export type SupportedProtocolVersion =
   (typeof SUPPORTED_PROTOCOL_VERSIONS)[number];
 
 export const LATEST_PROTOCOL_VERSION: SupportedProtocolVersion =
-  "2025-06-18";
+  "2025-11-25";
 
 export function isSupportedProtocolVersion(
   value: unknown,
