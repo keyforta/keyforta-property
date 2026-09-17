@@ -76,6 +76,7 @@ const host = process.env.API_HOST ?? "127.0.0.1";
 
 try {
   const app = await buildApp({
+    apiDocs: !isProduction,
     ...(authenticator ? { authenticator } : {}),
     ...(corsAllowedOrigins.length > 0 ? { corsOrigin: corsAllowedOrigins } : {}),
     ...(landlordOnboarding ? { landlordOnboarding } : {}),

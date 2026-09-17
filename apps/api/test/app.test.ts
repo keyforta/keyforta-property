@@ -74,6 +74,44 @@ afterEach(async () => {
 });
 
 describe("KEYFORTA API runtime", () => {
+  it("serves only implemented API documentation when explicitly enabled", async () => {
+    const disabledApp = await buildApp();
+    const enabledApp = await buildApp({ apiDocs: true });
+    apps.push(disabledApp, enabledApp);
+
+    const disabled = await disabledApp.inject({
+      method: "GET",
+      url: "/api/docs/json",
+    });
+    const html = await enabledApp.inject({
+      method: "GET",
+      url: "/api/docs/",
+    });
+    const specification = await enabledApp.inject({
+      method: "GET",
+      url: "/api/docs/json",
+    });
+
+    expect(disabled.statusCode).toBe(404);
+    expect(html.statusCode).toBe(200);
+    expect(html.headers["content-type"]).toContain("text/html");
+    expect(specification.statusCode).toBe(200);
+
+    const document = specification.json();
+    expect(document.servers).toEqual([{ url: "/api/v1" }]);
+    expect(Object.keys(document.paths).sort()).toEqual([
+      "/landlord-onboarding-applications",
+      "/landlord-onboarding-applications/{applicationId}/decision",
+      "/properties",
+      "/properties/{propertyId}",
+      "/public-listings/{listingId}/publish",
+      "/public-listings/{listingId}/withdraw",
+      "/viewing-requests",
+    ]);
+    expect(document.paths["/properties"].post).toBeUndefined();
+    expect(document.paths["/leases"]).toBeUndefined();
+  });
+
   it("parses only exact secure CORS origins", () => {
     expect(parseCorsOrigins("https://web.example.test,https://admin.example.test"))
       .toEqual(["https://web.example.test", "https://admin.example.test"]);
