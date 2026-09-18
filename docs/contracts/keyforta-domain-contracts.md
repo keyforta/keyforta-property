@@ -49,7 +49,7 @@ visibility. Runtime support remains pending separately reviewed implementation.
 
 ### `Property`
 
-**Commands:** `CreateProperty`, `UpdateProperty`, `SubmitPropertyForVerification`, `ApprovePropertyVerification`, `RejectPropertyVerification`, `PublishProperty`, `UnpublishProperty`, `ArchiveProperty`, `AssignManager`
+**Commands:** `CreateProperty`, `UpdateProperty`, `CompleteLegacyPropertyProfile`, `SubmitPropertyForVerification`, `ApprovePropertyVerification`, `RejectPropertyVerification`, `PublishProperty`, `UnpublishProperty`, `ArchiveProperty`, `AssignManager`
 **Events:** `PropertyCreated`, `PropertyUpdated`, `PropertyVerificationSubmitted`, `PropertyVerificationApproved`, `PropertyVerificationRejected`, `PropertyPublished`, `PropertyUnpublished`, `PropertyArchived`, `ManagerAssigned`, `ManagerAssignmentRevoked`
 **Invariants:** property belongs to one organization and contains one or more units; address and property time zone are valid; each property has at most one active assigned listing manager; a landlord may assign themselves or another eligible same-organization member; ownership alone does not authorize unit-listing management; assignment changes retain immutable history; archived properties cannot accept applications.
 
