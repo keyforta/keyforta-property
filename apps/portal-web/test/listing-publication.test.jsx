@@ -14,7 +14,7 @@ vi.mock('@keyforta/api-client', () => ({
   createApiClient: createApiClientMock,
 }));
 
-import { ListingPublicationPanel } from '../src/listing-publication-panel.jsx';
+import { ListingPublicationPanel, resolveApiBaseUrl } from '../src/listing-publication-panel.jsx';
 
 const listings = [
   { id: '6d5f0d4f-e7ca-4c96-b67b-513f871f3f1a', title: 'Riverside apartment · Unit 2A', status: 'withdrawn', note: 'Ready to publish.' },
@@ -38,10 +38,24 @@ function renderPanel(props = {}) {
   );
 }
 
+describe('resolveApiBaseUrl', () => {
+  const original = import.meta.env.VITE_KEYFORTA_API_BASE_URL;
+
+  beforeEach(() => {
+    vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', original ?? '');
+  });
+
+  it('falls back to the relative api path for an insecure remote origin', () => {
+    vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', 'http://insecure.example.com/api/v1');
+    expect(resolveApiBaseUrl()).toBe('/api/v1');
+  });
+});
+
 describe('ListingPublicationPanel', () => {
   beforeEach(() => {
     command.mockReset();
     createApiClientMock.mockClear();
+    vi.unstubAllEnvs();
   });
 
   it('keeps actions disabled until the token resolves, then enables publish and withdraw', async () => {
@@ -58,6 +72,24 @@ describe('ListingPublicationPanel', () => {
     resolveToken('token-ready');
 
     await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
+  });
+
+  it('refreshes the access token for each command', async () => {
+    const getAccessToken = vi.fn()
+      .mockResolvedValueOnce('token-1')
+      .mockResolvedValueOnce('token-2')
+      .mockResolvedValueOnce('token-3');
+    command
+      .mockResolvedValueOnce({ data: { listingId: listings[0].id, status: 'published' }, meta: { requestId: 'req-1' } })
+      .mockResolvedValueOnce({ data: { listingId: listings[1].id, status: 'withdrawn' }, meta: { requestId: 'req-2' } });
+    renderPanel({ session: { ...baseSession, getAccessToken } });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
+    await waitFor(() => expect(command).toHaveBeenNthCalledWith(1, 'public-listings', listings[0].id, 'publish'));
+    fireEvent.click(screen.getByRole('button', { name: /Withdraw Garden residence · Unit 1B/i }));
+    await waitFor(() => expect(command).toHaveBeenNthCalledWith(2, 'public-listings', listings[1].id, 'withdraw'));
+    expect(getAccessToken).toHaveBeenCalledTimes(3);
   });
 
   it('publishes a withdrawn listing and updates the status', async () => {
@@ -119,6 +151,7 @@ describe('ListingPublicationPanel', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Withdraw Garden residence/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Withdraw Garden residence · Unit 1B/i }));
 
+    await waitFor(() => expect(createApiClientMock).toHaveBeenCalled());
     expect(createApiClientMock.mock.calls.at(-1)[0].getOrganizationId()).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     expect(await screen.findByText('Listing not found or not assigned to you.')).toBeInTheDocument();
   });
@@ -153,13 +186,19 @@ describe('ListingPublicationPanel', () => {
     expect(await screen.findByText('Listing withdrawn successfully.')).toBeInTheDocument();
   });
 
-  it('rejects invalid manual listing ids before calling the api', async () => {
+  it('returns focus and field-level validation metadata for invalid manual listing ids', async () => {
     renderPanel({ listings: [] });
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeEnabled());
     fireEvent.change(screen.getByLabelText('Listing ID'), { target: { value: 'not-a-uuid' } });
     fireEvent.click(screen.getByRole('button', { name: 'Publish by ID' }));
-    expect(await screen.findByText('Enter a valid listing ID.')).toBeInTheDocument();
+
+    const input = screen.getByLabelText('Listing ID');
+    const error = await screen.findByText((content, element) => content === 'Enter a valid listing ID.' && element.id === 'manual-listing-id-error');
+    expect(input).toHaveFocus();
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('aria-describedby', 'manual-listing-id-error');
+    expect(error).toHaveAttribute('id', 'manual-listing-id-error');
     expect(command).not.toHaveBeenCalled();
   });
 

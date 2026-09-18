@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Input, Spinner } from '@fluentui/react-components';
 import { createApiClient } from '@keyforta/api-client';
 import {
@@ -6,18 +6,22 @@ import {
   publicListingPublicationEnvelopeSchema,
 } from '@keyforta/contracts';
 
-function resolveApiBaseUrl() {
-  const configured = import.meta.env.VITE_KEYFORTA_API_BASE_URL?.trim();
-  if (configured) return configured;
-  return '/api/v1';
+function isLoopbackHost(hostname) {
+  return hostname === '127.0.0.1' || hostname === 'localhost';
 }
 
-function createListingPublicationClient(session, accessToken) {
-  return createApiClient({
-    baseUrl: resolveApiBaseUrl(),
-    getOrganizationId: () => session?.organizationId ?? null,
-    getToken: () => accessToken,
-  });
+export function resolveApiBaseUrl() {
+  const configured = import.meta.env.VITE_KEYFORTA_API_BASE_URL?.trim();
+  if (!configured) return '/api/v1';
+  if (configured.startsWith('/')) return configured;
+  try {
+    const url = new URL(configured);
+    if (url.protocol === 'https:') return configured;
+    if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) return configured;
+  } catch {
+    return '/api/v1';
+  }
+  return '/api/v1';
 }
 
 function statusCopy(status) {
@@ -42,6 +46,15 @@ function statusCopy(status) {
   };
 }
 
+async function createListingPublicationClient(session) {
+  const accessToken = await session.getAccessToken();
+  return createApiClient({
+    baseUrl: resolveApiBaseUrl(),
+    getOrganizationId: () => session?.organizationId ?? null,
+    getToken: () => accessToken,
+  });
+}
+
 export function ListingPublicationPanel({
   emptyState = 'Assigned listings will appear here after the portfolio feed is available.',
   listings,
@@ -52,41 +65,34 @@ export function ListingPublicationPanel({
   const [message, setMessage] = useState('');
   const [messageTone, setMessageTone] = useState('');
   const [manualListingId, setManualListingId] = useState('');
-  const [accessToken, setAccessToken] = useState(null);
+  const [manualListingError, setManualListingError] = useState('');
   const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : session?.getAccessToken ? 'loading' : 'unavailable');
-  const apiClient = useMemo(
-    () => (accessToken ? createListingPublicationClient(session, accessToken) : null),
-    [accessToken, session],
-  );
+  const inputRef = useRef(null);
+  const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
 
   useEffect(() => {
     let active = true;
     setItems(listings);
     if (session?.sessionMode === 'demo') {
-      setAccessToken(null);
       setTokenStatus('demo');
       return () => {
         active = false;
       };
     }
     if (!session?.getAccessToken) {
-      setAccessToken(null);
       setTokenStatus('unavailable');
       return () => {
         active = false;
       };
     }
     setTokenStatus('loading');
-    setAccessToken(null);
     session.getAccessToken()
       .then((token) => {
         if (!active) return;
-        setAccessToken(token);
         setTokenStatus(token ? 'ready' : 'unavailable');
       })
       .catch(() => {
         if (!active) return;
-        setAccessToken(null);
         setTokenStatus('unavailable');
       });
     return () => {
@@ -95,11 +101,12 @@ export function ListingPublicationPanel({
   }, [listings, session]);
 
   const runCommand = async (listingId, nextCommand) => {
-    if (!apiClient) return;
+    if (tokenStatus !== 'ready' || !session?.getAccessToken) return;
     setBusyListingId(listingId);
     setMessage('');
     setMessageTone('');
     try {
+      const apiClient = await createListingPublicationClient(session);
       const payload = await apiClient.command('public-listings', listingId, nextCommand);
       const parsed = publicListingPublicationEnvelopeSchema.parse(payload);
       setItems((current) => current.map((item) => (
@@ -128,16 +135,21 @@ export function ListingPublicationPanel({
   const submitManualCommand = async (event, nextCommand) => {
     event.preventDefault();
     if (!manualListingId.trim()) {
-      setMessage('Enter a listing ID to publish or withdraw.');
-      setMessageTone('error');
+      setManualListingError('Enter a listing ID to publish or withdraw.');
+      setMessage('');
+      setMessageTone('');
+      inputRef.current?.focus();
       return;
     }
     try {
       const listingId = publicListingIdSchema.parse(manualListingId.trim());
+      setManualListingError('');
       await runCommand(listingId, nextCommand);
     } catch {
-      setMessage('Enter a valid listing ID.');
-      setMessageTone('error');
+      setManualListingError('Enter a valid listing ID.');
+      setMessage('');
+      setMessageTone('');
+      inputRef.current?.focus();
     }
   };
 
@@ -158,6 +170,11 @@ export function ListingPublicationPanel({
       <p className='publication-note'>
         Use the existing publication commands for listings already assigned to your organization context.
       </p>
+      {apiBaseUrl === '/api/v1' && import.meta.env.VITE_KEYFORTA_API_BASE_URL?.trim() ? (
+        <p className='publication-feedback' data-tone='error' role='alert'>
+          Listing publication ignored an insecure API base URL and fell back to the approved relative API path.
+        </p>
+      ) : null}
       {tokenStatus === 'loading' ? (
         <p className='publication-feedback' data-tone='success' role='status'>Resolving your portal access token…</p>
       ) : null}
@@ -202,14 +219,21 @@ export function ListingPublicationPanel({
       <div className='manual-listing-form'>
         <label htmlFor='manual-listing-id'>Listing ID</label>
         <Input
+          aria-describedby={manualListingError ? 'manual-listing-id-error' : 'manual-listing-id-help'}
+          aria-invalid={manualListingError ? 'true' : 'false'}
           id='manual-listing-id'
-          onChange={(_, data) => setManualListingId(data.value)}
+          onChange={(_, data) => {
+            setManualListingId(data.value);
+            if (manualListingError) setManualListingError('');
+          }}
           placeholder='Paste a listing UUID'
+          ref={inputRef}
           value={manualListingId}
         />
-        <p className='publication-note'>
+        <p className='publication-note' id='manual-listing-id-help'>
           Use a trusted listing ID when the portfolio feed is unavailable in this prototype shell.
         </p>
+        {manualListingError ? <p className='publication-feedback' data-tone='error' id='manual-listing-id-error'>{manualListingError}</p> : null}
         <div className='manual-listing-actions'>
           <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'publish')}>Publish by ID</Button>
           <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'withdraw')}>Withdraw by ID</Button>
