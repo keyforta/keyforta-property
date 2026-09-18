@@ -17,12 +17,5 @@ export default defineConfig(({ mode }) => {
     },
   },
   build: { outDir: '../dist', emptyOutDir: true },
-    test: {
-      environment: 'jsdom',
-      globals: true,
-      setupFiles: ['./test/setup.js'],
-      css: true,
-      include: ['../test/**/*.test.{js,jsx}'],
-    },
   };
 });

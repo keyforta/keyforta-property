@@ -118,7 +118,17 @@ export function ListingPublicationPanel({
     setMessageTone('');
     setTokenStatus('loading');
     try {
-      const accessToken = await resolveCommandAccessToken(session);
+      let accessToken;
+      try {
+        accessToken = await resolveCommandAccessToken(session);
+      } catch (error) {
+        if (typeof session.signIn === 'function') {
+          await session.signIn();
+          accessToken = await resolveCommandAccessToken(session);
+        } else {
+          throw error;
+        }
+      }
       if (!accessToken) {
         setTokenStatus('sign-in-required');
         return;

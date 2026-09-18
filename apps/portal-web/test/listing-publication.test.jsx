@@ -92,6 +92,28 @@ describe('ListingPublicationPanel', () => {
     expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
   });
 
+  it('invokes interactive sign-in and retries token acquisition when clicking "Sign in to continue"', async () => {
+    const signIn = vi.fn().mockResolvedValue(undefined);
+    let silentAttempts = 0;
+    const deferredSession = {
+      ...baseSession,
+      signIn,
+      getAccessToken: vi.fn(() => {
+        silentAttempts += 1;
+        return silentAttempts === 1
+          ? Promise.reject(new Error('Interaction required.'))
+          : Promise.resolve('token-after-sign-in');
+      }),
+    };
+    renderPanel({ session: deferredSession });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
+    expect(signIn).toHaveBeenCalledTimes(1);
+    expect(deferredSession.getAccessToken).toHaveBeenCalledTimes(2);
+  });
+
   it('refreshes the access token for each command', async () => {
     const getAccessToken = vi.fn()
       .mockResolvedValueOnce('token-1')
