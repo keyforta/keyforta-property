@@ -46,6 +46,7 @@
   "status": {
     "application_submitted": "Application submitted for manager review.",
     "viewing_requested": "Your viewing request has been received.",
+    "viewing_request_error": "Your viewing request could not be submitted. Please try again.",
     "invitation_saved": "Invitation saved.",
     "service_offer_saved": "Service offer published.",
     "access_request_saved": "Request saved. Reference {{reference}}.",

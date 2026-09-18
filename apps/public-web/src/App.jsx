@@ -21,6 +21,7 @@ import {
 } from './views/index.js';
 import { buildPortalUrl, resolvePortalWebUrl } from './portal-url.js';
 import { appendRow } from './services/storage.js';
+import { submitViewingRequest } from './services/viewing-requests.js';
 
 const SignInPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.SignInPage })));
 const WorkspaceLoginPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.WorkspaceLoginPage })));
@@ -240,15 +241,27 @@ export default function App() {
     return message;
   }
 
-  function handleViewingRequest(values) {
-    appendRow('kf-viewing-requests', {
-      ...values,
+  async function handleViewingRequest(values) {
+    const { propertyId, name, email, phone, preferredAt, message } = values;
+    const payload = {
+      propertyId,
+      name,
+      email,
       locale: lang,
-      ...(values.preferredAt ? { preferredAt: new Date(values.preferredAt).toISOString() } : {}),
-    });
-    const message = t('status.viewing_requested');
-    notify(message);
-    return message;
+      ...(phone ? { phone } : {}),
+      ...(message ? { message } : {}),
+      ...(preferredAt ? { preferredAt: new Date(preferredAt).toISOString() } : {}),
+    };
+    try {
+      await submitViewingRequest(payload);
+      const success = t('status.viewing_requested');
+      notify(success);
+      return success;
+    } catch (error) {
+      const failure = error.message || t('status.viewing_request_error');
+      notify(failure, 'error');
+      return failure;
+    }
   }
 
   function handleInviteSubmit(values) {

@@ -451,10 +451,12 @@ export function ViewingRequestPage({ lang, propertyId, onSubmit }) {
         <form
           className="form-grid"
           id="viewing-request-form"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
             const form = event.currentTarget;
-            setStatus(onSubmit(Object.fromEntries(new FormData(form))));
+            const values = Object.fromEntries(new FormData(form));
+            const message = await onSubmit(values);
+            setStatus(message);
             form.reset();
           }}
         >
