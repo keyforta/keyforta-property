@@ -183,6 +183,14 @@ Each version contains `id`, `organizationId`, `unitId`, `amountMinor`, `currency
 - A public listing uses an approved pricing snapshot. A later private price
   change does not silently alter a published listing or a lease.
 
+For REQ-034 only, this approved profile supersedes the pre-existing target
+model and API/event example fields as follows: `unit_pricing_versions.amount_minor`
+must be positive, not merely non-negative; `effective_from` and `effective_to`
+represent UTC instants rather than calendar dates; and operational PricingVersion
+wire/event fields `effectiveFrom` and `effectiveTo` represent the same UTC
+instants. The anonymous public `availableFrom` field remains an ISO calendar
+date as defined below.
+
 Unit availability intervals use the same half-open interval and one-time closure
 rules, never overlap each other, and retain status, reason code, source, actor,
 and correlation ID. Lease and occupancy periods are separate authoritative
