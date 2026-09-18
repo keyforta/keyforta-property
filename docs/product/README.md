@@ -6,6 +6,7 @@ interchangeable copies.
 | Document | Purpose | Authority/status |
 | --- | --- | --- |
 | [`PRD.md`](./PRD.md) | Approved scope, exclusions, and acceptance outcomes | Product authority; delivery-status claims require source and test evidence |
+| [`RENTAL_PROPERTY_INVENTORY_REQUIREMENTS_PROPOSAL.md`](./RENTAL_PROPERTY_INVENTORY_REQUIREMENTS_PROPOSAL.md) | Production-grade Rental Property and Unit v1 field, visibility, lifecycle, and acceptance boundary | Product authority approved 2026-09-17; implementation pending separately reviewed delivery work |
 | [`PILOT_ROLE_USE_CASES.md`](./PILOT_ROLE_USE_CASES.md) | Detailed role boundaries and requirement IDs | Draft pending product-owner validation |
 | [Descriptive diagrams appendix](./PILOT_ROLE_USE_CASES.md#appendix-descriptive-user-flow-diagrams) | Visual companion with explicit UI/API/mock/plan labels | Supporting only; host document remains draft pending product-owner validation |
 | [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md) | Evidence-linked current capability summary | Single documentation status ledger; source and tests remain controlling |
