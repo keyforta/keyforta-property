@@ -217,3 +217,51 @@ GitHub Actions with OIDC — no long-lived Azure credentials:
 Owners: Technology, Finance, Product, Privacy. Each decision requires context,
 options, selected choice, security/privacy and cost impact, and documented
 approval evidence.
+
+---
+
+## Glossary
+
+| Term | Meaning |
+| --- | --- |
+| Modular monolith | A single deployed application internally organized into strict domain modules that communicate through commands, queries, and events instead of shared database access |
+| Row-Level Security (RLS) | A PostgreSQL feature that restricts which rows a query can see or modify based on the caller's context; used here as defense in depth behind application authorization |
+| Managed identity | An Azure identity automatically managed by the platform so an application or pipeline can authenticate without a stored password or secret |
+| Access token (bearer scheme) | A credential included with an API request that grants access to whoever presents it, without further proof of identity |
+| Zero-trust authorization | A design principle where every request is independently authenticated and authorized, regardless of network location or prior trust |
+| Minor units (money) | The smallest whole unit of a currency (e.g., cents) used to avoid floating-point rounding errors in financial calculations |
+| Immutable posting | A financial transaction record that is never edited after being recorded; corrections are made by reversing and replacing it |
+| Forward-only migration | A database schema change that is only ever applied moving forward in time; past migrations are never rewritten |
+| BFF (Backend-for-Frontend) | A server-side layer placed between a browser and backend API to tailor and forward requests on the browser's behalf |
+| OIDC (OpenID Connect) | An identity protocol used here so GitHub Actions can authenticate to Azure without storing long-lived credentials |
+| Workload identity federation | A mechanism that lets an external system (like GitHub) exchange its own identity for a cloud provider's identity, without a shared secret |
+| Blue/green deployment | A release technique that runs two versions of an application side by side and shifts traffic from the old to the new version |
+| Canary deployment | A release technique that gradually shifts a small percentage of traffic to a new version before a full rollout |
+| RPO (Recovery Point Objective) | The maximum acceptable amount of data loss, measured in time, after an incident |
+| RTO (Recovery Time Objective) | The maximum acceptable time to restore service after an incident |
+| SLO (Service Level Objective) | A measurable reliability target (e.g., latency, uptime) that a team commits to internally |
+| ADR (Architecture Decision Record) | A short document capturing one architecture decision, its context, and its consequences |
+
+## Abbreviations
+
+| Abbreviation | Expansion |
+| --- | --- |
+| API | Application Programming Interface |
+| BFF | Backend-for-Frontend |
+| CDN | Content Delivery Network |
+| CI/CD | Continuous Integration / Continuous Deployment |
+| CORS | Cross-Origin Resource Sharing |
+| DRC | Democratic Republic of the Congo |
+| HA | High Availability |
+| HTTPS | Hypertext Transfer Protocol Secure |
+| MCP | Model Context Protocol |
+| OIDC | OpenID Connect |
+| PKCE | Proof Key for Code Exchange |
+| RLS | Row-Level Security |
+| RPO | Recovery Point Objective |
+| RTO | Recovery Time Objective |
+| SKU | Stock Keeping Unit (here, a cloud service pricing/capacity tier) |
+| SLO | Service Level Objective |
+| SQL | Structured Query Language |
+| VNet | Virtual Network |
+| WAF | Web Application Firewall |

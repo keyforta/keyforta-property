@@ -471,6 +471,65 @@ flowchart LR
 
 ---
 
+## Glossary
+
+| Term | Meaning |
+| --- | --- |
+| Modular monolith | A single deployed application internally organized into strict domain modules that communicate through commands, queries, and events instead of shared database access |
+| Service extraction | Splitting a module out of the monolith into its own independently deployed service, done only when there is a measurable need |
+| Row-Level Security (RLS) | A PostgreSQL feature that restricts which rows a query can see or modify based on the caller's context; used as defense in depth behind application authorization |
+| Read replica | A read-only copy of a database that is kept in sync with the primary, used to scale read-heavy queries without affecting write performance |
+| Outbox / inbox pattern | A reliability pattern where outgoing messages are recorded in the same transaction as the triggering change, then delivered separately, to guarantee at-least-once, non-duplicated processing |
+| Zone-redundant / geo-redundant | Data or infrastructure duplicated across separate physical zones (zone-redundant) or geographic regions (geo-redundant) to survive a localized failure |
+| Autoscaling | Automatically adding or removing running instances of an application based on load |
+| Blue/green deployment | A release technique that runs two versions of an application side by side and shifts traffic from the old to the new version |
+| Canary deployment | A release technique that gradually shifts a small percentage of traffic to a new version before a full rollout |
+| CQRS (Command Query Responsibility Segregation) | A pattern that separates the write model (commands) from the read model (queries), often using derived, non-authoritative read data for reporting |
+| Event-driven processing | An architecture style where components react to published events rather than being directly called, often used for background or asynchronous work |
+| Private endpoint / VNet integration | Networking features that keep traffic between an application and a data service off the public internet |
+| Web Application Firewall (WAF) | A filtering layer placed in front of a web application to block common attack patterns before they reach the application |
+| Content Delivery Network (CDN) | A distributed network of servers that caches and serves static content closer to end users |
+| Managed messaging | A cloud provider's hosted message queue or bus service, used to decouple producers and consumers of work |
+| RPO (Recovery Point Objective) | The maximum acceptable amount of data loss, measured in time, after an incident |
+| RTO (Recovery Time Objective) | The maximum acceptable time to restore service after an incident |
+| SLO (Service Level Objective) | A measurable reliability target (e.g., latency, uptime) that a team commits to internally, backed by an error budget |
+| Immutable posting | A financial transaction record that is never edited after being recorded; corrections are made by reversing and replacing it |
+| Forward-only migration | A database schema change that is only ever applied moving forward in time; past migrations are never rewritten |
+| ADR (Architecture Decision Record) | A short document capturing one architecture decision, its context, and its consequences |
+
+## Abbreviations
+
+| Abbreviation | Expansion |
+| --- | --- |
+| ADR | Architecture Decision Record |
+| API | Application Programming Interface |
+| BFF | Backend-for-Frontend |
+| CDN | Content Delivery Network |
+| CI/CD | Continuous Integration / Continuous Deployment |
+| CORS | Cross-Origin Resource Sharing |
+| CQRS | Command Query Responsibility Segregation |
+| DAST | Dynamic Application Security Testing |
+| DRC | Democratic Republic of the Congo |
+| DR | Disaster Recovery |
+| GRS / GZRS | Geo-Redundant Storage / Geo-Zone-Redundant Storage |
+| HA | High Availability |
+| HTTPS | Hypertext Transfer Protocol Secure |
+| IaC | Infrastructure as Code |
+| JWKS | JSON Web Key Set |
+| LRS | Locally Redundant Storage |
+| OIDC | OpenID Connect |
+| PITR | Point-In-Time Restore |
+| RLS | Row-Level Security |
+| RPO | Recovery Point Objective |
+| RTO | Recovery Time Objective |
+| SKU | Stock Keeping Unit (here, a cloud service pricing/capacity tier) |
+| SLO | Service Level Objective |
+| SQL | Structured Query Language |
+| VNet | Virtual Network |
+| WAF | Web Application Firewall |
+
+---
+
 *This is a planning artifact for leadership discussion. Authoritative,
 accepted architecture decisions govern this repository; do not treat this
 document as approved scope, architecture, or infrastructure authorization.*
