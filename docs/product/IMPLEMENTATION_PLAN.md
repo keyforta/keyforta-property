@@ -79,8 +79,8 @@ select a unit and inspect the verified signing breakdown in the browser.
   server-side pagination rather than loading or rendering the full
   manager-by-property matrix.
 - Route authenticated landlords and managers to distinct server-enforced web
-  workspaces through `/workspace`; retain legacy `/pilot` links only as
-  compatibility redirects.
+  workspaces through `/workspace`; remove unlaunched `/pilot` routes rather than
+  retaining compatibility redirects.
 - Prove cross-organization isolation with automated tests.
 
 **Exit evidence:** two synthetic organizations cannot read or mutate each

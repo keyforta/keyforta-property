@@ -80,9 +80,8 @@ export const unitTypes = Object.freeze([
 ]);
 export const furnishingStatuses = Object.freeze(['unfurnished', 'part_furnished', 'furnished']);
 export const inventoryPublicationStatuses = Object.freeze(['draft', 'pending_review', 'published', 'paused', 'archived']);
-export const rentalProfileStatuses = Object.freeze(['legacy_incomplete', 'complete']);
 export const unitAvailabilityStatuses = Object.freeze(['unavailable', 'available', 'occupied']);
-export const publicListingStatuses = Object.freeze(['draft', 'published', 'reserved', 'rented', 'withdrawn']);
+export const publicListingStatuses = Object.freeze(['draft', 'published', 'withdrawn']);
 export const supportedCurrencies = Object.freeze(['CDF', 'USD']);
 export { unitLabelUnicodeVersion };
 
@@ -208,52 +207,35 @@ const archiveFields = {
 	archiveReason: boundedTextSchema(1000).nullable(),
 };
 
-export const completeRentalPropertySchema = withArchiveMetadata(z.object({
+export const rentalPropertySchema = withArchiveMetadata(z.object({
 	id: z.uuid(),
 	organizationId: organizationIdSchema,
 	name: boundedTextSchema(160),
 	propertyType: z.enum(propertyTypes),
 	address: propertyAddressSchema,
 	timeZone: ianaTimeZoneSchema,
-	jurisdictionCode: boundedTextSchema(64).nullable(),
 	verificationStatus: boundedTextSchema(64),
 	publicationStatus: z.enum(inventoryPublicationStatuses),
-	profileStatus: z.literal('complete'),
 	version: positiveVersionSchema,
 	createdAt: timestampSchema,
 	updatedAt: timestampSchema,
 	...archiveFields,
 }).strict()).superRefine((value, context) => {
-	if (value.verificationStatus === 'verified' && value.jurisdictionCode === null) {
+	if (value.verificationStatus === 'verified') {
 		context.addIssue({
 			code: 'custom',
-			message: 'Verified properties require a jurisdiction code',
-			path: ['jurisdictionCode'],
+			message: 'Verified Property requires the approved jurisdiction policy catalogue',
+			path: ['verificationStatus'],
+		});
+	}
+	if (value.publicationStatus === 'published') {
+		context.addIssue({
+			code: 'custom',
+			message: 'Property publication is unavailable until jurisdiction policy activation',
+			path: ['publicationStatus'],
 		});
 	}
 });
-
-export const legacyIncompleteRentalPropertySchema = withArchiveMetadata(z.object({
-	id: z.uuid(),
-	organizationId: organizationIdSchema,
-	name: boundedTextSchema(160),
-	propertyType: z.enum(propertyTypes).nullable(),
-	address: propertyAddressSchema.nullable(),
-	timeZone: ianaTimeZoneSchema.nullable(),
-	jurisdictionCode: boundedTextSchema(64).nullable(),
-	verificationStatus: boundedTextSchema(64).nullable(),
-	publicationStatus: z.enum(inventoryPublicationStatuses).nullable(),
-	profileStatus: z.literal('legacy_incomplete'),
-	version: positiveVersionSchema,
-	createdAt: timestampSchema,
-	updatedAt: timestampSchema.nullable(),
-	...archiveFields,
-}).strict());
-
-export const rentalPropertySchema = z.union([
-	completeRentalPropertySchema,
-	legacyIncompleteRentalPropertySchema,
-]);
 
 const validateCanonicalUnitLabel = (value, context) => {
 	if (value.canonicalLabel !== canonicalizeUnitLabel(value.label)) {
@@ -265,7 +247,7 @@ const validateCanonicalUnitLabel = (value, context) => {
 	}
 };
 
-export const completeRentableUnitSchema = withArchiveMetadata(z.object({
+export const rentableUnitSchema = withArchiveMetadata(z.object({
 	id: z.uuid(),
 	organizationId: organizationIdSchema,
 	propertyId: z.uuid(),
@@ -273,38 +255,11 @@ export const completeRentableUnitSchema = withArchiveMetadata(z.object({
 	canonicalLabel: boundedTextSchema(320),
 	availabilityStatus: z.enum(unitAvailabilityStatuses),
 	publicationStatus: z.enum(inventoryPublicationStatuses),
-	profileStatus: z.literal('complete'),
 	version: positiveVersionSchema,
 	createdAt: timestampSchema,
 	updatedAt: timestampSchema,
 	...archiveFields,
 }).strict()).superRefine(validateCanonicalUnitLabel);
-
-export const legacyIncompleteRentableUnitSchema = withArchiveMetadata(z.object({
-	id: z.uuid(),
-	organizationId: organizationIdSchema,
-	propertyId: z.uuid(),
-	label: z.string(),
-	canonicalLabel: boundedTextSchema(320).nullable(),
-	unitType: z.enum(unitTypes).nullable(),
-	bedrooms: z.number().int().min(0).max(20).nullable(),
-	bathrooms: z.number().int().min(1).max(20).nullable(),
-	areaSquareMeters: z.number().int().min(1).max(100000).nullable(),
-	floorLabel: boundedTextSchema(40).nullable(),
-	furnishingStatus: z.enum(furnishingStatuses).nullable(),
-	availabilityStatus: z.enum([...unitAvailabilityStatuses, 'reserved']).nullable(),
-	publicationStatus: z.enum(inventoryPublicationStatuses).nullable(),
-	profileStatus: z.literal('legacy_incomplete'),
-	version: positiveVersionSchema,
-	createdAt: timestampSchema,
-	updatedAt: timestampSchema.nullable(),
-	...archiveFields,
-}).strict());
-
-export const rentableUnitSchema = z.union([
-	completeRentableUnitSchema,
-	legacyIncompleteRentableUnitSchema,
-]);
 
 const provenanceFields = {
 	createdBy: actorIdSchema,
@@ -407,7 +362,6 @@ export const publicPropertyProjectionSchema = z.object({
 }).strip();
 
 const publicListingProjectionSnapshotSchema = z.object({
-	address: boundedTextSchema(160),
 	amenities: z.array(boundedTextSchema(160)).max(100),
 	availableFrom: z.iso.date(),
 	bathrooms: z.number().int().min(1).max(20),
@@ -416,7 +370,6 @@ const publicListingProjectionSnapshotSchema = z.object({
 	currency: z.enum(supportedCurrencies),
 	district: boundedTextSchema(160),
 	id: publicPropertyIdSchema,
-	imageUrl: z.url().max(2048).optional(),
 	imageUrls: z.array(z.url().max(2048)).min(1).max(50),
 	monthlyRentMinor: z.string().regex(/^[1-9]\d{0,18}$/).refine(
 		(value) => BigInt(value) <= 9223372036854775807n,
@@ -425,22 +378,7 @@ const publicListingProjectionSnapshotSchema = z.object({
 	name: boundedTextSchema(160),
 	summary: boundedTextSchema(4000),
 	areaSquareMeters: z.number().int().min(1).max(100000).optional(),
-}).strict().superRefine((projection, context) => {
-	if (projection.address !== projection.district) {
-		context.addIssue({
-			code: 'custom',
-			message: 'Public address must equal the approved approximate district',
-			path: ['address'],
-		});
-	}
-	if (projection.imageUrl !== undefined && projection.imageUrl !== projection.imageUrls[0]) {
-		context.addIssue({
-			code: 'custom',
-			message: 'imageUrl must equal the first imageUrls entry',
-			path: ['imageUrl'],
-		});
-	}
-});
+}).strict();
 
 export const publicListingSnapshotSchema = z.object({
 	propertyId: z.uuid(),
@@ -452,7 +390,7 @@ export const publicListingSnapshotSchema = z.object({
 	projection: publicListingProjectionSnapshotSchema,
 }).strict();
 
-export const versionedPublicListingSchema = z.object({
+export const internalPublicListingSchema = z.object({
 	id: publicListingIdSchema,
 	organizationId: organizationIdSchema,
 	propertyId: z.uuid(),
@@ -502,41 +440,6 @@ export const versionedPublicListingSchema = z.object({
 		});
 	}
 });
-
-export const legacyPublicListingSchema = z.object({
-	id: publicListingIdSchema,
-	organizationId: organizationIdSchema,
-	unitId: z.uuid(),
-	slug: publicPropertyIdSchema,
-	title: z.string().min(3).max(120),
-	summary: z.string().min(20).max(1000),
-	city: z.string(),
-	district: z.string(),
-	bedrooms: z.number().int().nonnegative(),
-	bathrooms: z.number().int().positive(),
-	areaSquareMeters: z.number().int().positive().nullable(),
-	monthlyRentMinor: z.string().regex(/^[1-9]\d{0,18}$/).refine(
-		(value) => BigInt(value) <= 9223372036854775807n,
-		'Value exceeds the positive signed 64-bit range',
-	),
-	currency: z.string().length(3).regex(/^[A-Z]{3}$/),
-	availableFrom: z.iso.date(),
-	amenities: z.array(z.string()),
-	imageUrls: z.array(z.string()).min(1),
-	status: z.enum(publicListingStatuses),
-	publishedAt: timestampSchema.nullable(),
-	createdAt: timestampSchema,
-	updatedAt: timestampSchema,
-}).strict();
-
-export const isGrandfatheredPublishedListing = (listing) => (
-	listing.status === 'published' && listing.publishedAt !== null
-);
-
-export const internalPublicListingSchema = z.union([
-	versionedPublicListingSchema,
-	legacyPublicListingSchema,
-]);
 
 export const publicPropertyListQuerySchema = z.object({
 	city: z.string().trim().min(1).max(120).optional(),

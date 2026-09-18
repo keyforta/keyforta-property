@@ -10,7 +10,8 @@
     }
   },
   "scripts": {
-    "check": "pnpm test",
+    "check": "pnpm check:unit-label-case-folding && pnpm test",
+    "check:unit-label-case-folding": "node scripts/generate-unit-label-case-folding.mjs --check",
     "generate:unit-label-case-folding": "node scripts/generate-unit-label-case-folding.mjs",
     "test": "node --test test/*.test.js"
   },

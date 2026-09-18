@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 
 import commonCaseFolding from '@unicode/unicode-16.0.0/Case_Folding/C/code-points.mjs';
 import fullCaseFolding from '@unicode/unicode-16.0.0/Case_Folding/F/code-points.mjs';
@@ -13,5 +13,13 @@ const output = `// Generated from @unicode/unicode-${unicodeVersion}; do not edi
   + `export const unitLabelCaseFolding = new Map(${JSON.stringify(entries)});\n`
   + `export const unitLabelAssignedPattern = new RegExp(${JSON.stringify(assignedCodePointPattern.source)}, '${assignedCodePointPattern.flags}');\n`
   + `export const unitLabelWhitespace = new Set(${JSON.stringify(whitespaceCodePoints)});\n`;
+const outputUrl = new URL('../src/unit-label-case-folding.js', import.meta.url);
 
-await writeFile(new URL('../src/unit-label-case-folding.js', import.meta.url), output);
+if (process.argv.includes('--check')) {
+  const current = await readFile(outputUrl, 'utf8');
+  if (current !== output) {
+    throw new Error('Generated Unit-label Unicode data is stale. Run pnpm generate:unit-label-case-folding.');
+  }
+} else {
+  await writeFile(outputUrl, output);
+}

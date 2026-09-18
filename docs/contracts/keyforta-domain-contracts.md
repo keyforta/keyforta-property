@@ -39,7 +39,7 @@ Every invariant is enforced in the domain/application layer and protected by a d
 ## 4. Property and inventory
 
 The Product Owner approved the detailed
-[Rental Property and Unit Core Profile v1](../product/RENTAL_PROPERTY_INVENTORY_REQUIREMENTS_PROPOSAL.md)
+[Rental Property and Unit Core Profile v1.0](../product/RENTAL_PROPERTY_INVENTORY_REQUIREMENTS_PROPOSAL.md)
 on 2026-09-17. Its REQ-032 through REQ-036 field, visibility, versioning,
 pricing, availability, archive, migration, and PublicListing rules are normative
 for this section. Existing commands below remain valid only where their behavior
@@ -49,13 +49,13 @@ visibility. Runtime support remains pending separately reviewed implementation.
 
 ### `Property`
 
-**Commands:** `CreateProperty`, `UpdateProperty`, `CompleteLegacyPropertyProfile`, `SubmitPropertyForVerification`, `ApprovePropertyVerification`, `RejectPropertyVerification`, `PublishProperty`, `UnpublishProperty`, `ArchiveProperty`, `AssignManager`
+**Commands:** `CreateProperty`, `UpdateProperty`, `SubmitPropertyForVerification`, `ApprovePropertyVerification`, `RejectPropertyVerification`, `PublishProperty`, `UnpublishProperty`, `ArchiveProperty`, `AssignManager`
 **Events:** `PropertyCreated`, `PropertyUpdated`, `PropertyVerificationSubmitted`, `PropertyVerificationApproved`, `PropertyVerificationRejected`, `PropertyPublished`, `PropertyUnpublished`, `PropertyArchived`, `ManagerAssigned`, `ManagerAssignmentRevoked`
 **Invariants:** property belongs to one organization and contains one or more units; address and property time zone are valid; each property has at most one active assigned listing manager; a landlord may assign themselves or another eligible same-organization member; ownership alone does not authorize unit-listing management; assignment changes retain immutable history; archived properties cannot accept applications.
 
 ### `Unit` and `PricingVersion`
 
-**Commands:** `CreateUnit`, `UpdateUnit`, `CompleteLegacyUnitProfile`, `SetUnitPricing`, `PublishUnit`, `PauseUnit`, `MarkUnitOccupied`, `MarkUnitVacant`, `ArchiveUnit`
+**Commands:** `CreateUnit`, `UpdateUnit`, `SetUnitPricing`, `PublishUnit`, `PauseUnit`, `MarkUnitOccupied`, `MarkUnitVacant`, `ArchiveUnit`
 **Events:** `UnitCreated`, `UnitUpdated`, `UnitPricingChanged`, `UnitPublished`, `UnitPaused`, `UnitAvailabilityChanged`
 **Invariants:** unit label is unique within property; only the property's active assigned manager may manage its unit listings; pricing intervals do not overlap; occupied units cannot be published as available; signed lease terms are not rewritten by later pricing.
 
@@ -70,7 +70,7 @@ The generated browser-safe lookup is derived from the exact
 
 **Commands:** `CreateUnitListing`, `UpdateUnitListing`, `PublishUnitListing`, `WithdrawUnitListing`
 **Events:** `UnitListingCreated`, `UnitListingUpdated`, `UnitListingPublished`, `UnitListingWithdrawn`
-**Invariants:** PublicListing is separately versioned and is the sole public-marketing and publication authority; publication snapshots selected Property, Unit, PricingVersion, availability, and approved-media versions atomically; ordinary operational edits never mutate a published snapshot; archived or ineligible inventory cannot publish; pre-activation compatibility behavior and public projection fields follow REQ-035 and PROP-012, PROP-015, PROP-019, PROP-022, and PROP-023.
+**Invariants:** PublicListing is separately versioned and is the sole public-marketing and publication authority; publication snapshots selected Property, Unit, PricingVersion, availability, and approved-media versions atomically; ordinary operational edits never mutate a published snapshot; archived or ineligible inventory cannot publish; the pre-activation media gate and public projection fields follow REQ-035 and PROP-012, PROP-015, PROP-019, PROP-022, and PROP-023.
 
 ## 5. Leasing and occupancy
 

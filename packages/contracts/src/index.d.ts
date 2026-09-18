@@ -57,9 +57,8 @@ export const propertyTypes: readonly ["apartment_building", "single_family", "to
 export const unitTypes: readonly ["studio", "apartment", "house", "townhouse", "commercial", "other"];
 export const furnishingStatuses: readonly ["unfurnished", "part_furnished", "furnished"];
 export const inventoryPublicationStatuses: readonly ["draft", "pending_review", "published", "paused", "archived"];
-export const rentalProfileStatuses: readonly ["legacy_incomplete", "complete"];
 export const unitAvailabilityStatuses: readonly ["unavailable", "available", "occupied"];
-export const publicListingStatuses: readonly ["draft", "published", "reserved", "rented", "withdrawn"];
+export const publicListingStatuses: readonly ["draft", "published", "withdrawn"];
 export const supportedCurrencies: readonly ["CDF", "USD"];
 export const unitLabelUnicodeVersion: "16.0.0";
 export function normalizeUnitLabel(label: string): string;
@@ -100,74 +99,31 @@ export interface ArchiveMetadata {
   archiveReason: string | null;
 }
 
-export interface CompleteRentalProperty extends ArchiveMetadata {
+export interface RentalProperty extends ArchiveMetadata {
   id: string;
   organizationId: string;
   name: string;
   propertyType: typeof propertyTypes[number];
   address: PropertyAddress;
   timeZone: string;
-  jurisdictionCode: string | null;
   verificationStatus: string;
   publicationStatus: typeof inventoryPublicationStatuses[number];
-  profileStatus: "complete";
   version: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface LegacyIncompleteRentalProperty extends ArchiveMetadata {
-  id: string;
-  organizationId: string;
-  name: string;
-  propertyType: typeof propertyTypes[number] | null;
-  address: PropertyAddress | null;
-  timeZone: string | null;
-  jurisdictionCode: string | null;
-  verificationStatus: string | null;
-  publicationStatus: typeof inventoryPublicationStatuses[number] | null;
-  profileStatus: "legacy_incomplete";
-  version: number;
-  createdAt: string;
-  updatedAt: string | null;
-}
-
-export type RentalProperty = CompleteRentalProperty | LegacyIncompleteRentalProperty;
-
-export interface CompleteRentableUnit extends RentableUnitInput, ArchiveMetadata {
+export interface RentableUnit extends RentableUnitInput, ArchiveMetadata {
   id: string;
   organizationId: string;
   propertyId: string;
   canonicalLabel: string;
   availabilityStatus: typeof unitAvailabilityStatuses[number];
   publicationStatus: typeof inventoryPublicationStatuses[number];
-  profileStatus: "complete";
   version: number;
   createdAt: string;
   updatedAt: string;
 }
-
-export interface LegacyIncompleteRentableUnit extends ArchiveMetadata {
-  id: string;
-  organizationId: string;
-  propertyId: string;
-  label: string;
-  canonicalLabel: string | null;
-  unitType: typeof unitTypes[number] | null;
-  bedrooms: number | null;
-  bathrooms: number | null;
-  areaSquareMeters: number | null;
-  floorLabel: string | null;
-  furnishingStatus: typeof furnishingStatuses[number] | null;
-  availabilityStatus: typeof unitAvailabilityStatuses[number] | "reserved" | null;
-  publicationStatus: typeof inventoryPublicationStatuses[number] | null;
-  profileStatus: "legacy_incomplete";
-  version: number;
-  createdAt: string;
-  updatedAt: string | null;
-}
-
-export type RentableUnit = CompleteRentableUnit | LegacyIncompleteRentableUnit;
 
 export interface PricingVersion {
   id: string;
@@ -208,11 +164,23 @@ export interface PublicListingSnapshot {
   projection: PublicListingProjectionSnapshot;
 }
 
-export interface PublicListingProjectionSnapshot extends Omit<PublicPropertyProjection, "currency"> {
+export interface PublicListingProjectionSnapshot {
+  amenities: readonly string[];
+  availableFrom: string;
+  bathrooms: number;
+  bedrooms: number;
+  city: string;
   currency: typeof supportedCurrencies[number];
+  district: string;
+  id: string;
+  imageUrls: readonly string[];
+  monthlyRentMinor: string;
+  name: string;
+  summary: string;
+  areaSquareMeters?: number;
 }
 
-export interface VersionedPublicListing {
+export interface InternalPublicListing {
   id: string;
   organizationId: string;
   propertyId: string;
@@ -226,46 +194,14 @@ export interface VersionedPublicListing {
   updatedAt: string;
 }
 
-export interface LegacyPublicListing {
-  id: string;
-  organizationId: string;
-  unitId: string;
-  slug: string;
-  title: string;
-  summary: string;
-  city: string;
-  district: string;
-  bedrooms: number;
-  bathrooms: number;
-  areaSquareMeters: number | null;
-  monthlyRentMinor: string;
-  currency: string;
-  availableFrom: string;
-  amenities: string[];
-  imageUrls: string[];
-  status: typeof publicListingStatuses[number];
-  publishedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export type InternalPublicListing = VersionedPublicListing | LegacyPublicListing;
-
 export const propertyAddressSchema: z.ZodType<PropertyAddress>;
 export const rentableUnitInputSchema: z.ZodType<RentableUnitInput>;
 export const createRentalPropertyInputSchema: z.ZodType<CreateRentalPropertyInput>;
-export const completeRentalPropertySchema: z.ZodType<CompleteRentalProperty>;
-export const legacyIncompleteRentalPropertySchema: z.ZodType<LegacyIncompleteRentalProperty>;
 export const rentalPropertySchema: z.ZodType<RentalProperty>;
-export const completeRentableUnitSchema: z.ZodType<CompleteRentableUnit>;
-export const legacyIncompleteRentableUnitSchema: z.ZodType<LegacyIncompleteRentableUnit>;
 export const rentableUnitSchema: z.ZodType<RentableUnit>;
 export const pricingVersionSchema: z.ZodType<PricingVersion>;
 export const unitAvailabilityVersionSchema: z.ZodType<UnitAvailabilityVersion>;
 export const publicListingSnapshotSchema: z.ZodType<PublicListingSnapshot>;
-export const versionedPublicListingSchema: z.ZodType<VersionedPublicListing>;
-export const legacyPublicListingSchema: z.ZodType<LegacyPublicListing>;
-export function isGrandfatheredPublishedListing(listing: LegacyPublicListing): boolean;
 export const internalPublicListingSchema: z.ZodType<InternalPublicListing>;
 
 export interface LandlordOnboardingApplicationInput {

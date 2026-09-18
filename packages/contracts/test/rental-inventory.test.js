@@ -5,10 +5,6 @@ import {
   canonicalizeUnitLabel,
   createRentalPropertyInputSchema,
   internalPublicListingSchema,
-  isGrandfatheredPublishedListing,
-  legacyIncompleteRentalPropertySchema,
-  legacyIncompleteRentableUnitSchema,
-  legacyPublicListingSchema,
   pricingVersionSchema,
   publicListingSnapshotSchema,
   publicPropertyEnvelopeSchema,
@@ -105,7 +101,7 @@ test("REQ-032 PROP-009 PROP-020 rejects client authority and requires the first 
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
-    jurisdictionCode: "CD-KN",
+    jurisdictionCode: "not-an-approved-catalogue-value",
     firstUnit: unitInput,
   }).success, false);
 });
@@ -118,10 +114,8 @@ test("REQ-032 REQ-036 PROP-020 validates Property lifecycle metadata", () => {
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
-    jurisdictionCode: null,
     verificationStatus: "pending",
     publicationStatus: "draft",
-    profileStatus: "complete",
     version: 1,
     createdAt: "2026-09-17T10:00:00.000Z",
     updatedAt: "2026-09-17T10:00:00.000Z",
@@ -134,13 +128,20 @@ test("REQ-032 REQ-036 PROP-020 validates Property lifecycle metadata", () => {
   assert.equal(rentalPropertySchema.safeParse({ ...property, timeZone: "Mars/Olympus" }).success, false);
   assert.equal(rentalPropertySchema.safeParse({
     ...property,
-    verificationStatus: "verified",
+    jurisdictionCode: "CD-KN",
   }).success, false);
   assert.equal(rentalPropertySchema.safeParse({
     ...property,
     verificationStatus: "verified",
-    jurisdictionCode: "CD-KN",
-  }).success, true);
+  }).success, false);
+  assert.equal(rentalPropertySchema.safeParse({
+    ...property,
+    publicationStatus: "published",
+  }).success, false);
+  assert.equal(rentalPropertySchema.safeParse({
+    ...property,
+    profileStatus: "legacy_incomplete",
+  }).success, false);
   assert.equal(rentalPropertySchema.safeParse({
     ...property,
     publicationStatus: "archived",
@@ -160,24 +161,6 @@ test("REQ-032 REQ-036 PROP-020 validates Property lifecycle metadata", () => {
     archiveReason: "No longer managed.",
   }).success, false);
   assert.equal(rentalPropertySchema.safeParse({ ...property, publicationStatus: "deleted" }).success, false);
-  assert.equal(rentalPropertySchema.safeParse({ ...property, profileStatus: "unknown" }).success, false);
-
-  const legacyProperty = {
-    ...property,
-    propertyType: null,
-    address: null,
-    timeZone: null,
-    verificationStatus: null,
-    publicationStatus: null,
-    profileStatus: "legacy_incomplete",
-    updatedAt: null,
-  };
-  assert.equal(legacyIncompleteRentalPropertySchema.safeParse(legacyProperty).success, true);
-  assert.equal(rentalPropertySchema.safeParse(legacyProperty).success, true);
-  assert.equal(rentalPropertySchema.safeParse({
-    ...legacyProperty,
-    profileStatus: "complete",
-  }).success, false);
 });
 
 test("REQ-033 PROP-020 validates Unit bounds and archive metadata", () => {
@@ -193,7 +176,6 @@ test("REQ-033 PROP-020 validates Unit bounds and archive metadata", () => {
     furnishingStatus: "unfurnished",
     availabilityStatus: "available",
     publicationStatus: "draft",
-    profileStatus: "complete",
     version: 1,
     createdAt: "2026-09-17T10:00:00.000Z",
     updatedAt: "2026-09-17T10:00:00.000Z",
@@ -229,8 +211,7 @@ test("REQ-033 PROP-020 validates Unit bounds and archive metadata", () => {
     archivedBy: null,
     archiveReason: "Combined into another unit.",
   }).success, false);
-
-  const legacyUnit = {
+  assert.equal(rentableUnitSchema.safeParse({
     ...unit,
     label: "  Unnormalized legacy unit  ",
     canonicalLabel: null,
@@ -244,13 +225,8 @@ test("REQ-033 PROP-020 validates Unit bounds and archive metadata", () => {
     publicationStatus: null,
     profileStatus: "legacy_incomplete",
     updatedAt: null,
-  };
-  assert.equal(legacyIncompleteRentableUnitSchema.safeParse(legacyUnit).success, true);
-  assert.equal(rentableUnitSchema.safeParse(legacyUnit).success, true);
-  assert.equal(rentableUnitSchema.safeParse({
-    ...legacyUnit,
-    profileStatus: "complete",
   }).success, false);
+
 });
 
 test("REQ-033 PROP-011 normalizes NFC and trims Unicode White_Space", () => {
@@ -309,7 +285,6 @@ test("REQ-033 PROP-011 normalizes NFC and trims Unicode White_Space", () => {
     canonicalLabel: canonicalizeUnitLabel(expandedLabel),
     availabilityStatus: "available",
     publicationStatus: "draft",
-    profileStatus: "complete",
     version: 1,
     createdAt: "2026-09-17T10:00:00.000Z",
     updatedAt: "2026-09-17T10:00:00.000Z",
@@ -453,7 +428,6 @@ test("REQ-035 PROP-015 PROP-022 keeps operational provenance outside the public 
     projection: {
       id: "gombe-residence-studio-a",
       name: "Gombe Residence - Studio A",
-      address: "Gombe",
       city: "Kinshasa",
       district: "Gombe",
       summary: "A compact studio.",
@@ -475,6 +449,10 @@ test("REQ-035 PROP-015 PROP-022 keeps operational provenance outside the public 
   assert.equal(publicListingSnapshotSchema.safeParse({
     ...snapshot,
     projection: { ...snapshot.projection, address: "42 Secret Street" },
+  }).success, false);
+  assert.equal(publicListingSnapshotSchema.safeParse({
+    ...snapshot,
+    projection: { ...snapshot.projection, imageUrl: snapshot.projection.imageUrls[0] },
   }).success, false);
   assert.equal(publicListingSnapshotSchema.safeParse({
     ...snapshot,
@@ -528,7 +506,7 @@ test("REQ-035 PROP-015 PROP-022 keeps operational provenance outside the public 
     "updatedAt",
   ]);
   assert.equal(internalPublicListingSchema.safeParse(without(listing, "withdrawnAt")).success, false);
-  for (const status of ["draft", "reserved", "rented"]) {
+  for (const status of ["draft"]) {
     assert.equal(internalPublicListingSchema.safeParse({
       ...listing,
       status,
@@ -543,13 +521,15 @@ test("REQ-035 PROP-015 PROP-022 keeps operational provenance outside the public 
       withdrawnAt: listing.updatedAt,
     }).success, false);
   }
+  for (const status of ["reserved", "rented"]) {
+    assert.equal(internalPublicListingSchema.safeParse({
+      ...listing,
+      status,
+      snapshot: null,
+      publishedAt: null,
+    }).success, false);
+  }
   assert.equal(internalPublicListingSchema.safeParse({
-    ...listing,
-    status: "withdrawn",
-    withdrawnAt: listing.updatedAt,
-  }).success, true);
-
-  const legacyListing = {
     id: ids.listing,
     organizationId: ids.organization,
     unitId: ids.unit,
@@ -570,17 +550,13 @@ test("REQ-035 PROP-015 PROP-022 keeps operational provenance outside the public 
     publishedAt: listing.publishedAt,
     createdAt: listing.createdAt,
     updatedAt: listing.updatedAt,
-  };
-  assert.equal(legacyPublicListingSchema.safeParse(legacyListing).success, true);
-  assert.equal(legacyPublicListingSchema.safeParse({
-    ...legacyListing,
-    imageUrls: ["x".repeat(2049)],
+  }).success, false);
+  assert.equal(internalPublicListingSchema.safeParse({
+    ...listing,
+    status: "withdrawn",
+    withdrawnAt: listing.updatedAt,
   }).success, true);
-  assert.equal(internalPublicListingSchema.safeParse(legacyListing).success, true);
-  assert.equal(isGrandfatheredPublishedListing(legacyListing), true);
-  for (const status of ["draft", "reserved", "rented", "withdrawn"]) {
-    assert.equal(isGrandfatheredPublishedListing({ ...legacyListing, status }), false);
-  }
+
 });
 
 test("REQ-035 PROP-023 preserves public catalogue pagination boundaries", () => {
