@@ -10,24 +10,32 @@ function createListingPublicationClient(session) {
   return createApiClient({
     getOrganizationId: () => session?.organizationId ?? null,
     getToken: () => {
-      if (session?.accessToken) return session.accessToken;
+      if (session?.getAccessToken) return session.getAccessToken();
       throw new Error('Sign in with Microsoft Entra before changing listing publication.');
     },
   });
 }
 
 function statusCopy(status) {
-  return status === 'published'
-    ? {
-        action: 'Withdraw',
-        badge: 'Published',
-        detail: 'Listing is live on the public marketplace.',
-      }
-    : {
-        action: 'Publish',
-        badge: 'Withdrawn',
-        detail: 'Listing is hidden from the public marketplace.',
-      };
+  if (status === 'published') {
+    return {
+      action: 'Withdraw',
+      badge: 'Published',
+      detail: 'Listing is live on the public marketplace.',
+    };
+  }
+  if (status === 'draft') {
+    return {
+      action: 'Publish',
+      badge: 'Draft',
+      detail: 'Listing is still being prepared before publication.',
+    };
+  }
+  return {
+    action: 'Publish',
+    badge: 'Withdrawn',
+    detail: 'Listing is hidden from the public marketplace.',
+  };
 }
 
 export function ListingPublicationPanel({
@@ -88,7 +96,7 @@ export function ListingPublicationPanel({
     }
   };
 
-  const disableActions = Boolean(busyListingId) || session?.sessionMode === 'demo';
+  const disableActions = Boolean(busyListingId) || session?.sessionMode === 'demo' || !session?.getAccessToken;
 
   return (
     <section
@@ -104,7 +112,7 @@ export function ListingPublicationPanel({
       <p className='publication-note'>
         Use the existing publication commands for listings already assigned to your organization context.
       </p>
-      {session?.sessionMode === 'demo' ? (
+      {disableActions ? (
         <p className='publication-feedback' data-tone='error' role='alert'>
           Demo portal sessions cannot change listing publication. Sign in with Microsoft Entra before sending publish or withdraw commands.
         </p>
@@ -126,7 +134,7 @@ export function ListingPublicationPanel({
                 </div>
                 <span className='status'>{copy.badge}</span>
                 <Button
-                  aria-label={`${copy.action} ${listing.title}`}
+                  aria-label={isBusy ? `Saving ${listing.title}` : `${copy.action} ${listing.title}`}
                   disabled={disableActions}
                   onClick={() => runCommand(listing.id, copy.action.toLowerCase())}
                 >
