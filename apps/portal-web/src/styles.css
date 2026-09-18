@@ -208,6 +208,9 @@ button {
   grid-template-columns: repeat(4, 1fr);
   gap: 14px;
 }
+.stats-empty-state {
+  grid-column: 1 / -1;
+}
 .stat,
 .panel {
   border: 1px solid #dce8e0;

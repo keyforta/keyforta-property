@@ -141,7 +141,7 @@ export function Portal() {
           </div>
         </header>
         <section className='stats'>
-          <p className='muted' data-testid='stats-empty-state'>{role.statsEmptyState}</p>
+          <p className='muted stats-empty-state' data-testid='stats-empty-state'>{role.statsEmptyState}</p>
         </section>
         <section className='content-grid'>
           {showListingPublication ? <ListingPublicationPanel emptyState={listingPublicationEmptyState} listings={managerListings} session={session} /> : null}

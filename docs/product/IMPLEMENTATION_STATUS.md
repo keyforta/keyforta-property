@@ -14,7 +14,7 @@ that behavior is available.
 | Public viewing inquiry | Implemented | Public web proxy and Fastify `POST /api/v1/viewing-requests` provide validation, rate limiting, persistence, and duplicate handling; the browser form now submits via this API instead of browser-local storage |
 | Listing publication and withdrawal | Prototype UI plus API | Protected Fastify publication commands plus a manager portal publication/withdrawal panel that currently relies on manual listing IDs until an authoritative portfolio feed exists |
 | Landlord onboarding application and human admin decision | Implemented | Public signup flow, admin onboarding console, protected API routes, PostgreSQL gateway, and authorization tests |
-| Authenticated role portal | Mock/prototype | `portal-web` uses a labeled browser-local demo session and sample records; it has no approved deployment path |
+| Authenticated role portal | Mock/prototype | `portal-web` uses a labeled browser-local demo session; workspace dashboards show honest empty-state copy pending real read APIs (issue #101), and it has no approved deployment path |
 | Public rental application prototype | Non-authoritative mock and product conflict | Legacy public-web route stores browser-local data; approved PRD excludes public rental applications |
 | Tenant application, evidence upload/scanning, and access confirmation | Planned | Target contracts and persistence foundations exist; no current tenant application or evidence API route |
 | Operational portfolio, invitations, lease activation, statements, and maintenance workflows | Planned user-facing delivery | Some lower-layer contracts or persistence foundations exist; they are not exposed by the current deployable API |
