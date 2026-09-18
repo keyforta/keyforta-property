@@ -49,3 +49,22 @@ test('throws enriched API errors for non-ok responses', async () => {
     return true;
   });
 });
+
+
+test('update uses patch and resource id paths', async () => {
+  let captured;
+  const client = createApiClient({ fetcher: async (url, options) => { captured = { url, options }; return jsonResponse({ data: { ok: true } }); } });
+  await client.update('properties', 'property-1', { status: 'published' });
+  assert.equal(captured.url, '/api/v1/properties/property-1');
+  assert.equal(captured.options.method, 'PATCH');
+  assert.equal(captured.options.body, JSON.stringify({ status: 'published' }));
+});
+
+test('command posts to the resource command endpoint', async () => {
+  let captured;
+  const client = createApiClient({ fetcher: async (url, options) => { captured = { url, options }; return jsonResponse({ data: { ok: true } }); } });
+  await client.command('properties', 'property-1', 'publish', { reason: 'verified' });
+  assert.equal(captured.url, '/api/v1/properties/property-1/publish');
+  assert.equal(captured.options.method, 'POST');
+  assert.equal(captured.options.body, JSON.stringify({ reason: 'verified' }));
+});

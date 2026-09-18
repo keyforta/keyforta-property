@@ -65,6 +65,6 @@ describe('public-web components', () => {
   it('has no critical accessibility violations for the home page', async () => {
     usePublicProperties.mockReturnValue({ data: { items: [property], total: 1 }, error: null, loading: false, retry: vi.fn() });
     const { container } = renderWithProviders(<HomePage lang='en' onSearch={vi.fn()} voiceText='' voiceStatus='' voiceVoices={[]} voiceChoice='' onVoiceChoice={vi.fn()} onVoiceText={vi.fn()} onVoicePlay={vi.fn()} onVoiceStop={vi.fn()} onOpenAccess={vi.fn()} />);
-    expect((await axe(container, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([]);
+    expect((await axe(container)).violations).toEqual([]);
   });
 });

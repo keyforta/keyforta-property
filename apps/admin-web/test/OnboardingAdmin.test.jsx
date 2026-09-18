@@ -90,6 +90,6 @@ describe('OnboardingAdmin', () => {
   it('has no critical accessibility violations for the signed-out gate', async () => {
     mocks.authState.current = { status: 'signed-out' };
     const { container } = renderAdmin();
-    expect((await axe(container, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([]);
+    expect((await axe(container)).violations).toEqual([]);
   });
 });

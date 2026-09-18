@@ -107,7 +107,8 @@ export function Portal() {
     );
   }
 
-  const role = roles[session.role] || roles.tenant;
+  const roleKey = Object.prototype.hasOwnProperty.call(actions, session.role) ? session.role : 'tenant';
+  const role = roles[roleKey] || roles.tenant;
   return (
     <div className='app-shell'>
       <aside className='sidebar'>
@@ -160,7 +161,7 @@ export function Portal() {
             <p className='kicker'>Quick actions</p>
             <h2>Keep things moving.</h2>
             <div className='quick-actions'>
-              {actions[session.role].map((action) => (
+              {(actions[session.role] || actions[roleKey]).map((action) => (
                 <Button key={action} appearance='outline' onClick={() => complete(action)}>
                   <span>{action[0]}</span>
                   {completedAction === action ? 'Saved' : action}
@@ -182,4 +183,3 @@ export function PortalApp() {
   return <FluentProvider theme={webLightTheme}><Portal /></FluentProvider>;
 }
 
-export const portalEntrySourceMarker = `FluentProvider tenant: { landlord: { manager: { operator: { new URLSearchParams(window.location.search)`;

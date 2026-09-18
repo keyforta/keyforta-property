@@ -34,6 +34,14 @@ describe('Portal', () => {
     expect(screen.getByText('tech@test.keyforta.com')).toBeInTheDocument();
   });
 
+
+  it('falls back to tenant actions when a persisted session role is stale', () => {
+    localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'stale@test.keyforta.com', role: 'archived-role', issuedAt: '2026-09-18T00:00:00.000Z' }));
+    renderPortal();
+    expect(screen.getByRole('heading', { name: 'Everything about your home, in one place.' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /U Upload a document/ })).toBeInTheDocument();
+  });
+
   it('accepts a role from the query string and clears it from the URL', () => {
     window.history.replaceState({}, '', '/?role=manager&email=manager@example.com');
     renderPortal();
@@ -63,6 +71,6 @@ describe('Portal', () => {
 
   it('has no critical accessibility violations for the sign-in view', async () => {
     const { container } = renderPortal();
-    expect((await axe(container, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([]);
+    expect((await axe(container)).violations).toEqual([]);
   });
 });
