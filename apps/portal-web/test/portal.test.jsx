@@ -61,7 +61,7 @@ describe('Portal', () => {
 
 
   it('shows the listing publication panel only for manager overview and portfolio views', () => {
-    localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'manager@test.keyforta.com', role: 'manager', issuedAt: '2026-09-18T00:00:00.000Z', token: 'demo-token-manager', organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }));
+    localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'manager@test.keyforta.com', role: 'manager', issuedAt: '2026-09-18T00:00:00.000Z', organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }));
     renderPortal();
     expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Applications' }));

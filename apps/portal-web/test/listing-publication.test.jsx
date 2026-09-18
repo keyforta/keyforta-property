@@ -163,9 +163,17 @@ describe('ListingPublicationPanel', () => {
     expect(command).not.toHaveBeenCalled();
   });
 
-  it('disables live mutation controls for demo or tokenless sessions', () => {
+  it('disables live mutation controls for demo sessions', () => {
     renderPanel({ session: { ...baseSession, sessionMode: 'demo', getAccessToken: undefined } });
     expect(screen.getByText(/Demo portal sessions cannot change listing publication/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Withdraw by ID' })).toBeDisabled();
+  });
+
+  it('disables live mutation controls for non-demo sessions without a token getter', () => {
+    renderPanel({ session: { ...baseSession, getAccessToken: undefined } });
+    expect(screen.getByText(/Listing publication is unavailable until Microsoft Entra access is connected/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Withdraw by ID' })).toBeDisabled();
