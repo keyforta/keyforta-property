@@ -29,10 +29,15 @@
     "verify": "pnpm check && pnpm check:architecture && pnpm check:diagrams && pnpm check:secrets && pnpm test && pnpm test:controls && pnpm test:workflows && pnpm audit --audit-level high && pnpm build"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@vitejs/plugin-react": "^5.0.2",
     "jsdom": "26.1.0",
     "mermaid": "11.12.0",
     "turbo": "2.10.13",
     "typescript": "5.9.3",
+    "vitest": "5.0.0",
+    "vitest-axe": "0.1.0",
     "yaml": "^2.9.0"
   }
 }

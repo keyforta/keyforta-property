@@ -11,7 +11,7 @@ Use the lowest deterministic layer that proves the risk.
 | Architecture         | Domain dependency direction and package boundaries                                      | `pnpm check:architecture`, package tests, and review                        |
 | Infrastructure       | Bicep compilation and pilot resource policy                                             | CI compilation and policy review                                           |
 | Security             | Negative authorization, isolation, secret patterns, dependency audit, abuse cases       | application tests, `pnpm check:secrets`, dependency audit, and CI           |
-| Accessibility        | Keyboard, semantics, focus, contrast, responsive states                                 | manual review pending an approved automated runner                         |
+| Accessibility        | Keyboard, semantics, focus, contrast, responsive states                                 | automated axe smoke checks in component suites plus manual review          |
 | End-to-end/smoke     | A few public/authenticated critical boundaries after deployment                         | deployment workflow; never substitute for lower-layer rules                |
 | Migration/regression | Forward migration from supported state and exact incident reproductions                 | PostgreSQL suite and focused regression tests                              |
 

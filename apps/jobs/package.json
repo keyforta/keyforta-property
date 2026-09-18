@@ -4,5 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Asynchronous jobs and transactional-outbox worker boundary",
-  "scripts": { "check": "node scripts/check.mjs", "build": "node scripts/build.mjs" }
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.js"
+  }
 }
