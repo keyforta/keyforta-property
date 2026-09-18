@@ -187,6 +187,9 @@ importers:
       '@keyforta/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@keyforta/browser-auth':
+        specifier: workspace:*
+        version: link:../../packages/browser-auth
       '@keyforta/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

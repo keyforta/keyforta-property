@@ -8,6 +8,24 @@ vi.mock('@keyforta/ui', () => ({
   MetricCard: ({ label, value, note }) => <div><strong>{label}</strong><span>{value}</span><small>{note}</small></div>,
 }));
 
+const mocks = vi.hoisted(() => ({
+  authState: { current: { status: 'signed-out' } },
+  signInMock: vi.fn(),
+  signOutMock: vi.fn(),
+  initializeMock: vi.fn(),
+}));
+
+vi.mock('@keyforta/browser-auth', () => ({
+  createBrowserEntraAuth: () => ({
+    subscribe: (cb) => { cb(); return () => {}; },
+    getSnapshot: () => mocks.authState.current,
+    initialize: mocks.initializeMock,
+    signIn: mocks.signInMock,
+    signOut: mocks.signOutMock,
+    getAccessToken: vi.fn(),
+  }),
+}));
+
 import { Portal } from '../src/portal-app.jsx';
 
 function renderPortal() {
@@ -19,12 +37,27 @@ describe('Portal', () => {
     localStorage.clear();
     window.history.replaceState({}, '', '/');
     vi.useRealTimers();
+    mocks.authState.current = { status: 'signed-out' };
+    mocks.signInMock.mockClear();
+    mocks.signOutMock.mockClear();
+    mocks.initializeMock.mockClear();
   });
 
-  it('renders the signed-out choice screen when no session exists', () => {
+  it('renders the Microsoft Entra sign-in gate when no session exists', () => {
     renderPortal();
     expect(screen.getByRole('heading', { name: 'Sign in to continue.' })).toBeInTheDocument();
-    expect(screen.getByText('Choose the workspace that matches your role.')).toBeInTheDocument();
+    const signInButton = screen.getByRole('button', { name: 'Sign in with Microsoft Entra' });
+    fireEvent.click(signInButton);
+    expect(mocks.signInMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows an honest workspace-access-pending state for a signed-in identity with no assigned role', () => {
+    mocks.authState.current = { status: 'signed-in', account: { name: 'Amina K.', username: 'amina@example.com' } };
+    renderPortal();
+    expect(screen.getByRole('heading', { name: 'Workspace access pending.' })).toBeInTheDocument();
+    expect(screen.getByText(/Signed in as Amina K\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(mocks.signOutMock).toHaveBeenCalledTimes(1);
   });
 
   it('restores a legacy technician session as operator access', () => {

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@keyforta/api-client": "workspace:*",
+    "@keyforta/browser-auth": "workspace:*",
     "@keyforta/contracts": "workspace:*",
     "@keyforta/ui": "workspace:*",
     "@fluentui/react-components": "9.72.5",

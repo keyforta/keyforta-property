@@ -72,7 +72,11 @@ export function createBrowserEntraAuth(configuration) {
           if (account) client.setActiveAccount(account);
           publish({
             status: account ? 'signed-in' : 'signed-out',
-            account: account && Object.freeze({ name: account.name || '', username: account.username || '' }),
+            account: account && Object.freeze({
+              name: account.name || '',
+              username: account.username || '',
+              email: account.idTokenClaims?.email || '',
+            }),
             message: '',
           });
         } catch (error) {
@@ -90,7 +94,11 @@ export function createBrowserEntraAuth(configuration) {
         client.setActiveAccount(result.account);
         publish({
           status: 'signed-in',
-          account: Object.freeze({ name: result.account.name || '', username: result.account.username || '' }),
+          account: Object.freeze({
+            name: result.account.name || '',
+            username: result.account.username || '',
+            email: result.account.idTokenClaims?.email || '',
+          }),
           message: '',
         });
       } catch (error) {

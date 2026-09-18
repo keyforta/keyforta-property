@@ -1,13 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   Avatar,
   Button,
   FluentProvider,
+  Spinner,
   webLightTheme,
 } from '@fluentui/react-components';
+import { createBrowserEntraAuth } from '@keyforta/browser-auth';
 import { AppBrand } from '@keyforta/ui';
 import './styles.css';
 import { ListingPublicationPanel } from './listing-publication-panel.jsx';
+
+// Real Microsoft Entra B2B guest sign-in (issue #77 decision), mirroring
+// admin-web's working pattern. Falls back to an 'unavailable' status when
+// VITE_ENTRA_* is not configured for this environment.
+export const portalAuth = createBrowserEntraAuth({
+  apiScope: import.meta.env.VITE_ENTRA_API_SCOPE,
+  authority: import.meta.env.VITE_ENTRA_AUTHORITY,
+  clientId: import.meta.env.VITE_ENTRA_CLIENT_ID,
+  redirectUri: '/auth/callback',
+});
 
 export const SESSION_KEY = 'keyforta.portal.session';
 export const roles = {
@@ -65,26 +77,72 @@ export function readSession() {
   }
 }
 
+const authStatusMessages = {
+  loading: 'Checking Microsoft Entra sign-in...',
+  authenticating: 'Opening Microsoft Entra sign-in...',
+  unavailable: 'Microsoft Entra sign-in is not configured for this environment.',
+  error: 'Microsoft Entra sign-in could not be completed. Try again.',
+};
+
+function LoginGate({ auth }) {
+  return (
+    <div className='auth-layout'>
+      <section className='auth-card'>
+        <AppBrand surface='PORTAL' />
+        <p className='kicker'>Protected workspace</p>
+        <h1>Sign in to continue.</h1>
+        <p className='muted'>Sign in with your Microsoft Entra account to open your workspace.</p>
+        {auth.status === 'signed-out' ? (
+          <Button appearance='primary' className='primary' onClick={() => portalAuth.signIn()}>
+            Sign in with Microsoft Entra
+          </Button>
+        ) : (
+          <div className={`state-message ${auth.status === 'error' ? 'error' : ''}`} role='status'>
+            {['loading', 'authenticating'].includes(auth.status) ? <Spinner size='tiny' /> : null}
+            <span>{authStatusMessages[auth.status]}</span>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function PendingWorkspaceAccess({ auth, onSignOut }) {
+  return (
+    <div className='auth-layout'>
+      <section className='auth-card'>
+        <AppBrand surface='PORTAL' />
+        <p className='kicker'>Protected workspace</p>
+        <h1>Workspace access pending.</h1>
+        <p className='muted'>
+          Signed in as {auth.account?.email || auth.account?.name || auth.account?.username}. No tenant, landlord,
+          manager, or operator workspace is assigned to this identity yet. Contact your
+          organization once membership provisioning is available.
+        </p>
+        <Button appearance='secondary' onClick={onSignOut}>Sign out</Button>
+      </section>
+    </div>
+  );
+}
+
 export function Portal() {
   const [session, setSession] = useState(readSession);
   const [active, setActive] = useState('Overview');
   const [completedAction, setCompletedAction] = useState('');
   const [managerListings] = useState([]);
+  const auth = useSyncExternalStore(portalAuth.subscribe, portalAuth.getSnapshot, portalAuth.getSnapshot);
+  useEffect(() => { portalAuth.initialize(); }, []);
   const roleKey = session && Object.prototype.hasOwnProperty.call(actions, session.role) ? session.role : 'tenant';
   const showListingPublication = roleKey === 'manager' && (active === 'Portfolio' || active === 'Overview');
   const listingPublicationEmptyState = useMemo(() => active === 'Portfolio'
     ? 'No assigned listings are loaded in this prototype yet. Use a trusted listing ID to publish or withdraw while the portfolio feed remains unavailable.'
     : 'Assigned listings will appear here after the portfolio feed is available.', [active]);
 
-  const login = (role) => {
-    const nextSession = { email: `demo.${role}@test.keyforta.com`, role, issuedAt: new Date().toISOString(), organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', sessionMode: 'demo' };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
-    setSession(nextSession);
-  };
   const logout = () => {
     localStorage.removeItem(SESSION_KEY);
     setSession(null);
     setActive('Overview');
+    portalAuth.signOut();
   };
   const complete = (action) => {
     setCompletedAction(action);
@@ -92,25 +150,10 @@ export function Portal() {
   };
 
   if (!session) {
-    return (
-      <div className='auth-layout'>
-        <section className='auth-card'>
-          <AppBrand surface='PORTAL' />
-          <p className='kicker'>Protected workspace</p>
-          <h1>Sign in to continue.</h1>
-          <p className='muted'>Choose the workspace that matches your role.</p>
-          <div className='demo-grid'>
-            {Object.entries(roles).map(([value, role]) => (
-              <Button key={value} className='demo-choice' appearance='outline' onClick={() => login(value)}>
-                <span>{role.label}</span>
-                <small>{role.summary}</small>
-              </Button>
-            ))}
-          </div>
-          <p className='notice'>No password is required on the development server.</p>
-        </section>
-      </div>
-    );
+    if (auth.status === 'signed-in') {
+      return <PendingWorkspaceAccess auth={auth} onSignOut={() => portalAuth.signOut()} />;
+    }
+    return <LoginGate auth={auth} />;
   }
 
   const role = roles[roleKey] || roles.tenant;
