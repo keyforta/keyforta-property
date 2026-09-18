@@ -323,7 +323,7 @@ renumbering existing evidence.
 | PROP-016 | Unit archive rejects the last active Unit, guarded lease/occupancy states, and every post-archive command. Eligible Unit archive withdraws its listing; eligible Property archive withdraws all listings and archives all Units atomically while preserving historical references | Domain, transition-table, transaction, API, and history tests |
 | PROP-017 | From schema 0021, additive upgrade leaves legacy profiles explicitly incomplete and existing public snapshots unchanged; no ambiguous listing value is copied into operational truth; failed migration leaves no ledger or partial DDL; the immediately preceding production-approved application image remains compatible for one deployment rollback window; database correction is forward-only | Migration, N-1 application-rollback, forward-correction, and contract tests |
 | PROP-018 | At 320, 768, and 1280 CSS pixels and 200% zoom, the editor exposes loading, empty, validation, retryable error, denied, conflict, saved, archived, and offline states without overlap; keyboard and VoiceOver/Safari evidence verifies focus and announcements | Component, accessibility, and browser tests plus manual evidence |
-| PROP-019 | Before media activation, already-published baseline listings remain readable and withdrawable with unchanged image URLs; baseline `draft`, `reserved`, `rented`, and `withdrawn` publication or republication, image mutation, and new PublicListing creation are rejected | Contract, API, database, and browser tests |
+| PROP-019 | Before media activation, schema upgrade preserves already-published baseline listing read and withdraw behavior through a pre-upgrade published-listing compatibility predicate, without copying ambiguous listing values into Property or Unit operational truth and with unchanged image URLs; baseline `draft`, `reserved`, `rented`, and `withdrawn` publication or republication, image mutation, and new PublicListing creation are rejected | Contract, API, database migration, N-1 compatibility, and browser regression tests |
 | PROP-020 | Every required field rejects missing, null, whitespace-only, unknown-enum, and above-maximum input; numeric fields accept exact lower/upper bounds and reject values outside them; unknown object fields are rejected | Contract boundary and property-based tests |
 | PROP-021 | Unit-availability intervals reject overlap and invalid boundaries; occupancy overrides Unit availability without rewriting it; legacy `reserved` requires explicit repair; `availableFrom` maps to the Property-local date for current/future availability and unknown future availability is ineligible | Domain, database, clock/time-zone, migration, and concurrency tests |
 | PROP-022 | Public list, detail, inquiry, cache, export, logs, and telemetry never expose exact address, legacy raw address, internal IDs, occupancy reasons, or security/audit content; customer-safe history exposes only approved display actor/role, purpose, state, reason, and time | API, privacy, logging, export, and browser tests |
@@ -356,8 +356,17 @@ building/floor aggregates, and destructive deletion of inventory history.
 - Existing `public_listings` data remains a compatibility projection during
   migration. No implementation may silently treat conflicting listing values as
   authoritative Property, Unit, pricing, or address facts.
+- The migration records pre-upgrade PublicListing rows with `status = published`
+  and non-null `published_at` as the only grandfathered public-read set.
+  Grandfathering preserves list/detail and authorized withdraw behavior without
+  mutating image URLs or deriving Property/Unit `publicationStatus`,
+  `verificationStatus`, or availability from snapshot data. Regression evidence
+  must seed a published baseline row that would otherwise become ineligible
+  under the new `published`/`available` predicate and prove it remains readable
+  and withdrawable after the upgrade; non-published baseline rows remain
+  ineligible.
 - Schema 0021 is the supported expansion baseline. New typed columns are first
-   nullable for existing rows, while new create commands enforce the complete
+  nullable for existing rows, while new create commands enforce the complete
    profile. Existing rows receive an explicit `legacy_incomplete` repair status
    and remain visible in authorized operational reads; existing published listing
    snapshots remain unchanged. They cannot be newly verified, republished, or
