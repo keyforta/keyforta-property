@@ -30,7 +30,7 @@ export async function assertRuntimeDatabaseReady(
   database: DatabaseSession,
 ): Promise<void> {
   const result = await database.query(
-    "select app.runtime_schema_v0020_ready() as ready",
+    "select app.runtime_schema_v0021_ready() as ready",
   );
   if ((result.rows[0] as { ready?: unknown } | undefined)?.ready !== true) {
     throw new Error("The runtime database schema is not ready.");

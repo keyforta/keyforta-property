@@ -19,6 +19,7 @@ that behavior is available.
 | Tenant application, evidence upload/scanning, and access confirmation | Planned | Target contracts and persistence foundations exist; no current tenant application or evidence API route |
 | Operational portfolio, invitations, lease activation, statements, and maintenance workflows | Planned user-facing delivery | Some lower-layer contracts or persistence foundations exist; they are not exposed by the current deployable API |
 | Payments and immutable correction foundations | Foundation only | Operational migrations and tests protect posting/reversal invariants; allocation and statement workflows remain incomplete |
+| Organization-reference and audit integrity | Implemented foundation | Canonical migration `0021` atomically rejects cross-organization organization-owned parent references, denies audit update/delete/truncate, and has clean-install plus `0020` upgrade/recovery regression coverage |
 | Synthetic `system.health` MCP capability | Implemented but inactive | Authenticated read-only MCP boundary and dedicated gated deployment path; no tenant data or model-provider access |
 | Tenant-data AI assistance | Deferred | Requires approved tools, authorization, evaluation, privacy, operations, and release evidence |
 

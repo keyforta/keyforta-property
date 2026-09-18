@@ -38,21 +38,22 @@ async function assertMigrationPreconditions(
   client: PoolClient,
   fileName: string,
 ): Promise<void> {
-  if (fileName !== "0017_public_listing_publication_control.sql") return;
-
-  const duplicateAssignments = await client.query(`
-    select 1
-    from app.manager_property_assignments
-    where revoked_at is null
-    group by organization_id, property_id
-    having count(*) > 1
-    limit 1
-  `);
-  if (duplicateAssignments.rows[0]) {
-    throw new Error(
-      "0017 blocked: revoke duplicate active manager assignments before retrying",
-    );
+  if (fileName === "0017_public_listing_publication_control.sql") {
+    const duplicateAssignments = await client.query(`
+      select 1
+      from app.manager_property_assignments
+      where revoked_at is null
+      group by organization_id, property_id
+      having count(*) > 1
+      limit 1
+    `);
+    if (duplicateAssignments.rows[0]) {
+      throw new Error(
+        "0017 blocked: revoke duplicate active manager assignments before retrying",
+      );
+    }
   }
+
 }
 
 export async function applyMigration(

@@ -100,7 +100,283 @@ describePostgres("PostgreSQL public discovery integration", () => {
     const result = await client.query<{ count: string }>(
       "select count(*)::text as count from app.schema_migrations",
     );
-    expect(result.rows[0]?.count).toBe("20");
+    expect(result.rows[0]?.count).toBe("21");
+  });
+
+  it("accepts same-organization and rejects cross-organization parent references", async () => {
+    await client.query(`
+      insert into app.tenant_applications (
+        id, organization_id, tenant_user_id, identity, household_members,
+        employment, current_housing, emergency_contact, desired_move_in_date,
+        occupants, declarations
+      ) values
+        (
+          '00000000-0000-4000-8000-000000000980',
+          '00000000-0000-4000-8000-000000000901',
+          '00000000-0000-4000-8000-000000000952',
+          '{}', '[]', '{"monthlyIncomeMinor":"1","currency":"USD"}',
+          '{}', '{}', '2026-11-01', 1, '{}'
+        ),
+        (
+          '00000000-0000-4000-8000-000000000984',
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000950',
+          '{}', '[]', '{"monthlyIncomeMinor":"1","currency":"USD"}',
+          '{}', '{}', '2026-11-01', 1, '{}'
+        );
+      insert into app.tenant_application_reviews (
+        organization_id, application_id, reviewer_user_id, decision, notes
+      ) values (
+        '00000000-0000-4000-8000-000000000900',
+        '00000000-0000-4000-8000-000000000984',
+        '00000000-0000-4000-8000-000000000950',
+        'approve', 'Synthetic same-organization review'
+      );
+      insert into app.tenant_application_documents (
+        organization_id, application_id, uploaded_by_user_id, document_type,
+        blob_name, file_name, content_type, size_bytes, content_sha256, version
+      ) values (
+        '00000000-0000-4000-8000-000000000900',
+        '00000000-0000-4000-8000-000000000984',
+        '00000000-0000-4000-8000-000000000950',
+        'identity', 'synthetic/same-organization', 'synthetic.pdf',
+        'application/pdf', 1, repeat('b', 64), 1
+      );
+      insert into app.leases (
+        id, organization_id, unit_id, tenant_user_id, currency, base_rent_minor,
+        starts_on, source_type, application_id, external_justification
+      ) values
+        (
+          '00000000-0000-4000-8000-000000000985',
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000920',
+          '00000000-0000-4000-8000-000000000950',
+          'USD', 100, '2026-11-01', 'platform_application',
+          '00000000-0000-4000-8000-000000000984', null
+        ),
+        (
+          '00000000-0000-4000-8000-000000000986',
+          '00000000-0000-4000-8000-000000000901',
+          '00000000-0000-4000-8000-000000000922',
+          '00000000-0000-4000-8000-000000000952',
+          'USD', 100, '2026-11-01', 'external', null,
+          'Synthetic historical lease for organization B.'
+        );
+      insert into app.payments (
+        id, organization_id, lease_id, amount_minor, currency, status,
+        idempotency_key, provider_reference, actor_id, correlation_id
+      ) values (
+        '00000000-0000-4000-8000-000000000987',
+        '00000000-0000-4000-8000-000000000901',
+        '00000000-0000-4000-8000-000000000986', 100, 'USD', 'posted',
+        'synthetic-payment-b', 'synthetic-payment-b',
+        '00000000-0000-4000-8000-000000000952', 'synthetic-payment-b'
+      );
+      insert into app.membership_invitations (
+        id, organization_id, invited_by_user_id, recipient_email,
+        role, token_hash, expires_at
+      ) values (
+        '00000000-0000-4000-8000-000000000988',
+        '00000000-0000-4000-8000-000000000901',
+        '00000000-0000-4000-8000-000000000952',
+        'synthetic-invite@example.test', 'tenant', 'synthetic-invite-b',
+        transaction_timestamp() + interval '1 day'
+      );
+      insert into app.landlord_onboarding_applications (
+        id, applicant_subject, applicant_object_id, applicant_name,
+        proposed_organization_name, submitted_correlation_id
+      ) values (
+        '00000000-0000-4000-8000-000000000989', 'synthetic-onboarding',
+        '00000000-0000-4000-8000-000000000989', 'Synthetic Applicant',
+        'Synthetic Organization', 'synthetic-onboarding'
+      )
+    `);
+
+    await expect(
+      client.query(`
+        insert into app.units (
+          id, organization_id, property_id, label,
+          publication_status, availability_status
+        ) values (
+          '00000000-0000-4000-8000-000000000981',
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000911',
+          'Cross organization unit', 'draft', 'available'
+        )
+      `),
+    ).rejects.toThrow(/units_organization_property_fkey/);
+
+    await expect(
+      client.query(`
+        insert into app.tenant_application_reviews (
+          organization_id, application_id, reviewer_user_id, decision, notes
+        ) values (
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000980',
+          '00000000-0000-4000-8000-000000000950',
+          'approve', 'Synthetic cross-organization review'
+        )
+      `),
+    ).rejects.toThrow(/tenant_application_reviews_organization_application_fkey/);
+
+    await expect(
+      client.query(`
+        insert into app.tenant_application_documents (
+          organization_id, application_id, uploaded_by_user_id, document_type,
+          blob_name, file_name, content_type, size_bytes, content_sha256, version
+        ) values (
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000980',
+          '00000000-0000-4000-8000-000000000950',
+          'identity', 'synthetic/cross-organization', 'synthetic.pdf',
+          'application/pdf', 1, repeat('a', 64), 1
+        )
+      `),
+    ).rejects.toThrow(/tenant_application_documents_organization_application_fkey/);
+
+    await expect(
+      client.query(`
+        insert into app.leases (
+          organization_id, unit_id, tenant_user_id, currency, base_rent_minor,
+          starts_on, source_type, application_id
+        ) values (
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000920',
+          '00000000-0000-4000-8000-000000000950',
+          'USD', 100, '2026-11-01', 'platform_application',
+          '00000000-0000-4000-8000-000000000980'
+        )
+      `),
+    ).rejects.toThrow(/leases_organization_application_fkey/);
+
+    await expect(
+      client.query(`
+        insert into app.payments (
+          organization_id, lease_id, amount_minor, currency, status,
+          idempotency_key, provider_reference, reverses_payment_id,
+          reason, actor_id, correlation_id
+        ) values (
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000985', -100, 'USD', 'reversal',
+          'synthetic-cross-reversal', 'synthetic-cross-reversal',
+          '00000000-0000-4000-8000-000000000987', 'Synthetic reversal',
+          '00000000-0000-4000-8000-000000000950', 'synthetic-cross-reversal'
+        )
+      `),
+    ).rejects.toThrow(/payments_organization_reversal_fkey/);
+
+    await expect(
+      client.query(`
+        insert into app.public_listing_inquiries (
+          organization_id, listing_id, full_name, email, phone,
+          message, correlation_id
+        ) values (
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000932', 'Synthetic Visitor',
+          'cross-listing@example.test', '+243000000000', null,
+          'synthetic-cross-listing'
+        )
+      `),
+    ).rejects.toThrow(/public_listing_inquiries_organization_listing_fkey/);
+
+    await expect(
+      client.query(`
+        update app.membership_invitation_tokens
+        set organization_id = '00000000-0000-4000-8000-000000000900'
+        where invitation_id = '00000000-0000-4000-8000-000000000988'
+      `),
+    ).rejects.toThrow(/membership_invitation_tokens_organization_invitation_fkey/);
+
+    await expect(
+      client.query(`
+        insert into app.landlord_onboarding_decisions (
+          application_id, applicant_subject, applicant_object_id,
+          applicant_name, administrator_subject, administrator_object_id,
+          outcome, reason, correlation_id, organization_id, user_id, membership_id
+        )
+        select
+          '00000000-0000-4000-8000-000000000989', 'synthetic-onboarding',
+          '00000000-0000-4000-8000-000000000989', 'Synthetic Applicant',
+          'synthetic-admin', '00000000-0000-4000-8000-000000000950',
+          'approved', 'Synthetic cross-organization decision',
+          'synthetic-cross-membership',
+          '00000000-0000-4000-8000-000000000900', membership.user_id,
+          membership.id
+        from app.memberships as membership
+        where membership.organization_id = '00000000-0000-4000-8000-000000000901'
+          and membership.user_id = '00000000-0000-4000-8000-000000000952'
+      `),
+    ).rejects.toThrow(/landlord_onboarding_decisions_organization_membership_fkey/);
+
+    await expect(
+      client.query(`
+        insert into app.leases (
+          organization_id, unit_id, tenant_user_id, currency, base_rent_minor,
+          starts_on, source_type, external_justification, supersedes_lease_id
+        ) values (
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000920',
+          '00000000-0000-4000-8000-000000000950', 'USD', 100,
+          '2026-12-01', 'external', 'Synthetic replacement lease.',
+          '00000000-0000-4000-8000-000000000986'
+        )
+      `),
+    ).rejects.toThrow(/leases_organization_superseded_lease_fkey/);
+  });
+
+  it("preserves audit events as immutable history", async () => {
+    const auditEventId = "00000000-0000-4000-8000-000000000982";
+    await client.query(
+      `insert into app.audit_events (
+        id, organization_id, actor_id, correlation_id,
+        action, entity_type, entity_id
+      ) values ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        auditEventId,
+        "00000000-0000-4000-8000-000000000900",
+        "00000000-0000-4000-8000-000000000950",
+        "synthetic-audit-immutability",
+        "synthetic.created",
+        "synthetic",
+        "00000000-0000-4000-8000-000000000983",
+      ],
+    );
+
+    await expect(
+      client.query("update app.audit_events set action = $1 where id = $2", [
+        "synthetic.changed",
+        auditEventId,
+      ]),
+    ).rejects.toThrow(/audit history is immutable/);
+    await expect(
+      client.query("delete from app.audit_events where id = $1", [auditEventId]),
+    ).rejects.toThrow(/audit history is immutable/);
+    await expect(client.query("truncate app.audit_events")).rejects.toThrow(
+      /audit history is immutable/,
+    );
+
+    const preserved = await client.query<{ action: string }>(
+      "select action from app.audit_events where id = $1",
+      [auditEventId],
+    );
+    expect(preserved.rows[0]?.action).toBe("synthetic.created");
+
+    for (const statement of [
+      "update app.audit_events set action = 'runtime.changed' where id = $1",
+      "delete from app.audit_events where id = $1",
+      "truncate app.audit_events",
+    ]) {
+      await runtimeClient.query("begin");
+      await runtimeClient.query("set local role keyforta_runtime");
+      try {
+        const parameters = statement.startsWith("truncate") ? [] : [auditEventId];
+        await expect(runtimeClient.query(statement, parameters)).rejects.toThrow(
+          /permission denied|audit history is immutable/,
+        );
+      } finally {
+        await runtimeClient.query("rollback");
+      }
+    }
   });
 
   it("maps users to parties without inventing legal or consent facts", async () => {
