@@ -11,7 +11,7 @@ that behavior is available.
 | Capability | Status | Repository evidence or boundary |
 | --- | --- | --- |
 | Public property catalogue and detail | Implemented | Public web API proxies and Fastify `GET /api/v1/properties` routes |
-| Public viewing inquiry | API only | Public web proxy and Fastify `POST /api/v1/viewing-requests` provide validation, rate limiting, persistence, and duplicate handling; the current browser form still uses browser-local storage |
+| Public viewing inquiry | Implemented | Public web proxy and Fastify `POST /api/v1/viewing-requests` provide validation, rate limiting, persistence, and duplicate handling; the browser form now submits via this API instead of browser-local storage |
 | Listing publication and withdrawal | API only | Protected Fastify publication commands; no current portal management screen |
 | Landlord onboarding application and human admin decision | Implemented | Public signup flow, admin onboarding console, protected API routes, PostgreSQL gateway, and authorization tests |
 | Authenticated role portal | Mock/prototype | `portal-web` uses a labeled browser-local demo session and sample records; it has no approved deployment path |

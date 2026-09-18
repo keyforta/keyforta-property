@@ -289,4 +289,14 @@ assert.match(
   /setStatusIntent\(outcome\.ok \? "success" : "error"\)/,
   'The viewing-request form must reflect the real outcome intent instead of a hard-coded "success".'
 );
+assert.doesNotMatch(
+  app,
+  /error\.message \|\| t\(['"]status\.viewing_request_error['"]\)/,
+  'The viewing-request handler must not surface the raw (English-only) API error message; it must map error codes to localized copy.'
+);
+assert.match(
+  app,
+  /VIEWING_REQUEST_ERROR_KEYS/,
+  'The viewing-request handler must map API error codes to localized status keys.'
+);
 console.log(`Checked ${requiredFiles.length} public-web files, canonical redirect, route normalization, locale JSON parsing, and responsive featured-intro wrapping.`);

@@ -61,6 +61,17 @@ function getPageTitle(routeInfo, lang, t) {
   return t(`page_title.${routeInfo.name}`, { defaultValue: t('page_title.home') });
 }
 
+const VIEWING_REQUEST_ERROR_KEYS = {
+  VALIDATION_ERROR: 'status.viewing_request_error_validation',
+  NOT_FOUND: 'status.viewing_request_error_not_found',
+  RATE_LIMITED: 'status.viewing_request_error_rate_limited',
+  DEPENDENCY_UNAVAILABLE: 'status.viewing_request_error_unavailable',
+};
+
+function viewingRequestErrorKey(code) {
+  return VIEWING_REQUEST_ERROR_KEYS[code] || 'status.viewing_request_error';
+}
+
 function getRouteInfo(pathname) {
   const match = matchRoutes(routeMetadata, pathname)?.at(-1);
   if (!match) return { name: 'home' };
@@ -258,7 +269,7 @@ export default function App() {
       notify(success);
       return { ok: true, message: success };
     } catch (error) {
-      const failure = error.message || t('status.viewing_request_error');
+      const failure = t(viewingRequestErrorKey(error.code));
       notify(failure, 'error');
       return { ok: false, message: failure };
     }
