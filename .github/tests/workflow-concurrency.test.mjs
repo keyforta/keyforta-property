@@ -23,7 +23,10 @@ const workflows = {
 
 test("CI preserves repository verification and recursive Bicep compilation", () => {
   const document = YAML.parse(readFileSync(".github/workflows/ci.yml", "utf8"));
-  assert.deepEqual(document.permissions, { contents: "read" });
+  assert.deepEqual(document.permissions, {
+    contents: "read",
+    "pull-requests": "read",
+  });
   assert.equal(document.jobs.validate["timeout-minutes"], 20);
   const steps = document.jobs.validate.steps;
   assert.ok(steps.some((step) => step.run === "pnpm verify"));
