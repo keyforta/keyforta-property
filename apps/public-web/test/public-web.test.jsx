@@ -56,10 +56,16 @@ describe('public-web components', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/Properties could not be loaded/i);
   });
 
-  it('renders the not-found/denied boundary when a viewing target is unavailable', () => {
+  it('renders the not-found boundary when a viewing target is unavailable', () => {
     usePublicProperty.mockReturnValue({ data: null, error: null, loading: false, retry: vi.fn() });
     renderWithProviders(<ViewingRequestPage lang='en' propertyId='missing-property' onSubmit={vi.fn()} />);
     expect(screen.getByRole('heading', { name: /Property not found/i })).toBeInTheDocument();
+  });
+
+  it('renders the error boundary when the viewing page cannot load property details', () => {
+    usePublicProperty.mockReturnValue({ data: null, error: new Error('forbidden'), loading: false, retry: vi.fn() });
+    renderWithProviders(<ViewingRequestPage lang='en' propertyId='property-1' onSubmit={vi.fn()} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(/Properties could not be loaded/i);
   });
 
   it('has no critical accessibility violations for the home page', async () => {

@@ -161,7 +161,7 @@ export function Portal() {
             <p className='kicker'>Quick actions</p>
             <h2>Keep things moving.</h2>
             <div className='quick-actions'>
-              {(actions[session.role] || actions[roleKey]).map((action) => (
+              {actions[roleKey].map((action) => (
                 <Button key={action} appearance='outline' onClick={() => complete(action)}>
                   <span>{action[0]}</span>
                   {completedAction === action ? 'Saved' : action}
