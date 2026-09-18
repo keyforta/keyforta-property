@@ -12,10 +12,21 @@ description: "Implement an approved feature with focused tests and documentation
 ## Procedure
 
 1. Read applicable requirements, instructions, domain contracts, and nearby tests.
-2. Add or update acceptance tests for the smallest useful behavior slice.
-3. Implement within existing ownership boundaries and public contracts.
-4. Add authorization and cross-organization tests for data paths.
-5. Update authoritative documentation and run focused checks, then `pnpm verify`.
+2. Capture **before** evidence: run the relevant command, request, or UI flow
+   against the unmodified code and record the output showing the capability
+   is missing or the defect reproduces.
+3. Add or update acceptance tests for the smallest useful behavior slice, and
+   run them against the unmodified code to confirm they **fail for the
+   expected reason** (red). Record that failing output.
+4. Implement within existing ownership boundaries and public contracts.
+5. Add authorization and cross-organization tests for data paths.
+6. Rerun the same tests from step 3 and confirm they now pass (green); rerun
+   the same reproduction from step 2 and record the **after** evidence showing
+   the capability now works.
+7. Update authoritative documentation and run focused checks, then `pnpm verify`.
+8. Include all four artifacts — before evidence, failing (red) test output,
+   after evidence, passing (green) test output — in the pull request
+   description, in that order.
 
 ## Guardrails
 
