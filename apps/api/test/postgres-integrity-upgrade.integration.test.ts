@@ -101,6 +101,7 @@ describePostgres("PostgreSQL 0021 organization-integrity upgrade", () => {
       [databaseName],
     );
     await adminPool.query(`drop database if exists ${databaseName}`);
+    await adminPool.query(`drop role if exists ${migrationRole}`);
     await adminPool.end();
   });
 
