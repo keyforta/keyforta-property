@@ -437,6 +437,7 @@ export function ViewingRequestPage({ lang, propertyId, onSubmit }) {
   const { t } = useTranslation();
   const { data: property, error, loading, retry } = usePublicProperty(propertyId);
   const [status, setStatus] = useState("");
+  const [statusIntent, setStatusIntent] = useState("success");
 
   if (loading) return <ListingLoading />;
   if (error) return <section className="page content-page shell"><ListingError onRetry={retry} /></section>;
@@ -451,11 +452,16 @@ export function ViewingRequestPage({ lang, propertyId, onSubmit }) {
         <form
           className="form-grid"
           id="viewing-request-form"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
             const form = event.currentTarget;
-            setStatus(onSubmit(Object.fromEntries(new FormData(form))));
-            form.reset();
+            const values = Object.fromEntries(new FormData(form));
+            const outcome = await onSubmit(values);
+            setStatus(outcome.message);
+            setStatusIntent(outcome.ok ? "success" : "error");
+            if (outcome.ok) {
+              form.reset();
+            }
           }}
         >
           <input type="hidden" name="propertyId" value={property.id} readOnly />
@@ -477,7 +483,7 @@ export function ViewingRequestPage({ lang, propertyId, onSubmit }) {
           <Button className="button copper" type="submit">
             {t("property_pages.submit_viewing")}
           </Button>
-          <StatusMessage className="form-status show" intent="success" message={status} />
+          <StatusMessage className="form-status show" intent={statusIntent} message={status} />
         </form>
         <Link className="text-link" to={`/property/${property.id}`}>
           <ArrowLeft20Regular aria-hidden="true" /> {t("property_pages.back_to_property")}

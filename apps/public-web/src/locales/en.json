@@ -46,6 +46,11 @@
   "status": {
     "application_submitted": "Application submitted for manager review.",
     "viewing_requested": "Your viewing request has been received.",
+    "viewing_request_error": "Your viewing request could not be submitted. Please try again.",
+    "viewing_request_error_validation": "Please check the viewing request details and try again.",
+    "viewing_request_error_not_found": "This property could not be found. Please refresh the page and try again.",
+    "viewing_request_error_rate_limited": "Too many viewing requests were submitted. Please wait a moment and try again.",
+    "viewing_request_error_unavailable": "Viewing requests are temporarily unavailable. Please try again shortly.",
     "invitation_saved": "Invitation saved.",
     "service_offer_saved": "Service offer published.",
     "access_request_saved": "Request saved. Reference {{reference}}.",

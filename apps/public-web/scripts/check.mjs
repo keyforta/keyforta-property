@@ -84,6 +84,7 @@ const requiredFiles = [
   'src/services/storage.js',
   'src/services/public-properties.js',
   'src/services/landlord-onboarding.js',
+  'src/services/viewing-requests.js',
   'src/hooks/use-public-properties.js',
   'src/styles.css',
   'public/assets/brand/keyforta-app-icon.png',
@@ -247,4 +248,55 @@ assert.deepEqual(await nextConfig.redirects(), [
     source: '/:path*',
   },
 ]);
+const viewingRequestService = await readFile(resolve(appRoot, 'src/services/viewing-requests.js'), 'utf8');
+assert.match(
+  viewingRequestService,
+  /publicViewingRequestInputSchema\.parse/,
+  'The viewing-request service must validate its input against the shared public contract before submitting.'
+);
+assert.match(
+  viewingRequestService,
+  /fetch\(['"]\/api\/v1\/viewing-requests['"]/,
+  'The viewing-request service must call the real viewing-requests API route.'
+);
+assert.match(
+  app,
+  /submitViewingRequest\(payload\)/,
+  'The viewing-request handler must submit to the real API instead of local storage only.'
+);
+assert.doesNotMatch(
+  app,
+  /appendRow\(['"]kf-viewing-requests['"]/,
+  'Viewing requests must no longer be persisted only to browser local storage.'
+);
+assert.match(
+  app,
+  /return \{ ok: true, message: success \}/,
+  'The viewing-request handler must return a distinguishable success outcome.'
+);
+assert.match(
+  app,
+  /return \{ ok: false, message: failure \}/,
+  'The viewing-request handler must return a distinguishable failure outcome.'
+);
+assert.match(
+  propertyPages,
+  /if \(outcome\.ok\) \{\s*form\.reset\(\);\s*\}/,
+  'The viewing-request form must only reset on a successful submission, preserving input after a failure.'
+);
+assert.match(
+  propertyPages,
+  /setStatusIntent\(outcome\.ok \? "success" : "error"\)/,
+  'The viewing-request form must reflect the real outcome intent instead of a hard-coded "success".'
+);
+assert.doesNotMatch(
+  app,
+  /error\.message \|\| t\(['"]status\.viewing_request_error['"]\)/,
+  'The viewing-request handler must not surface the raw (English-only) API error message; it must map error codes to localized copy.'
+);
+assert.match(
+  app,
+  /VIEWING_REQUEST_ERROR_KEYS/,
+  'The viewing-request handler must map API error codes to localized status keys.'
+);
 console.log(`Checked ${requiredFiles.length} public-web files, canonical redirect, route normalization, locale JSON parsing, and responsive featured-intro wrapping.`);

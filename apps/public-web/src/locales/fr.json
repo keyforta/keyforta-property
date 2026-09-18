@@ -46,6 +46,11 @@
   "status": {
     "application_submitted": "Candidature envoyee pour examen par le gestionnaire.",
     "viewing_requested": "Votre demande de visite a ete recue.",
+    "viewing_request_error": "Votre demande de visite n'a pas pu etre envoyee. Veuillez reessayer.",
+    "viewing_request_error_validation": "Veuillez verifier les details de la demande de visite et reessayer.",
+    "viewing_request_error_not_found": "Cette propriete est introuvable. Veuillez actualiser la page et reessayer.",
+    "viewing_request_error_rate_limited": "Trop de demandes de visite ont ete envoyees. Veuillez patienter puis reessayer.",
+    "viewing_request_error_unavailable": "Les demandes de visite sont temporairement indisponibles. Veuillez reessayer sous peu.",
     "invitation_saved": "Invitation enregistree.",
     "service_offer_saved": "Offre de services publiee.",
     "access_request_saved": "Demande enregistree. Reference {{reference}}.",

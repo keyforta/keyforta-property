@@ -21,6 +21,7 @@ import {
 } from './views/index.js';
 import { buildPortalUrl, resolvePortalWebUrl } from './portal-url.js';
 import { appendRow } from './services/storage.js';
+import { submitViewingRequest } from './services/viewing-requests.js';
 
 const SignInPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.SignInPage })));
 const WorkspaceLoginPage = lazy(() => import('./views/AccountPages.jsx').then((module) => ({ default: module.WorkspaceLoginPage })));
@@ -58,6 +59,17 @@ const routeMetadata = [
 
 function getPageTitle(routeInfo, lang, t) {
   return t(`page_title.${routeInfo.name}`, { defaultValue: t('page_title.home') });
+}
+
+const VIEWING_REQUEST_ERROR_KEYS = {
+  VALIDATION_ERROR: 'status.viewing_request_error_validation',
+  NOT_FOUND: 'status.viewing_request_error_not_found',
+  RATE_LIMITED: 'status.viewing_request_error_rate_limited',
+  DEPENDENCY_UNAVAILABLE: 'status.viewing_request_error_unavailable',
+};
+
+function viewingRequestErrorKey(code) {
+  return VIEWING_REQUEST_ERROR_KEYS[code] || 'status.viewing_request_error';
 }
 
 function getRouteInfo(pathname) {
@@ -240,15 +252,27 @@ export default function App() {
     return message;
   }
 
-  function handleViewingRequest(values) {
-    appendRow('kf-viewing-requests', {
-      ...values,
+  async function handleViewingRequest(values) {
+    const { propertyId, name, email, phone, preferredAt, message } = values;
+    const payload = {
+      propertyId,
+      name,
+      email,
       locale: lang,
-      ...(values.preferredAt ? { preferredAt: new Date(values.preferredAt).toISOString() } : {}),
-    });
-    const message = t('status.viewing_requested');
-    notify(message);
-    return message;
+      ...(phone ? { phone } : {}),
+      ...(message ? { message } : {}),
+      ...(preferredAt ? { preferredAt: new Date(preferredAt).toISOString() } : {}),
+    };
+    try {
+      await submitViewingRequest(payload);
+      const success = t('status.viewing_requested');
+      notify(success);
+      return { ok: true, message: success };
+    } catch (error) {
+      const failure = t(viewingRequestErrorKey(error.code));
+      notify(failure, 'error');
+      return { ok: false, message: failure };
+    }
   }
 
   function handleInviteSubmit(values) {
