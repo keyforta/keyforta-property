@@ -256,11 +256,11 @@ export default function App() {
       await submitViewingRequest(payload);
       const success = t('status.viewing_requested');
       notify(success);
-      return success;
+      return { ok: true, message: success };
     } catch (error) {
       const failure = error.message || t('status.viewing_request_error');
       notify(failure, 'error');
-      return failure;
+      return { ok: false, message: failure };
     }
   }
 

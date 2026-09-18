@@ -269,4 +269,24 @@ assert.doesNotMatch(
   /appendRow\(['"]kf-viewing-requests['"]/,
   'Viewing requests must no longer be persisted only to browser local storage.'
 );
+assert.match(
+  app,
+  /return \{ ok: true, message: success \}/,
+  'The viewing-request handler must return a distinguishable success outcome.'
+);
+assert.match(
+  app,
+  /return \{ ok: false, message: failure \}/,
+  'The viewing-request handler must return a distinguishable failure outcome.'
+);
+assert.match(
+  propertyPages,
+  /if \(outcome\.ok\) \{\s*form\.reset\(\);\s*\}/,
+  'The viewing-request form must only reset on a successful submission, preserving input after a failure.'
+);
+assert.match(
+  propertyPages,
+  /setStatusIntent\(outcome\.ok \? "success" : "error"\)/,
+  'The viewing-request form must reflect the real outcome intent instead of a hard-coded "success".'
+);
 console.log(`Checked ${requiredFiles.length} public-web files, canonical redirect, route normalization, locale JSON parsing, and responsive featured-intro wrapping.`);
