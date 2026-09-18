@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, Spinner } from '@fluentui/react-components';
 import { createApiClient } from '@keyforta/api-client';
 import {
@@ -6,13 +6,17 @@ import {
   publicListingPublicationEnvelopeSchema,
 } from '@keyforta/contracts';
 
-function createListingPublicationClient(session) {
+function resolveApiBaseUrl() {
+  const configured = import.meta.env.VITE_KEYFORTA_API_BASE_URL?.trim();
+  if (configured) return configured;
+  return '/api/v1';
+}
+
+function createListingPublicationClient(session, accessToken) {
   return createApiClient({
+    baseUrl: resolveApiBaseUrl(),
     getOrganizationId: () => session?.organizationId ?? null,
-    getToken: () => {
-      if (session?.getAccessToken) return session.getAccessToken();
-      throw new Error('Sign in with Microsoft Entra before changing listing publication.');
-    },
+    getToken: () => accessToken,
   });
 }
 
@@ -43,14 +47,55 @@ export function ListingPublicationPanel({
   listings,
   session,
 }) {
-  const apiClient = useMemo(() => createListingPublicationClient(session), [session]);
   const [items, setItems] = useState(listings);
   const [busyListingId, setBusyListingId] = useState('');
   const [message, setMessage] = useState('');
   const [messageTone, setMessageTone] = useState('');
   const [manualListingId, setManualListingId] = useState('');
+  const [accessToken, setAccessToken] = useState(null);
+  const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : session?.getAccessToken ? 'loading' : 'unavailable');
+  const apiClient = useMemo(
+    () => (accessToken ? createListingPublicationClient(session, accessToken) : null),
+    [accessToken, session],
+  );
+
+  useEffect(() => {
+    let active = true;
+    setItems(listings);
+    if (session?.sessionMode === 'demo') {
+      setAccessToken(null);
+      setTokenStatus('demo');
+      return () => {
+        active = false;
+      };
+    }
+    if (!session?.getAccessToken) {
+      setAccessToken(null);
+      setTokenStatus('unavailable');
+      return () => {
+        active = false;
+      };
+    }
+    setTokenStatus('loading');
+    setAccessToken(null);
+    session.getAccessToken()
+      .then((token) => {
+        if (!active) return;
+        setAccessToken(token);
+        setTokenStatus(token ? 'ready' : 'unavailable');
+      })
+      .catch(() => {
+        if (!active) return;
+        setAccessToken(null);
+        setTokenStatus('unavailable');
+      });
+    return () => {
+      active = false;
+    };
+  }, [listings, session]);
 
   const runCommand = async (listingId, nextCommand) => {
+    if (!apiClient) return;
     setBusyListingId(listingId);
     setMessage('');
     setMessageTone('');
@@ -96,7 +141,8 @@ export function ListingPublicationPanel({
     }
   };
 
-  const disableActions = Boolean(busyListingId) || session?.sessionMode === 'demo' || !session?.getAccessToken;
+  const disableActions = Boolean(busyListingId) || tokenStatus !== 'ready';
+  const manualBusy = busyListingId && !items.some((item) => item.id === busyListingId);
 
   return (
     <section
@@ -112,9 +158,17 @@ export function ListingPublicationPanel({
       <p className='publication-note'>
         Use the existing publication commands for listings already assigned to your organization context.
       </p>
-      {disableActions ? (
+      {tokenStatus === 'loading' ? (
+        <p className='publication-feedback' data-tone='success' role='status'>Resolving your portal access token…</p>
+      ) : null}
+      {tokenStatus === 'demo' ? (
         <p className='publication-feedback' data-tone='error' role='alert'>
           Demo portal sessions cannot change listing publication. Sign in with Microsoft Entra before sending publish or withdraw commands.
+        </p>
+      ) : null}
+      {tokenStatus === 'unavailable' ? (
+        <p className='publication-feedback' data-tone='error' role='alert'>
+          Listing publication is unavailable until Microsoft Entra access is connected for this portal session.
         </p>
       ) : null}
       {items.length === 0 ? (
@@ -160,6 +214,7 @@ export function ListingPublicationPanel({
           <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'publish')}>Publish by ID</Button>
           <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'withdraw')}>Withdraw by ID</Button>
         </div>
+        {manualBusy ? <p className='publication-feedback' data-tone='success' role='status'>Sending listing publication command…</p> : null}
       </div>
       {message ? (
         <p
