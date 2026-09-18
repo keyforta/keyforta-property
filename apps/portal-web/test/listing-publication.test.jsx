@@ -8,31 +8,32 @@ vi.mock('@keyforta/ui', () => ({
   MetricCard: ({ label, value, note }) => <div><strong>{label}</strong><span>{value}</span><small>{note}</small></div>,
 }));
 
-const command = vi.fn();
+const command = vi.hoisted(() => vi.fn());
+const createApiClientMock = vi.hoisted(() => vi.fn(() => ({ command })));
 vi.mock('@keyforta/api-client', () => ({
-  createApiClient: vi.fn(() => ({ command })),
+  createApiClient: createApiClientMock,
 }));
 
 import { ListingPublicationPanel } from '../src/listing-publication-panel.jsx';
 
-const session = {
+const baseSession = {
   email: 'manager@example.com',
   role: 'manager',
   issuedAt: '2026-09-18T00:00:00.000Z',
-  token: 'token-123',
+  accessToken: 'token-123',
   organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
 };
 
 const listings = [
-  { id: '6d5f0d4f-e7ca-4c96-b67b-513f871f3f1a', title: 'Riverside apartment · Unit 2A', status: 'withdrawn' },
-  { id: '10b5c5ca-4daf-4df7-afb3-8a8a9698f0e1', title: 'Garden residence · Unit 1B', status: 'published' },
-  { id: '5d57d770-f831-4dfe-a85f-7705244f6d4a', title: 'Hill view loft · Unit 3C', status: 'withdrawn' },
+  { id: '6d5f0d4f-e7ca-4c96-b67b-513f871f3f1a', title: 'Riverside apartment · Unit 2A', status: 'withdrawn', note: 'Ready to publish.' },
+  { id: '10b5c5ca-4daf-4df7-afb3-8a8a9698f0e1', title: 'Garden residence · Unit 1B', status: 'published', note: 'Currently visible.' },
+  { id: '5d57d770-f831-4dfe-a85f-7705244f6d4a', title: 'Hill view loft · Unit 3C', status: 'withdrawn', note: 'Awaiting photos.' },
 ];
 
 function renderPanel(props = {}) {
   return render(
     <FluentProvider theme={webLightTheme}>
-      <ListingPublicationPanel session={session} listings={listings} {...props} />
+      <ListingPublicationPanel session={baseSession} listings={listings} {...props} />
     </FluentProvider>,
   );
 }
@@ -40,6 +41,7 @@ function renderPanel(props = {}) {
 describe('ListingPublicationPanel', () => {
   beforeEach(() => {
     command.mockReset();
+    createApiClientMock.mockClear();
   });
 
   it('publishes a withdrawn listing and updates the status', async () => {
@@ -60,7 +62,7 @@ describe('ListingPublicationPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /Withdraw Garden residence · Unit 1B/i }));
 
     await waitFor(() => expect(command).toHaveBeenCalledWith('public-listings', listings[1].id, 'withdraw'));
-    await screen.findByText('Listing withdrawn successfully.');
+    expect(await screen.findByRole('status')).toHaveTextContent('Listing withdrawn successfully.');
     expect(screen.getAllByText('Withdrawn').length).toBeGreaterThanOrEqual(2);
   });
 
@@ -77,16 +79,19 @@ describe('ListingPublicationPanel', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Listing not found or not assigned to you.');
   });
 
-  it('renders the same denial for cross-organization attempts to preserve non-disclosure', async () => {
+  it('passes distinct cross-organization context while rendering the same non-disclosing denial', async () => {
     const error = new Error('Listing not found.');
     error.code = 'NOT_FOUND';
     error.details = {};
     error.traceId = 'trace-cross-org';
     command.mockRejectedValue(error);
-    renderPanel();
+    const crossOrgSession = { ...baseSession, organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' };
+    renderPanel({ session: crossOrgSession });
 
     fireEvent.click(screen.getByRole('button', { name: /Withdraw Garden residence · Unit 1B/i }));
 
+    expect(createApiClientMock).toHaveBeenCalledWith(expect.objectContaining({ getOrganizationId: expect.any(Function) }));
+    expect(createApiClientMock.mock.calls.at(-1)[0].getOrganizationId()).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     // The API intentionally returns the same 404 outcome for inaccessible and unknown listings.
     expect(await screen.findByRole('alert')).toHaveTextContent('Listing not found or not assigned to you.');
   });
@@ -101,7 +106,15 @@ describe('ListingPublicationPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Listing status could not be updated right now.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Publication service unavailable.');
+  });
+
+  it('disables live mutation controls for demo sessions', () => {
+    renderPanel({ session: { ...baseSession, sessionMode: 'demo', accessToken: undefined } });
+    expect(screen.getByRole('alert')).toHaveTextContent(/Demo portal sessions cannot change listing publication/i);
+    expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Withdraw by ID' })).toBeDisabled();
   });
 
   it('has no critical accessibility violations', async () => {

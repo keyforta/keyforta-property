@@ -9,7 +9,10 @@ import {
 function createListingPublicationClient(session) {
   return createApiClient({
     getOrganizationId: () => session?.organizationId ?? null,
-    getToken: () => session?.token ?? null,
+    getToken: () => {
+      if (session?.accessToken) return session.accessToken;
+      throw new Error('Sign in with Microsoft Entra before changing listing publication.');
+    },
   });
 }
 
@@ -61,7 +64,7 @@ export function ListingPublicationPanel({
       if (error?.code === 'NOT_FOUND') {
         setMessage('Listing not found or not assigned to you.');
       } else {
-        setMessage('Listing status could not be updated right now.');
+        setMessage(error instanceof Error ? error.message : 'Listing status could not be updated right now.');
       }
       setMessageTone('error');
     } finally {
@@ -69,7 +72,7 @@ export function ListingPublicationPanel({
     }
   };
 
-  const submitManualListing = async (event) => {
+  const submitManualCommand = async (event, nextCommand) => {
     event.preventDefault();
     if (!manualListingId.trim()) {
       setMessage('Enter a listing ID to publish or withdraw.');
@@ -78,17 +81,14 @@ export function ListingPublicationPanel({
     }
     try {
       const listingId = publicListingIdSchema.parse(manualListingId.trim());
-      const matching = items.find((item) => item.id === listingId);
-      const currentStatus = matching?.status ?? 'withdrawn';
-      await runCommand(
-        listingId,
-        currentStatus === 'published' ? 'withdraw' : 'publish',
-      );
+      await runCommand(listingId, nextCommand);
     } catch {
       setMessage('Enter a valid listing ID.');
       setMessageTone('error');
     }
   };
+
+  const disableActions = Boolean(busyListingId) || session?.sessionMode === 'demo';
 
   return (
     <section
@@ -104,6 +104,11 @@ export function ListingPublicationPanel({
       <p className='publication-note'>
         Use the existing publication commands for listings already assigned to your organization context.
       </p>
+      {session?.sessionMode === 'demo' ? (
+        <p className='publication-feedback' data-tone='error' role='alert'>
+          Demo portal sessions cannot change listing publication. Sign in with Microsoft Entra before sending publish or withdraw commands.
+        </p>
+      ) : null}
       {items.length === 0 ? (
         <p className='publication-empty'>{emptyState}</p>
       ) : (
@@ -122,7 +127,7 @@ export function ListingPublicationPanel({
                 <span className='status'>{copy.badge}</span>
                 <Button
                   aria-label={`${copy.action} ${listing.title}`}
-                  disabled={Boolean(busyListingId)}
+                  disabled={disableActions}
                   onClick={() => runCommand(listing.id, copy.action.toLowerCase())}
                 >
                   {isBusy ? <><Spinner size='tiny' /> Saving…</> : copy.action}
@@ -132,7 +137,7 @@ export function ListingPublicationPanel({
           })}
         </div>
       )}
-      <form className='manual-listing-form' onSubmit={submitManualListing}>
+      <div className='manual-listing-form'>
         <label htmlFor='manual-listing-id'>Listing ID</label>
         <Input
           id='manual-listing-id'
@@ -144,9 +149,10 @@ export function ListingPublicationPanel({
           Use a trusted listing ID when the portfolio feed is unavailable in this prototype shell.
         </p>
         <div className='manual-listing-actions'>
-          <Button type='submit' appearance='secondary'>Toggle publication by ID</Button>
+          <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'publish')}>Publish by ID</Button>
+          <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'withdraw')}>Withdraw by ID</Button>
         </div>
-      </form>
+      </div>
       {message ? (
         <p
           className='publication-feedback'

@@ -51,7 +51,7 @@ export function readSession() {
   const params = new URLSearchParams(window.location.search);
   const requestedRole = params.get('role');
   if (requestedRole && roles[requestedRole]) {
-    const nextSession = { email: params.get('email') || `demo.${requestedRole}@test.keyforta.com`, role: requestedRole, issuedAt: new Date().toISOString(), token: params.get('token') || `demo-token-${requestedRole}`, organizationId: params.get('organizationId') || '3f2504e0-4f89-41d3-9a0c-0305e82c3301' };
+    const nextSession = { email: params.get('email') || `demo.${requestedRole}@test.keyforta.com`, role: requestedRole, issuedAt: new Date().toISOString(), organizationId: params.get('organizationId') || '3f2504e0-4f89-41d3-9a0c-0305e82c3301', sessionMode: 'demo' };
     localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
     window.history.replaceState({}, '', window.location.pathname);
     return nextSession;
@@ -78,7 +78,7 @@ export function Portal() {
     : 'Assigned listings will appear here after the portfolio feed is available.', [active]);
 
   const login = (role) => {
-    const nextSession = { email: `demo.${role}@test.keyforta.com`, role, issuedAt: new Date().toISOString(), token: `demo-token-${role}`, organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' };
+    const nextSession = { email: `demo.${role}@test.keyforta.com`, role, issuedAt: new Date().toISOString(), organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', sessionMode: 'demo' };
     localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
     setSession(nextSession);
   };
@@ -189,4 +189,3 @@ export function Portal() {
 export function PortalApp() {
   return <FluentProvider theme={webLightTheme}><Portal /></FluentProvider>;
 }
-
