@@ -12,10 +12,19 @@ description: "Reproduce and fix a verified defect with a regression test. Use wh
 ## Procedure
 
 1. Reproduce the failure and trace expected behavior to an authoritative source.
-2. Locate the nearest code path that directly controls the behavior.
-3. Add a regression test that fails for the observed defect.
-4. Apply the smallest root-cause correction while preserving invariants.
-5. Run the focused regression check followed by `pnpm verify`.
+2. Capture **before** evidence of the reproduced failure (command output, log,
+   request/response, or screenshot).
+3. Locate the nearest code path that directly controls the behavior.
+4. Add a regression test that **fails for the observed defect** and record
+   that failing (red) run as evidence.
+5. Apply the smallest root-cause correction while preserving invariants.
+6. Rerun the regression test and confirm it now passes (green); re-reproduce
+   the original failure scenario and capture **after** evidence showing it is
+   fixed.
+7. Run the focused regression check followed by `pnpm verify`.
+8. Include all four artifacts — before evidence, failing (red) test output,
+   after evidence, passing (green) test output — in the pull request
+   description, in that order.
 
 ## Guardrails
 

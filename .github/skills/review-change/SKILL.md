@@ -12,10 +12,17 @@ description: "Perform an independent risk-focused review of a change. Use when a
 ## Procedure
 
 1. Confirm the intended scope and inspect the complete diff.
-2. Review behavior, invariants, failure paths, tests, security, and architecture.
-3. Reproduce suspicious behavior or run the narrowest relevant checks.
-4. Report findings first, ordered by severity with exact file references.
-5. State open questions, test gaps, and residual risk.
+2. Verify the PR description shows, in order: before evidence, a failing (red)
+   test, after evidence, and the same test passing (green) per AGENTS.md's
+   Engineering loop — treat a missing or out-of-order artifact as a blocker.
+   For documentation/process/configuration-only PRs with no executable
+   behavior, accept the documented exception (deterministic before/after
+   check in place of a red/green test) only if it is stated explicitly and
+   the check is reproducible.
+3. Review behavior, invariants, failure paths, tests, security, and architecture.
+4. Reproduce suspicious behavior or run the narrowest relevant checks.
+5. Report findings first, ordered by severity with exact file references.
+6. State open questions, test gaps, and residual risk.
 
 ## Guardrails
 
