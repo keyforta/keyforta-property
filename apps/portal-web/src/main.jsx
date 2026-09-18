@@ -8,6 +8,7 @@ import {
   webLightTheme,
 } from "@fluentui/react-components";
 import { AppBrand, MetricCard } from "@keyforta/ui";
+import { PropertySetup } from "./PropertySetup.jsx";
 import "./styles.css";
 
 const SESSION_KEY = "keyforta.portal.session";
@@ -249,6 +250,7 @@ function Portal() {
   }
 
   const role = roles[session.role] || roles.tenant;
+  const showPropertySetup = session.role === "landlord" && active === "Properties";
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -271,7 +273,9 @@ function Portal() {
         </Button>
       </aside>
       <main className="main">
-        <header className="topbar">
+        {showPropertySetup ? (
+          <PropertySetup />
+        ) : <><header className="topbar">
           <div>
             <p className="kicker">{role.eyebrow}</p>
             <h1>{active === "Overview" ? role.title : active}</h1>
@@ -341,7 +345,7 @@ function Portal() {
                 <Button
                   key={action}
                   appearance="outline"
-                  onClick={() => complete(action)}
+                  onClick={() => action === "Add a property" ? setActive("Properties") : complete(action)}
                 >
                   <span>{action[0]}</span>
                   {completedAction === action ? "Saved" : action}
@@ -357,6 +361,7 @@ function Portal() {
             </div>
           </aside>
         </section>
+        </>}
       </main>
     </div>
   );
