@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
 import {
   Avatar,
-  Badge,
   Button,
   FluentProvider,
   webLightTheme,
 } from '@fluentui/react-components';
-import { AppBrand, MetricCard } from '@keyforta/ui';
+import { AppBrand } from '@keyforta/ui';
 import './styles.css';
 import { ListingPublicationPanel } from './listing-publication-panel.jsx';
 
@@ -18,26 +17,26 @@ export const roles = {
     title: 'Everything about your home, in one place.',
     summary: 'Track your application, lease, payments, maintenance, documents, and messages.',
     nav: ['Overview', 'My lease', 'Payments', 'Maintenance', 'Documents', 'Messages'],
-    stats: [['Next rent', '$400', 'Due in 8 days'], ['Lease', 'Active', 'Riverside apartment'], ['Open request', '1', 'Water pump inspection']],
-    rows: [['Maintenance request', 'Water pump inspection', 'In progress', 'Maintenance'], ['Payment', 'May rent · receipt #KF-1042', 'Recorded', 'Payments'], ['Message', 'Manager replied about your viewing', 'New', 'Messages']],
+    statsEmptyState: 'Lease, payment, and maintenance summaries will appear here once the tenant read APIs are available.',
+    rowsEmptyState: 'Recent maintenance, payment, and message activity will appear here once the tenant read APIs are available.',
   },
   landlord: {
     label: 'Landlord', eyebrow: 'Owner workspace', title: 'A clear view of your property portfolio.', summary: 'Manage properties, units, applications, leases, rent, maintenance, documents, and your manager relationships.',
     nav: ['Overview', 'Properties', 'Applications', 'Leases', 'Payments', 'Maintenance', 'Documents', 'Messages'],
-    stats: [['Properties', '3', 'Kinshasa portfolio'], ['Occupancy', '83%', '5 of 6 units'], ['Collected', '$1,850', 'This month'], ['Open maintenance', '2', 'Needs attention']],
-    rows: [['Rental application', 'Riverside apartment · Amina K.', 'Awaiting review', 'Applications'], ['Payment', 'May rent · 5 occupied units', 'Reconciled', 'Payments'], ['Manager invitation', 'Patrick M. · Property manager', 'Pending acceptance', 'Messages']],
+    statsEmptyState: 'Portfolio, occupancy, and collections summaries will appear here once the landlord read APIs are available.',
+    rowsEmptyState: 'Recent applications, payments, and manager invitations will appear here once the landlord read APIs are available.',
   },
   manager: {
     label: 'Property manager', eyebrow: 'Operations workspace', title: 'Coordinate the work behind every home.', summary: 'Operate the assigned portfolio while keeping applications, occupants, payments, maintenance, documents, and communication connected.',
     nav: ['Overview', 'Portfolio', 'Applications', 'Occupancy', 'Payments', 'Work orders', 'Documents', 'Messages'],
-    stats: [['Assigned units', '14', 'Across 4 properties'], ['Applications', '3', 'Waiting for review'], ['Open work orders', '4', 'Across 3 properties'], ['Payments', '5', 'To reconcile']],
-    rows: [['Application', 'Amina K. · Riverside apartment', 'Review required', 'Applications'], ['Work order', 'Generator maintenance · Gombe', 'Assigned', 'Work orders'], ['Document', 'Ownership evidence · Limete', 'Needs review', 'Documents']],
+    statsEmptyState: 'Assigned units, applications, work orders, and payment summaries will appear here once the manager read APIs are available.',
+    rowsEmptyState: 'Recent applications, work orders, and documents will appear here once the manager read APIs are available.',
   },
   operator: {
     label: 'Independent maintenance operator', eyebrow: 'Field workspace', title: 'Move every assigned job forward.', summary: 'Offer your services across properties, then manage only the jobs, access windows, quotes, reports, and evidence assigned to you.',
     nav: ['Overview', 'Service offers', 'Work orders', 'Schedule', 'Quotes', 'Reports', 'Earnings', 'Profile'],
-    stats: [['Assigned jobs', '3', 'Across 2 properties'], ['Today', '2 visits', 'One confirmed'], ['Quotes', '1', 'Due before 17:00'], ['Earnings', '$1,240', 'This month']],
-    rows: [['Work order', 'Water pump inspection · Ngaliema', 'Assigned', 'Work orders'], ['Visit', 'Generator maintenance · Gombe', 'Today, 14:00–15:00', 'Schedule'], ['Quote', 'Pump materials and labor', 'Draft', 'Quotes']],
+    statsEmptyState: 'Assigned jobs, today\u2019s schedule, quotes, and earnings summaries will appear here once the operator read APIs are available.',
+    rowsEmptyState: 'Recent work orders, visits, and quotes will appear here once the operator read APIs are available.',
   },
 };
 export const actions = {
@@ -142,27 +141,15 @@ export function Portal() {
           </div>
         </header>
         <section className='stats'>
-          {role.stats.map(([label, value, note]) => (
-            <MetricCard key={label} className='stat' label={label} value={value} note={note} />
-          ))}
+          <p className='muted stats-empty-state' data-testid='stats-empty-state'>{role.statsEmptyState}</p>
         </section>
         <section className='content-grid'>
           {showListingPublication ? <ListingPublicationPanel emptyState={listingPublicationEmptyState} listings={managerListings} session={session} /> : null}
           <article className='panel table-panel'>
             <div className='panel-head'>
               <div><p className='kicker'>Activity</p><h2>Needs your attention</h2></div>
-              <Button className='quiet' appearance='subtle' onClick={() => complete('New action')}>{completedAction === 'New action' ? 'Saved' : 'New action'}</Button>
             </div>
-            <div className='rows'>
-              {role.rows.map(([type, title, status, destination]) => (
-                <Button key={title} className='record-row' appearance='transparent' onClick={() => setActive(destination)}>
-                  <span className='record-type'>{type}</span>
-                  <span className='record-copy'><strong>{title}</strong><small>{destination}</small></span>
-                  <Badge appearance='tint' className='status'>{status}</Badge>
-                  <span className='chevron'>›</span>
-                </Button>
-              ))}
-            </div>
+            <p className='muted' data-testid='rows-empty-state'>{role.rowsEmptyState}</p>
           </article>
           <aside className='panel quick-panel'>
             <p className='kicker'>Quick actions</p>

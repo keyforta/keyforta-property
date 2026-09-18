@@ -365,7 +365,7 @@ flowchart LR
     J["Manager assigned-property workspace [API]"]
     K["Operator assigned-work workspace [MOCK]"]
     L["Platform admin onboarding console [UI]"]
-    M["Role workspace shell and sample records [MOCK]"]
+    M["Role workspace shell with honest empty states pending read APIs [MOCK]"]
   end
 
   A --> B
