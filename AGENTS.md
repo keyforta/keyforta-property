@@ -40,7 +40,11 @@ in this repository.
 Every pull request must show four things, in this order, in its description:
 **before (broken) evidence → failing test (red) → after (working) evidence →
 passing test (green)**. A PR that only shows the "after" state is incomplete.
-Reviewers must reject PRs missing any of the four.
+Reviewers must reject PRs missing any of the four. CI enforces this
+automatically: `pnpm check:pr-evidence` (`scripts/verify/pr-evidence.mjs`)
+parses the pull request description and fails the build if a required section
+is missing, empty, or out of order — the PR template alone is guidance and
+can be edited or bypassed by an author, so this script is the actual gate.
 
 **Documentation/process/configuration-only exception:** when a change has no
 executable behavior to test (e.g. editing `AGENTS.md`, a skill file, an agent

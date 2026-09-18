@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { checkArchitecture } from "./architecture-boundaries.mjs";
 import { validateMermaidDocuments } from "./mermaid-diagrams.mjs";
+import { checkPrEvidence } from "./pr-evidence.mjs";
 import { scanSecrets } from "./secret-scan.mjs";
 
 function withTemporaryFile(source, assertion) {
@@ -79,4 +80,77 @@ test("Mermaid checker fails closed on an unclosed fence", async () => {
       `${file} diagram 1 at line 1: unclosed Mermaid fence`,
     ]);
   });
+});
+test("PR evidence checker rejects a description missing all sections", () => {
+  const violations = checkPrEvidence("## Summary\nJust a summary, no evidence.");
+  assert.ok(violations.length > 0);
+  assert.ok(violations.some((v) => v.includes("Before evidence")));
+  assert.ok(violations.some((v) => v.includes("Failing test (red)")));
+});
+
+test("PR evidence checker rejects sections out of order", () => {
+  const body = [
+    "## Before evidence",
+    "curl returns 404",
+    "## After evidence",
+    "curl returns 200",
+    "## Failing test (red)",
+    "test fails",
+    "## Passing test (green)",
+    "test passes",
+  ].join("\n");
+  const violations = checkPrEvidence(body);
+  assert.ok(violations.some((v) => v.includes("out of order")));
+});
+
+test("PR evidence checker rejects placeholder-only sections", () => {
+  const body = [
+    "## Before evidence",
+    "<!-- fill in -->",
+    "## Failing test (red)",
+    "some red output",
+    "## After evidence",
+    "some after output",
+    "## Passing test (green)",
+    "some green output",
+  ].join("\n");
+  const violations = checkPrEvidence(body);
+  assert.ok(violations.some((v) => v.includes('Section "before"')));
+});
+
+test("PR evidence checker accepts a compliant four-part description", () => {
+  const body = [
+    "## Before evidence",
+    "GET /api/v1/thing -> 404",
+    "## Failing test (red)",
+    "1 failing",
+    "## After evidence",
+    "GET /api/v1/thing -> 200",
+    "## Passing test (green)",
+    "1 passing",
+  ].join("\n");
+  assert.deepEqual(checkPrEvidence(body), []);
+});
+
+test("PR evidence checker honors the documentation-only exception (no red/green required)", () => {
+  const body = [
+    "- [x] This is a documentation/process/configuration-only change with no executable behavior (red/green test replaced by a deterministic before/after check below).",
+    "## Before evidence",
+    "grep finds no match on origin/main",
+    "## After evidence",
+    "grep finds a match on this branch",
+  ].join("\n");
+  assert.deepEqual(checkPrEvidence(body), []);
+});
+
+test("PR evidence checker still requires before/after content under the exception", () => {
+  const body = [
+    "- [x] This is a documentation/process/configuration-only change with no executable behavior (red/green test replaced by a deterministic before/after check below).",
+    "## Before evidence",
+    "<!-- fill in -->",
+    "## After evidence",
+    "<!-- fill in -->",
+  ].join("\n");
+  const violations = checkPrEvidence(body);
+  assert.ok(violations.length > 0);
 });

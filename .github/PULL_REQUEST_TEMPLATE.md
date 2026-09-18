@@ -1,7 +1,10 @@
 <!--
 Per AGENTS.md "Engineering loop": every PR must show, in this order,
 (1) before evidence, (2) a failing (red) test, (3) after evidence,
-(4) the same test passing (green). Reviewers must reject PRs missing any of these.
+(4) the same test passing (green). This is enforced by CI
+(`pnpm check:pr-evidence`, scripts/verify/pr-evidence.mjs), which fails the
+build if a required section is missing, empty, or out of order. Reviewers
+must also reject PRs missing any of these.
 
 Documentation/process/configuration-only change with no executable behavior?
 Check the box below, delete "Failing test (red)" / "Passing test (green)",

@@ -54,6 +54,12 @@ jobs:
       - name: Validate repository
         run: pnpm verify
 
+      - name: Validate PR description evidence
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: pnpm check:pr-evidence
+
       - name: Compile Bicep
         run: |
           find infra/bicep -type f -name '*.bicep' -print0 | while IFS= read -r -d '' bicep_file; do

@@ -16,6 +16,7 @@
     "check:architecture": "node scripts/verify/architecture-boundaries.mjs",
     "check:diagrams": "node scripts/verify/mermaid-diagrams.mjs docs infra/README.md",
     "check:secrets": "node scripts/verify/secret-scan.mjs",
+    "check:pr-evidence": "node scripts/verify/pr-evidence.mjs",
     "build:apps": "pnpm --recursive run build",
     "test": "turbo run test",
     "storybook": "turbo run storybook",
