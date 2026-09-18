@@ -38,8 +38,10 @@ The following invariants are mandatory:
 2. Client-supplied organization, Property, Unit, actor, or assignment IDs never
    establish authority.
 3. Money uses integer minor units and an explicit ISO 4217 currency. Binary
-   floating point is prohibited, and JSON transports encode minor units as
-   base-10 strings so the full signed 64-bit range remains lossless.
+   floating point is prohibited. The current OpenAPI runtime wire contract
+   remains authoritative for JSON `Money.amountMinor` representation; any
+   lossless base-10 string encoding requires a separately approved versioned
+   wire contract.
 4. Pricing history is effective-dated and append-only. Later pricing never
    changes accepted or signed lease terms.
 5. Occupied Units cannot be advertised as available.
