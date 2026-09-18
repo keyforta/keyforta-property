@@ -22,6 +22,24 @@ An accepted tenant can enter an authenticated access-confirmation workspace.
 Lease, payment, receipt, and maintenance views remain unavailable until their
 tenant-scoped contracts and authorization tests are implemented.
 
+## Pre-launch v1.0 compatibility policy
+
+KEYFORTA has not launched v1.0 and has no production/customer dataset or
+external client version to preserve. Product, contract, API, data, web, test,
+and operations work must not add or retain legacy aliases, duplicate payload
+shapes, transitional profile states, grandfathered synthetic records, route
+redirects, dual-write models, or N-1 application/data behavior solely for
+backward compatibility. Existing examples, demonstrations, and synthetic rows
+may be removed through an explicit, authorized non-production reset that first
+proves no production/customer data is present.
+
+This policy does not authorize rewriting applied migrations or deleting future
+production/customer records. Forward-only migration history, immutable business
+and audit history, provider-protocol interoperability, security fail-closed
+behavior, disaster recovery, and rollback to an artifact proven compatible with
+the current schema remain required safety controls rather than backward
+compatibility.
+
 ## In scope
 
 - Organization, user, role, property, and unit records

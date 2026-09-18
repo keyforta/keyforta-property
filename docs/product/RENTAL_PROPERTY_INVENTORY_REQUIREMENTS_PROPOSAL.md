@@ -1,8 +1,19 @@
-# Rental Property and Unit Core Profile v1
+# Rental Property and Unit Core Profile v1.0
 
-**Status:** Approved by the Product Owner on 2026-09-17; implementation pending
+**Status:** Approved v1.0; pre-launch scope clarified by the Product Owner on 2026-09-17; implementation pending
 
 **Approved requirement IDs:** REQ-032 through REQ-036
+
+## Clarification history
+
+- v1.0 was approved on 2026-09-17 with schema-0021 transitional profiles and
+   grandfathered-listing compatibility requirements.
+- The v1.0 pre-launch clarification records that KEYFORTA has no
+   launched v1 customer dataset. Synthetic and development records are not a
+   compatibility boundary and may be reset through an explicit, controlled
+   non-production database reinitialization. Migration history remains
+   forward-only; this amendment does not authorize reversing an applied migration
+   or deleting production/customer data if such data is later introduced.
 
 ## 1. Product outcome
 
@@ -114,10 +125,7 @@ The structured address contains required `avenueOrStreet`, `number`, `quartier`,
 `commune`, `city`, `province`, and `countryCode`; `postalCode` is optional because
 the approved application contract already permits it to be absent. Each textual
 component is trimmed and bounded to 160 characters. `countryCode` is an ISO 3166-1
-alpha-2 code. New commands do not create a duplicate raw-address field. A legacy
-free-text address retained during migration is Restricted exact-location data;
-it is excluded from ordinary reads, search, logs, and public projections and is
-kept only until an approved retention rule permits removal.
+alpha-2 code. V1.0 does not create or retain a duplicate raw-address field.
 
 Coordinates, geocoding, building/floor hierarchy, and multilingual Property
 descriptions are excluded from v1 until their provider, precision, provenance,
@@ -197,9 +205,8 @@ and correlation ID. Lease and occupancy periods are separate authoritative
 records and may overlap a previously recorded Unit-availability interval; the
 derived current status is `occupied` whenever an occupancy applies, otherwise
 the Unit interval applies. Manual commands cannot override occupancy. Automated
-or manual reservations are out of scope. Existing persisted `reserved` values
-are `legacy_incomplete` and require explicit evidence-backed repair to
-`available` or `unavailable`; no inference is allowed.
+or manual reservations are out of scope. `reserved` is not a valid v1
+Unit-availability value and is rejected.
 
 The public `availableFrom` remains an ISO calendar date. If currently available,
 it is today's date in the Property time zone. If temporarily unavailable, it is
@@ -229,21 +236,21 @@ moderation, rights, EXIF/location stripping, derivative isolation, cache
 invalidation, takedown, retention, anti-hotlink, cost, and abuse controls.
 Person-associated disability or accommodation data is never an amenity.
 
-PublicListing rows already in `published` state at the core-v1 migration baseline
-and their current image URLs are grandfathered as read-only compatibility data
-and remain publicly readable until withdrawn or otherwise ineligible. Their
-image URLs cannot be changed or copied into authoritative media records.
-Withdrawal remains available and removes public eligibility immediately. Draft,
-reserved, rented, or withdrawn baseline listings cannot publish or republish,
-and new PublicListing creation remains disabled, until the source profiles are
-complete and the media activation requirement is approved and implemented.
+Pre-launch synthetic PublicListing rows and image URLs are not compatibility
+data. An approved non-production reset may remove them before the v1 schema is
+initialized. New PublicListing creation and publication remain disabled until
+the source profiles are complete and the media activation requirement is
+approved and implemented.
 
-The existing anonymous public-list and detail contracts remain byte-shape
-compatible. The mapping is listing `slug` to `id`, listing `title` to `name`,
-listing `summary` to `summary`, `district` to both the legacy `address` and
-`district` fields, plus `city`, integer `bedrooms`, integer `bathrooms`, optional
-integer `areaSquareMeters`, decimal-string `monthlyRentMinor`, `currency`,
-`availableFrom`, existing amenity labels, `imageUrls`, and first `imageUrl`.
+The v1.0 PublicListing snapshot uses one canonical representation for each
+value: listing `slug` to `id`, listing `title` to `name`, listing `summary` to
+`summary`, and approximate location to `district`, plus `city`, integer
+`bedrooms`, integer `bathrooms`, optional integer `areaSquareMeters`,
+decimal-string `monthlyRentMinor`, `currency`, `availableFrom`, approved amenity
+labels, and `imageUrls`. Compatibility-only `address` and `imageUrl` aliases are
+not part of the snapshot contract. The already implemented anonymous endpoint
+shape is removed in the separately reviewed API and web cleanup before v1.0
+release rather than supported as a second long-lived representation.
 No private field is rounded, truncated, or substituted to satisfy that mapping;
 incompatible inventory is simply ineligible for publication.
 
@@ -316,18 +323,18 @@ renumbering existing evidence.
 | PROP-009 | An active landlord atomically creates a private Property and its first valid Unit; organization, versions, actor, correlation, and audit data are server-derived and neither record is public | Contract, API, database, and audit tests |
 | PROP-010 | For Property, Unit, pricing, availability, listing, archive, and business-history paths, same-organization authorized access succeeds while absent context, inactive or revoked authority, guessed or cross-organization IDs, tenants, and unscoped platform/support actors receive the approved nondisclosing denial; scoped verifier/support grants prove independent approval, field minimization, customer visibility, expiry, revocation, and audited use | Authorization, API, RLS, grant-lifecycle, and time-controlled tests |
 | PROP-011 | A Unit requires a same-organization Property; a duplicate Unicode-normalized, trimmed, case-folded label within that Property is rejected for active and archived history while the same label in another Property is allowed | Domain, database, and Unicode-boundary tests |
-| PROP-012 | Publication eligibility evaluates true only when the Property is `complete`, verification is persisted as `verified`, inventory publication is `published`, and it is not archived; the Unit is `complete`, inventory publication is `published`, derived availability is `available`, and it is not archived; a current PricingVersion and approved media exist; and the actor is the active listing manager. Before media activation, publish and republish commands fail regardless of eligibility and leave state and snapshot unchanged | State-machine, authorization, transaction, and public-projection tests |
-| PROP-013 | A pricing change closes the prior open `[from,to)` interval once, inserts a non-overlapping integer-minor-unit version, deterministically resolves current and future prices, and leaves prior amounts, published snapshots, and signed lease terms unchanged | Domain, boundary, database, and compatibility tests |
+| PROP-012 | Publication eligibility evaluates true only when the Property satisfies the strict required v1.0 profile, verification is persisted as `verified`, inventory publication is `published`, and it is not archived; the Unit satisfies the strict required v1.0 profile, inventory publication is `published`, derived availability is `available`, and it is not archived; a current PricingVersion and approved media exist; and the actor is the active listing manager. Before jurisdiction and media activation, publish and republish commands fail regardless of eligibility and leave state and snapshot unchanged | State-machine, authorization, transaction, and public-projection tests |
+| PROP-013 | A pricing change closes the prior open `[from,to)` interval once, inserts a non-overlapping integer-minor-unit version, deterministically resolves current and future prices, and leaves prior amounts, published snapshots, and signed lease terms unchanged | Domain, boundary, database, and contract tests |
 | PROP-014 | An expected-version mismatch loses without overwrite. Within one actor, operation, and request scope, replay of the same idempotency key and payload returns the original result, while reuse with a different payload returns conflict; concurrent losers create no business mutation or success event | API, concurrency, idempotency, outbox, and audit tests |
 | PROP-015 | Anonymous list/detail responses contain only the approved projection, regardless of authentication or gateway over-return, and never expose restricted fields | Contract, API, privacy, and browser tests |
 | PROP-016 | Unit archive rejects the last active Unit, guarded lease/occupancy states, and every post-archive command. Eligible Unit archive withdraws its listing; eligible Property archive withdraws all listings and archives all Units atomically while preserving historical references | Domain, transition-table, transaction, API, and history tests |
-| PROP-017 | From schema 0021, additive upgrade leaves legacy profiles explicitly incomplete and existing public snapshots unchanged; no ambiguous listing value is copied into operational truth; failed migration leaves no ledger or partial DDL; the immediately preceding production-approved application image remains compatible for one deployment rollback window; database correction is forward-only | Migration, N-1 application-rollback, forward-correction, and contract tests |
+| PROP-017 | Before v1 launch, the migration owner proves the environment contains no production/customer records, performs any approved synthetic-data reset explicitly, and applies the complete v1 schema through checksummed forward migration. A failed migration leaves no ledger or partial DDL; correction remains forward-only | Migration, empty-state, reset-guard, forward-correction, and contract tests |
 | PROP-018 | At 320, 768, and 1280 CSS pixels and 200% zoom, the editor exposes loading, empty, validation, retryable error, denied, conflict, saved, archived, and offline states without overlap; keyboard and VoiceOver/Safari evidence verifies focus and announcements | Component, accessibility, and browser tests plus manual evidence |
-| PROP-019 | Before media activation, schema upgrade preserves already-published baseline listing read and withdraw behavior through a pre-upgrade published-listing compatibility predicate that still matches when legacy Property and Unit operational fields default to `draft` and `unavailable`, without copying ambiguous listing values into Property or Unit operational truth and with unchanged image URLs; baseline `draft`, `reserved`, `rented`, and `withdrawn` publication or republication, image mutation, and new PublicListing creation are rejected | Contract, API, database migration, N-1 compatibility, and browser regression tests proving a schema-0017 published listing remains list/detail readable and withdrawable after upgrade |
+| PROP-019 | Before media activation, new PublicListing creation, publication, republication, and image mutation are rejected without partial state or snapshot changes. An approved pre-launch reset removes synthetic listing/media records rather than promoting them into v1 authority | Contract, API, database reset-guard, transaction, and browser tests |
 | PROP-020 | Every required field rejects missing, null, whitespace-only, unknown-enum, and above-maximum input; numeric fields accept exact lower/upper bounds and reject values outside them; unknown object fields are rejected | Contract boundary and property-based tests |
-| PROP-021 | Unit-availability intervals reject overlap and invalid boundaries; occupancy overrides Unit availability without rewriting it; legacy `reserved` requires explicit repair; `availableFrom` maps to the Property-local date for current/future availability and unknown future availability is ineligible | Domain, database, clock/time-zone, migration, and concurrency tests |
-| PROP-022 | Public list, detail, inquiry, cache, export, logs, and telemetry never expose exact address, legacy raw address, internal IDs, occupancy reasons, or security/audit content; customer-safe history exposes only approved display actor/role, purpose, state, reason, and time | API, privacy, logging, export, and browser tests |
-| PROP-023 | Public catalogue preserves the existing `limit` range of 1-100, omitted-value default of 20, and response field allowlist. Before external beta, a separately approved abuse-control policy defines distributed enforcement and failure behavior, trusted source derivation and forwarded-header handling, key rotation and retention, privacy boundaries across application and platform telemetry, request-counting and `Retry-After` semantics, enumeration signals, operational ownership, response runbook, rollout stop conditions, and a reversible disable path | Contract compatibility tests plus approved policy, privacy review, load evidence, multi-replica tests, and operational exercise before external beta |
+| PROP-021 | Unit-availability intervals reject overlap, invalid boundaries, and unsupported states; occupancy overrides Unit availability without rewriting it; `availableFrom` maps to the Property-local date for current/future availability and unknown future availability is ineligible | Domain, database, clock/time-zone, migration, and concurrency tests |
+| PROP-022 | Public list, detail, inquiry, cache, export, logs, and telemetry never expose exact address, internal IDs, occupancy reasons, or security/audit content; customer-safe history exposes only approved display actor/role, purpose, state, reason, and time | API, privacy, logging, export, and browser tests |
+| PROP-023 | Public catalogue uses a `limit` range of 1-100, omitted-value default of 20, and the approved response field allowlist. Before external beta, a separately approved abuse-control policy defines distributed enforcement and failure behavior, trusted source derivation and forwarded-header handling, key rotation and retention, privacy boundaries across application and platform telemetry, request-counting and `Retry-After` semantics, enumeration signals, operational ownership, response runbook, rollout stop conditions, and a reversible disable path | Contract tests plus approved policy, privacy review, load evidence, multi-replica tests, and operational exercise before external beta |
 
 ### Requirement-to-acceptance crosswalk
 
@@ -352,41 +359,19 @@ building/floor aggregates, and destructive deletion of inventory history.
 - Implementation requires a versioned shared contract, named API commands,
   authorization matrices, forward-only PostgreSQL migrations, composite
   organization foreign keys, forced RLS, immutable audit/outbox evidence, and
-  public-contract compatibility tests.
-- Existing `public_listings` data remains a compatibility projection during
-  migration. No implementation may silently treat conflicting listing values as
-  authoritative Property, Unit, pricing, or address facts.
-- The migration records pre-upgrade PublicListing rows with `status = published`
-  and non-null `published_at` as the only grandfathered public-read set.
-  Grandfathering preserves list/detail and authorized withdraw behavior without
-  mutating image URLs or deriving Property/Unit `publicationStatus`,
-  `verificationStatus`, or availability from snapshot data. Regression evidence
-  must seed a published baseline row that would otherwise become ineligible
-  under the new `published`/`available` predicate and prove it remains readable
-  and withdrawable after the upgrade; non-published baseline rows remain
-  ineligible.
-- Schema 0021 is the supported expansion baseline. New typed columns are first
-  nullable for existing rows, while new create commands enforce the complete
-   profile. Existing rows receive an explicit `legacy_incomplete` repair status
-   and remain visible in authorized operational reads; existing published listing
-   snapshots remain unchanged. They cannot be newly verified, republished, or
-   materially edited until an authorized completion command supplies every
-   required field.
-- Property and Unit each store server-managed `profileStatus` as
-   `legacy_incomplete` or `complete`. `CompleteLegacyPropertyProfile` and
-   `CompleteLegacyUnitProfile` require expected version and every missing field;
-   each command is atomic for one aggregate. If a legacy Property has no Unit,
-   completing it atomically creates its first Unit. Completion cannot change
-   lifecycle, verification, listing, pricing, or public state.
-- Backfill copies only deterministic values from the owning operational row.
-   Listing snapshots never win conflicts and remain public compatibility data.
-   The migration emits a bounded repair report containing record IDs and missing
-   field codes, never sensitive values. It must not infer address components,
-   type, accessibility, amenity, ownership, jurisdiction, or verification claims.
-- Required-column constraints are validated only after no `legacy_incomplete`
-   rows remain. Every migration is atomic and checksummed. Application rollback
-   means deploying the previous compatible image; database rollback means a later
-   reviewed forward correction, never reversing an applied migration.
+   public-contract tests.
+- Before any pre-launch reset, the migration owner verifies and records that the
+   target contains no production/customer records. The reset fails closed if
+   that condition is not proven and never runs as ordinary application startup
+   behavior.
+- Synthetic Property, Unit, listing, pricing, availability, and media records may
+   be discarded during that approved non-production reset. No synthetic listing
+   or free-text address is promoted into authoritative v1 data.
+- V1 tables enforce complete required columns immediately after initialization;
+   no `legacy_incomplete` profile state, completion command, grandfathered
+   listing predicate, or N-1 data compatibility path is required.
+- Every migration remains atomic and checksummed. Database correction means a
+   later reviewed forward migration, never reversing an applied migration.
 - Media activation requires separately approved storage, malware scanning,
    moderation, rights, private-origin authorization, EXIF/location stripping,
    derivative isolation, delivery, cache invalidation, takedown, anti-hotlink,
@@ -399,7 +384,7 @@ building/floor aggregates, and destructive deletion of inventory history.
    labels; assign an operational owner and runbook; and provide load evidence,
    rollout stop conditions, and a reversible disable path. The current
    per-replica limiter is not evidence of distributed enforcement.
-- Property, Unit, legacy raw-address, PricingVersion, availability, business
+- Property, Unit, PricingVersion, availability, business
    history, and future amenity/media records are distinct retention classes.
    Legal holds and immutable financial/lease evidence take precedence. Until
    record-specific periods are approved, no automated deletion or anonymization
@@ -411,6 +396,8 @@ building/floor aggregates, and destructive deletion of inventory history.
    that exceeds an approved threshold aborts without a partial ledger entry.
 
 ## 9. Product Owner decision
+
+### 9.1 Historical initial approval record (superseded where noted below)
 
 Product Owner approval on 2026-09-17 confirms:
 
@@ -439,3 +426,29 @@ Product Owner approval on 2026-09-17 confirms:
 This approval defines product requirements; it does not claim implementation or
 supersede the OpenAPI runtime contract or executable schema. Delivery requires
 separately reviewed contract, migration, API, interface, and verification work.
+
+### 9.2 Pre-launch v1.0 clarification
+
+Product Owner clarification on 2026-09-17 confirms that KEYFORTA v1 has not
+launched and no production/customer rental-inventory data requires backward
+compatibility. The compatibility portions of initial-decision items 4, 5, 6, and 8
+are superseded as follows:
+
+1. `reserved` is rejected as an unsupported v1 Unit-availability state; no
+   legacy repair workflow is required.
+2. Synthetic existing listings and image URLs are not grandfathered. They may be
+   removed only through the controlled non-production reset described above.
+3. `legacy_incomplete`, profile-completion commands, baseline publication
+   predicates, and N-1 data compatibility are removed from v1 scope.
+4. The canonical PublicListing snapshot excludes compatibility-only `address`
+   and `imageUrl` aliases. The existing anonymous endpoint, OpenAPI, API gateway,
+   and web consumers must move together to that one v1.0 representation before
+   release; there is no externally launched version to preserve.
+5. Jurisdiction remains required before verification, but the shared Property
+   contract rejects `jurisdictionCode`, `verified`, and `published` Property
+   states until the approved policy catalogue and verification vocabulary are
+   defined.
+
+This amendment does not weaken organization isolation, public-field privacy,
+forward-only migration history, auditability, or the prohibition on destructive
+handling of future production/customer data.
