@@ -50,11 +50,12 @@ describe('Portal', () => {
     expect(window.location.search).toBe('');
   });
 
-  it('navigates activity destinations and resets after sign out', () => {
+  it('shows honest empty states instead of fabricated stats/activity, and resets after sign out', () => {
     localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'demo.landlord@test.keyforta.com', role: 'landlord', issuedAt: '2026-09-18T00:00:00.000Z' }));
     renderPortal();
-    fireEvent.click(screen.getByRole('button', { name: /Riverside apartment · Amina K\./ }));
-    expect(screen.getByRole('heading', { name: 'Applications' })).toBeInTheDocument();
+    expect(screen.getByTestId('stats-empty-state')).toHaveTextContent('once the landlord read APIs are available');
+    expect(screen.getByTestId('rows-empty-state')).toHaveTextContent('once the landlord read APIs are available');
+    expect(screen.queryByText(/Amina K\./)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(screen.getByRole('heading', { name: 'Sign in to continue.' })).toBeInTheDocument();
   });
