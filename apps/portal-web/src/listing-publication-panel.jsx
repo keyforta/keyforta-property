@@ -1,25 +1,17 @@
 import { useMemo, useState } from 'react';
-import { Badge, Button, Input, Spinner } from '@fluentui/react-components';
+import { Button, Input, Spinner } from '@fluentui/react-components';
 import { createApiClient } from '@keyforta/api-client';
 import {
   publicListingIdSchema,
   publicListingPublicationEnvelopeSchema,
 } from '@keyforta/contracts';
 
-export const demoManagerListings = [
-  {
-    id: '6d5f0d4f-e7ca-4c96-b67b-513f871f3f1a',
-    title: 'Riverside apartment · Unit 2A',
-    status: 'withdrawn',
-    note: 'Ready to publish once photos and pricing are confirmed.',
-  },
-  {
-    id: '10b5c5ca-4daf-4df7-afb3-8a8a9698f0e1',
-    title: 'Garden residence · Unit 1B',
-    status: 'published',
-    note: 'Currently visible to public visitors.',
-  },
-];
+function createListingPublicationClient(session) {
+  return createApiClient({
+    getOrganizationId: () => session?.organizationId ?? null,
+    getToken: () => session?.token ?? null,
+  });
+}
 
 function statusCopy(status) {
   return status === 'published'
@@ -35,14 +27,11 @@ function statusCopy(status) {
       };
 }
 
-function createListingPublicationClient(session) {
-  return createApiClient({
-    getOrganizationId: () => session?.organizationId ?? null,
-    getToken: () => session?.token ?? null,
-  });
-}
-
-export function ListingPublicationPanel({ session, listings = demoManagerListings }) {
+export function ListingPublicationPanel({
+  emptyState = 'Assigned listings will appear here after the portfolio feed is available.',
+  listings,
+  session,
+}) {
   const apiClient = useMemo(() => createListingPublicationClient(session), [session]);
   const [items, setItems] = useState(listings);
   const [busyListingId, setBusyListingId] = useState('');
@@ -115,30 +104,34 @@ export function ListingPublicationPanel({ session, listings = demoManagerListing
       <p className='publication-note'>
         Use the existing publication commands for listings already assigned to your organization context.
       </p>
-      <div className='rows' role='list' aria-label='Assigned listings'>
-        {items.map((listing) => {
-          const copy = statusCopy(listing.status);
-          const isBusy = busyListingId === listing.id;
-          return (
-            <div key={listing.id} className='listing-row' role='listitem'>
-              <div className='listing-copy'>
-                <strong>{listing.title}</strong>
-                <span className='listing-id'>{listing.id}</span>
-                <span className='listing-meta'>{copy.detail}</span>
-                <span className='listing-note'>{listing.note}</span>
+      {items.length === 0 ? (
+        <p className='publication-empty'>{emptyState}</p>
+      ) : (
+        <div className='rows' role='list' aria-label='Assigned listings'>
+          {items.map((listing) => {
+            const copy = statusCopy(listing.status);
+            const isBusy = busyListingId === listing.id;
+            return (
+              <div key={listing.id} className='listing-row' role='listitem'>
+                <div className='listing-copy'>
+                  <strong>{listing.title}</strong>
+                  <span className='listing-id'>{listing.id}</span>
+                  <span className='listing-meta'>{copy.detail}</span>
+                  <span className='listing-note'>{listing.note}</span>
+                </div>
+                <span className='status'>{copy.badge}</span>
+                <Button
+                  aria-label={`${copy.action} ${listing.title}`}
+                  disabled={Boolean(busyListingId)}
+                  onClick={() => runCommand(listing.id, copy.action.toLowerCase())}
+                >
+                  {isBusy ? <><Spinner size='tiny' /> Saving…</> : copy.action}
+                </Button>
               </div>
-              <Badge appearance='tint' className='status'>{copy.badge}</Badge>
-              <Button
-                aria-label={`${copy.action} ${listing.title}`}
-                disabled={Boolean(busyListingId)}
-                onClick={() => runCommand(listing.id, copy.action.toLowerCase())}
-              >
-                {isBusy ? <><Spinner size='tiny' /> Saving…</> : copy.action}
-              </Button>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
       <form className='manual-listing-form' onSubmit={submitManualListing}>
         <label htmlFor='manual-listing-id'>Listing ID</label>
         <Input
@@ -147,6 +140,9 @@ export function ListingPublicationPanel({ session, listings = demoManagerListing
           placeholder='Paste a listing UUID'
           value={manualListingId}
         />
+        <p className='publication-note'>
+          Use a trusted listing ID when the portfolio feed is unavailable in this prototype shell.
+        </p>
         <div className='manual-listing-actions'>
           <Button type='submit' appearance='secondary'>Toggle publication by ID</Button>
         </div>

@@ -12,7 +12,7 @@ that behavior is available.
 | --- | --- | --- |
 | Public property catalogue and detail | Implemented | Public web API proxies and Fastify `GET /api/v1/properties` routes |
 | Public viewing inquiry | Implemented | Public web proxy and Fastify `POST /api/v1/viewing-requests` provide validation, rate limiting, persistence, and duplicate handling; the browser form now submits via this API instead of browser-local storage |
-| Listing publication and withdrawal | API only | Protected Fastify publication commands; no current portal management screen |
+| Listing publication and withdrawal | Prototype UI plus API | Protected Fastify publication commands plus a manager portal publication/withdrawal panel that currently relies on manual listing IDs until an authoritative portfolio feed exists |
 | Landlord onboarding application and human admin decision | Implemented | Public signup flow, admin onboarding console, protected API routes, PostgreSQL gateway, and authorization tests |
 | Authenticated role portal | Mock/prototype | `portal-web` uses a labeled browser-local demo session and sample records; it has no approved deployment path |
 | Public rental application prototype | Non-authoritative mock and product conflict | Legacy public-web route stores browser-local data; approved PRD excludes public rental applications |

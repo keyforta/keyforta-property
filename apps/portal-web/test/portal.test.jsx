@@ -59,6 +59,18 @@ describe('Portal', () => {
     expect(screen.getByRole('heading', { name: 'Sign in to continue.' })).toBeInTheDocument();
   });
 
+
+  it('shows the listing publication panel only for manager overview and portfolio views', () => {
+    localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'manager@test.keyforta.com', role: 'manager', issuedAt: '2026-09-18T00:00:00.000Z', token: 'demo-token-manager', organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }));
+    renderPortal();
+    expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Applications' }));
+    expect(screen.queryByRole('heading', { name: 'Publish or withdraw assigned listings' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Portfolio' }));
+    expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
+    expect(screen.getByText(/No assigned listings are loaded in this prototype yet/i)).toBeInTheDocument();
+  });
+
   it('shows a saved acknowledgement for quick actions', () => {
     vi.useFakeTimers();
     localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'demo.tenant@test.keyforta.com', role: 'tenant', issuedAt: '2026-09-18T00:00:00.000Z' }));

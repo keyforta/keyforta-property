@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Avatar,
   Badge,
@@ -70,6 +70,12 @@ export function Portal() {
   const [session, setSession] = useState(readSession);
   const [active, setActive] = useState('Overview');
   const [completedAction, setCompletedAction] = useState('');
+  const [managerListings] = useState([]);
+  const roleKey = session && Object.prototype.hasOwnProperty.call(actions, session.role) ? session.role : 'tenant';
+  const showListingPublication = roleKey === 'manager' && (active === 'Portfolio' || active === 'Overview');
+  const listingPublicationEmptyState = useMemo(() => active === 'Portfolio'
+    ? 'No assigned listings are loaded in this prototype yet. Use a trusted listing ID to publish or withdraw while the portfolio feed remains unavailable.'
+    : 'Assigned listings will appear here after the portfolio feed is available.', [active]);
 
   const login = (role) => {
     const nextSession = { email: `demo.${role}@test.keyforta.com`, role, issuedAt: new Date().toISOString(), token: `demo-token-${role}`, organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' };
@@ -108,7 +114,6 @@ export function Portal() {
     );
   }
 
-  const roleKey = Object.prototype.hasOwnProperty.call(actions, session.role) ? session.role : 'tenant';
   const role = roles[roleKey] || roles.tenant;
   return (
     <div className='app-shell'>
@@ -142,7 +147,7 @@ export function Portal() {
           ))}
         </section>
         <section className='content-grid'>
-          {roleKey === 'manager' && (active === 'Portfolio' || active === 'Overview') ? <ListingPublicationPanel session={session} /> : null}
+          {showListingPublication ? <ListingPublicationPanel emptyState={listingPublicationEmptyState} listings={managerListings} session={session} /> : null}
           <article className='panel table-panel'>
             <div className='panel-head'>
               <div><p className='kicker'>Activity</p><h2>Needs your attention</h2></div>
