@@ -12,18 +12,25 @@ function isLoopbackHost(hostname) {
 
 export function resolveApiBaseUrl() {
   const configured = import.meta.env.VITE_KEYFORTA_API_BASE_URL?.trim();
-  if (!configured) return '/api/v1';
+  if (!configured) return { baseUrl: '/api/v1', rejectedConfiguredValue: false };
   if (configured.startsWith('/')) {
-    return configured.replace(/\/+$/, '') || '/api/v1';
+    return {
+      baseUrl: configured.replace(/\/+$/, '') || '/api/v1',
+      rejectedConfiguredValue: false,
+    };
   }
   try {
     const url = new URL(configured);
-    if (url.protocol === 'https:') return url.toString().replace(/\/+$/, '');
-    if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) return url.toString().replace(/\/+$/, '');
+    if (url.protocol === 'https:') {
+      return { baseUrl: url.toString().replace(/\/+$/, ''), rejectedConfiguredValue: false };
+    }
+    if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) {
+      return { baseUrl: url.toString().replace(/\/+$/, ''), rejectedConfiguredValue: false };
+    }
   } catch {
-    return '/api/v1';
+    return { baseUrl: '/api/v1', rejectedConfiguredValue: true };
   }
-  return '/api/v1';
+  return { baseUrl: '/api/v1', rejectedConfiguredValue: true };
 }
 
 function statusCopy(status) {
@@ -51,7 +58,7 @@ function statusCopy(status) {
 async function createListingPublicationClient(session) {
   const accessToken = await session.getAccessToken();
   return createApiClient({
-    baseUrl: resolveApiBaseUrl(),
+    baseUrl: resolveApiBaseUrl().baseUrl,
     getOrganizationId: () => session?.organizationId ?? null,
     getToken: () => accessToken,
   });
@@ -71,7 +78,7 @@ export function ListingPublicationPanel({
   const hasOrganizationContext = Boolean(session?.organizationId);
   const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : !hasOrganizationContext ? 'organization-unavailable' : session?.getAccessToken ? 'loading' : 'unavailable');
   const inputRef = useRef(null);
-  const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
+  const apiConfig = useMemo(() => resolveApiBaseUrl(), []);
 
   useEffect(() => {
     let active = true;
@@ -179,9 +186,9 @@ export function ListingPublicationPanel({
       <p className='publication-note'>
         Use the existing publication commands for listings already assigned to your organization context.
       </p>
-      {apiBaseUrl === '/api/v1' && import.meta.env.VITE_KEYFORTA_API_BASE_URL?.trim() ? (
+      {apiConfig.rejectedConfiguredValue ? (
         <p className='publication-feedback' data-tone='error' role='alert'>
-          Listing publication ignored an insecure API base URL and fell back to the approved relative API path.
+          Listing publication ignored an invalid or insecure API base URL and fell back to the approved relative API path.
         </p>
       ) : null}
       {tokenStatus === 'loading' ? (

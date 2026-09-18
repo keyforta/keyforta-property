@@ -18,6 +18,10 @@ Local portal development runs on `http://127.0.0.1:3001` while the API defaults 
 For deployed builds, configure:
 
 - `VITE_KEYFORTA_API_BASE_URL`: browser-safe API root including `/api/v1`; HTTPS is required except for loopback development.
-- `VITE_KEYFORTA_API_PROXY_TARGET`: optional local-development override for the Vite `/api` proxy target.
+- `VITE_KEYFORTA_API_PROXY_TARGET`: optional local-development override for the Vite `/api` proxy target. `vite.config.js` loads this from Vite env files (for example `.env.local`) or exported shell variables.
 
 When `VITE_KEYFORTA_API_BASE_URL` is not set, the portal uses relative `/api/v1` requests and relies on the dev proxy or same-origin deployment routing.
+
+## Known limitation / follow-up
+
+Issue #71 delivers the listing-publication panel, command wiring, and component coverage for real authenticated sessions. The integrated portal shell still uses browser-local demo sessions; replacing that shell with the approved Entra/MSAL session boundary is tracked separately in issue #78 and is blocked by decision issue #77. Until #78 lands, demo sessions correctly keep publication commands disabled rather than pretending to mutate protected API state.

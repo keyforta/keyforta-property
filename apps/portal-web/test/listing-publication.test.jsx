@@ -47,12 +47,17 @@ describe('resolveApiBaseUrl', () => {
 
   it('falls back to the relative api path for an insecure remote origin', () => {
     vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', 'http://insecure.example.com/api/v1');
-    expect(resolveApiBaseUrl()).toBe('/api/v1');
+    expect(resolveApiBaseUrl()).toEqual({ baseUrl: '/api/v1', rejectedConfiguredValue: true });
   });
 
   it('normalizes trailing slashes from configured absolute api roots', () => {
     vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', 'https://api.example.test/api/v1///');
-    expect(resolveApiBaseUrl()).toBe('https://api.example.test/api/v1');
+    expect(resolveApiBaseUrl()).toEqual({ baseUrl: 'https://api.example.test/api/v1', rejectedConfiguredValue: false });
+  });
+
+  it('does not flag a valid relative api root as rejected', () => {
+    vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', '/api/v1');
+    expect(resolveApiBaseUrl()).toEqual({ baseUrl: '/api/v1', rejectedConfiguredValue: false });
   });
 });
 
