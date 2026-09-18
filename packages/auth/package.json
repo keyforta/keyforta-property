@@ -4,5 +4,10 @@
   "private": true,
   "type": "module",
   "description": "Shared authentication boundary and session conventions for Keyforta apps",
-  "exports": { ".": "./src/index.js" }
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
 }

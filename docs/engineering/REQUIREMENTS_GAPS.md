@@ -32,3 +32,5 @@ This report records decisions without changing requirements.
 
 Agents must continue requirement-independent work and must not resolve these rows
 by changing product behavior.
+
+- 2026-09-18: Issue #69 scope includes `apps/jobs`, but the package is currently a scaffold with no runtime source. Implemented boundary tests for the existing `check` and `build` scripts instead of inventing worker logic; future behavioral coverage should begin once real job handlers exist.
