@@ -19,6 +19,7 @@
     "@fastify/rate-limit": "10.3.0",
     "@fastify/swagger": "9.8.1",
     "@fastify/swagger-ui": "6.1.1",
+    "@keyforta/authorization": "workspace:*",
     "@keyforta/contracts": "workspace:*",
     "fastify": "5.12.3",
     "jose": "^6.2.12",

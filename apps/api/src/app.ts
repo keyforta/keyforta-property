@@ -18,6 +18,7 @@ import {
   publicRequestReceiptSchema,
   publicViewingRequestInputSchema,
 } from "@keyforta/contracts";
+import { canAccess } from "@keyforta/authorization";
 import Fastify, { type FastifyInstance } from "fastify";
 
 import { registerApiDocs } from "./api-docs.js";
@@ -44,6 +45,7 @@ export interface AppDependencies {
   publicProperties?: PublicPropertyGateway;
   publicViewingRequests?: PublicViewingRequestGateway;
   readiness?: () => Promise<void>;
+  useAuthorizationModule?: boolean;
   viewingRequestRateLimitMax?: number;
 }
 
@@ -76,6 +78,36 @@ async function authenticate(
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Decide whether an authenticated principal may perform a platform-admin
+ * onboarding-review action. Platform administrators are identity-scoped
+ * (cross-organization by design, per ADR-002), so the trusted membership
+ * fact this route resolves is simply "this object ID is on the configured
+ * platform-admin allowlist." That fact is fed into the shared authorization
+ * module so every protected route evaluates decisions through one policy
+ * engine instead of ad hoc checks scattered across routes.
+ *
+ * `useAuthorizationModule` defaults to enabled. It stays available as an
+ * explicit rollback switch: set it to `false` to fall back to the legacy
+ * allowlist-only check while a regression is investigated, without a code
+ * deploy.
+ */
+export function isAuthorizedPlatformAdminAction(
+  principal: Principal,
+  action: string,
+  dependencies: Pick<AppDependencies, "platformAdminObjectIds" | "useAuthorizationModule">,
+): boolean {
+  const isAllowlisted = Boolean(dependencies.platformAdminObjectIds?.has(principal.objectId));
+  if (dependencies.useAuthorizationModule === false) {
+    return isAllowlisted;
+  }
+  return canAccess({
+    action,
+    identity: { objectId: principal.objectId },
+    role: isAllowlisted ? "platform_admin" : "unauthenticated",
+  });
 }
 
 function problem(
@@ -507,7 +539,7 @@ export async function buildApp(
         "A valid bearer credential is required.",
       ));
     }
-    if (!dependencies.platformAdminObjectIds?.has(principal.objectId)) {
+    if (!isAuthorizedPlatformAdminAction(principal, "review_onboarding_applications", dependencies)) {
       return reply.status(404).send(problem(
         request.id, 404, "NOT_FOUND", "Not Found",
         "The requested resource was not found.",
@@ -537,7 +569,7 @@ export async function buildApp(
           "A valid bearer credential is required.",
         ));
       }
-      if (!dependencies.platformAdminObjectIds?.has(principal.objectId)) {
+      if (!isAuthorizedPlatformAdminAction(principal, "decide_onboarding_applications", dependencies)) {
         return reply.status(404).send(problem(
           request.id, 404, "NOT_FOUND", "Not Found",
           "The requested resource was not found.",

@@ -19,6 +19,8 @@ param entraIssuer string
 param entraJwksUri string
 @description('Comma-separated Entra object IDs authorized for platform administration. Empty denies all platform-admin access.')
 param platformAdminObjectIds string = ''
+@description('Rollback switch for the shared @keyforta/authorization module used by onboarding-review routes. Default true (module enabled); set to false to fall back to the legacy platform-admin allowlist check without rebuilding the image.')
+param authorizationModuleEnabled bool = true
 param documentStorageAccountName string
 param tenantApplicationContainerName string
 param webCanonicalHostName string
@@ -103,6 +105,7 @@ resource api 'Microsoft.App/containerApps@2024-10-02-preview' = if (deployApi) {
             { name: 'ENTRA_ISSUER', value: entraIssuer }
             { name: 'ENTRA_JWKS_URI', value: entraJwksUri }
             { name: 'PLATFORM_ADMIN_OBJECT_IDS', value: platformAdminObjectIds }
+            { name: 'AUTHORIZATION_MODULE_ENABLED', value: string(authorizationModuleEnabled) }
             { name: 'AZURE_CLIENT_ID', value: apiIdentity.properties.clientId }
             { name: 'AZURE_STORAGE_ACCOUNT_NAME', value: documentStorageAccountName }
             { name: 'AZURE_STORAGE_CONTAINER_NAME', value: tenantApplicationContainerName }

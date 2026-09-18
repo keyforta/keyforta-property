@@ -71,6 +71,11 @@ const landlordOnboarding = databaseClient
 const platformAdminObjectIds = parsePlatformAdminObjectIds(
   process.env.PLATFORM_ADMIN_OBJECT_IDS,
 );
+// Rollback switch for the shared authorization module (see AppDependencies
+// `useAuthorizationModule` in app.ts). Defaults to enabled; set
+// AUTHORIZATION_MODULE_ENABLED=false to revert the onboarding-review routes
+// to the legacy platform-admin allowlist check without a code deploy.
+const useAuthorizationModule = process.env.AUTHORIZATION_MODULE_ENABLED !== "false";
 const port = Number(process.env.API_PORT ?? "3000");
 const host = process.env.API_HOST ?? "127.0.0.1";
 
@@ -87,6 +92,7 @@ try {
     readiness: async () => {
       if (databaseClient) await assertRuntimeDatabaseReady(databaseClient);
     },
+    useAuthorizationModule,
   });
 
   if (databasePool) {

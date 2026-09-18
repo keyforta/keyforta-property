@@ -4,7 +4,7 @@ import {
   landlordOnboardingApplicationListEnvelopeSchema,
 } from "@keyforta/contracts";
 
-import { buildApp } from "../src/app.js";
+import { buildApp, isAuthorizedPlatformAdminAction } from "../src/app.js";
 import type {
   DecideLandlordOnboardingCommand,
   LandlordOnboardingGateway,
@@ -279,5 +279,82 @@ describe("landlord onboarding routes", () => {
     }
     expect(configured.listCalls).toBe(0);
     expect(configured.decisions).toEqual([]);
+  });
+
+  it("evaluates review access through the shared authorization module", () => {
+    const allowlisted = new Set([adminObjectId]);
+
+    // A principal not on the allowlist is denied by the shared authorization
+    // module, distinguishing it from the legacy check below.
+    expect(
+      isAuthorizedPlatformAdminAction(
+        { objectId: applicantObjectId, subject: "synthetic-applicant" },
+        "review_onboarding_applications",
+        { platformAdminObjectIds: allowlisted },
+      ),
+    ).toBe(false);
+
+    // An unknown action outside the platform_admin capability set is denied
+    // even for an allowlisted identity: the module checks the action, the
+    // legacy allowlist-only path (see below) would not.
+    expect(
+      isAuthorizedPlatformAdminAction(
+        { objectId: adminObjectId, subject: "synthetic-admin" },
+        "an_action_not_in_the_capability_list",
+        { platformAdminObjectIds: allowlisted },
+      ),
+    ).toBe(false);
+
+    expect(
+      isAuthorizedPlatformAdminAction(
+        { objectId: adminObjectId, subject: "synthetic-admin" },
+        "review_onboarding_applications",
+        { platformAdminObjectIds: allowlisted },
+      ),
+    ).toBe(true);
+  });
+
+  it("falls back to the legacy allowlist check when the authorization module is disabled", () => {
+    const allowlisted = new Set([adminObjectId]);
+
+    // With the module disabled, an unknown action is still granted for an
+    // allowlisted identity: this is the behavioral difference from the
+    // enabled path exercised above, proving the flag actually switches
+    // implementations rather than being ignored.
+    expect(
+      isAuthorizedPlatformAdminAction(
+        { objectId: adminObjectId, subject: "synthetic-admin" },
+        "an_action_not_in_the_capability_list",
+        { platformAdminObjectIds: allowlisted, useAuthorizationModule: false },
+      ),
+    ).toBe(true);
+
+    expect(
+      isAuthorizedPlatformAdminAction(
+        { objectId: applicantObjectId, subject: "synthetic-applicant" },
+        "review_onboarding_applications",
+        { platformAdminObjectIds: allowlisted, useAuthorizationModule: false },
+      ),
+    ).toBe(false);
+  });
+
+  it("wires the authorization flag end-to-end through the onboarding-review route", async () => {
+    const configured = { ...dependencies(), useAuthorizationModule: false };
+    const app = await buildApp(configured);
+    apps.push(app);
+
+    const allowlisted = await app.inject({
+      headers: { authorization: "Bearer admin-token" },
+      method: "GET",
+      url: "/api/v1/landlord-onboarding-applications",
+    });
+    const notAllowlisted = await app.inject({
+      headers: { authorization: "Bearer applicant-token" },
+      method: "GET",
+      url: "/api/v1/landlord-onboarding-applications",
+    });
+
+    expect(allowlisted.statusCode).toBe(200);
+    expect(notAllowlisted.statusCode).toBe(404);
   });
 });
