@@ -313,6 +313,28 @@ describePostgres("PostgreSQL 0022 rental-inventory v1.0 initialization", () => {
         organization_id, property_id, label, canonical_label, unit_type,
         bedrooms, bathrooms, furnishing_status
       ) values (
+        '00000000-0000-4000-8000-000000000c10',
+        '00000000-0000-4000-8000-000000000c20',
+        'Studio Blank', '   ', 'studio', 0, 1, 'unfurnished'
+      )
+    `)).rejects.toThrow(/units_canonical_label_check/);
+
+    await expect(client.query(`
+      insert into app.units (
+        organization_id, property_id, label, canonical_label, unit_type,
+        bedrooms, bathrooms, furnishing_status
+      ) values (
+        '00000000-0000-4000-8000-000000000c10',
+        '00000000-0000-4000-8000-000000000c20',
+        'Studio Tab', E'\t', 'studio', 0, 1, 'unfurnished'
+      )
+    `)).rejects.toThrow(/units_canonical_label_check/);
+
+    await expect(client.query(`
+      insert into app.units (
+        organization_id, property_id, label, canonical_label, unit_type,
+        bedrooms, bathrooms, furnishing_status
+      ) values (
         '00000000-0000-4000-8000-000000000c11',
         '00000000-0000-4000-8000-000000000c20',
         'Studio B', 'studio b', 'studio', 0, 1, 'unfurnished'

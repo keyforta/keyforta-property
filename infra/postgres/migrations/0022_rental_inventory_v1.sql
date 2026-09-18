@@ -146,7 +146,10 @@ alter table app.units
   add constraint units_label_check
     check (char_length(label) between 1 and 80 and label = btrim(label)),
   add constraint units_canonical_label_check
-    check (char_length(canonical_label) between 1 and 320),
+    check (
+      char_length(canonical_label) between 1 and 320
+      and canonical_label !~ '^[[:space:]]*$'
+    ),
   add constraint units_type_check
     check (unit_type in ('studio', 'apartment', 'house', 'townhouse', 'commercial', 'other')),
   add constraint units_bedrooms_check check (bedrooms between 0 and 20),
