@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@keyforta/api-client": "workspace:*",
+    "@keyforta/contracts": "workspace:*",
     "@keyforta/ui": "workspace:*",
     "@fluentui/react-components": "9.72.5",
     "react": "^19.1.1",

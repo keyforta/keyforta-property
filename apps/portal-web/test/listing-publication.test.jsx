@@ -1,0 +1,111 @@
+import { FluentProvider, webLightTheme } from '@fluentui/react-components';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { axe } from 'vitest-axe';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@keyforta/ui', () => ({
+  AppBrand: ({ surface }) => <div>{surface} brand</div>,
+  MetricCard: ({ label, value, note }) => <div><strong>{label}</strong><span>{value}</span><small>{note}</small></div>,
+}));
+
+const command = vi.fn();
+vi.mock('@keyforta/api-client', () => ({
+  createApiClient: vi.fn(() => ({ command })),
+}));
+
+import { ListingPublicationPanel } from '../src/listing-publication-panel.jsx';
+
+const session = {
+  email: 'manager@example.com',
+  role: 'manager',
+  issuedAt: '2026-09-18T00:00:00.000Z',
+  token: 'token-123',
+  organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+};
+
+const listings = [
+  { id: '6d5f0d4f-e7ca-4c96-b67b-513f871f3f1a', title: 'Riverside apartment · Unit 2A', status: 'withdrawn' },
+  { id: '10b5c5ca-4daf-4df7-afb3-8a8a9698f0e1', title: 'Garden residence · Unit 1B', status: 'published' },
+  { id: '5d57d770-f831-4dfe-a85f-7705244f6d4a', title: 'Hill view loft · Unit 3C', status: 'withdrawn' },
+];
+
+function renderPanel(props = {}) {
+  return render(
+    <FluentProvider theme={webLightTheme}>
+      <ListingPublicationPanel session={session} listings={listings} {...props} />
+    </FluentProvider>,
+  );
+}
+
+describe('ListingPublicationPanel', () => {
+  beforeEach(() => {
+    command.mockReset();
+  });
+
+  it('publishes a withdrawn listing and updates the status', async () => {
+    command.mockResolvedValue({ data: { listingId: listings[0].id, status: 'published' }, meta: { requestId: 'req-1' } });
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
+
+    await waitFor(() => expect(command).toHaveBeenCalledWith('public-listings', listings[0].id, 'publish'));
+    expect(await screen.findByRole('status')).toHaveTextContent('Listing published successfully.');
+    expect(screen.getAllByText('Published').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('withdraws a published listing and updates the status', async () => {
+    command.mockResolvedValue({ data: { listingId: listings[1].id, status: 'withdrawn' }, meta: { requestId: 'req-2' } });
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: /Withdraw Garden residence · Unit 1B/i }));
+
+    await waitFor(() => expect(command).toHaveBeenCalledWith('public-listings', listings[1].id, 'withdraw'));
+    await screen.findByText('Listing withdrawn successfully.');
+    expect(screen.getAllByText('Withdrawn').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders a non-disclosing denial when the manager is not assigned', async () => {
+    const error = new Error('Listing not found.');
+    error.code = 'NOT_FOUND';
+    error.details = {};
+    error.traceId = 'trace-denied';
+    command.mockRejectedValue(error);
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Listing not found or not assigned to you.');
+  });
+
+  it('renders the same denial for cross-organization attempts to preserve non-disclosure', async () => {
+    const error = new Error('Listing not found.');
+    error.code = 'NOT_FOUND';
+    error.details = {};
+    error.traceId = 'trace-cross-org';
+    command.mockRejectedValue(error);
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: /Withdraw Garden residence · Unit 1B/i }));
+
+    // The API intentionally returns the same 404 outcome for inaccessible and unknown listings.
+    expect(await screen.findByRole('alert')).toHaveTextContent('Listing not found or not assigned to you.');
+  });
+
+  it('renders an infrastructure failure separately from denial', async () => {
+    const error = new Error('Publication service unavailable.');
+    error.code = 'DEPENDENCY_UNAVAILABLE';
+    error.details = {};
+    error.traceId = 'trace-unavailable';
+    command.mockRejectedValue(error);
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Listing status could not be updated right now.');
+  });
+
+  it('has no critical accessibility violations', async () => {
+    const { container } = renderPanel();
+    expect((await axe(container)).violations).toEqual([]);
+  });
+});

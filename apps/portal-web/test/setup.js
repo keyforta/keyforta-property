@@ -26,3 +26,6 @@ window.HTMLCanvasElement.prototype.getContext = () => ({
   rect: () => {},
   clip: () => {},
 });
+
+const baseGetComputedStyle = window.getComputedStyle.bind(window);
+window.getComputedStyle = (element, pseudoElt) => pseudoElt ? { getPropertyValue: () => '', pseudoElt } : baseGetComputedStyle(element);

@@ -8,6 +8,7 @@ import {
 } from '@fluentui/react-components';
 import { AppBrand, MetricCard } from '@keyforta/ui';
 import './styles.css';
+import { ListingPublicationPanel } from './listing-publication-panel.jsx';
 
 export const SESSION_KEY = 'keyforta.portal.session';
 export const roles = {
@@ -42,7 +43,7 @@ export const roles = {
 export const actions = {
   tenant: ['Report a maintenance issue', 'Upload a document', 'Message manager'],
   landlord: ['Add a property', 'Invite a manager', 'Review applications'],
-  manager: ['Review an application', 'Create work order', 'Record a payment'],
+  manager: ['Review an application', 'Create work order', 'Publish a listing'],
   operator: ['Publish a service offer', 'Accept a work order', 'Submit a quote'],
 };
 
@@ -50,7 +51,7 @@ export function readSession() {
   const params = new URLSearchParams(window.location.search);
   const requestedRole = params.get('role');
   if (requestedRole && roles[requestedRole]) {
-    const nextSession = { email: params.get('email') || `demo.${requestedRole}@test.keyforta.com`, role: requestedRole, issuedAt: new Date().toISOString() };
+    const nextSession = { email: params.get('email') || `demo.${requestedRole}@test.keyforta.com`, role: requestedRole, issuedAt: new Date().toISOString(), token: params.get('token') || `demo-token-${requestedRole}`, organizationId: params.get('organizationId') || '3f2504e0-4f89-41d3-9a0c-0305e82c3301' };
     localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
     window.history.replaceState({}, '', window.location.pathname);
     return nextSession;
@@ -71,7 +72,7 @@ export function Portal() {
   const [completedAction, setCompletedAction] = useState('');
 
   const login = (role) => {
-    const nextSession = { email: `demo.${role}@test.keyforta.com`, role, issuedAt: new Date().toISOString() };
+    const nextSession = { email: `demo.${role}@test.keyforta.com`, role, issuedAt: new Date().toISOString(), token: `demo-token-${role}`, organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' };
     localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
     setSession(nextSession);
   };
@@ -141,6 +142,7 @@ export function Portal() {
           ))}
         </section>
         <section className='content-grid'>
+          {roleKey === 'manager' && (active === 'Portfolio' || active === 'Overview') ? <ListingPublicationPanel session={session} /> : null}
           <article className='panel table-panel'>
             <div className='panel-head'>
               <div><p className='kicker'>Activity</p><h2>Needs your attention</h2></div>
