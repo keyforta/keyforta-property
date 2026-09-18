@@ -49,6 +49,11 @@ describe('resolveApiBaseUrl', () => {
     vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', 'http://insecure.example.com/api/v1');
     expect(resolveApiBaseUrl()).toBe('/api/v1');
   });
+
+  it('normalizes trailing slashes from configured absolute api roots', () => {
+    vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', 'https://api.example.test/api/v1///');
+    expect(resolveApiBaseUrl()).toBe('https://api.example.test/api/v1');
+  });
 });
 
 describe('ListingPublicationPanel', () => {
@@ -56,6 +61,7 @@ describe('ListingPublicationPanel', () => {
     command.mockReset();
     createApiClientMock.mockClear();
     vi.unstubAllEnvs();
+    vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', '');
   });
 
   it('keeps actions disabled until the token resolves, then enables publish and withdraw', async () => {
@@ -90,6 +96,19 @@ describe('ListingPublicationPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /Withdraw Garden residence · Unit 1B/i }));
     await waitFor(() => expect(command).toHaveBeenNthCalledWith(2, 'public-listings', listings[1].id, 'withdraw'));
     expect(getAccessToken).toHaveBeenCalledTimes(3);
+  });
+
+  it('uses a normalized absolute api root without a double slash in the request path', async () => {
+    vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', 'https://api.example.test/api/v1///');
+    command.mockResolvedValue({ data: { listingId: listings[0].id, status: 'published' }, meta: { requestId: 'req-1' } });
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
+
+    await waitFor(() => expect(createApiClientMock).toHaveBeenCalled());
+    expect(createApiClientMock.mock.calls.at(-1)[0].baseUrl).toBe('https://api.example.test/api/v1');
+    await waitFor(() => expect(command).toHaveBeenCalledWith('public-listings', listings[0].id, 'publish'));
   });
 
   it('publishes a withdrawn listing and updates the status', async () => {
@@ -208,6 +227,15 @@ describe('ListingPublicationPanel', () => {
     expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Withdraw by ID' })).toBeDisabled();
+  });
+
+  it('disables live mutation controls when organization context is missing', async () => {
+    renderPanel({ session: { ...baseSession, organizationId: null } });
+    expect(screen.getByText(/Listing publication is unavailable until an organization context is selected/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Withdraw by ID' })).toBeDisabled();
+    expect(command).not.toHaveBeenCalled();
   });
 
   it('disables live mutation controls for non-demo sessions without a token getter', () => {

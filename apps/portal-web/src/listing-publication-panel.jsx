@@ -13,11 +13,13 @@ function isLoopbackHost(hostname) {
 export function resolveApiBaseUrl() {
   const configured = import.meta.env.VITE_KEYFORTA_API_BASE_URL?.trim();
   if (!configured) return '/api/v1';
-  if (configured.startsWith('/')) return configured;
+  if (configured.startsWith('/')) {
+    return configured.replace(/\/+$/, '') || '/api/v1';
+  }
   try {
     const url = new URL(configured);
-    if (url.protocol === 'https:') return configured;
-    if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) return configured;
+    if (url.protocol === 'https:') return url.toString().replace(/\/+$/, '');
+    if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) return url.toString().replace(/\/+$/, '');
   } catch {
     return '/api/v1';
   }
@@ -66,7 +68,8 @@ export function ListingPublicationPanel({
   const [messageTone, setMessageTone] = useState('');
   const [manualListingId, setManualListingId] = useState('');
   const [manualListingError, setManualListingError] = useState('');
-  const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : session?.getAccessToken ? 'loading' : 'unavailable');
+  const hasOrganizationContext = Boolean(session?.organizationId);
+  const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : !hasOrganizationContext ? 'organization-unavailable' : session?.getAccessToken ? 'loading' : 'unavailable');
   const inputRef = useRef(null);
   const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
 
@@ -75,6 +78,12 @@ export function ListingPublicationPanel({
     setItems(listings);
     if (session?.sessionMode === 'demo') {
       setTokenStatus('demo');
+      return () => {
+        active = false;
+      };
+    }
+    if (!session?.organizationId) {
+      setTokenStatus('organization-unavailable');
       return () => {
         active = false;
       };
@@ -101,7 +110,7 @@ export function ListingPublicationPanel({
   }, [listings, session]);
 
   const runCommand = async (listingId, nextCommand) => {
-    if (tokenStatus !== 'ready' || !session?.getAccessToken) return;
+    if (tokenStatus !== 'ready' || !session?.getAccessToken || !session?.organizationId) return;
     setBusyListingId(listingId);
     setMessage('');
     setMessageTone('');
@@ -181,6 +190,11 @@ export function ListingPublicationPanel({
       {tokenStatus === 'demo' ? (
         <p className='publication-feedback' data-tone='error' role='alert'>
           Demo portal sessions cannot change listing publication. Sign in with Microsoft Entra before sending publish or withdraw commands.
+        </p>
+      ) : null}
+      {tokenStatus === 'organization-unavailable' ? (
+        <p className='publication-feedback' data-tone='error' role='alert'>
+          Listing publication is unavailable until an organization context is selected for this portal session.
         </p>
       ) : null}
       {tokenStatus === 'unavailable' ? (
