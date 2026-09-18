@@ -50,12 +50,26 @@ describe('Portal', () => {
     expect(window.location.search).toBe('');
   });
 
-  it('shows honest empty states instead of fabricated stats/activity, and resets after sign out', () => {
+  it.each([
+    ['tenant', 'once the tenant read APIs are available'],
+    ['landlord', 'once the landlord read APIs are available'],
+    ['manager', 'once the manager read APIs are available'],
+    ['operator', 'once the operator read APIs are available'],
+  ])('shows honest empty states instead of fabricated stats/activity for the %s role', (role, expectedCopy) => {
+    localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: `demo.${role}@test.keyforta.com`, role, issuedAt: '2026-09-18T00:00:00.000Z' }));
+    renderPortal();
+    expect(screen.getByTestId('stats-empty-state')).toHaveTextContent(expectedCopy);
+    expect(screen.getByTestId('rows-empty-state')).toHaveTextContent(expectedCopy);
+    expect(screen.queryByText(/Amina K\./)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Gombe/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ngaliema/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Limete/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Patrick M\./)).not.toBeInTheDocument();
+  });
+
+  it('resets to the sign-in screen after sign out', () => {
     localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'demo.landlord@test.keyforta.com', role: 'landlord', issuedAt: '2026-09-18T00:00:00.000Z' }));
     renderPortal();
-    expect(screen.getByTestId('stats-empty-state')).toHaveTextContent('once the landlord read APIs are available');
-    expect(screen.getByTestId('rows-empty-state')).toHaveTextContent('once the landlord read APIs are available');
-    expect(screen.queryByText(/Amina K\./)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(screen.getByRole('heading', { name: 'Sign in to continue.' })).toBeInTheDocument();
   });
