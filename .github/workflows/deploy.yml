@@ -57,6 +57,7 @@ jobs:
       DEPLOYMENT_SHA: ${{ inputs.commit_sha || github.sha }}
       DEPLOYMENT_SCOPE: ${{ inputs.deployment_scope }}
       ENVIRONMENT: dev
+      AUTHORIZATION_MODULE_ENABLED: ${{ vars.AUTHORIZATION_MODULE_ENABLED || 'true' }}
       PLATFORM_ADMIN_OBJECT_IDS: ${{ vars.PLATFORM_ADMIN_OBJECT_IDS }}
       RESOURCE_GROUP: rg-keyforta-dev-san
       WEB_CANONICAL_HOST: keyforta.com
@@ -646,6 +647,7 @@ jobs:
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
                 platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                authorizationModuleEnabled="$AUTHORIZATION_MODULE_ENABLED" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
@@ -685,6 +687,7 @@ jobs:
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
                 platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                authorizationModuleEnabled="$AUTHORIZATION_MODULE_ENABLED" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
@@ -824,6 +827,7 @@ jobs:
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
                 platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                authorizationModuleEnabled="$AUTHORIZATION_MODULE_ENABLED" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
@@ -854,6 +858,7 @@ jobs:
                 entraIssuer="${{ vars.ENTRA_ISSUER }}" \
                 entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
                 platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                authorizationModuleEnabled="$AUTHORIZATION_MODULE_ENABLED" \
                 documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \

@@ -186,6 +186,43 @@ test('denies an expired membership', () => {
   assert.deepEqual(result, { allowed: false, reason: 'membership_expired' });
 });
 
+test('denies an invalid effective-time window instead of bypassing the check', () => {
+  const invalidDate = new Date('not-a-date');
+  assert.deepEqual(
+    authorize({
+      action: 'manage_own_related_records',
+      actor: { organizationId: organizationA },
+      effectiveTime: { ...activeWindow, from: invalidDate },
+      identity,
+      resource: { organizationId: organizationA },
+      role: 'tenant',
+    }),
+    { allowed: false, reason: 'not_yet_effective' },
+  );
+  assert.deepEqual(
+    authorize({
+      action: 'manage_own_related_records',
+      actor: { organizationId: organizationA },
+      effectiveTime: { ...activeWindow, now: invalidDate },
+      identity,
+      resource: { organizationId: organizationA },
+      role: 'tenant',
+    }),
+    { allowed: false, reason: 'invalid_effective_time' },
+  );
+  assert.deepEqual(
+    authorize({
+      action: 'manage_own_related_records',
+      actor: { organizationId: organizationA },
+      effectiveTime: { ...activeWindow, to: invalidDate },
+      identity,
+      resource: { organizationId: organizationA },
+      role: 'tenant',
+    }),
+    { allowed: false, reason: 'membership_expired' },
+  );
+});
+
 test('allows an active membership within its effective window', () => {
   const result = authorize({
     action: 'manage_own_related_records',

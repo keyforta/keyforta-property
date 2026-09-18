@@ -87,6 +87,10 @@ function policyFor(role, action) {
   return rolePolicies[action];
 }
 
+function isValidDate(value) {
+  return value instanceof Date && Number.isFinite(value.getTime());
+}
+
 /**
  * @typedef {object} AuthorizationRequest
  * @property {{ objectId: string }} identity - The authenticated caller. Must
@@ -159,11 +163,16 @@ export function authorize(request) {
       return { allowed: false, reason: 'missing_effective_time' };
     }
     const now = effectiveTime.now ?? new Date();
-    if (!effectiveTime.from || now < effectiveTime.from) {
+    if (!isValidDate(now)) {
+      return { allowed: false, reason: 'invalid_effective_time' };
+    }
+    if (!isValidDate(effectiveTime.from) || now < effectiveTime.from) {
       return { allowed: false, reason: 'not_yet_effective' };
     }
-    if (effectiveTime.to && now >= effectiveTime.to) {
-      return { allowed: false, reason: 'membership_expired' };
+    if (effectiveTime.to !== undefined && effectiveTime.to !== null) {
+      if (!isValidDate(effectiveTime.to) || now >= effectiveTime.to) {
+        return { allowed: false, reason: 'membership_expired' };
+      }
     }
   }
 
