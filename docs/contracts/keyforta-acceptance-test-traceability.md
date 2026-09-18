@@ -104,6 +104,21 @@ must not be interpreted as test coverage.
 
 ## 3. Definition of evidence
 
+Current partial contract evidence for the approved rental-inventory profile is
+in
+[`packages/contracts/test/rental-inventory.test.js`](../../packages/contracts/test/rental-inventory.test.js).
+It verifies selected contract-owned portions of REQ-032 through REQ-036 and
+PROP-009, PROP-011, PROP-015, and PROP-020 through PROP-023: strict creation
+inputs, server-authority field rejection, representative field and catalogue
+boundaries, Unicode 16.0.0 Unit-label canonicalization, explicit transitional
+profiles, public field allowlisting, interval shape, listing-state shape, and
+stable catalogue pagination. It does not prove authorization, atomicity,
+history immutability, interval overlap prevention, archive command guards,
+migration behavior, exact-address provenance, occupancy override, local-date
+derivation, exhaustive property-based field boundaries, concurrency,
+accessibility, or operational abuse controls. Those criteria remain incomplete
+until their required API, database, browser, and operational evidence exists.
+
 Each implementation PR must identify:
 
 - requirement IDs covered;

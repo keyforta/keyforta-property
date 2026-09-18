@@ -11,10 +11,15 @@
   },
   "scripts": {
     "check": "pnpm test",
+    "generate:unit-label-case-folding": "node scripts/generate-unit-label-case-folding.mjs",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@keyforta/types": "workspace:*",
+    "i18n-iso-countries": "^7.14.0",
     "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@unicode/unicode-16.0.0": "2.0.7"
   }
 }

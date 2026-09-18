@@ -59,6 +59,13 @@ visibility. Runtime support remains pending separately reviewed implementation.
 **Events:** `UnitCreated`, `UnitUpdated`, `UnitPricingChanged`, `UnitPublished`, `UnitPaused`, `UnitAvailabilityChanged`
 **Invariants:** unit label is unique within property; only the property's active assigned manager may manage its unit listings; pricing intervals do not overlap; occupied units cannot be published as available; signed lease terms are not rewritten by later pricing.
 
+The shared Unit contract pins canonical label keys to Unicode 16.0.0 assigned
+code points, White_Space, and default full case-folding data. It applies NFC
+through the ECMAScript normalization algorithm; Unicode stability guarantees
+preserve normalization mappings for the accepted Unicode 16.0.0 repertoire.
+The generated browser-safe lookup is derived from the exact
+`@unicode/unicode-16.0.0` package version recorded in the lockfile.
+
 ### `PublicListing`
 
 **Commands:** `CreateUnitListing`, `UpdateUnitListing`, `PublishUnitListing`, `WithdrawUnitListing`
