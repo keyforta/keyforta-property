@@ -187,6 +187,23 @@ writes, preserve audit and business history, and ship a reviewed corrective
 migration; do not rewrite the applied migration or remove isolation constraints
 merely to restore traffic.
 
+Operational migration `0022_rental_inventory_v1.sql` is the guarded pre-launch
+v1.0 inventory initialization. It refuses to run when organization or customer
+records exist, replaces the synthetic listing projection with the strict schema
+below, and leaves listing creation and publication disabled pending the approved
+media and jurisdiction-policy activations. The migration remains checksummed,
+transactional, and forward-only; it is not authorization to reset an environment
+containing production or customer data.
+
+Migration `0022` removes the `v0021` runtime-readiness marker because the current
+API gateways call listing functions that this schema intentionally removes. It
+must not be deployed independently. Release requires the compatible API slice in
+the same controlled rollout. Until that slice advances the migration runner's
+explicit runtime boundary, normal migration and deployment commands stop at
+`0021`; direct application of `0022` makes the current API fail startup. Rollback
+after application is a forward correction or fresh-environment rebuild, not
+deployment of the incompatible pre-`0022` API revision.
+
 ### `jurisdiction_policy_versions`, approval evidence, and activations
 
 Jurisdiction policy versions contain a capability key, jurisdiction code,
@@ -210,21 +227,69 @@ Constraints/indexes: valid effective range; indexes on subject and parties; excl
 
 ### `properties`
 
-`id uuid PK`, `organization_id uuid FK`, `name text`, `property_type text`, `address jsonb`, `time_zone text`, `verification_status text`, `publication_status text`, `archived_at timestamptz`, audit columns.
+`id uuid PK`, `organization_id uuid FK`, `name text`, `property_type text`,
+structured `address jsonb`, `time_zone text`, `verification_status text`,
+`publication_status text`, `version integer`, `created_at`, `updated_at`, and
+conditional `archived_at`, `archived_by`, `archive_reason`.
 
-Constraints/indexes: valid IANA time zone; no publication unless required ownership/management relationship exists; indexes `(organization_id, publication_status)`, city/search fields.
+Constraints/indexes: required bounded address components and ISO country code;
+known IANA time zone; controlled type and lifecycle values; complete archive
+metadata; unique `(organization_id, id)`; index `(organization_id,
+publication_status, id)`. Jurisdiction-dependent verification and publication
+states are unavailable until an approved policy catalogue is implemented.
 
 ### `units`
 
-`id uuid PK`, `organization_id uuid FK`, `property_id uuid FK`, `label text`, `unit_type text`, `bedrooms smallint`, `bathrooms numeric(4,1)`, `area numeric(12,2)`, `availability_status text`, `publication_status text`, common audit columns.
+`id uuid PK`, `organization_id uuid FK`, `property_id uuid FK`, `label text`,
+`canonical_label text`, `unit_type text`, `bedrooms smallint`, `bathrooms
+smallint`, optional `area_square_meters integer`, optional `floor_label text`,
+`furnishing_status text`, `availability_status text`, `publication_status text`,
+`version integer`, timestamps, and conditional archive metadata.
 
-Constraints/indexes: unique `(property_id, lower(label))`; non-negative physical values; property and organization must agree; indexes `(property_id, availability_status)`, `(organization_id, publication_status)`.
+Constraints/indexes: lifetime unique `(organization_id, property_id,
+canonical_label)`; the application supplies the pinned Unicode-normalized
+canonical label; physical bounds and controlled vocabularies; Property and
+organization must agree; index `(organization_id, property_id,
+availability_status, id)`.
 
 ### `unit_pricing_versions`
 
-`id uuid PK`, `organization_id uuid FK`, `unit_id uuid FK`, `amount_minor bigint`, `currency char(3)`, `effective_from date`, `effective_to date`, `discount_policy jsonb`, `created_at`, `created_by`.
+`id uuid PK`, `organization_id uuid FK`, `unit_id uuid FK`, positive
+`amount_minor bigint`, `currency char(3)`, `billing_period text`,
+`effective_from timestamptz`, optional `effective_to timestamptz`, `created_by`,
+`correlation_id`, `source`, and `created_at`.
 
-Constraints/indexes: amount non-negative; valid currency/range; exclusion constraint prevents overlapping effective pricing for one unit; index `(unit_id, effective_from desc)`.
+Constraints/indexes: v1 currencies `CDF` and `USD`; monthly billing; valid
+half-open interval; exclusion constraint prevents overlapping intervals for one
+Unit; immutable fields with one permitted closure of an open `effective_to`;
+truncate rejection; index `(organization_id, unit_id, effective_from desc, id)`.
+
+### `unit_availability_versions`
+
+`id uuid PK`, `organization_id uuid FK`, `unit_id uuid FK`, `status text`,
+optional `reason_code`, `effective_from timestamptz`, optional `effective_to
+timestamptz`, `created_by`, `correlation_id`, `source`, and `created_at`.
+
+Constraints/indexes: persisted interval status is `available` or `unavailable`;
+unavailable rows require a bounded reason and available rows prohibit one;
+valid half-open interval; exclusion constraint prevents overlap for one Unit;
+immutable fields with one permitted closure of an open `effective_to`; truncate
+rejection; index `(organization_id, unit_id, effective_from desc, id)`. Occupancy
+remains a separate authority for derived availability.
+
+### `public_listings` and inventory history
+
+`public_listings` stores organization, Property, and Unit references, lifecycle
+status, positive version, an optional draft snapshot, publication and withdrawal
+times, and timestamps. Published rows require a snapshot and publication time;
+withdrawn rows require a withdrawal time; one listing exists per Unit.
+
+`public_listing_publication_events` and `rental_inventory_events` preserve actor,
+correlation, source, version, action, and relationship evidence as append-only
+history. Inventory tables use forced row-level security and composite
+organization foreign keys. Runtime access can read private listing, pricing, and
+availability state only in organization context. No anonymous listing function
+or publication command is exposed by this slice.
 
 ## 6. Leasing and occupancy
 
