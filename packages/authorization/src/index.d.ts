@@ -5,14 +5,16 @@ export type AuthorizationRole =
   | "property_manager"
   | "tenant";
 
-export interface AuthorizationOrganizationContext {
-  actorOrganizationId?: string;
-  resourceOrganizationId?: string;
+export interface AuthorizationActorContext {
+  organizationId?: string;
+}
+
+export interface AuthorizationResourceContext {
+  organizationId?: string;
 }
 
 export interface AuthorizationRelationshipContext {
   granted: boolean;
-  required: boolean;
 }
 
 export interface AuthorizationEffectiveTime {
@@ -23,10 +25,11 @@ export interface AuthorizationEffectiveTime {
 
 export interface AuthorizationRequest {
   action: string;
+  actor?: AuthorizationActorContext;
   effectiveTime?: AuthorizationEffectiveTime;
   identity: { objectId: string };
-  organization?: AuthorizationOrganizationContext;
   relationship?: AuthorizationRelationshipContext;
+  resource?: AuthorizationResourceContext;
   role: AuthorizationRole | string;
 }
 

@@ -94,7 +94,7 @@ async function authenticate(
  * allowlist-only check while a regression is investigated, without a code
  * deploy.
  */
-function isAuthorizedPlatformAdminAction(
+export function isAuthorizedPlatformAdminAction(
   principal: Principal,
   action: string,
   dependencies: Pick<AppDependencies, "platformAdminObjectIds" | "useAuthorizationModule">,
