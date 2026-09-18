@@ -42,6 +42,18 @@ Every pull request must show four things, in this order, in its description:
 passing test (green)**. A PR that only shows the "after" state is incomplete.
 Reviewers must reject PRs missing any of the four.
 
+**Documentation/process/configuration-only exception:** when a change has no
+executable behavior to test (e.g. editing `AGENTS.md`, a skill file, an agent
+instruction file, or a PR template), a red/green *test* is not required.
+Instead the PR must show a **deterministic, reproducible check** in the same
+four-part shape: before evidence (a command, such as `grep`, showing the
+requirement/text/rule is absent or the old wording is in force), a failing
+check (the same command returning no match / the old behavior), after
+evidence (the same command showing the new text/rule is present), and a
+passing check (the same command now matching). State explicitly in the PR
+description that this is a documentation-only exception and why no
+executable test applies.
+
 ## Architecture boundaries
 
 - `packages/contracts`, `packages/auth`, and `packages/authorization` contain

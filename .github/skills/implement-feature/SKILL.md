@@ -27,6 +27,11 @@ description: "Implement an approved feature with focused tests and documentation
 8. Include all four artifacts — before evidence, failing (red) test output,
    after evidence, passing (green) test output — in the pull request
    description, in that order.
+9. **Documentation/process/configuration-only changes** (no executable
+   behavior): replace the red/green test with a deterministic reproducible
+   check (e.g. `grep`/diff output) showing the old text/rule absent before and
+   the new text/rule present after, and state the exception explicitly in the
+   PR description.
 
 ## Guardrails
 

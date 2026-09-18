@@ -2,7 +2,14 @@
 Per AGENTS.md "Engineering loop": every PR must show, in this order,
 (1) before evidence, (2) a failing (red) test, (3) after evidence,
 (4) the same test passing (green). Reviewers must reject PRs missing any of these.
+
+Documentation/process/configuration-only change with no executable behavior?
+Check the box below, delete "Failing test (red)" / "Passing test (green)",
+and instead show a deterministic before/after check (e.g. grep/diff output)
+in the "Before evidence" / "After evidence" sections.
 -->
+
+- [ ] This is a documentation/process/configuration-only change with no executable behavior (red/green test replaced by a deterministic before/after check below).
 
 ## Requirement / issue
 <!-- Link the approved requirement or issue this PR implements. -->
