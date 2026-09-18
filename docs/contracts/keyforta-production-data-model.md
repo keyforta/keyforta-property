@@ -161,6 +161,32 @@ transition function to stop new changes, preserve existing evidence, and ship
 corrections as a later forward migration rather than dropping lifecycle data or
 history.
 
+Operational migration `0021_organization_reference_integrity.sql` makes the
+organization label part of every implemented organization-owned parent
+reference. This covers unit properties, payment reversals, public-listing
+inquiries, invitation tokens, onboarding membership provenance, application
+reviews and documents, lease application provenance, and superseded leases.
+PostgreSQL validates the new composite foreign keys while applying the migration
+and atomically rejects legacy mismatches, requiring explicit repair rather than
+relabeling or deleting records. To prevent forced row-level security from hiding
+legacy rows from a non-superuser table owner, the transaction temporarily
+suspends forced RLS on affected RLS tables, validates the constraints, and
+restores forced RLS before commit. Runtime roles remain policy-bound throughout;
+failure rolls the temporary DDL back with the rest of the migration. This does
+not add a cross-organization read requirement to the application migration
+runner. The migration also rejects audit-event update, delete, and truncate
+operations and advances the runtime schema marker.
+
+Deployment acquires ordinary PostgreSQL table locks while replacing constraints
+and uses a five-second lock timeout. Operators must assess lock and latency
+impact against production row counts and apply the migration in an approved
+window. A failed constraint validation or lock acquisition leaves no migration
+ledger row or partial DDL and may be retried after explicit data repair or lock relief. The
+change adds no managed service cost. Rollback is forward-only: stop affected
+writes, preserve audit and business history, and ship a reviewed corrective
+migration; do not rewrite the applied migration or remove isolation constraints
+merely to restore traffic.
+
 ### `jurisdiction_policy_versions`, approval evidence, and activations
 
 Jurisdiction policy versions contain a capability key, jurisdiction code,
