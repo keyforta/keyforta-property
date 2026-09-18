@@ -58,13 +58,13 @@ describe('Portal', () => {
   ])('shows honest empty states instead of fabricated stats/activity for the %s role', (role, expectedCopy) => {
     localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: `demo.${role}@test.keyforta.com`, role, issuedAt: '2026-09-18T00:00:00.000Z' }));
     renderPortal();
+    const statsSection = screen.getByTestId('stats-empty-state').parentElement;
+    const activityPanel = screen.getByTestId('rows-empty-state').parentElement;
     expect(screen.getByTestId('stats-empty-state')).toHaveTextContent(expectedCopy);
     expect(screen.getByTestId('rows-empty-state')).toHaveTextContent(expectedCopy);
-    expect(screen.queryByText(/Amina K\./)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Gombe/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Ngaliema/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Limete/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Patrick M\./)).not.toBeInTheDocument();
+    expect(statsSection?.children).toHaveLength(1);
+    expect(activityPanel?.children).toHaveLength(2);
+    expect(activityPanel?.querySelectorAll('.record-row')).toHaveLength(0);
   });
 
   it('resets to the sign-in screen after sign out', () => {
