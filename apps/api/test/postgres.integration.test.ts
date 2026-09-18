@@ -95,7 +95,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     await adminPool.end();
   });
 
-  it("applies every migration and reruns without changing the ledger", async () => {
+  it("applies every current-runtime migration and reruns without changing the ledger", async () => {
     await applyMigrations(client);
     const result = await client.query<{ count: string }>(
       "select count(*)::text as count from app.schema_migrations",

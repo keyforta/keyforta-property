@@ -119,6 +119,19 @@ derivation, exhaustive property-based field boundaries, concurrency,
 accessibility, or operational abuse controls. Those criteria remain incomplete
 until their required API, database, browser, and operational evidence exists.
 
+Focused database evidence is in
+[`apps/api/test/postgres-rental-inventory-upgrade.integration.test.ts`](../../apps/api/test/postgres-rental-inventory-upgrade.integration.test.ts).
+It proves the PROP-017 populated-state guard and atomic empty-state migration,
+same-organization references, lifetime canonical-label uniqueness, pricing
+and availability overlap rejection, finite interval boundaries, immutable
+history with one-time interval closure, rejection of `reserved`, restricted-role
+same-organization visibility and default denial, and the PROP-019 absence of
+public read and publication functions. It does not prove API authorization,
+command atomicity,
+canonical-label generation, publication eligibility, archive orchestration,
+occupancy override, customer-safe history projection, or external-beta
+controls.
+
 Each implementation PR must identify:
 
 - requirement IDs covered;

@@ -11,6 +11,7 @@ const migrationDirectory = fileURLToPath(
   new URL("../../../infra/postgres/migrations", import.meta.url),
 );
 const migrationLockKey = 4_514_670_274;
+const runtimeMigrationBoundary = "0021_organization_reference_integrity.sql";
 
 function checksum(content: string): string {
   return createHash("sha256").update(content).digest("hex");
@@ -50,6 +51,21 @@ async function assertMigrationPreconditions(
     if (duplicateAssignments.rows[0]) {
       throw new Error(
         "0017 blocked: revoke duplicate active manager assignments before retrying",
+      );
+    }
+  }
+
+  if (fileName === "0022_rental_inventory_v1.sql") {
+    const existingCustomerData = await client.query(`
+      select 1
+      where exists (select 1 from app.organizations)
+        or exists (select 1 from app.users)
+        or exists (select 1 from app.parties)
+        or exists (select 1 from app.landlord_onboarding_applications)
+    `);
+    if (existingCustomerData.rows[0]) {
+      throw new Error(
+        "0022 blocked: database contains organization or customer data; use the separately authorized non-production reset before retrying",
       );
     }
   }
@@ -107,6 +123,7 @@ export async function applyMigrations(client: PoolClient): Promise<void> {
       .sort();
 
     for (const fileName of migrationFiles) {
+      if (fileName > runtimeMigrationBoundary) break;
       const content = await readFile(`${migrationDirectory}/${fileName}`, "utf8");
       if (await applyMigration(client, fileName, content)) {
         console.info(`Applied migration ${fileName}`);

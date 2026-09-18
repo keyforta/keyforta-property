@@ -19,5 +19,6 @@
   "0018_landlord_onboarding.sql": "6f431e82c4d67f4262f92690597f4e26102af124be5b062e743ac7a1e7040352",
   "0019_runtime_schema_readiness.sql": "f925ccb3669c22b6d9a370ec6b399819886081fc6d7e9120a587fa96a6098893",
   "0020_fix_publication_property_reference.sql": "0f23c86138f2e9f45e4c210f61ac82be7b430335ca54c4918eb94413e8350fcb",
-  "0021_organization_reference_integrity.sql": "429ecdf7193c087a6755271f0749b6d4d40cc4f0394a42f513f5e90297342db3"
+  "0021_organization_reference_integrity.sql": "429ecdf7193c087a6755271f0749b6d4d40cc4f0394a42f513f5e90297342db3",
+  "0022_rental_inventory_v1.sql": "dee726c619191000ffa8ebec892db320c06daf28b441d4fa0ff7774068c4b6d0"
 }
