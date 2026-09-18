@@ -110,13 +110,6 @@ export function HomePage({
     [t('marketing.proof.terms_value'), t('marketing.proof.terms')],
     [t('marketing.proof.viewings_value'), t('marketing.proof.viewings')],
   ];
-  const mockPartners = [
-    ['MH', 'Motema Homes'],
-    ['BP', 'Bokoko Property'],
-    ['ES', 'Ebele Services'],
-    ['LF', 'Likita Finance'],
-    ['KL', 'Kimia Living'],
-  ];
   const heroMessages = [
     ['kinshasa', Location20Regular],
     ['listings', BuildingHome20Regular],
@@ -329,25 +322,6 @@ export function HomePage({
           </div>
         </div>
       </section>
-
-      {import.meta.env.DEV && (
-        <section className="partner-preview" aria-labelledby="partner-preview-title">
-          <div className="shell partner-preview-layout">
-            <div className="partner-preview-intro">
-              <p className="eyebrow">{t('marketing.partners.eyebrow')}</p>
-              <h2 id="partner-preview-title">{t('marketing.partners.title')}</h2>
-            </div>
-            <div className="partner-preview-logos">
-              {mockPartners.map(([mark, name]) => (
-                <div className="partner-preview-logo" key={name}>
-                  <span aria-hidden="true">{mark}</span>
-                  <strong>{name}</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
     </div>
   );
 }
