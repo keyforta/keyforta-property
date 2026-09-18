@@ -43,7 +43,7 @@ export const roles = {
 export const actions = {
   tenant: ['Report a maintenance issue', 'Upload a document', 'Message manager'],
   landlord: ['Add a property', 'Invite a manager', 'Review applications'],
-  manager: ['Review an application', 'Create work order', 'Publish a listing'],
+  manager: ['Review an application', 'Create work order', 'Record a payment', 'Publish a listing'],
   operator: ['Publish a service offer', 'Accept a work order', 'Submit a quote'],
 };
 

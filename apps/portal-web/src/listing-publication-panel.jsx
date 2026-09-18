@@ -13,6 +13,7 @@ function isLoopbackHost(hostname) {
 export function resolveApiBaseUrl() {
   const configured = import.meta.env.VITE_KEYFORTA_API_BASE_URL?.trim();
   if (!configured) return { baseUrl: '/api/v1', rejectedConfiguredValue: false };
+  if (configured.startsWith('//')) return { baseUrl: '/api/v1', rejectedConfiguredValue: true };
   if (configured.startsWith('/')) {
     return {
       baseUrl: configured.replace(/\/+$/, '') || '/api/v1',
@@ -55,13 +56,17 @@ function statusCopy(status) {
   };
 }
 
-async function createListingPublicationClient(session) {
-  const accessToken = await session.getAccessToken();
+async function createListingPublicationClient(session, accessToken) {
   return createApiClient({
     baseUrl: resolveApiBaseUrl().baseUrl,
     getOrganizationId: () => session?.organizationId ?? null,
     getToken: () => accessToken,
   });
+}
+
+async function resolveCommandAccessToken(session) {
+  if (!session?.getAccessToken) throw new Error('Sign in before continuing.');
+  return session.getAccessToken();
 }
 
 export function ListingPublicationPanel({
@@ -76,7 +81,7 @@ export function ListingPublicationPanel({
   const [manualListingId, setManualListingId] = useState('');
   const [manualListingError, setManualListingError] = useState('');
   const hasOrganizationContext = Boolean(session?.organizationId);
-  const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : !hasOrganizationContext ? 'organization-unavailable' : session?.getAccessToken ? 'loading' : 'unavailable');
+  const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : !hasOrganizationContext ? 'organization-unavailable' : session?.getAccessToken ? 'sign-in-required' : 'unavailable');
   const inputRef = useRef(null);
   const apiConfig = useMemo(() => resolveApiBaseUrl(), []);
 
@@ -101,20 +106,30 @@ export function ListingPublicationPanel({
         active = false;
       };
     }
-    setTokenStatus('loading');
-    session.getAccessToken()
-      .then((token) => {
-        if (!active) return;
-        setTokenStatus(token ? 'ready' : 'unavailable');
-      })
-      .catch(() => {
-        if (!active) return;
-        setTokenStatus('unavailable');
-      });
+    setTokenStatus('sign-in-required');
     return () => {
       active = false;
     };
   }, [listings, session]);
+
+  const enableLiveCommands = async () => {
+    if (!session?.getAccessToken || !session?.organizationId) return;
+    setMessage('');
+    setMessageTone('');
+    setTokenStatus('loading');
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      if (!accessToken) {
+        setTokenStatus('sign-in-required');
+        return;
+      }
+      setTokenStatus('ready');
+    } catch (error) {
+      setTokenStatus('sign-in-required');
+      setMessage(error instanceof Error ? error.message : 'Sign in with Microsoft Entra to continue.');
+      setMessageTone('error');
+    }
+  };
 
   const runCommand = async (listingId, nextCommand) => {
     if (tokenStatus !== 'ready' || !session?.getAccessToken || !session?.organizationId) return;
@@ -122,7 +137,8 @@ export function ListingPublicationPanel({
     setMessage('');
     setMessageTone('');
     try {
-      const apiClient = await createListingPublicationClient(session);
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createListingPublicationClient(session, accessToken);
       const payload = await apiClient.command('public-listings', listingId, nextCommand);
       const parsed = publicListingPublicationEnvelopeSchema.parse(payload);
       setItems((current) => current.map((item) => (
@@ -203,6 +219,12 @@ export function ListingPublicationPanel({
         <p className='publication-feedback' data-tone='error' role='alert'>
           Listing publication is unavailable until an organization context is selected for this portal session.
         </p>
+      ) : null}
+      {tokenStatus === 'sign-in-required' ? (
+        <div className='publication-feedback' data-tone='error' role='alert'>
+          <p>Sign in with Microsoft Entra to enable listing publication for this session.</p>
+          <Button appearance='secondary' onClick={enableLiveCommands}>Sign in to continue</Button>
+        </div>
       ) : null}
       {tokenStatus === 'unavailable' ? (
         <p className='publication-feedback' data-tone='error' role='alert'>

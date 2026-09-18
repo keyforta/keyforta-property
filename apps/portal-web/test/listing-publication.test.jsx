@@ -9,7 +9,11 @@ vi.mock('@keyforta/ui', () => ({
 }));
 
 const command = vi.hoisted(() => vi.fn());
-const createApiClientMock = vi.hoisted(() => vi.fn(() => ({ command })));
+const createApiClientOptions = vi.hoisted(() => []);
+const createApiClientMock = vi.hoisted(() => vi.fn((options) => {
+  createApiClientOptions.push(options);
+  return { command };
+}));
 vi.mock('@keyforta/api-client', () => ({
   createApiClient: createApiClientMock,
 }));
@@ -55,6 +59,11 @@ describe('resolveApiBaseUrl', () => {
     expect(resolveApiBaseUrl()).toEqual({ baseUrl: 'https://api.example.test/api/v1', rejectedConfiguredValue: false });
   });
 
+  it('rejects protocol-relative api roots that would leak tokens cross-origin', () => {
+    vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', '//attacker.example/api/v1');
+    expect(resolveApiBaseUrl()).toEqual({ baseUrl: '/api/v1', rejectedConfiguredValue: true });
+  });
+
   it('does not flag a valid relative api root as rejected', () => {
     vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', '/api/v1');
     expect(resolveApiBaseUrl()).toEqual({ baseUrl: '/api/v1', rejectedConfiguredValue: false });
@@ -65,24 +74,22 @@ describe('ListingPublicationPanel', () => {
   beforeEach(() => {
     command.mockReset();
     createApiClientMock.mockClear();
+    createApiClientOptions.length = 0;
     vi.unstubAllEnvs();
     vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', '');
   });
 
-  it('keeps actions disabled until the token resolves, then enables publish and withdraw', async () => {
-    let resolveToken;
+  it('renders an explicit sign-in retry affordance after silent readiness is deferred', async () => {
     const deferredSession = {
       ...baseSession,
-      getAccessToken: () => new Promise((resolve) => { resolveToken = resolve; }),
+      getAccessToken: vi.fn().mockRejectedValue(new Error('Interaction required.')),
     };
     renderPanel({ session: deferredSession });
 
-    expect(screen.getByRole('status')).toHaveTextContent('Resolving your portal access token…');
+    expect(screen.getByText(/Sign in with Microsoft Entra to enable listing publication/i)).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: 'Sign in to continue' });
+    expect(button).toBeEnabled();
     expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
-
-    resolveToken('token-ready');
-
-    await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
   });
 
   it('refreshes the access token for each command', async () => {
@@ -95,12 +102,16 @@ describe('ListingPublicationPanel', () => {
       .mockResolvedValueOnce({ data: { listingId: listings[1].id, status: 'withdrawn' }, meta: { requestId: 'req-2' } });
     renderPanel({ session: { ...baseSession, getAccessToken } });
 
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
     await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
     await waitFor(() => expect(command).toHaveBeenNthCalledWith(1, 'public-listings', listings[0].id, 'publish'));
     fireEvent.click(screen.getByRole('button', { name: /Withdraw Garden residence · Unit 1B/i }));
     await waitFor(() => expect(command).toHaveBeenNthCalledWith(2, 'public-listings', listings[1].id, 'withdraw'));
     expect(getAccessToken).toHaveBeenCalledTimes(3);
+    expect(createApiClientOptions[0].getToken()).toBe('token-2');
+    expect(createApiClientOptions[1].getToken()).toBe('token-3');
   });
 
   it('uses a normalized absolute api root without a double slash in the request path', async () => {
@@ -108,6 +119,8 @@ describe('ListingPublicationPanel', () => {
     command.mockResolvedValue({ data: { listingId: listings[0].id, status: 'published' }, meta: { requestId: 'req-1' } });
     renderPanel();
 
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
     await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
 
@@ -120,6 +133,8 @@ describe('ListingPublicationPanel', () => {
     command.mockResolvedValue({ data: { listingId: listings[0].id, status: 'published' }, meta: { requestId: 'req-1' } });
     renderPanel();
 
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
     await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
 
@@ -132,6 +147,7 @@ describe('ListingPublicationPanel', () => {
     command.mockResolvedValue({ data: { listingId: listings[1].id, status: 'withdrawn' }, meta: { requestId: 'req-2' } });
     renderPanel();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
     await waitFor(() => expect(screen.getByRole('button', { name: /Withdraw Garden residence/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Withdraw Garden residence · Unit 1B/i }));
 
@@ -142,7 +158,7 @@ describe('ListingPublicationPanel', () => {
 
   it('shows draft listings separately from withdrawn listings', async () => {
     renderPanel();
-    await screen.findByRole('button', { name: /Publish Riverside apartment/i });
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
     expect(screen.getByText('Draft')).toBeInTheDocument();
     expect(screen.getByText('Listing is still being prepared before publication.')).toBeInTheDocument();
   });
@@ -153,6 +169,8 @@ describe('ListingPublicationPanel', () => {
     command.mockRejectedValue(error);
     renderPanel();
 
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
     await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
 
@@ -172,6 +190,7 @@ describe('ListingPublicationPanel', () => {
     const crossOrgSession = { ...baseSession, organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' };
     renderPanel({ session: crossOrgSession });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
     await waitFor(() => expect(screen.getByRole('button', { name: /Withdraw Garden residence/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Withdraw Garden residence · Unit 1B/i }));
 
@@ -186,6 +205,8 @@ describe('ListingPublicationPanel', () => {
     command.mockRejectedValue(error);
     renderPanel();
 
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
     await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Publish Riverside apartment · Unit 2A/i }));
 
@@ -198,6 +219,7 @@ describe('ListingPublicationPanel', () => {
       .mockResolvedValueOnce({ data: { listingId: listings[0].id, status: 'withdrawn' }, meta: { requestId: 'req-manual-withdraw' } });
     renderPanel({ listings: [] });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeEnabled());
     fireEvent.change(screen.getByLabelText('Listing ID'), { target: { value: listings[0].id } });
     fireEvent.click(screen.getByRole('button', { name: 'Publish by ID' }));
@@ -213,6 +235,7 @@ describe('ListingPublicationPanel', () => {
   it('returns focus and field-level validation metadata for invalid manual listing ids', async () => {
     renderPanel({ listings: [] });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeEnabled());
     fireEvent.change(screen.getByLabelText('Listing ID'), { target: { value: 'not-a-uuid' } });
     fireEvent.click(screen.getByRole('button', { name: 'Publish by ID' }));
@@ -253,7 +276,7 @@ describe('ListingPublicationPanel', () => {
 
   it('has no critical accessibility violations', async () => {
     const { container } = renderPanel();
-    await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
     expect((await axe(container)).violations).toEqual([]);
   });
 });
