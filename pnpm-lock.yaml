@@ -184,6 +184,12 @@ importers:
       '@fluentui/react-components':
         specifier: 9.72.5
         version: 9.72.5(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(scheduler@0.28.0)
+      '@keyforta/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@keyforta/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@keyforta/ui':
         specifier: workspace:*
         version: link:../../packages/ui
