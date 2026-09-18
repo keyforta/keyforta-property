@@ -280,4 +280,38 @@ describe("landlord onboarding routes", () => {
     expect(configured.listCalls).toBe(0);
     expect(configured.decisions).toEqual([]);
   });
+
+  it("evaluates review access through the shared authorization module", async () => {
+    const configured = dependencies();
+    const app = await buildApp(configured);
+    apps.push(app);
+
+    const listed = await app.inject({
+      headers: { authorization: "Bearer admin-token" },
+      method: "GET",
+      url: "/api/v1/landlord-onboarding-applications",
+    });
+
+    expect(listed.statusCode).toBe(200);
+  });
+
+  it("falls back to the legacy allowlist check when the authorization module is disabled", async () => {
+    const configured = { ...dependencies(), useAuthorizationModule: false };
+    const app = await buildApp(configured);
+    apps.push(app);
+
+    const allowlisted = await app.inject({
+      headers: { authorization: "Bearer admin-token" },
+      method: "GET",
+      url: "/api/v1/landlord-onboarding-applications",
+    });
+    const notAllowlisted = await app.inject({
+      headers: { authorization: "Bearer applicant-token" },
+      method: "GET",
+      url: "/api/v1/landlord-onboarding-applications",
+    });
+
+    expect(allowlisted.statusCode).toBe(200);
+    expect(notAllowlisted.statusCode).toBe(404);
+  });
 });
