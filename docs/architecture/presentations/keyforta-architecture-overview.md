@@ -19,7 +19,7 @@ the diagrams below natively.
 
 ## 1. Product & Architecture Principles
 
-Product invariants drive the architecture ([`AGENTS.md`](../../../AGENTS.md)):
+Product invariants drive the architecture:
 
 - **Financial integrity** — money is never binary floating point; posted
   transactions are reversed and replaced, never silently edited.
@@ -217,8 +217,3 @@ GitHub Actions with OIDC — no long-lived Azure credentials:
 Owners: Technology, Finance, Product, Privacy. Each decision requires context,
 options, selected choice, security/privacy and cost impact, and documented
 approval evidence.
-
----
-
-*Source references: [`AGENTS.md`](../../../AGENTS.md),
-[`docs/adr/`](../../adr/), [`docs/architecture/adr/`](../adr/).*

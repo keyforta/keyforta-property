@@ -1,16 +1,13 @@
 # KEYFORTA — Production Scalability & Modern Architecture Proposal
 
 > **Status:** Discussion draft / proposal register — **not an accepted ADR**.
-> **Does not supersede** [ADR-0006 — Lean Single-Environment Pilot](adr/0006-lean-single-environment-pilot.md),
-> which remains the accepted, deployed architecture.
-> Production topology and availability is an explicitly open decision — see
-> [ADR-009: Open Decisions Before Production Launch](../adr/ADR-009-open-architecture-decisions.md)
-> and the "Production topology and availability" row in
-> [`docs/engineering/REQUIREMENTS_GAPS.md`](../engineering/REQUIREMENTS_GAPS.md).
+> **Does not supersede** ADR-0006 (Lean Single-Environment Pilot), which
+> remains the accepted, deployed architecture. Production topology and
+> availability is an explicitly open decision (ADR-009: Open Decisions Before
+> Production Launch, and the repository's tracked requirements-gap register).
 > Nothing in this document authorizes implementation. Each option requires an
 > accepted ADR, product-owner approval, and a measured product/security/
-> reliability justification before it changes cost, scope, or infrastructure
-> (per [`AGENTS.md`](../../AGENTS.md)).
+> reliability justification before it changes cost, scope, or infrastructure.
 
 This document exists to give leadership and architecture reviewers a single,
 diagrammed reference for **what a scaled, real production environment could
@@ -34,7 +31,7 @@ regardless of scale.
 
 ## Non-negotiable invariants at any scale
 
-These carry forward unchanged from the pilot ([`AGENTS.md`](../../AGENTS.md)):
+These carry forward unchanged from the pilot:
 
 - Money is never binary floating point; posted transactions are reversed and
   replaced, never silently edited.
@@ -163,8 +160,7 @@ flowchart LR
 ## 5. Domain module boundaries at scale
 
 Scaling infrastructure must not blur the modular-monolith domain boundaries
-already defined in
-[`keyforta-context-map-and-ownership.md`](../contracts/keyforta-context-map-and-ownership.md).
+already defined in the product's context map and ownership contract.
 These boundaries are what make **selective service extraction** (if ever
 justified) safe later — they are the seams, not an afterthought.
 
@@ -214,9 +210,9 @@ is what makes extraction low-risk later, rather than a rewrite.
 ## 6. Security and compliance architecture at scale
 
 Production scale increases the number of trust boundaries; it must not weaken
-any of them. The existing numbered threat-boundary flow in
-[`THREAT_MODEL.md`](../engineering/THREAT_MODEL.md) is the baseline that a
-production topology must preserve and extend:
+any of them. The existing numbered threat-boundary flow (from the
+repository's threat model) is the baseline that a production topology must
+preserve and extend:
 
 ```mermaid
 flowchart LR
@@ -326,9 +322,8 @@ flowchart TB
 
 ## 8. Testing strategy at production scale
 
-The existing layered strategy in
-[`docs/engineering/TEST_STRATEGY.md`](../engineering/TEST_STRATEGY.md) does
-not change shape with scale — it gets exercised against more infrastructure:
+The existing layered test strategy does not change shape with scale — it gets
+exercised against more infrastructure:
 
 | Layer | Pilot gate | Production addition |
 | --- | --- | --- |
@@ -351,8 +346,8 @@ through the same proof pattern before it is trusted.
 
 ## 9. Reliability & operational readiness gaps to close before production
 
-Directly from [ADR-009](../adr/ADR-009-open-architecture-decisions.md) and
-[`REQUIREMENTS_GAPS.md`](../engineering/REQUIREMENTS_GAPS.md):
+Directly from ADR-009 (Open Decisions Before Production Launch) and the
+repository's tracked requirements-gap register:
 
 | Gap | Must be resolved by |
 | --- | --- |
@@ -372,8 +367,7 @@ requiring named owners and approval evidence.
 
 ## 10. Backup, disaster recovery, and business continuity
 
-Current pilot mechanisms (from
-[`backup-retention-runbook.md`](../database/backup-retention-runbook.md)) are
+Current pilot mechanisms (from the backup and retention runbook) are
 explicitly **not** a recovery guarantee — RPO/RTO remain unapproved and
 unverified:
 
@@ -443,21 +437,20 @@ flowchart LR
     Collect --> Alert --> OnCall --> Runbooks
 ```
 
-- **Pilot targets are explicitly learning targets, not customer commitments**
-  (see [`docs/operations/README.md`](../operations/README.md#proposed-service-objectives));
+- **Pilot targets are explicitly learning targets, not customer commitments**;
   production commitments require the same table re-approved with measured
   data and an accountable on-call owner.
 - **Capacity planning must follow measured pilot load**, not assumed scale:
   autoscaling thresholds, replica count, and connection-pool sizing are set
   from observed traffic and load tests (§8), then re-validated after each
   material feature launch.
-- **Cost impact is part of every production ADR**, per the ADR-009 template —
-  HA database tiers, geo-redundant storage, managed messaging, and a
-  dashboards/alerting stack all carry recurring cost that must be sized
-  against actual usage, not headroom for hypothetical growth.
+- **Cost impact is part of every production ADR** — HA database tiers,
+  geo-redundant storage, managed messaging, and a dashboards/alerting stack
+  all carry recurring cost that must be sized against actual usage, not
+  headroom for hypothetical growth.
 - **Alert-to-runbook linkage** — every new alert rule must reference an
-  existing or newly written runbook using the required template in
-  [`docs/operations/README.md`](../operations/README.md#required-runbook-template).
+  existing or newly written runbook using the operations team's required
+  runbook template.
 
 ---
 
@@ -473,12 +466,11 @@ flowchart LR
    Product, Privacy) before implementation.
 5. Verify each hardening claim (backup, HA, autoscaling) with an executed
    drill or load test — configuration alone is not evidence.
-6. Update `docs/architecture/adr/0006-lean-single-environment-pilot.md`
-   status only once a production ADR is accepted that supersedes it.
+6. Update the lean single-environment pilot decision's status only once a
+   production ADR is accepted that supersedes it.
 
 ---
 
 *This is a planning artifact for leadership discussion. Authoritative,
-accepted decisions live in [`docs/adr/`](../adr/) and
-[`docs/architecture/adr/`](adr/); do not treat this document as approved
-scope, architecture, or infrastructure authorization.*
+accepted architecture decisions govern this repository; do not treat this
+document as approved scope, architecture, or infrastructure authorization.*
