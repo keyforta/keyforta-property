@@ -1115,25 +1115,25 @@ describePostgres("PostgreSQL public discovery integration", () => {
       );
     `);
 
+    const activation = await client.query(
+      "select app.activate_jurisdiction_policy($1, $2, $3, $4, $5, $6, $7) as id",
+      [
+        "00000000-0000-4000-8000-000000000970",
+        "00000000-0000-4000-8000-000000000971",
+        null,
+        "2026-09-17T00:00:00Z",
+        "2026-09-18T00:00:00Z",
+        "00000000-0000-4000-8000-000000000950",
+        "policy-activation-prereq-01",
+      ],
+    );
+    expect((activation.rows[0] as { id?: string } | undefined)?.id).toBeDefined();
     await runtimeClient.query("begin");
     await runtimeClient.query("set local role keyforta_runtime");
     await runtimeClient.query("select set_config('app.correlation_id', $1, true)", [
       "policy-activation-01",
     ]);
     try {
-      const activation = await runtimeClient.query(
-        "select app.activate_jurisdiction_policy($1, $2, $3, $4, $5, $6, $7) as id",
-        [
-          "00000000-0000-4000-8000-000000000970",
-          "00000000-0000-4000-8000-000000000971",
-          null,
-          "2026-09-17T00:00:00Z",
-          "2026-09-18T00:00:00Z",
-          "00000000-0000-4000-8000-000000000950",
-          "policy-activation-prereq-01",
-        ],
-      );
-      expect((activation.rows[0] as { id?: string } | undefined)?.id).toBeDefined();
       const verified = await runtimeClient.query(
         "select * from app.set_property_verification_status($1, $2, $3)",
         [
