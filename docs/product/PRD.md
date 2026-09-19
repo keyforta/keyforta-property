@@ -1,6 +1,6 @@
 # Product Requirements
 
-**Status:** Approved for implementation on 2026-09-16; commercial legal launch remains blocked by the DRC decision register
+**Status:** Approved for implementation on 2026-09-16; commercial legal launch remains blocked by the DRC decision register. Scope amended 2026-09-18 (issue #75, product-owner ratified): public (unauthenticated) rental applications are in scope alongside invited-tenant applications; automated (non-human) application acceptance and unit reservation remain out of scope.
 
 ## Problem
 
@@ -44,7 +44,7 @@ compatibility.
 
 - Organization, user, role, property, and unit records
 - Controlled public listings and visit inquiries
-- Invited-tenant applications and explicit human review decisions
+- Invited-tenant and public (unauthenticated self-service) rental applications, both subject to explicit human review decisions
 - Tenant, co-tenant, guarantor, and contact relationships
 - Versioned lease terms and occupancy lifecycle
 - Rent, concession, deposit/guarantee/advance, and charge schedules
@@ -56,7 +56,7 @@ compatibility.
 
 ## Out of scope
 
-- Public rental applications and automated reservations
+- Automated (non-human) application acceptance and unit reservation (application submission may be public, but every acceptance/reservation decision always requires explicit human review — see issue #75)
 - Autonomous tenant selection, pricing, collection escalation, or eviction
 - General ledger, tax filing, payroll, mortgage, or property-sale closing
 - Native mobile applications and independent microservices
