@@ -1,0 +1,125 @@
+{
+  "common": {
+    "switch_language": "Passer en anglais",
+    "sign_out": "Se d\u00e9connecter",
+    "saved": "Enregistr\u00e9"
+  },
+  "auth": {
+    "protected_workspace": "Espace prot\u00e9g\u00e9",
+    "sign_in_title": "Connectez-vous pour continuer.",
+    "sign_in_subtitle": "Connectez-vous avec votre compte Microsoft Entra pour ouvrir votre espace de travail.",
+    "sign_in_button": "Se connecter avec Microsoft Entra",
+    "status": {
+      "loading": "V\u00e9rification de la connexion Microsoft Entra...",
+      "authenticating": "Ouverture de la connexion Microsoft Entra...",
+      "unavailable": "La connexion Microsoft Entra n'est pas configur\u00e9e pour cet environnement.",
+      "error": "La connexion Microsoft Entra n'a pas pu \u00eatre termin\u00e9e. R\u00e9essayez."
+    },
+    "pending_title": "Acc\u00e8s \u00e0 l'espace de travail en attente.",
+    "pending_body": "Connect\u00e9 en tant que {{identity}}. Aucun espace de travail locataire, propri\u00e9taire, gestionnaire ou prestataire n'est encore attribu\u00e9 \u00e0 cette identit\u00e9. Contactez votre organisation d\u00e8s que le provisionnement des adh\u00e9sions sera disponible.",
+    "redirect_failed": "L'authentification n'a pas pu \u00eatre termin\u00e9e. Fermez cette fen\u00eatre et r\u00e9essayez."
+  },
+  "roles": {
+    "tenant": {
+      "label": "Locataire",
+      "eyebrow": "Ma location",
+      "title": "Tout ce qui concerne votre logement, au m\u00eame endroit.",
+      "summary": "Suivez votre demande, votre bail, vos paiements, votre entretien, vos documents et vos messages.",
+      "nav": ["Aper\u00e7u", "Mon bail", "Paiements", "Entretien", "Documents", "Messages"],
+      "stats_empty_state": "Les r\u00e9sum\u00e9s de bail, de paiement et d'entretien appara\u00eetront ici d\u00e8s que les API de lecture locataire seront disponibles.",
+      "rows_empty_state": "L'activit\u00e9 r\u00e9cente d'entretien, de paiement et de messagerie appara\u00eetra ici d\u00e8s que les API de lecture locataire seront disponibles."
+    },
+    "landlord": {
+      "label": "Propri\u00e9taire",
+      "eyebrow": "Espace propri\u00e9taire",
+      "title": "Une vue claire de votre portefeuille immobilier.",
+      "summary": "G\u00e9rez les propri\u00e9t\u00e9s, les unit\u00e9s, les demandes, les baux, les loyers, l'entretien, les documents et vos relations avec les gestionnaires.",
+      "nav": ["Aper\u00e7u", "Propri\u00e9t\u00e9s", "Demandes", "Baux", "Paiements", "Entretien", "Documents", "Messages"],
+      "stats_empty_state": "Les r\u00e9sum\u00e9s de portefeuille, d'occupation et de recouvrement appara\u00eetront ici d\u00e8s que les API de lecture propri\u00e9taire seront disponibles.",
+      "rows_empty_state": "Les demandes, paiements et invitations de gestionnaires r\u00e9cents appara\u00eetront ici d\u00e8s que les API de lecture propri\u00e9taire seront disponibles."
+    },
+    "manager": {
+      "label": "Gestionnaire immobilier",
+      "eyebrow": "Espace op\u00e9rations",
+      "title": "Coordonnez le travail derri\u00e8re chaque logement.",
+      "summary": "G\u00e9rez le portefeuille attribu\u00e9 tout en gardant les demandes, occupants, paiements, entretien, documents et communications connect\u00e9s.",
+      "nav": ["Aper\u00e7u", "Portefeuille", "Demandes", "Occupation", "Paiements", "Ordres de travail", "Documents", "Messages"],
+      "stats_empty_state": "Les unit\u00e9s attribu\u00e9es, demandes, ordres de travail et r\u00e9sum\u00e9s de paiement appara\u00eetront ici d\u00e8s que les API de lecture gestionnaire seront disponibles.",
+      "rows_empty_state": "Les demandes, ordres de travail et documents r\u00e9cents appara\u00eetront ici d\u00e8s que les API de lecture gestionnaire seront disponibles."
+    },
+    "operator": {
+      "label": "Prestataire d'entretien ind\u00e9pendant",
+      "eyebrow": "Espace terrain",
+      "title": "Faites avancer chaque t\u00e2che attribu\u00e9e.",
+      "summary": "Proposez vos services dans plusieurs propri\u00e9t\u00e9s, puis g\u00e9rez uniquement les t\u00e2ches, cr\u00e9neaux d'acc\u00e8s, devis, rapports et preuves qui vous sont attribu\u00e9s.",
+      "nav": ["Aper\u00e7u", "Offres de service", "Ordres de travail", "Planning", "Devis", "Rapports", "Gains", "Profil"],
+      "stats_empty_state": "Les t\u00e2ches attribu\u00e9es, le planning du jour, les devis et les r\u00e9sum\u00e9s de gains appara\u00eetront ici d\u00e8s que les API de lecture prestataire seront disponibles.",
+      "rows_empty_state": "Les ordres de travail, visites et devis r\u00e9cents appara\u00eetront ici d\u00e8s que les API de lecture prestataire seront disponibles."
+    }
+  },
+  "actions": {
+    "tenant": ["Signaler un probl\u00e8me d'entretien", "T\u00e9l\u00e9verser un document", "Envoyer un message au gestionnaire"],
+    "landlord": ["Ajouter une propri\u00e9t\u00e9", "Inviter un gestionnaire", "Examiner les demandes"],
+    "manager": ["Examiner une demande", "Cr\u00e9er un ordre de travail", "Enregistrer un paiement", "Publier une annonce"],
+    "operator": ["Publier une offre de service", "Accepter un ordre de travail", "Soumettre un devis"]
+  },
+  "workspace": {
+    "navigation_label": "Navigation de l'espace de travail",
+    "records_and_actions": "Vos enregistrements et actions {{section}}.",
+    "activity": "Activit\u00e9",
+    "needs_attention": "N\u00e9cessite votre attention",
+    "quick_actions": "Actions rapides",
+    "keep_things_moving": "Faites avancer les choses.",
+    "api_boundary": "Limite de l'API",
+    "api_boundary_body": "Chaque action correspond \u00e0 une commande ou une ressource du contrat partag\u00e9. Le serveur reste souverain."
+  },
+  "listing_publication": {
+    "kicker": "Publication d'annonce",
+    "title": "Publier ou retirer les annonces attribu\u00e9es",
+    "note": "Utilisez les commandes de publication existantes pour les annonces d\u00e9j\u00e0 attribu\u00e9es au contexte de votre organisation.",
+    "rejected_base_url": "La publication d'annonces a ignor\u00e9 une URL de base d'API non valide ou non s\u00e9curis\u00e9e et est revenue au chemin d'API relatif approuv\u00e9.",
+    "resolving_token": "R\u00e9solution de votre jeton d'acc\u00e8s au portail\u2026",
+    "demo_session": "Les sessions de portail de d\u00e9monstration ne peuvent pas modifier la publication d'annonces. Connectez-vous avec Microsoft Entra avant d'envoyer des commandes de publication ou de retrait.",
+    "organization_unavailable": "La publication d'annonces est indisponible tant qu'un contexte d'organisation n'est pas s\u00e9lectionn\u00e9 pour cette session de portail.",
+    "sign_in_required": "Connectez-vous avec Microsoft Entra pour activer la publication d'annonces pour cette session.",
+    "sign_in_to_continue": "Se connecter pour continuer",
+    "unavailable": "La publication d'annonces est indisponible tant que l'acc\u00e8s Microsoft Entra n'est pas connect\u00e9 pour cette session de portail.",
+    "assigned_listings": "Annonces attribu\u00e9es",
+    "empty_state": "Les annonces attribu\u00e9es appara\u00eetront ici d\u00e8s que le flux du portefeuille sera disponible.",
+    "empty_state_portfolio": "Aucune annonce attribu\u00e9e n'est charg\u00e9e dans ce prototype pour le moment. Utilisez un identifiant d'annonce fiable pour publier ou retirer tant que le flux du portefeuille reste indisponible.",
+    "sign_in_error": "Connectez-vous avec Microsoft Entra pour continuer.",
+    "sign_in_first": "Connectez-vous avant de continuer.",
+    "published_success": "Annonce publi\u00e9e avec succ\u00e8s.",
+    "withdrawn_success": "Annonce retir\u00e9e avec succ\u00e8s.",
+    "not_found": "Annonce introuvable ou non attribu\u00e9e \u00e0 vous.",
+    "update_failed": "Le statut de l'annonce n'a pas pu \u00eatre mis \u00e0 jour pour le moment.",
+    "enter_listing_id": "Saisissez un identifiant d'annonce \u00e0 publier ou \u00e0 retirer.",
+    "invalid_listing_id": "Saisissez un identifiant d'annonce valide.",
+    "saving": "Enregistrement\u2026",
+    "saving_named": "Enregistrement de {{title}}",
+    "action_named": "{{action}} {{title}}",
+    "listing_id_label": "Identifiant de l'annonce",
+    "listing_id_placeholder": "Collez un UUID d'annonce",
+    "listing_id_help": "Utilisez un identifiant d'annonce fiable lorsque le flux du portefeuille est indisponible dans cette coquille de prototype.",
+    "publish_by_id": "Publier par identifiant",
+    "withdraw_by_id": "Retirer par identifiant",
+    "sending_command": "Envoi de la commande de publication d'annonce\u2026",
+    "status": {
+      "published": {
+        "action": "Retirer",
+        "badge": "Publi\u00e9e",
+        "detail": "L'annonce est en ligne sur la place de march\u00e9 publique."
+      },
+      "draft": {
+        "action": "Publier",
+        "badge": "Brouillon",
+        "detail": "L'annonce est encore en pr\u00e9paration avant publication."
+      },
+      "withdrawn": {
+        "action": "Publier",
+        "badge": "Retir\u00e9e",
+        "detail": "L'annonce est masqu\u00e9e de la place de march\u00e9 publique."
+      }
+    }
+  }
+}

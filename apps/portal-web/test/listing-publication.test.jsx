@@ -1,5 +1,5 @@
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -19,6 +19,7 @@ vi.mock('@keyforta/api-client', () => ({
 }));
 
 import { ListingPublicationPanel, resolveApiBaseUrl } from '../src/listing-publication-panel.jsx';
+import i18n from '../src/i18n.js';
 
 const listings = [
   { id: '6d5f0d4f-e7ca-4c96-b67b-513f871f3f1a', title: 'Riverside apartment · Unit 2A', status: 'withdrawn', note: 'Ready to publish.' },
@@ -77,6 +78,7 @@ describe('ListingPublicationPanel', () => {
     createApiClientOptions.length = 0;
     vi.unstubAllEnvs();
     vi.stubEnv('VITE_KEYFORTA_API_BASE_URL', '');
+    i18n.changeLanguage('en');
   });
 
   it('renders an explicit sign-in retry affordance after silent readiness is deferred', async () => {
@@ -134,6 +136,19 @@ describe('ListingPublicationPanel', () => {
     expect(getAccessToken).toHaveBeenCalledTimes(3);
     expect(createApiClientOptions[0].getToken()).toBe('token-2');
     expect(createApiClientOptions[1].getToken()).toBe('token-3');
+  });
+
+  it('sends the stable English API command even when the UI language is French', async () => {
+    command.mockResolvedValueOnce({ data: { listingId: listings[0].id, status: 'published' }, meta: { requestId: 'req-1' } });
+    renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
+
+    await act(async () => { await i18n.changeLanguage('fr'); });
+    const publishButton = await screen.findByRole('button', { name: /Publier Riverside apartment/i });
+    fireEvent.click(publishButton);
+
+    await waitFor(() => expect(command).toHaveBeenCalledWith('public-listings', listings[0].id, 'publish'));
   });
 
   it('uses a normalized absolute api root without a double slash in the request path', async () => {

@@ -31,6 +31,7 @@ vi.mock('../src/onboarding-api.js', () => ({
 }));
 
 import { OnboardingAdmin } from '../src/OnboardingAdmin.jsx';
+import i18n from '../src/i18n.js';
 
 function renderAdmin() {
   return render(<FluentProvider theme={webLightTheme}><OnboardingAdmin /></FluentProvider>);
@@ -48,6 +49,7 @@ describe('OnboardingAdmin', () => {
     mocks.signInMock.mockReset();
     mocks.signOutMock.mockReset();
     mocks.initializeMock.mockReset();
+    i18n.changeLanguage('en');
   });
 
   it('renders a loading queue state before applications load', () => {
@@ -83,7 +85,7 @@ describe('OnboardingAdmin', () => {
     fireEvent.change(textbox, { target: { value: 'Verified documents' } });
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(mocks.decideMock).toHaveBeenCalledWith('app-1', { decision: 'approved', reason: 'Verified documents' }));
-    expect(await screen.findByText('approved')).toBeInTheDocument();
+    expect(await screen.findByText('Approved')).toBeInTheDocument();
     expect(screen.getByText('Verified documents')).toBeInTheDocument();
   });
 
@@ -91,5 +93,22 @@ describe('OnboardingAdmin', () => {
     mocks.authState.current = { status: 'signed-out' };
     const { container } = renderAdmin();
     expect((await axe(container)).violations).toEqual([]);
+  });
+
+  it('switches the console to French when the language toggle is used', async () => {
+    mocks.listMock.mockResolvedValue([]);
+    renderAdmin();
+    await screen.findByText('No onboarding applications are awaiting review.');
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to French' }));
+    expect(await screen.findByText("Aucune demande d'accueil n'est en attente d'examen.")).toBeInTheDocument();
+  });
+
+  it('translates the application status badge instead of showing the raw API value', async () => {
+    mocks.listMock.mockResolvedValue([application]);
+    renderAdmin();
+    await screen.findByText('Amina K.');
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to French' }));
+    expect(await screen.findByText('En attente')).toBeInTheDocument();
+    expect(screen.queryByText('pending')).not.toBeInTheDocument();
   });
 });

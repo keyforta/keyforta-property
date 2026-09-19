@@ -98,6 +98,21 @@ button {
   line-height: 1.5;
   font-size: 0.9rem;
 }
+.state-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid #cfded5;
+  border-radius: 6px;
+  background: #edf5f0;
+  color: #285b47;
+}
+.state-message.error {
+  border-color: #e2c9c4;
+  background: #fff0ed;
+  color: #842f26;
+}
 .app-shell {
   display: flex;
   min-height: 100vh;
@@ -147,8 +162,15 @@ button {
   text-align: center;
   color: #bce7d0;
 }
-.signout {
+.language-toggle {
   margin-top: auto;
+  border-radius: 10px;
+  background: transparent;
+  color: #bce7d0;
+  padding: 13px;
+  text-align: left;
+}
+.signout {
   border-radius: 10px;
   background: #24483b;
   color: #dceee4;

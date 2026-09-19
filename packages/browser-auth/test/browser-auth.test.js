@@ -17,3 +17,13 @@ test('browser auth keeps tokens in MSAL memory cache', async () => {
   assert.match(source, /knownAuthorities: \[config\.knownAuthority\]/);
   assert.match(source, /broadcastResponseToMainFrame\(\)/);
 });
+
+test('browser auth re-establishes a still-valid session on reload via ssoSilent, not client-side persistence', async () => {
+  const source = await readFile(new URL('../src/index.js', import.meta.url), 'utf8');
+  // MemoryStorage empties the account cache on every page reload; ssoSilent()
+  // re-authenticates from the browser's existing Entra session cookie
+  // instead, so a refresh does not force a re-login while that session
+  // remains valid, without weakening the no-client-storage invariant above.
+  assert.match(source, /client\.ssoSilent\(\{ scopes: \[config\.apiScope\] \}\)/);
+  assert.doesNotMatch(source, /localStorage|sessionStorage/);
+});
