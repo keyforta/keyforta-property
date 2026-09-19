@@ -1,0 +1,40 @@
+{
+  "common": {
+    "switch_language": "Switch to French",
+    "sign_out": "Sign out",
+    "refresh": "Refresh"
+  },
+  "auth": {
+    "restricted_console": "Restricted console",
+    "sign_in_title": "Landlord onboarding review",
+    "sign_in_subtitle": "Sign in with a platform administrator identity to review onboarding applications.",
+    "sign_in_button": "Sign in with Microsoft Entra",
+    "status": {
+      "loading": "Checking Microsoft Entra sign-in...",
+      "authenticating": "Opening Microsoft Entra sign-in...",
+      "unavailable": "Microsoft Entra sign-in is not configured for this environment.",
+      "error": "Microsoft Entra sign-in could not be completed. Try again."
+    },
+    "redirect_failed": "Authentication could not be completed. Close this window and try again."
+  },
+  "review": {
+    "submitted": "Submitted",
+    "decided": "Decided",
+    "decision_reason_label": "Decision reason",
+    "decision_reason_hint": "Required for both approval and rejection.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "not_authorized_review": "This identity is not authorized to review onboarding applications.",
+    "api_unavailable": "The admin API is not configured.",
+    "queue_load_failed": "The review queue could not be loaded.",
+    "not_authorized_decide": "This identity is not authorized to decide onboarding applications.",
+    "decision_failed": "The decision could not be completed. Refresh the queue and try again.",
+    "platform_administration": "Platform administration",
+    "page_title": "Landlord onboarding review",
+    "page_subtitle": "Approve or reject verified applicants. Every decision requires a reason and is audited by the API.",
+    "loading_applications": "Loading applications...",
+    "empty_state": "No onboarding applications are awaiting review.",
+    "access_denied": "Access denied",
+    "applications_list_label": "Landlord onboarding applications"
+  }
+}

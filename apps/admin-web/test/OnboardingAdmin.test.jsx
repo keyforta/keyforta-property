@@ -31,6 +31,7 @@ vi.mock('../src/onboarding-api.js', () => ({
 }));
 
 import { OnboardingAdmin } from '../src/OnboardingAdmin.jsx';
+import i18n from '../src/i18n.js';
 
 function renderAdmin() {
   return render(<FluentProvider theme={webLightTheme}><OnboardingAdmin /></FluentProvider>);
@@ -48,6 +49,7 @@ describe('OnboardingAdmin', () => {
     mocks.signInMock.mockReset();
     mocks.signOutMock.mockReset();
     mocks.initializeMock.mockReset();
+    i18n.changeLanguage('en');
   });
 
   it('renders a loading queue state before applications load', () => {
@@ -91,5 +93,13 @@ describe('OnboardingAdmin', () => {
     mocks.authState.current = { status: 'signed-out' };
     const { container } = renderAdmin();
     expect((await axe(container)).violations).toEqual([]);
+  });
+
+  it('switches the console to French when the language toggle is used', async () => {
+    mocks.listMock.mockResolvedValue([]);
+    renderAdmin();
+    await screen.findByText('No onboarding applications are awaiting review.');
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to French' }));
+    expect(await screen.findByText("Aucune demande d'accueil n'est en attente d'examen.")).toBeInTheDocument();
   });
 });

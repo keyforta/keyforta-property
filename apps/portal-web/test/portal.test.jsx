@@ -27,6 +27,7 @@ vi.mock('@keyforta/browser-auth', () => ({
 }));
 
 import { Portal } from '../src/portal-app.jsx';
+import i18n from '../src/i18n.js';
 
 function renderPortal() {
   return render(<FluentProvider theme={webLightTheme}><Portal /></FluentProvider>);
@@ -41,6 +42,7 @@ describe('Portal', () => {
     mocks.signInMock.mockClear();
     mocks.signOutMock.mockClear();
     mocks.initializeMock.mockClear();
+    i18n.changeLanguage('en');
   });
 
   it('renders the Microsoft Entra sign-in gate when no session exists', () => {
@@ -132,5 +134,21 @@ describe('Portal', () => {
   it('has no critical accessibility violations for the sign-in view', async () => {
     const { container } = renderPortal();
     expect((await axe(container)).violations).toEqual([]);
+  });
+
+  it('switches the workspace to French when the language toggle is used', () => {
+    localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'demo.tenant@test.keyforta.com', role: 'tenant', issuedAt: '2026-09-18T00:00:00.000Z' }));
+    renderPortal();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to French' }));
+    expect(screen.getByRole('heading', { name: 'Tout ce qui concerne votre logement, au même endroit.' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument();
+  });
+
+  it('keeps the listing publication panel tied to the Portfolio section after switching language', () => {
+    localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'manager@test.keyforta.com', role: 'manager', issuedAt: '2026-09-18T00:00:00.000Z', organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }));
+    renderPortal();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to French' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Portefeuille' }));
+    expect(screen.getByRole('heading', { name: 'Publier ou retirer les annonces attribuées' })).toBeInTheDocument();
   });
 });

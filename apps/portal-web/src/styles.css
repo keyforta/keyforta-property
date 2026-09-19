@@ -162,8 +162,15 @@ button {
   text-align: center;
   color: #bce7d0;
 }
-.signout {
+.language-toggle {
   margin-top: auto;
+  border-radius: 10px;
+  background: transparent;
+  color: #bce7d0;
+  padding: 13px;
+  text-align: left;
+}
+.signout {
   border-radius: 10px;
   background: #24483b;
   color: #dceee4;

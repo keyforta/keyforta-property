@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Input, Spinner } from '@fluentui/react-components';
+import { useTranslation } from 'react-i18next';
+import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
 import {
   publicListingIdSchema,
@@ -34,25 +36,12 @@ export function resolveApiBaseUrl() {
   return { baseUrl: '/api/v1', rejectedConfiguredValue: true };
 }
 
-function statusCopy(status) {
-  if (status === 'published') {
-    return {
-      action: 'Withdraw',
-      badge: 'Published',
-      detail: 'Listing is live on the public marketplace.',
-    };
-  }
-  if (status === 'draft') {
-    return {
-      action: 'Publish',
-      badge: 'Draft',
-      detail: 'Listing is still being prepared before publication.',
-    };
-  }
+function statusCopy(status, t) {
+  const key = status === 'published' ? 'published' : status === 'draft' ? 'draft' : 'withdrawn';
   return {
-    action: 'Publish',
-    badge: 'Withdrawn',
-    detail: 'Listing is hidden from the public marketplace.',
+    action: t(`listing_publication.status.${key}.action`),
+    badge: t(`listing_publication.status.${key}.badge`),
+    detail: t(`listing_publication.status.${key}.detail`),
   };
 }
 
@@ -65,15 +54,17 @@ async function createListingPublicationClient(session, accessToken) {
 }
 
 async function resolveCommandAccessToken(session) {
-  if (!session?.getAccessToken) throw new Error('Sign in before continuing.');
+  if (!session?.getAccessToken) throw new Error(i18n.t('listing_publication.sign_in_first'));
   return session.getAccessToken();
 }
 
 export function ListingPublicationPanel({
-  emptyState = 'Assigned listings will appear here after the portfolio feed is available.',
+  emptyState,
   listings,
   session,
 }) {
+  const { t } = useTranslation();
+  const resolvedEmptyState = emptyState ?? t('listing_publication.empty_state');
   const [items, setItems] = useState(listings);
   const [busyListingId, setBusyListingId] = useState('');
   const [message, setMessage] = useState('');
@@ -136,7 +127,7 @@ export function ListingPublicationPanel({
       setTokenStatus('ready');
     } catch (error) {
       setTokenStatus('sign-in-required');
-      setMessage(error instanceof Error ? error.message : 'Sign in with Microsoft Entra to continue.');
+      setMessage(error instanceof Error ? error.message : t('listing_publication.sign_in_error'));
       setMessageTone('error');
     }
   };
@@ -158,15 +149,15 @@ export function ListingPublicationPanel({
       )));
       setMessage(
         parsed.data.status === 'published'
-          ? 'Listing published successfully.'
-          : 'Listing withdrawn successfully.',
+          ? t('listing_publication.published_success')
+          : t('listing_publication.withdrawn_success'),
       );
       setMessageTone('success');
     } catch (error) {
       if (error?.code === 'NOT_FOUND') {
-        setMessage('Listing not found or not assigned to you.');
+        setMessage(t('listing_publication.not_found'));
       } else {
-        setMessage(error instanceof Error ? error.message : 'Listing status could not be updated right now.');
+        setMessage(error instanceof Error ? error.message : t('listing_publication.update_failed'));
       }
       setMessageTone('error');
     } finally {
@@ -177,7 +168,7 @@ export function ListingPublicationPanel({
   const submitManualCommand = async (event, nextCommand) => {
     event.preventDefault();
     if (!manualListingId.trim()) {
-      setManualListingError('Enter a listing ID to publish or withdraw.');
+      setManualListingError(t('listing_publication.enter_listing_id'));
       setMessage('');
       setMessageTone('');
       inputRef.current?.focus();
@@ -188,7 +179,7 @@ export function ListingPublicationPanel({
       setManualListingError('');
       await runCommand(listingId, nextCommand);
     } catch {
-      setManualListingError('Enter a valid listing ID.');
+      setManualListingError(t('listing_publication.invalid_listing_id'));
       setMessage('');
       setMessageTone('');
       inputRef.current?.focus();
@@ -205,48 +196,48 @@ export function ListingPublicationPanel({
     >
       <div className='panel-head'>
         <div>
-          <p className='kicker'>Listing publication</p>
-          <h2 id='listing-publication-title'>Publish or withdraw assigned listings</h2>
+          <p className='kicker'>{t('listing_publication.kicker')}</p>
+          <h2 id='listing-publication-title'>{t('listing_publication.title')}</h2>
         </div>
       </div>
       <p className='publication-note'>
-        Use the existing publication commands for listings already assigned to your organization context.
+        {t('listing_publication.note')}
       </p>
       {apiConfig.rejectedConfiguredValue ? (
         <p className='publication-feedback' data-tone='error' role='alert'>
-          Listing publication ignored an invalid or insecure API base URL and fell back to the approved relative API path.
+          {t('listing_publication.rejected_base_url')}
         </p>
       ) : null}
       {tokenStatus === 'loading' ? (
-        <p className='publication-feedback' data-tone='success' role='status'>Resolving your portal access token…</p>
+        <p className='publication-feedback' data-tone='success' role='status'>{t('listing_publication.resolving_token')}</p>
       ) : null}
       {tokenStatus === 'demo' ? (
         <p className='publication-feedback' data-tone='error' role='alert'>
-          Demo portal sessions cannot change listing publication. Sign in with Microsoft Entra before sending publish or withdraw commands.
+          {t('listing_publication.demo_session')}
         </p>
       ) : null}
       {tokenStatus === 'organization-unavailable' ? (
         <p className='publication-feedback' data-tone='error' role='alert'>
-          Listing publication is unavailable until an organization context is selected for this portal session.
+          {t('listing_publication.organization_unavailable')}
         </p>
       ) : null}
       {tokenStatus === 'sign-in-required' ? (
         <div className='publication-feedback' data-tone='error' role='alert'>
-          <p>Sign in with Microsoft Entra to enable listing publication for this session.</p>
-          <Button appearance='secondary' onClick={enableLiveCommands}>Sign in to continue</Button>
+          <p>{t('listing_publication.sign_in_required')}</p>
+          <Button appearance='secondary' onClick={enableLiveCommands}>{t('listing_publication.sign_in_to_continue')}</Button>
         </div>
       ) : null}
       {tokenStatus === 'unavailable' ? (
         <p className='publication-feedback' data-tone='error' role='alert'>
-          Listing publication is unavailable until Microsoft Entra access is connected for this portal session.
+          {t('listing_publication.unavailable')}
         </p>
       ) : null}
       {items.length === 0 ? (
-        <p className='publication-empty'>{emptyState}</p>
+        <p className='publication-empty'>{resolvedEmptyState}</p>
       ) : (
-        <div className='rows' role='list' aria-label='Assigned listings'>
+        <div className='rows' role='list' aria-label={t('listing_publication.assigned_listings')}>
           {items.map((listing) => {
-            const copy = statusCopy(listing.status);
+            const copy = statusCopy(listing.status, t);
             const isBusy = busyListingId === listing.id;
             return (
               <div key={listing.id} className='listing-row' role='listitem'>
@@ -258,11 +249,11 @@ export function ListingPublicationPanel({
                 </div>
                 <span className='status'>{copy.badge}</span>
                 <Button
-                  aria-label={isBusy ? `Saving ${listing.title}` : `${copy.action} ${listing.title}`}
+                  aria-label={isBusy ? t('listing_publication.saving_named', { title: listing.title }) : t('listing_publication.action_named', { action: copy.action, title: listing.title })}
                   disabled={disableActions}
                   onClick={() => runCommand(listing.id, copy.action.toLowerCase())}
                 >
-                  {isBusy ? <><Spinner size='tiny' /> Saving…</> : copy.action}
+                  {isBusy ? <><Spinner size='tiny' /> {t('listing_publication.saving')}</> : copy.action}
                 </Button>
               </div>
             );
@@ -270,7 +261,7 @@ export function ListingPublicationPanel({
         </div>
       )}
       <div className='manual-listing-form'>
-        <label htmlFor='manual-listing-id'>Listing ID</label>
+        <label htmlFor='manual-listing-id'>{t('listing_publication.listing_id_label')}</label>
         <Input
           aria-describedby={manualListingError ? 'manual-listing-id-error' : 'manual-listing-id-help'}
           aria-invalid={manualListingError ? 'true' : 'false'}
@@ -279,19 +270,19 @@ export function ListingPublicationPanel({
             setManualListingId(data.value);
             if (manualListingError) setManualListingError('');
           }}
-          placeholder='Paste a listing UUID'
+          placeholder={t('listing_publication.listing_id_placeholder')}
           ref={inputRef}
           value={manualListingId}
         />
         <p className='publication-note' id='manual-listing-id-help'>
-          Use a trusted listing ID when the portfolio feed is unavailable in this prototype shell.
+          {t('listing_publication.listing_id_help')}
         </p>
         {manualListingError ? <p className='publication-feedback' data-tone='error' id='manual-listing-id-error'>{manualListingError}</p> : null}
         <div className='manual-listing-actions'>
-          <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'publish')}>Publish by ID</Button>
-          <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'withdraw')}>Withdraw by ID</Button>
+          <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'publish')}>{t('listing_publication.publish_by_id')}</Button>
+          <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'withdraw')}>{t('listing_publication.withdraw_by_id')}</Button>
         </div>
-        {manualBusy ? <p className='publication-feedback' data-tone='success' role='status'>Sending listing publication command…</p> : null}
+        {manualBusy ? <p className='publication-feedback' data-tone='success' role='status'>{t('listing_publication.sending_command')}</p> : null}
       </div>
       {message ? (
         <p

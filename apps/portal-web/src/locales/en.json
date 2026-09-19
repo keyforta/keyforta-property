@@ -1,0 +1,125 @@
+{
+  "common": {
+    "switch_language": "Switch to French",
+    "sign_out": "Sign out",
+    "saved": "Saved"
+  },
+  "auth": {
+    "protected_workspace": "Protected workspace",
+    "sign_in_title": "Sign in to continue.",
+    "sign_in_subtitle": "Sign in with your Microsoft Entra account to open your workspace.",
+    "sign_in_button": "Sign in with Microsoft Entra",
+    "status": {
+      "loading": "Checking Microsoft Entra sign-in...",
+      "authenticating": "Opening Microsoft Entra sign-in...",
+      "unavailable": "Microsoft Entra sign-in is not configured for this environment.",
+      "error": "Microsoft Entra sign-in could not be completed. Try again."
+    },
+    "pending_title": "Workspace access pending.",
+    "pending_body": "Signed in as {{identity}}. No tenant, landlord, manager, or operator workspace is assigned to this identity yet. Contact your organization once membership provisioning is available.",
+    "redirect_failed": "Authentication could not be completed. Close this window and try again."
+  },
+  "roles": {
+    "tenant": {
+      "label": "Tenant",
+      "eyebrow": "My rental",
+      "title": "Everything about your home, in one place.",
+      "summary": "Track your application, lease, payments, maintenance, documents, and messages.",
+      "nav": ["Overview", "My lease", "Payments", "Maintenance", "Documents", "Messages"],
+      "stats_empty_state": "Lease, payment, and maintenance summaries will appear here once the tenant read APIs are available.",
+      "rows_empty_state": "Recent maintenance, payment, and message activity will appear here once the tenant read APIs are available."
+    },
+    "landlord": {
+      "label": "Landlord",
+      "eyebrow": "Owner workspace",
+      "title": "A clear view of your property portfolio.",
+      "summary": "Manage properties, units, applications, leases, rent, maintenance, documents, and your manager relationships.",
+      "nav": ["Overview", "Properties", "Applications", "Leases", "Payments", "Maintenance", "Documents", "Messages"],
+      "stats_empty_state": "Portfolio, occupancy, and collections summaries will appear here once the landlord read APIs are available.",
+      "rows_empty_state": "Recent applications, payments, and manager invitations will appear here once the landlord read APIs are available."
+    },
+    "manager": {
+      "label": "Property manager",
+      "eyebrow": "Operations workspace",
+      "title": "Coordinate the work behind every home.",
+      "summary": "Operate the assigned portfolio while keeping applications, occupants, payments, maintenance, documents, and communication connected.",
+      "nav": ["Overview", "Portfolio", "Applications", "Occupancy", "Payments", "Work orders", "Documents", "Messages"],
+      "stats_empty_state": "Assigned units, applications, work orders, and payment summaries will appear here once the manager read APIs are available.",
+      "rows_empty_state": "Recent applications, work orders, and documents will appear here once the manager read APIs are available."
+    },
+    "operator": {
+      "label": "Independent maintenance operator",
+      "eyebrow": "Field workspace",
+      "title": "Move every assigned job forward.",
+      "summary": "Offer your services across properties, then manage only the jobs, access windows, quotes, reports, and evidence assigned to you.",
+      "nav": ["Overview", "Service offers", "Work orders", "Schedule", "Quotes", "Reports", "Earnings", "Profile"],
+      "stats_empty_state": "Assigned jobs, today\u2019s schedule, quotes, and earnings summaries will appear here once the operator read APIs are available.",
+      "rows_empty_state": "Recent work orders, visits, and quotes will appear here once the operator read APIs are available."
+    }
+  },
+  "actions": {
+    "tenant": ["Report a maintenance issue", "Upload a document", "Message manager"],
+    "landlord": ["Add a property", "Invite a manager", "Review applications"],
+    "manager": ["Review an application", "Create work order", "Record a payment", "Publish a listing"],
+    "operator": ["Publish a service offer", "Accept a work order", "Submit a quote"]
+  },
+  "workspace": {
+    "navigation_label": "Workspace navigation",
+    "records_and_actions": "Your {{section}} records and actions.",
+    "activity": "Activity",
+    "needs_attention": "Needs your attention",
+    "quick_actions": "Quick actions",
+    "keep_things_moving": "Keep things moving.",
+    "api_boundary": "API boundary",
+    "api_boundary_body": "Every action maps to a command or resource in the shared contract. The server remains authoritative."
+  },
+  "listing_publication": {
+    "kicker": "Listing publication",
+    "title": "Publish or withdraw assigned listings",
+    "note": "Use the existing publication commands for listings already assigned to your organization context.",
+    "rejected_base_url": "Listing publication ignored an invalid or insecure API base URL and fell back to the approved relative API path.",
+    "resolving_token": "Resolving your portal access token\u2026",
+    "demo_session": "Demo portal sessions cannot change listing publication. Sign in with Microsoft Entra before sending publish or withdraw commands.",
+    "organization_unavailable": "Listing publication is unavailable until an organization context is selected for this portal session.",
+    "sign_in_required": "Sign in with Microsoft Entra to enable listing publication for this session.",
+    "sign_in_to_continue": "Sign in to continue",
+    "unavailable": "Listing publication is unavailable until Microsoft Entra access is connected for this portal session.",
+    "assigned_listings": "Assigned listings",
+    "empty_state": "Assigned listings will appear here after the portfolio feed is available.",
+    "empty_state_portfolio": "No assigned listings are loaded in this prototype yet. Use a trusted listing ID to publish or withdraw while the portfolio feed remains unavailable.",
+    "sign_in_error": "Sign in with Microsoft Entra to continue.",
+    "sign_in_first": "Sign in before continuing.",
+    "published_success": "Listing published successfully.",
+    "withdrawn_success": "Listing withdrawn successfully.",
+    "not_found": "Listing not found or not assigned to you.",
+    "update_failed": "Listing status could not be updated right now.",
+    "enter_listing_id": "Enter a listing ID to publish or withdraw.",
+    "invalid_listing_id": "Enter a valid listing ID.",
+    "saving": "Saving\u2026",
+    "saving_named": "Saving {{title}}",
+    "action_named": "{{action}} {{title}}",
+    "listing_id_label": "Listing ID",
+    "listing_id_placeholder": "Paste a listing UUID",
+    "listing_id_help": "Use a trusted listing ID when the portfolio feed is unavailable in this prototype shell.",
+    "publish_by_id": "Publish by ID",
+    "withdraw_by_id": "Withdraw by ID",
+    "sending_command": "Sending listing publication command\u2026",
+    "status": {
+      "published": {
+        "action": "Withdraw",
+        "badge": "Published",
+        "detail": "Listing is live on the public marketplace."
+      },
+      "draft": {
+        "action": "Publish",
+        "badge": "Draft",
+        "detail": "Listing is still being prepared before publication."
+      },
+      "withdrawn": {
+        "action": "Publish",
+        "badge": "Withdrawn",
+        "detail": "Listing is hidden from the public marketplace."
+      }
+    }
+  }
+}
