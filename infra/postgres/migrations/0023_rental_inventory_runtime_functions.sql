@@ -49,7 +49,7 @@ as $$
       and listing.withdrawn_at is null
       and property.archived_at is null
       and property.verification_status not in ('rejected', 'expired', 'suspended')
-      and property.publication_status in ('draft', 'pending_review', 'paused')
+      and property.publication_status in ('draft', 'pending_review')
       and unit.archived_at is null
       and unit.publication_status = 'published'
       and current_availability.status = 'available'
