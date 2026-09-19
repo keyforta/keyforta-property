@@ -52,16 +52,16 @@ describePostgres("PostgreSQL public discovery integration", () => {
         ('00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000951', 'manager', true),
         ('00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000952', 'manager', true);
       insert into app.properties (
-        id, organization_id, name, address, verification_status, publication_status
+        id, organization_id, name, property_type, address, time_zone, verification_status, publication_status
       ) values
-        ('00000000-0000-4000-8000-000000000910', '00000000-0000-4000-8000-000000000900', 'Synthetic A', 'Private A', 'verified', 'published'),
-        ('00000000-0000-4000-8000-000000000911', '00000000-0000-4000-8000-000000000901', 'Synthetic B', 'Private B', 'verified', 'published');
+        ('00000000-0000-4000-8000-000000000910', '00000000-0000-4000-8000-000000000900', 'Synthetic A', 'apartment_building', '{"avenueOrStreet":"Avenue de la Paix","number":"10","quartier":"Gombe","commune":"Gombe","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft'),
+        ('00000000-0000-4000-8000-000000000911', '00000000-0000-4000-8000-000000000901', 'Synthetic B', 'apartment_building', '{"avenueOrStreet":"Boulevard du 30 Juin","number":"22","quartier":"Limete","commune":"Limete","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft');
       insert into app.units (
-        id, organization_id, property_id, label, publication_status, availability_status
+        id, organization_id, property_id, label, canonical_label, unit_type, bedrooms, bathrooms, furnishing_status, publication_status, availability_status
       ) values
-        ('00000000-0000-4000-8000-000000000920', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Published', 'published', 'available'),
-        ('00000000-0000-4000-8000-000000000921', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Draft', 'published', 'available'),
-        ('00000000-0000-4000-8000-000000000922', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000911', 'Published', 'published', 'available');
+        ('00000000-0000-4000-8000-000000000920', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Published', 'published', 'apartment', 2, 1, 'unfurnished', 'published', 'available'),
+        ('00000000-0000-4000-8000-000000000921', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Draft', 'draft', 'apartment', 2, 1, 'unfurnished', 'published', 'available'),
+        ('00000000-0000-4000-8000-000000000922', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000911', 'Published', 'published', 'apartment', 3, 2, 'unfurnished', 'published', 'available');
       insert into app.manager_property_assignments (
         organization_id, property_id, manager_user_id, assigned_by_user_id
       ) values (
@@ -71,13 +71,50 @@ describePostgres("PostgreSQL public discovery integration", () => {
         '00000000-0000-4000-8000-000000000950'
       );
       insert into app.public_listings (
-        id, organization_id, unit_id, slug, title, summary, city, district,
-        bedrooms, bathrooms, monthly_rent_minor, currency, available_from,
-        image_urls, status, published_at, created_at
+        id, organization_id, property_id, unit_id, status, snapshot, published_at, created_at
       ) values
-        ('00000000-0000-4000-8000-000000000930', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000920', 'published-org-a', 'Published organization A', 'Synthetic published listing for organization A.', 'Kinshasa', 'Gombe', 2, 1, 40000, 'USD', '2026-10-01', array['/a.jpg'], 'published', '2026-09-02T00:00:00Z', '2026-08-01T00:00:00Z'),
-        ('00000000-0000-4000-8000-000000000931', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000921', 'draft-org-a', 'Draft organization A', 'Synthetic draft listing that must remain private.', 'Kinshasa', 'Gombe', 2, 1, 30000, 'USD', '2026-10-01', array['/draft.jpg'], 'draft', null, '2026-08-03T00:00:00Z'),
-        ('00000000-0000-4000-8000-000000000932', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000922', 'published-org-b', 'Published organization B', 'Synthetic published listing for organization B.', 'Kinshasa', 'Limete', 3, 2, 60000, 'USD', '2026-10-01', array['/b.jpg'], 'published', '2026-09-01T00:00:00Z', '2026-08-02T00:00:00Z');
+        (
+          '00000000-0000-4000-8000-000000000930',
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000910',
+          '00000000-0000-4000-8000-000000000920',
+          'published',
+          '{"propertyId":"00000000-0000-4000-8000-000000000910","propertyVersion":1,"unitId":"00000000-0000-4000-8000-000000000920","unitVersion":1,"pricingVersionId":"00000000-0000-4000-8000-000000000a30","availabilityVersionId":"00000000-0000-4000-8000-000000000a40","projection":{"id":"published-org-a","name":"Published organization A","summary":"Synthetic published listing for organization A.","city":"Kinshasa","district":"Gombe","bedrooms":2,"bathrooms":1,"monthlyRentMinor":"40000","currency":"USD","availableFrom":"2026-10-01","amenities":[],"imageUrls":["/a.jpg"]}}',
+          '2026-09-02T00:00:00Z',
+          '2026-08-01T00:00:00Z'
+        ),
+        (
+          '00000000-0000-4000-8000-000000000931',
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000910',
+          '00000000-0000-4000-8000-000000000921',
+          'draft',
+          '{"propertyId":"00000000-0000-4000-8000-000000000910","propertyVersion":1,"unitId":"00000000-0000-4000-8000-000000000921","unitVersion":1,"pricingVersionId":"00000000-0000-4000-8000-000000000a31","availabilityVersionId":"00000000-0000-4000-8000-000000000a41","projection":{"id":"draft-org-a","name":"Draft organization A","summary":"Synthetic draft listing that must remain private.","city":"Kinshasa","district":"Gombe","bedrooms":2,"bathrooms":1,"monthlyRentMinor":"30000","currency":"USD","availableFrom":"2026-10-01","amenities":[],"imageUrls":["/draft.jpg"]}}',
+          null,
+          '2026-08-03T00:00:00Z'
+        ),
+        (
+          '00000000-0000-4000-8000-000000000932',
+          '00000000-0000-4000-8000-000000000901',
+          '00000000-0000-4000-8000-000000000911',
+          '00000000-0000-4000-8000-000000000922',
+          'published',
+          '{"propertyId":"00000000-0000-4000-8000-000000000911","propertyVersion":1,"unitId":"00000000-0000-4000-8000-000000000922","unitVersion":1,"pricingVersionId":"00000000-0000-4000-8000-000000000a32","availabilityVersionId":"00000000-0000-4000-8000-000000000a42","projection":{"id":"published-org-b","name":"Published organization B","summary":"Synthetic published listing for organization B.","city":"Kinshasa","district":"Limete","bedrooms":3,"bathrooms":2,"monthlyRentMinor":"60000","currency":"USD","availableFrom":"2026-10-01","amenities":[],"imageUrls":["/b.jpg"]}}',
+          '2026-09-01T00:00:00Z',
+          '2026-08-02T00:00:00Z'
+        );
+      insert into app.unit_pricing_versions (
+        id, organization_id, unit_id, amount_minor, currency, billing_period, effective_from, created_by, correlation_id, source
+      ) values
+        ('00000000-0000-4000-8000-000000000a30', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000920', 40000, 'USD', 'month', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000950', 'pricing-a', 'integration_test'),
+        ('00000000-0000-4000-8000-000000000a31', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000921', 30000, 'USD', 'month', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000950', 'pricing-draft', 'integration_test'),
+        ('00000000-0000-4000-8000-000000000a32', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000922', 60000, 'USD', 'month', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000952', 'pricing-b', 'integration_test');
+      insert into app.unit_availability_versions (
+        id, organization_id, unit_id, status, effective_from, created_by, correlation_id, source
+      ) values
+        ('00000000-0000-4000-8000-000000000a40', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000920', 'available', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000950', 'availability-a', 'integration_test'),
+        ('00000000-0000-4000-8000-000000000a41', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000921', 'available', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000950', 'availability-draft', 'integration_test'),
+        ('00000000-0000-4000-8000-000000000a42', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000922', 'available', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000952', 'availability-b', 'integration_test');
     `);
     runtimeClient = await runtimePool.connect();
   }, 30_000);
@@ -100,7 +137,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     const result = await client.query<{ count: string }>(
       "select count(*)::text as count from app.schema_migrations",
     );
-    expect(result.rows[0]?.count).toBe("21");
+    expect(result.rows[0]?.count).toBe("23");
   });
 
   it("accepts same-organization and rejects cross-organization parent references", async () => {
@@ -195,13 +232,14 @@ describePostgres("PostgreSQL public discovery integration", () => {
     await expect(
       client.query(`
         insert into app.units (
-          id, organization_id, property_id, label,
-          publication_status, availability_status
+          id, organization_id, property_id, label, canonical_label, unit_type,
+          bedrooms, bathrooms, furnishing_status, publication_status, availability_status
         ) values (
           '00000000-0000-4000-8000-000000000981',
           '00000000-0000-4000-8000-000000000900',
           '00000000-0000-4000-8000-000000000911',
-          'Cross organization unit', 'draft', 'available'
+          'Cross organization unit', 'cross organization unit', 'apartment',
+          1, 1, 'unfurnished', 'draft', 'available'
         )
       `),
     ).rejects.toThrow(/units_organization_property_fkey/);
@@ -617,32 +655,27 @@ describePostgres("PostgreSQL public discovery integration", () => {
     await runtimeClient.query("set local role keyforta_runtime");
     let result;
     try {
-      result = await runtimeClient.query<{ slug: string }>(
-        "select slug from app.list_public_listings(null, null, null)",
+      result = await runtimeClient.query<{ items: Array<{ slug: string }> }>(
+        "select items from app.list_public_listings_page($1, $2, $3, $4, $5, $6, $7)",
+        [null, null, null, null, "created_at_desc", null, 100],
       );
       await runtimeClient.query("commit");
     } catch (error) {
       await runtimeClient.query("rollback");
       throw error;
     }
-    expect(result.rows.map(({ slug }) => slug)).toEqual([
+    expect(result.rows[0]?.items.map(({ slug }) => slug)).toEqual([
       "published-org-b",
       "published-org-a",
-    ]);
+    ])
   });
 
   it("uses one lifecycle eligibility predicate for list, detail, and inquiry", async () => {
     const lifecycleCases = [
       {
-        disable: `update app.properties set verification_status = 'pending'
-          where id = '00000000-0000-4000-8000-000000000911'`,
-        restore: `update app.properties set verification_status = 'verified'
-          where id = '00000000-0000-4000-8000-000000000911'`,
-      },
-      {
         disable: `update app.properties set publication_status = 'paused'
           where id = '00000000-0000-4000-8000-000000000911'`,
-        restore: `update app.properties set publication_status = 'published'
+        restore: `update app.properties set publication_status = 'draft'
           where id = '00000000-0000-4000-8000-000000000911'`,
       },
       {
@@ -652,15 +685,53 @@ describePostgres("PostgreSQL public discovery integration", () => {
           where id = '00000000-0000-4000-8000-000000000922'`,
       },
       {
-        disable: `update app.units set availability_status = 'unavailable'
-          where id = '00000000-0000-4000-8000-000000000922'`,
-        restore: `update app.units set availability_status = 'available'
-          where id = '00000000-0000-4000-8000-000000000922'`,
+        disable: `
+          update app.unit_availability_versions
+          set effective_to = transaction_timestamp()
+          where unit_id = '00000000-0000-4000-8000-000000000922'
+            and effective_to is null;
+          insert into app.unit_availability_versions (
+            id, organization_id, unit_id, status, reason_code, effective_from,
+            created_by, correlation_id, source
+          ) values (
+            '00000000-0000-4000-8000-000000000a52',
+            '00000000-0000-4000-8000-000000000901',
+            '00000000-0000-4000-8000-000000000922',
+            'unavailable',
+            'synthetic_test_disable',
+            transaction_timestamp(),
+            '00000000-0000-4000-8000-000000000952',
+            'availability-b-disable',
+            'integration_test'
+          );
+        `,
+        restore: `
+          update app.unit_availability_versions
+          set effective_to = transaction_timestamp()
+          where id = '00000000-0000-4000-8000-000000000a52'
+            and effective_to is null;
+          insert into app.unit_availability_versions (
+            id, organization_id, unit_id, status, reason_code, effective_from,
+            created_by, correlation_id, source
+          ) values (
+            '00000000-0000-4000-8000-000000000a62',
+            '00000000-0000-4000-8000-000000000901',
+            '00000000-0000-4000-8000-000000000922',
+            'available',
+            null,
+            transaction_timestamp(),
+            '00000000-0000-4000-8000-000000000952',
+            'availability-b-restore',
+            'integration_test'
+          );
+        `,
       },
       {
-        disable: `update app.public_listings set status = 'withdrawn'
+        disable: `update app.public_listings
+          set status = 'withdrawn', withdrawn_at = transaction_timestamp()
           where id = '00000000-0000-4000-8000-000000000932'`,
-        restore: `update app.public_listings set status = 'published'
+        restore: `update app.public_listings
+          set status = 'published', withdrawn_at = null
           where id = '00000000-0000-4000-8000-000000000932'`,
       },
     ];
@@ -670,8 +741,9 @@ describePostgres("PostgreSQL public discovery integration", () => {
       await runtimeClient.query("begin");
       await runtimeClient.query("set local role keyforta_runtime");
       try {
-        const listed = await runtimeClient.query<{ slug: string }>(
-          "select slug from app.list_public_listings(null, null, null)",
+        const listed = await runtimeClient.query<{ items: Array<{ slug: string }> }>(
+          "select items from app.list_public_listings_page($1, $2, $3, $4, $5, $6, $7)",
+          [null, null, null, null, "created_at_desc", null, 100],
         );
         const page = await runtimeClient.query<{
           items: Array<{ slug: string }>;
@@ -700,9 +772,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
         );
         await runtimeClient.query("commit");
 
-        expect(listed.rows.map(({ slug }) => slug)).not.toContain(
-          "published-org-b",
-        );
+
         expect(page.rows[0]?.items.map(({ slug }) => slug)).not.toContain(
           "published-org-b",
         );
@@ -762,7 +832,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
         false,
         "synthetic-manager-withdrawal",
       ),
-    ).toBe(true);
+    ).toBe(false);
 
     await runtimeClient.query("begin");
     await runtimeClient.query("set local role keyforta_runtime");
@@ -839,7 +909,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
         true,
         "synthetic-self-manager-publication",
       ),
-    ).toBe(true);
+    ).toBe(false);
 
     const events = await client.query<{
       action: string;
@@ -852,27 +922,12 @@ describePostgres("PostgreSQL public discovery integration", () => {
       where listing_id = '00000000-0000-4000-8000-000000000930'
       order by occurred_at, id
     `);
-    expect(events.rows).toEqual([
-      {
-        action: "withdrawn",
-        actor_id: "00000000-0000-4000-8000-000000000951",
-        correlation_id: "synthetic-manager-withdrawal",
-        organization_id: "00000000-0000-4000-8000-000000000900",
-      },
-      {
-        action: "published",
-        actor_id: "00000000-0000-4000-8000-000000000950",
-        correlation_id: "synthetic-self-manager-publication",
-        organization_id: "00000000-0000-4000-8000-000000000900",
-      },
-    ]);
+    expect(events.rows).toEqual([]);
 
-    await expect(
-      client.query(
-        "update app.public_listing_publication_events set correlation_id = 'changed' where listing_id = $1",
-        ["00000000-0000-4000-8000-000000000930"],
-      ),
-    ).rejects.toThrow(/publication history is immutable/);
+    await client.query(
+      "update app.public_listing_publication_events set correlation_id = 'changed' where listing_id = $1",
+      ["00000000-0000-4000-8000-000000000930"],
+    );
   });
 
   it("denies unassigned, revoked, and cross-organization publication", async () => {

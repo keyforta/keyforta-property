@@ -79,6 +79,7 @@ export const unitTypes = Object.freeze([
 	'other',
 ]);
 export const furnishingStatuses = Object.freeze(['unfurnished', 'part_furnished', 'furnished']);
+export const propertyPublicationStatuses = Object.freeze(['draft', 'pending_review', 'paused', 'archived']);
 export const inventoryPublicationStatuses = Object.freeze(['draft', 'pending_review', 'published', 'paused', 'archived']);
 export const unitAvailabilityStatuses = Object.freeze(['unavailable', 'available', 'occupied']);
 export const publicListingStatuses = Object.freeze(['draft', 'published', 'withdrawn']);
@@ -214,24 +215,17 @@ export const rentalPropertySchema = withArchiveMetadata(z.object({
 	propertyType: z.enum(propertyTypes),
 	address: propertyAddressSchema,
 	timeZone: ianaTimeZoneSchema,
-	verificationStatus: boundedTextSchema(64),
-	publicationStatus: z.enum(inventoryPublicationStatuses),
+	verificationStatus: z.enum(['not_started', 'pending', 'changes_requested', 'rejected', 'expired', 'suspended']),
+	publicationStatus: z.enum(propertyPublicationStatuses),
 	version: positiveVersionSchema,
 	createdAt: timestampSchema,
 	updatedAt: timestampSchema,
 	...archiveFields,
 }).strict()).superRefine((value, context) => {
-	if (value.verificationStatus === 'verified') {
+	if (value.publicationStatus === 'pending_review') {
 		context.addIssue({
 			code: 'custom',
-			message: 'Verified Property requires the approved jurisdiction policy catalogue',
-			path: ['verificationStatus'],
-		});
-	}
-	if (value.publicationStatus === 'published') {
-		context.addIssue({
-			code: 'custom',
-			message: 'Property publication is unavailable until jurisdiction policy activation',
+			message: 'Property-level publication review does not activate a public listing without per-listing jurisdiction policy wiring',
 			path: ['publicationStatus'],
 		});
 	}
@@ -352,7 +346,7 @@ export const publicPropertyProjectionSchema = z.object({
 	city: z.string(),
 	currency: z.string().length(3).regex(/^[A-Z]{3}$/),
 	district: z.string(),
-	id: publicPropertyIdSchema,
+	id: z.union([publicPropertyIdSchema, z.uuid()]),
 	imageUrl: z.string().optional(),
 	imageUrls: z.array(z.string()).min(1),
 	monthlyRentMinor: z.string().regex(/^[1-9]\d*$/),

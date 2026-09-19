@@ -56,6 +56,7 @@ export const landlordOnboardingApplicationIdSchema: z.ZodString;
 export const propertyTypes: readonly ["apartment_building", "single_family", "townhouse", "mixed_use", "other"];
 export const unitTypes: readonly ["studio", "apartment", "house", "townhouse", "commercial", "other"];
 export const furnishingStatuses: readonly ["unfurnished", "part_furnished", "furnished"];
+export const propertyPublicationStatuses: readonly ["draft", "pending_review", "paused", "archived"];
 export const inventoryPublicationStatuses: readonly ["draft", "pending_review", "published", "paused", "archived"];
 export const unitAvailabilityStatuses: readonly ["unavailable", "available", "occupied"];
 export const publicListingStatuses: readonly ["draft", "published", "withdrawn"];
@@ -107,7 +108,7 @@ export interface RentalProperty extends ArchiveMetadata {
   address: PropertyAddress;
   timeZone: string;
   verificationStatus: string;
-  publicationStatus: typeof inventoryPublicationStatuses[number];
+  publicationStatus: typeof propertyPublicationStatuses[number];
   version: number;
   createdAt: string;
   updatedAt: string;
