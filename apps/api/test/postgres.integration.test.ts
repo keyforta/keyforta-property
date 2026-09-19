@@ -673,7 +673,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
   it("uses one lifecycle eligibility predicate for list, detail, and inquiry", async () => {
     const lifecycleCases = [
       {
-        disable: `update app.properties set verification_status = 'pending'
+        disable: `update app.properties set verification_status = 'rejected'
           where id = '00000000-0000-4000-8000-000000000911'`,
         restore: `update app.properties set verification_status = 'pending'
           where id = '00000000-0000-4000-8000-000000000911'`,
@@ -802,7 +802,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
         false,
         "synthetic-manager-withdrawal",
       ),
-    ).toBe(true);
+    ).toBe(false);
 
     await runtimeClient.query("begin");
     await runtimeClient.query("set local role keyforta_runtime");
