@@ -1127,7 +1127,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
         "00000000-0000-4000-8000-000000000971",
         null,
         "2026-09-18T00:00:00Z",
-        null,
+        "2026-09-19T00:00:00Z",
         "00000000-0000-4000-8000-000000000950",
         "policy-activation-prereq-01",
       ],
@@ -1161,7 +1161,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
 
     const activation = await gateway.activateJurisdictionPolicy({
       correlationId: "gateway-policy-activation-01",
-      effectiveFrom: "2026-09-19T00:00:00.000Z",
+      effectiveFrom: "2026-09-20T00:00:00.000Z",
       jurisdictionCode: "CD-KN",
       ownerApproval: {
         approvedByUserId: "00000000-0000-4000-8000-000000000950",
