@@ -727,9 +727,11 @@ describePostgres("PostgreSQL public discovery integration", () => {
         `,
       },
       {
-        disable: `update app.public_listings set status = 'withdrawn'
+        disable: `update app.public_listings
+          set status = 'withdrawn', withdrawn_at = transaction_timestamp()
           where id = '00000000-0000-4000-8000-000000000932'`,
-        restore: `update app.public_listings set status = 'published'
+        restore: `update app.public_listings
+          set status = 'published', withdrawn_at = null
           where id = '00000000-0000-4000-8000-000000000932'`,
       },
     ];
