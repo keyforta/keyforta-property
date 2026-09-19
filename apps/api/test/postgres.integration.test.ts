@@ -71,13 +71,50 @@ describePostgres("PostgreSQL public discovery integration", () => {
         '00000000-0000-4000-8000-000000000950'
       );
       insert into app.public_listings (
-        id, organization_id, unit_id, slug, title, summary, city, district,
-        bedrooms, bathrooms, monthly_rent_minor, currency, available_from,
-        image_urls, status, published_at, created_at
+        id, organization_id, property_id, unit_id, status, snapshot, published_at, created_at
       ) values
-        ('00000000-0000-4000-8000-000000000930', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000920', 'published-org-a', 'Published organization A', 'Synthetic published listing for organization A.', 'Kinshasa', 'Gombe', 2, 1, 40000, 'USD', '2026-10-01', array['/a.jpg'], 'published', '2026-09-02T00:00:00Z', '2026-08-01T00:00:00Z'),
-        ('00000000-0000-4000-8000-000000000931', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000921', 'draft-org-a', 'Draft organization A', 'Synthetic draft listing that must remain private.', 'Kinshasa', 'Gombe', 2, 1, 30000, 'USD', '2026-10-01', array['/draft.jpg'], 'draft', null, '2026-08-03T00:00:00Z'),
-        ('00000000-0000-4000-8000-000000000932', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000922', 'published-org-b', 'Published organization B', 'Synthetic published listing for organization B.', 'Kinshasa', 'Limete', 3, 2, 60000, 'USD', '2026-10-01', array['/b.jpg'], 'published', '2026-09-01T00:00:00Z', '2026-08-02T00:00:00Z');
+        (
+          '00000000-0000-4000-8000-000000000930',
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000910',
+          '00000000-0000-4000-8000-000000000920',
+          'published',
+          '{"propertyId":"00000000-0000-4000-8000-000000000910","propertyVersion":1,"unitId":"00000000-0000-4000-8000-000000000920","unitVersion":1,"pricingVersionId":"00000000-0000-4000-8000-000000000a30","availabilityVersionId":"00000000-0000-4000-8000-000000000a40","projection":{"id":"published-org-a","name":"Published organization A","summary":"Synthetic published listing for organization A.","city":"Kinshasa","district":"Gombe","bedrooms":2,"bathrooms":1,"monthlyRentMinor":"40000","currency":"USD","availableFrom":"2026-10-01","amenities":[],"imageUrls":["/a.jpg"]}}',
+          '2026-09-02T00:00:00Z',
+          '2026-08-01T00:00:00Z'
+        ),
+        (
+          '00000000-0000-4000-8000-000000000931',
+          '00000000-0000-4000-8000-000000000900',
+          '00000000-0000-4000-8000-000000000910',
+          '00000000-0000-4000-8000-000000000921',
+          'draft',
+          '{"propertyId":"00000000-0000-4000-8000-000000000910","propertyVersion":1,"unitId":"00000000-0000-4000-8000-000000000921","unitVersion":1,"pricingVersionId":"00000000-0000-4000-8000-000000000a31","availabilityVersionId":"00000000-0000-4000-8000-000000000a41","projection":{"id":"draft-org-a","name":"Draft organization A","summary":"Synthetic draft listing that must remain private.","city":"Kinshasa","district":"Gombe","bedrooms":2,"bathrooms":1,"monthlyRentMinor":"30000","currency":"USD","availableFrom":"2026-10-01","amenities":[],"imageUrls":["/draft.jpg"]}}',
+          null,
+          '2026-08-03T00:00:00Z'
+        ),
+        (
+          '00000000-0000-4000-8000-000000000932',
+          '00000000-0000-4000-8000-000000000901',
+          '00000000-0000-4000-8000-000000000911',
+          '00000000-0000-4000-8000-000000000922',
+          'published',
+          '{"propertyId":"00000000-0000-4000-8000-000000000911","propertyVersion":1,"unitId":"00000000-0000-4000-8000-000000000922","unitVersion":1,"pricingVersionId":"00000000-0000-4000-8000-000000000a32","availabilityVersionId":"00000000-0000-4000-8000-000000000a42","projection":{"id":"published-org-b","name":"Published organization B","summary":"Synthetic published listing for organization B.","city":"Kinshasa","district":"Limete","bedrooms":3,"bathrooms":2,"monthlyRentMinor":"60000","currency":"USD","availableFrom":"2026-10-01","amenities":[],"imageUrls":["/b.jpg"]}}',
+          '2026-09-01T00:00:00Z',
+          '2026-08-02T00:00:00Z'
+        );
+      insert into app.unit_pricing_versions (
+        id, organization_id, unit_id, amount_minor, currency, billing_period, effective_from, created_by, correlation_id, source
+      ) values
+        ('00000000-0000-4000-8000-000000000a30', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000920', 40000, 'USD', 'month', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000950', 'pricing-a', 'integration_test'),
+        ('00000000-0000-4000-8000-000000000a31', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000921', 30000, 'USD', 'month', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000950', 'pricing-draft', 'integration_test'),
+        ('00000000-0000-4000-8000-000000000a32', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000922', 60000, 'USD', 'month', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000952', 'pricing-b', 'integration_test');
+      insert into app.unit_availability_versions (
+        id, organization_id, unit_id, status, effective_from, created_by, correlation_id, source
+      ) values
+        ('00000000-0000-4000-8000-000000000a40', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000920', 'available', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000950', 'availability-a', 'integration_test'),
+        ('00000000-0000-4000-8000-000000000a41', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000921', 'available', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000950', 'availability-draft', 'integration_test'),
+        ('00000000-0000-4000-8000-000000000a42', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000922', 'available', '2026-09-01T00:00:00Z', '00000000-0000-4000-8000-000000000952', 'availability-b', 'integration_test');
     `);
     runtimeClient = await runtimePool.connect();
   }, 30_000);
