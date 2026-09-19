@@ -22,7 +22,7 @@
   "0021_organization_reference_integrity.sql": "429ecdf7193c087a6755271f0749b6d4d40cc4f0394a42f513f5e90297342db3",
   "0022_rental_inventory_v1.sql": "68fd4ca28a32a0197f2517908cf0c8ee162c12d18f7f613867844b9e84ee1e74",
   "0023_rental_inventory_runtime_functions.sql": "1ac5a51fd2b58cad6c2fe673659278eebc0bc0d1a312c1b9b0801d3caecf02b0",
-  "0024_jurisdiction_policy_runtime_activation.sql": "96ce53c1fb6732e591816398d27dda93a498fe655327d1059aa84b9d164407ca",
+  "0024_jurisdiction_policy_runtime_activation.sql": "ed8fdf2997931ddbbe7830b4783687218a7321c1286bef3c2dbe0a038c523e16",
   "0025_platform_admin_actor_resolution.sql": "75f65eaf32e60fdc5f4039960748717045326ea328fa82cb7d45f27d28ac4bd5",
   "0026_runtime_jurisdiction_policy_grants.sql": "57d5f80282bd14f92723df62168091267dfd1aa8c9ae2a5e9b9bc4b1e212297f"
 }

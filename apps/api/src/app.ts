@@ -553,12 +553,9 @@ export async function buildApp(
           "The requested resource was not found.",
         ));
       }
-      const parsedOrganizationId = organizationIdSchema.safeParse(
-        request.headers["x-organization-id"],
-      );
       const parsedPropertyId = propertyIdSchema.safeParse(request.params.propertyId);
       const parsedInput = propertyVerificationStatusInputSchema.safeParse(request.body);
-      if (!parsedOrganizationId.success || !parsedPropertyId.success || !parsedInput.success) {
+      if (!parsedPropertyId.success || !parsedInput.success) {
         return reply.status(400).send(problem(
           request.id, 400, "VALIDATION_ERROR", "Validation Error",
           "The property verification update is invalid.",
@@ -566,7 +563,6 @@ export async function buildApp(
       }
       const updated = await dependencies.inventory.setPropertyVerificationStatus({
         correlationId: request.id,
-        organizationId: parsedOrganizationId.data,
         propertyId: parsedPropertyId.data,
         status: parsedInput.data.status,
         subject: principal.subject,

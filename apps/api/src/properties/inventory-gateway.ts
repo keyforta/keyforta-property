@@ -31,7 +31,6 @@ export interface ActivateJurisdictionPolicyCommand {
 
 export interface SetPropertyVerificationStatusCommand {
   correlationId: string;
-  organizationId: string;
   propertyId: string;
   status: JurisdictionPolicyActivationStatus;
   subject: string;
@@ -185,9 +184,8 @@ export function createPostgresInventoryGateway(
     },
     async setPropertyVerificationStatus(command) {
       return client.transaction(async (session) => {
-        const actor = await session.query("select * from app.resolve_actor($1, $2)", [
+        const actor = await session.query("select * from app.resolve_platform_actor($1)", [
           command.subject,
-          command.organizationId,
         ]);
         const row = actor.rows[0] as ResolvedActor | undefined;
         if (!row?.actor_id) return undefined;

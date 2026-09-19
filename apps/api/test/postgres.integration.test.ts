@@ -1115,14 +1115,17 @@ describePostgres("PostgreSQL public discovery integration", () => {
       );
     `);
 
+    const effectiveFrom = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const effectiveTo = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
     const activation = await client.query(
       "select app.activate_jurisdiction_policy($1, $2, $3, $4, $5, $6, $7) as id",
       [
         "00000000-0000-4000-8000-000000000970",
         "00000000-0000-4000-8000-000000000971",
         null,
-        "2026-09-17T00:00:00Z",
-        "2026-09-18T00:00:00Z",
+        effectiveFrom,
+        effectiveTo,
         "00000000-0000-4000-8000-000000000950",
         "policy-activation-prereq-01",
       ],

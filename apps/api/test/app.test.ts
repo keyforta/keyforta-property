@@ -747,7 +747,6 @@ describe("platform-admin jurisdiction-policy and verification routes", () => {
     })]);
     expect(dependencies.verificationUpdates).toEqual([{
       correlationId: "property-verify-01",
-      organizationId,
       propertyId,
       status: "verified",
       subject: "synthetic-admin",

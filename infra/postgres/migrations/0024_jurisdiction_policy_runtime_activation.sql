@@ -93,9 +93,17 @@ begin
 end
 $$;
 
+revoke all on function app.activate_jurisdiction_policy(
+  uuid, uuid, uuid, timestamptz, timestamptz, uuid, text
+) from public;
+
 grant execute on function app.activate_jurisdiction_policy(
   uuid, uuid, uuid, timestamptz, timestamptz, uuid, text
 ) to keyforta_runtime;
+
+revoke all on function app.set_property_verification_status(
+  uuid, text, uuid
+) from public;
 
 grant execute on function app.set_property_verification_status(
   uuid, text, uuid
