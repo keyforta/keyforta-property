@@ -1115,17 +1115,14 @@ describePostgres("PostgreSQL public discovery integration", () => {
       );
     `);
 
-    const effectiveFrom = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const effectiveTo = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-
     const activation = await client.query(
       "select app.activate_jurisdiction_policy($1, $2, $3, $4, $5, $6, $7) as id",
       [
         "00000000-0000-4000-8000-000000000970",
         "00000000-0000-4000-8000-000000000971",
         null,
-        effectiveFrom,
-        effectiveTo,
+        null,
+        null,
         "00000000-0000-4000-8000-000000000950",
         "policy-activation-prereq-01",
       ],
@@ -1133,7 +1130,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     expect((activation.rows[0] as { id?: string } | undefined)?.id).toBeDefined();
     const activePolicy = await client.query(
       "select * from app.resolve_active_jurisdiction_policy($1, $2, $3)",
-      ["property_verification", "CD-KN", "2026-09-17T12:00:00Z"],
+      ["property_verification", "CD-KN", new Date().toISOString()],
     );
     expect(activePolicy.rows).toEqual([{
       policy_key: "property_verification",
