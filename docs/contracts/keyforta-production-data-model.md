@@ -228,8 +228,12 @@ conditional `archived_at`, `archived_by`, `archive_reason`.
 Constraints/indexes: required bounded address components and ISO country code;
 known IANA time zone; controlled type and lifecycle values; complete archive
 metadata; unique `(organization_id, id)`; index `(organization_id,
-publication_status, id)`. Jurisdiction-dependent verification and publication
-states are unavailable until an approved policy catalogue is implemented.
+publication_status, id)`. `jurisdiction_code` uses the approved
+`^[A-Z]{2}(-[A-Z0-9]{1,6})?$` catalogue identifier format. Verification to
+`verified` requires an active `property_verification` jurisdiction policy
+activation resolved through `app.resolve_active_jurisdiction_policy(...)`; the
+runtime transition is performed through the application-owned
+`app.set_property_verification_status(...)` command path and audited.
 
 ### `units`
 

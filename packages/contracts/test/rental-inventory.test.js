@@ -5,8 +5,10 @@ import {
   canonicalizeUnitLabel,
   createRentalPropertyInputSchema,
   internalPublicListingSchema,
+  jurisdictionPolicyActivationInputSchema,
   pricingVersionSchema,
   publicListingSnapshotSchema,
+  propertyVerificationStatusInputSchema,
   publicPropertyEnvelopeSchema,
   publicPropertyListEnvelopeSchema,
   publicPropertyListResultSchema,
@@ -14,6 +16,7 @@ import {
   publicPropertyProjectionSchema,
   rentableUnitSchema,
   rentalPropertySchema,
+  updateRentalPropertyInputSchema,
   unitLabelUnicodeVersion,
   unitAvailabilityVersionSchema,
 } from "../src/index.js";
@@ -68,6 +71,7 @@ test("REQ-032 PROP-009 PROP-020 rejects client authority and requires the first 
 
   assert.equal(parsed.name, "Gombe Residence");
   assert.equal(parsed.firstUnit.bedrooms, 0);
+  assert.equal(parsed.jurisdictionCode, undefined);
   assert.equal(createRentalPropertyInputSchema.safeParse({
     name: "Gombe Residence",
     propertyType: "apartment_building",
@@ -101,6 +105,14 @@ test("REQ-032 PROP-009 PROP-020 rejects client authority and requires the first 
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    jurisdictionCode: "CD-KN",
+    firstUnit: unitInput,
+  }).success, true);
+  assert.equal(createRentalPropertyInputSchema.safeParse({
+    name: "Gombe Residence",
+    propertyType: "apartment_building",
+    address,
+    timeZone: "Africa/Kinshasa",
     jurisdictionCode: "not-an-approved-catalogue-value",
     firstUnit: unitInput,
   }).success, false);
@@ -129,15 +141,15 @@ test("REQ-032 REQ-036 PROP-020 validates Property lifecycle metadata", () => {
   assert.equal(rentalPropertySchema.safeParse({
     ...property,
     jurisdictionCode: "CD-KN",
-  }).success, false);
+  }).success, true);
   assert.equal(rentalPropertySchema.safeParse({
     ...property,
     verificationStatus: "verified",
-  }).success, false);
+  }).success, true);
   assert.equal(rentalPropertySchema.safeParse({
     ...property,
     publicationStatus: "pending_review",
-  }).success, false);
+  }).success, true);
   assert.equal(rentalPropertySchema.safeParse({
     ...property,
     profileStatus: "legacy_incomplete",
@@ -161,7 +173,46 @@ test("REQ-032 REQ-036 PROP-020 validates Property lifecycle metadata", () => {
     archiveReason: "No longer managed.",
   }).success, false);
   assert.equal(rentalPropertySchema.safeParse({ ...property, publicationStatus: "deleted" }).success, false);
-  assert.equal(rentalPropertySchema.safeParse({ ...property, verificationStatus: 'verified' }).success, false);
+  assert.equal(rentalPropertySchema.safeParse({ ...property, verificationStatus: 'verified' }).success, true);
+});
+
+test("REQ-032 accepts partial Property updates including jurisdictionCode", () => {
+  assert.equal(updateRentalPropertyInputSchema.safeParse({}).success, false);
+  assert.equal(updateRentalPropertyInputSchema.safeParse({
+    jurisdictionCode: "CD-KN",
+  }).success, true);
+  assert.equal(updateRentalPropertyInputSchema.safeParse({
+    jurisdictionCode: "bad",
+  }).success, false);
+});
+
+test("REQ-032 validates jurisdiction policy activation and verification inputs", () => {
+  assert.equal(jurisdictionPolicyActivationInputSchema.safeParse({
+    policyKey: "property_verification",
+    jurisdictionCode: "CD-KN",
+    version: 1,
+    rulePayload: {},
+    requiresCounselApproval: false,
+    ownerApproval: {
+      approvedByUserId: ids.actor,
+      sourceReference: "issue-79",
+    },
+    effectiveFrom: "2026-09-18T00:00:00.000Z",
+  }).success, true);
+  assert.equal(jurisdictionPolicyActivationInputSchema.safeParse({
+    policyKey: "property_verification",
+    jurisdictionCode: "CD-KN",
+    version: 1,
+    rulePayload: {},
+    requiresCounselApproval: true,
+    ownerApproval: {
+      approvedByUserId: ids.actor,
+      sourceReference: "issue-79",
+    },
+    effectiveFrom: "2026-09-18T00:00:00.000Z",
+  }).success, false);
+  assert.equal(propertyVerificationStatusInputSchema.safeParse({ status: "verified" }).success, true);
+  assert.equal(propertyVerificationStatusInputSchema.safeParse({ status: "approved" }).success, false);
 });
 
 test("REQ-033 PROP-020 validates Unit bounds and archive metadata", () => {

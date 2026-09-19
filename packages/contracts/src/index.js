@@ -51,6 +51,8 @@ export const runtimeHttpOperations = Object.freeze({
 	getProperty: { method: 'GET', path: '/properties/{propertyId}', authentication: 'anonymous' },
 	publishPublicListing: { method: 'POST', path: '/public-listings/{listingId}/publish', authentication: 'required' },
 	withdrawPublicListing: { method: 'POST', path: '/public-listings/{listingId}/withdraw', authentication: 'required' },
+	activateJurisdictionPolicy: { method: 'POST', path: '/admin/jurisdiction-policies/activate', authentication: 'required' },
+	setPropertyVerificationStatus: { method: 'PATCH', path: '/properties/{propertyId}/verification-status', authentication: 'required' },
 	submitLandlordOnboardingApplication: { method: 'POST', path: '/landlord-onboarding-applications', authentication: 'required' },
 	listLandlordOnboardingApplications: { method: 'GET', path: '/landlord-onboarding-applications', authentication: 'required' },
 	decideLandlordOnboardingApplication: { method: 'POST', path: '/landlord-onboarding-applications/{applicationId}/decision', authentication: 'required' },
@@ -62,6 +64,7 @@ export const publicPropertyIdSchema = z.string().trim().min(1).max(128).regex(/^
 export const organizationIdSchema = z.uuid();
 export const publicListingIdSchema = z.uuid();
 export const landlordOnboardingApplicationIdSchema = z.uuid();
+export const propertyIdSchema = z.uuid();
 
 export const propertyTypes = Object.freeze([
 	'apartment_building',
@@ -90,6 +93,7 @@ const boundedTextSchema = (maximum) => z.string().trim().min(1).max(maximum);
 const timestampSchema = z.iso.datetime();
 const positiveVersionSchema = z.number().int().positive();
 const actorIdSchema = z.uuid();
+export const jurisdictionCodeSchema = z.string().trim().regex(/^[A-Z]{2}(-[A-Z0-9]{1,6})?$/);
 
 const isSupportedUnitLabel = (label) => {
 	for (let index = 0; index < label.length; index += 1) {
@@ -199,8 +203,19 @@ export const createRentalPropertyInputSchema = z.object({
 	propertyType: z.enum(propertyTypes),
 	address: propertyAddressSchema,
 	timeZone: ianaTimeZoneSchema,
+	jurisdictionCode: jurisdictionCodeSchema.nullable().optional(),
 	firstUnit: rentableUnitInputSchema,
 }).strict();
+
+export const updateRentalPropertyInputSchema = z.object({
+	name: boundedTextSchema(160).optional(),
+	propertyType: z.enum(propertyTypes).optional(),
+	address: propertyAddressSchema.optional(),
+	timeZone: ianaTimeZoneSchema.optional(),
+	jurisdictionCode: jurisdictionCodeSchema.nullable().optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, {
+	message: 'At least one field must be provided',
+});
 
 const archiveFields = {
 	archivedAt: timestampSchema.nullable(),
@@ -215,21 +230,14 @@ export const rentalPropertySchema = withArchiveMetadata(z.object({
 	propertyType: z.enum(propertyTypes),
 	address: propertyAddressSchema,
 	timeZone: ianaTimeZoneSchema,
-	verificationStatus: z.enum(['not_started', 'pending', 'changes_requested', 'rejected', 'expired', 'suspended']),
+	jurisdictionCode: jurisdictionCodeSchema.nullable().optional(),
+	verificationStatus: z.enum(['not_started', 'pending', 'changes_requested', 'verified', 'rejected', 'expired', 'suspended']),
 	publicationStatus: z.enum(propertyPublicationStatuses),
 	version: positiveVersionSchema,
 	createdAt: timestampSchema,
 	updatedAt: timestampSchema,
 	...archiveFields,
-}).strict()).superRefine((value, context) => {
-	if (value.publicationStatus === 'pending_review') {
-		context.addIssue({
-			code: 'custom',
-			message: 'Property-level publication review does not activate a public listing without per-listing jurisdiction policy wiring',
-			path: ['publicationStatus'],
-		});
-	}
-});
+}).strict());
 
 const validateCanonicalUnitLabel = (value, context) => {
 	if (value.canonicalLabel !== canonicalizeUnitLabel(value.label)) {
@@ -323,6 +331,47 @@ export const landlordOnboardingDecisionInputSchema = z.object({
 	reason: z.string().trim().min(3).max(1000),
 }).strict();
 
+export const jurisdictionPolicyActivationInputSchema = z.object({
+	policyKey: boundedTextSchema(80).regex(/^[a-z][a-z0-9_]{2,79}$/),
+	jurisdictionCode: jurisdictionCodeSchema,
+	version: z.number().int().positive(),
+	rulePayload: z.record(z.string(), z.unknown()),
+	requiresCounselApproval: z.boolean(),
+	ownerApproval: z.object({
+		approvedAt: timestampSchema.optional(),
+		approvedByUserId: actorIdSchema,
+		evidenceHash: boundedTextSchema(200).optional(),
+		sourceReference: boundedTextSchema(500),
+	}).strict(),
+	counselApproval: z.object({
+		approvedAt: timestampSchema.optional(),
+		approvedByUserId: actorIdSchema,
+		evidenceHash: boundedTextSchema(200).optional(),
+		sourceReference: boundedTextSchema(500),
+	}).strict().nullable().optional(),
+	effectiveFrom: timestampSchema,
+	effectiveTo: timestampSchema.nullable().optional(),
+}).strict().superRefine((value, context) => {
+	if (value.requiresCounselApproval && !value.counselApproval) {
+		context.addIssue({
+			code: 'custom',
+			message: 'Counsel approval is required when requiresCounselApproval is true',
+			path: ['counselApproval'],
+		});
+	}
+	if (value.effectiveTo != null && Date.parse(value.effectiveTo) <= Date.parse(value.effectiveFrom)) {
+		context.addIssue({
+			code: 'custom',
+			message: 'effectiveTo must be later than effectiveFrom',
+			path: ['effectiveTo'],
+		});
+	}
+});
+
+export const propertyVerificationStatusInputSchema = z.object({
+	status: z.enum(['not_started', 'pending', 'changes_requested', 'verified', 'rejected', 'expired', 'suspended']),
+}).strict();
+
 export const landlordOnboardingApplicationSchema = z.object({
 	applicantName: z.string(),
 	decidedAt: z.iso.datetime().nullable(),
@@ -336,6 +385,19 @@ export const landlordOnboardingApplicationSchema = z.object({
 export const landlordOnboardingApplicationListSchema = z.object({
 	items: z.array(landlordOnboardingApplicationSchema),
 }).strip();
+
+export const jurisdictionPolicyActivationResultSchema = z.object({
+	activationId: z.uuid(),
+	jurisdictionCode: jurisdictionCodeSchema,
+	policyKey: boundedTextSchema(80),
+	policyVersionId: z.uuid(),
+	version: z.number().int().positive(),
+}).strict();
+
+export const propertyVerificationStatusResultSchema = z.object({
+	propertyId: propertyIdSchema,
+	status: z.enum(['not_started', 'pending', 'changes_requested', 'verified', 'rejected', 'expired', 'suspended']),
+}).strict();
 
 export const publicPropertyProjectionSchema = z.object({
 	address: z.string(),
@@ -487,6 +549,10 @@ export const publicListingPublicationEnvelopeSchema = envelopeSchema(z.object({
 	listingId: publicListingIdSchema,
 	status: z.enum(['published', 'withdrawn']),
 }).strict());
+
+export const jurisdictionPolicyActivationEnvelopeSchema = envelopeSchema(jurisdictionPolicyActivationResultSchema);
+
+export const propertyVerificationStatusEnvelopeSchema = envelopeSchema(propertyVerificationStatusResultSchema);
 
 export const landlordOnboardingApplicationEnvelopeSchema = envelopeSchema(landlordOnboardingApplicationSchema);
 

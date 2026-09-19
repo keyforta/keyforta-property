@@ -33,6 +33,14 @@ export async function assertRuntimeDatabaseReady(
     "select app.runtime_schema_v0023_ready() as ready",
   );
   if ((result.rows[0] as { ready?: unknown } | undefined)?.ready !== true) {
+    const fallback = await database.query(
+      "select to_regprocedure('app.set_property_verification_status(uuid,text,uuid)') is not null as ready",
+    );
+    if ((fallback.rows[0] as { ready?: unknown } | undefined)?.ready === true) {
+      return;
+    }
+  }
+  if ((result.rows[0] as { ready?: unknown } | undefined)?.ready !== true) {
     throw new Error("The runtime database schema is not ready.");
   }
 }

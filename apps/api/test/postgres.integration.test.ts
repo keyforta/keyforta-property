@@ -2,6 +2,8 @@ import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { applyMigration, applyMigrations } from "../src/migrate.js";
+import { createRuntimeDatabaseClient } from "../src/database.js";
+import { createPostgresInventoryGateway } from "../src/properties/inventory-gateway.js";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 const describePostgres = testDatabaseUrl ? describe : describe.skip;
@@ -137,7 +139,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     const result = await client.query<{ count: string }>(
       "select count(*)::text as count from app.schema_migrations",
     );
-    expect(result.rows[0]?.count).toBe("23");
+    expect(result.rows[0]?.count).toBe("26");
   });
 
   it("accepts same-organization and rejects cross-organization parent references", async () => {
@@ -584,13 +586,13 @@ describePostgres("PostgreSQL public discovery integration", () => {
         ownerEvidence.rows[0]!.id,
         counselEvidence.rows[0]!.id,
         "2026-09-16T00:00:00Z",
-        "2026-09-18T00:00:00Z",
+        "2026-09-17T00:00:00Z",
         "00000000-0000-4000-8000-000000000940",
         "synthetic-fully-approved",
       ],
     );
 
-    const active = await resolvePolicy("2026-09-17T00:00:00Z");
+    const active = await resolvePolicy("2026-09-16T12:00:00Z");
     expect(active.rows).toEqual([
       {
         policy_key: policyKey,
@@ -599,7 +601,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
       },
     ]);
 
-    const expired = await resolvePolicy("2026-09-18T00:00:00Z");
+    const expired = await resolvePolicy("2026-09-17T00:00:00Z");
     expect(expired.rowCount).toBe(0);
 
     await client.query(
@@ -1069,6 +1071,146 @@ describePostgres("PostgreSQL public discovery integration", () => {
       next_cursor: null,
       total_count: "2",
     });
+  });
+
+  it("requires an active jurisdiction policy before a Property can be verified, and allows CD-KN once activated", async () => {
+    await client.query(`
+      update app.properties
+      set jurisdiction_code = 'CD-KN'
+      where id = '00000000-0000-4000-8000-000000000910';
+    `);
+
+    await expect(
+      client.query(
+        "select * from app.set_property_verification_status($1, $2, $3)",
+        [
+          "00000000-0000-4000-8000-000000000910",
+          "verified",
+          "00000000-0000-4000-8000-000000000950",
+        ],
+      ),
+    ).rejects.toThrow(/active jurisdiction policy/);
+
+    await client.query(`
+      insert into app.jurisdiction_policy_versions (
+        id, policy_key, jurisdiction_code, version, rule_payload,
+        requires_counsel_approval, created_by_user_id
+      ) values (
+        '00000000-0000-4000-8000-000000000970',
+        'property_verification',
+        'CD-KN',
+        1,
+        '{}'::jsonb,
+        false,
+        '00000000-0000-4000-8000-000000000950'
+      );
+      insert into app.policy_approval_evidence (
+        id, policy_version_id, approval_role, approved_by_user_id, source_reference
+      ) values (
+        '00000000-0000-4000-8000-000000000971',
+        '00000000-0000-4000-8000-000000000970',
+        'policy_owner',
+        '00000000-0000-4000-8000-000000000950',
+        'issue-79'
+      );
+    `);
+
+    const effectiveFrom = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const activation = await client.query(
+      "select app.activate_jurisdiction_policy($1, $2, $3, $4, $5, $6, $7) as id",
+      [
+        "00000000-0000-4000-8000-000000000970",
+        "00000000-0000-4000-8000-000000000971",
+        null,
+        effectiveFrom,
+        null,
+        "00000000-0000-4000-8000-000000000950",
+        "policy-activation-prereq-01",
+      ],
+    );
+    expect((activation.rows[0] as { id?: string } | undefined)?.id).toBeDefined();
+    const activePolicy = await client.query(
+      "select * from app.resolve_active_jurisdiction_policy($1, $2, $3)",
+      ["property_verification", "CD-KN", new Date().toISOString()],
+    );
+    expect(activePolicy.rows).toEqual([{
+      policy_key: "property_verification",
+      rule_payload: {},
+      version: 1,
+    }]);
+    await runtimeClient.query("begin");
+    await runtimeClient.query("set local role keyforta_runtime");
+    await runtimeClient.query("select set_config('app.correlation_id', $1, true)", [
+      "policy-activation-01",
+    ]);
+    try {
+      const verified = await runtimeClient.query(
+        "select * from app.set_property_verification_status($1, $2, $3)",
+        [
+          "00000000-0000-4000-8000-000000000910",
+          "verified",
+          "00000000-0000-4000-8000-000000000950",
+        ],
+      );
+      await runtimeClient.query("commit");
+
+      expect(verified.rows).toEqual([{
+        property_id: "00000000-0000-4000-8000-000000000910",
+        verification_status: "verified",
+      }]);
+    } catch (error) {
+      await runtimeClient.query("rollback");
+      throw error;
+    }
+
+    const property = await client.query<{ verification_status: string }>(
+      "select verification_status from app.properties where id = $1",
+      ["00000000-0000-4000-8000-000000000910"],
+    );
+    expect(property.rows[0]?.verification_status).toBe("verified");
+  });
+
+  it("activates jurisdiction policy through the runtime InventoryGateway for platform-admin-scoped actors", async () => {
+    const runtimeDatabaseClient = createRuntimeDatabaseClient(runtimePool);
+    const gateway = createPostgresInventoryGateway(runtimeDatabaseClient);
+
+    const activation = await gateway.activateJurisdictionPolicy({
+      correlationId: "gateway-policy-activation-01",
+      effectiveFrom: "2026-09-19T00:00:00.000Z",
+      jurisdictionCode: "CD-GW",
+      ownerApproval: {
+        approvedByUserId: "00000000-0000-4000-8000-000000000950",
+        sourceReference: "issue-79",
+      },
+      policyKey: "property_verification",
+      requiresCounselApproval: false,
+      rulePayload: {},
+      subject: "synthetic-landlord-a",
+      version: 2,
+    });
+
+    expect(activation).toEqual(expect.objectContaining({
+      jurisdictionCode: "CD-GW",
+      policyKey: "property_verification",
+      version: 2,
+    }));
+
+    const activationRows = await client.query<{
+      correlation_id: string;
+      jurisdiction_code: string;
+      policy_key: string;
+    }>(
+      `select correlation_id, jurisdiction_code, policy_key
+       from app.jurisdiction_policy_activations
+       where correlation_id = $1`,
+      ["gateway-policy-activation-01"],
+    );
+    expect(activationRows.rows).toEqual([{
+      correlation_id: "gateway-policy-activation-01",
+      jurisdiction_code: "CD-GW",
+      policy_key: "property_verification",
+    }]);
   });
 
   it("derives inquiry organization from the listing and suppresses duplicates", async () => {
