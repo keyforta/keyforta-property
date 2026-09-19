@@ -232,13 +232,14 @@ describePostgres("PostgreSQL public discovery integration", () => {
     await expect(
       client.query(`
         insert into app.units (
-          id, organization_id, property_id, label,
-          publication_status, availability_status
+          id, organization_id, property_id, label, canonical_label, unit_type,
+          bedrooms, bathrooms, furnishing_status, publication_status, availability_status
         ) values (
           '00000000-0000-4000-8000-000000000981',
           '00000000-0000-4000-8000-000000000900',
           '00000000-0000-4000-8000-000000000911',
-          'Cross organization unit', 'draft', 'available'
+          'Cross organization unit', 'cross organization unit', 'apartment',
+          1, 1, 'unfurnished', 'draft', 'available'
         )
       `),
     ).rejects.toThrow(/units_organization_property_fkey/);
@@ -654,18 +655,19 @@ describePostgres("PostgreSQL public discovery integration", () => {
     await runtimeClient.query("set local role keyforta_runtime");
     let result;
     try {
-      result = await runtimeClient.query<{ slug: string }>(
-        "select slug from app.list_public_listings(null, null, null)",
+      result = await runtimeClient.query<{ items: Array<{ slug: string }> }>(
+        "select items from app.list_public_listings_page($1, $2, $3, $4, $5, $6, $7)",
+        [null, null, null, null, "created_at_desc", null, 100],
       );
       await runtimeClient.query("commit");
     } catch (error) {
       await runtimeClient.query("rollback");
       throw error;
     }
-    expect(result.rows.map(({ slug }) => slug)).toEqual([
+    expect(result.rows[0]?.items.map(({ slug }) => slug)).toEqual([
       "published-org-b",
       "published-org-a",
-    ]);
+    ])
   });
 
   it("uses one lifecycle eligibility predicate for list, detail, and inquiry", async () => {
@@ -673,13 +675,13 @@ describePostgres("PostgreSQL public discovery integration", () => {
       {
         disable: `update app.properties set verification_status = 'pending'
           where id = '00000000-0000-4000-8000-000000000911'`,
-        restore: `update app.properties set verification_status = 'verified'
+        restore: `update app.properties set verification_status = 'pending'
           where id = '00000000-0000-4000-8000-000000000911'`,
       },
       {
         disable: `update app.properties set publication_status = 'paused'
           where id = '00000000-0000-4000-8000-000000000911'`,
-        restore: `update app.properties set publication_status = 'published'
+        restore: `update app.properties set publication_status = 'draft'
           where id = '00000000-0000-4000-8000-000000000911'`,
       },
       {
@@ -707,8 +709,9 @@ describePostgres("PostgreSQL public discovery integration", () => {
       await runtimeClient.query("begin");
       await runtimeClient.query("set local role keyforta_runtime");
       try {
-        const listed = await runtimeClient.query<{ slug: string }>(
-          "select slug from app.list_public_listings(null, null, null)",
+        const listed = await runtimeClient.query<{ items: Array<{ slug: string }> }>(
+          "select items from app.list_public_listings_page($1, $2, $3, $4, $5, $6, $7)",
+          [null, null, null, null, "created_at_desc", null, 100],
         );
         const page = await runtimeClient.query<{
           items: Array<{ slug: string }>;
@@ -737,7 +740,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
         );
         await runtimeClient.query("commit");
 
-        expect(listed.rows.map(({ slug }) => slug)).not.toContain(
+        expect(listed.rows[0]?.items.map(({ slug }) => slug)).not.toContain(
           "published-org-b",
         );
         expect(page.rows[0]?.items.map(({ slug }) => slug)).not.toContain(
