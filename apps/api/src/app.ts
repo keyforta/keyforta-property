@@ -4,12 +4,17 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import {
+  jurisdictionPolicyActivationEnvelopeSchema,
+  jurisdictionPolicyActivationInputSchema,
   landlordOnboardingApplicationIdSchema,
   landlordOnboardingApplicationInputSchema,
   landlordOnboardingApplicationListSchema,
   landlordOnboardingApplicationSchema,
   landlordOnboardingDecisionInputSchema,
   organizationIdSchema,
+  propertyIdSchema,
+  propertyVerificationStatusEnvelopeSchema,
+  propertyVerificationStatusInputSchema,
   publicListingIdSchema,
   publicPropertyIdSchema,
   publicPropertyListQuerySchema,
@@ -28,6 +33,7 @@ import {
   InvalidPublicPropertyCursorError,
   type PublicPropertyGateway,
 } from "./properties/gateway.js";
+import type { InventoryGateway } from "./properties/inventory-gateway.js";
 import type { PublicListingPublicationGateway } from "./properties/publication-gateway.js";
 import type { PublicViewingRequestGateway } from "./properties/viewing-gateway.js";
 
@@ -40,6 +46,7 @@ export interface AppDependencies {
   corsOrigin?: string | string[] | boolean;
   landlordOnboarding?: LandlordOnboardingGateway;
   landlordOnboardingRateLimitMax?: number;
+  inventory?: InventoryGateway;
   platformAdminObjectIds?: ReadonlySet<string>;
   publicListingPublication?: PublicListingPublicationGateway;
   publicProperties?: PublicPropertyGateway;
@@ -467,6 +474,117 @@ export async function buildApp(
 
   registerPublicationCommand("publish", true);
   registerPublicationCommand("withdraw", false);
+
+  app.post(
+    "/api/v1/admin/jurisdiction-policies/activate",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.inventory) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "Jurisdiction policy activation is temporarily unavailable.",
+        ));
+      }
+      const principal = await authenticate(
+        request.headers.authorization,
+        dependencies.authenticator,
+      );
+      if (!principal) {
+        return reply.status(401).send(problem(
+          request.id, 401, "UNAUTHENTICATED", "Unauthorized",
+          "A valid bearer credential is required.",
+        ));
+      }
+      if (!isAuthorizedPlatformAdminAction(principal, "platform_operations_with_audit", dependencies)) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      const parsedInput = jurisdictionPolicyActivationInputSchema.safeParse(request.body);
+      if (!parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The jurisdiction policy activation is invalid.",
+          parsedInput.error.flatten(),
+        ));
+      }
+      const activated = await dependencies.inventory.activateJurisdictionPolicy({
+        ...parsedInput.data,
+        correlationId: request.id,
+        subject: principal.subject,
+      });
+      if (!activated) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      return reply.status(201).send(
+        jurisdictionPolicyActivationEnvelopeSchema.parse({
+          data: activated,
+          meta: { requestId: request.id },
+        }),
+      );
+    },
+  );
+
+  app.patch<{ Params: { propertyId: string } }>(
+    "/api/v1/properties/:propertyId/verification-status",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.inventory) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "Property verification is temporarily unavailable.",
+        ));
+      }
+      const principal = await authenticate(
+        request.headers.authorization,
+        dependencies.authenticator,
+      );
+      if (!principal) {
+        return reply.status(401).send(problem(
+          request.id, 401, "UNAUTHENTICATED", "Unauthorized",
+          "A valid bearer credential is required.",
+        ));
+      }
+      if (!isAuthorizedPlatformAdminAction(principal, "platform_operations_with_audit", dependencies)) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      const parsedOrganizationId = organizationIdSchema.safeParse(
+        request.headers["x-organization-id"],
+      );
+      const parsedPropertyId = propertyIdSchema.safeParse(request.params.propertyId);
+      const parsedInput = propertyVerificationStatusInputSchema.safeParse(request.body);
+      if (!parsedOrganizationId.success || !parsedPropertyId.success || !parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The property verification update is invalid.",
+        ));
+      }
+      const updated = await dependencies.inventory.setPropertyVerificationStatus({
+        correlationId: request.id,
+        organizationId: parsedOrganizationId.data,
+        propertyId: parsedPropertyId.data,
+        status: parsedInput.data.status,
+        subject: principal.subject,
+      });
+      if (!updated) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      return reply.send(
+        propertyVerificationStatusEnvelopeSchema.parse({
+          data: updated,
+          meta: { requestId: request.id },
+        }),
+      );
+    },
+  );
 
   app.post(
     "/api/v1/landlord-onboarding-applications",

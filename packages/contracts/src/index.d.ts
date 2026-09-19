@@ -52,6 +52,8 @@ export const publicPropertyIdSchema: z.ZodString;
 export const organizationIdSchema: z.ZodString;
 export const publicListingIdSchema: z.ZodString;
 export const landlordOnboardingApplicationIdSchema: z.ZodString;
+export const propertyIdSchema: z.ZodString;
+export const jurisdictionCodeSchema: z.ZodString;
 
 export const propertyTypes: readonly ["apartment_building", "single_family", "townhouse", "mixed_use", "other"];
 export const unitTypes: readonly ["studio", "apartment", "house", "townhouse", "commercial", "other"];
@@ -91,7 +93,16 @@ export interface CreateRentalPropertyInput {
   propertyType: typeof propertyTypes[number];
   address: PropertyAddress;
   timeZone: string;
+  jurisdictionCode?: string | null;
   firstUnit: RentableUnitInput;
+}
+
+export interface UpdateRentalPropertyInput {
+  name?: string;
+  propertyType?: typeof propertyTypes[number];
+  address?: PropertyAddress;
+  timeZone?: string;
+  jurisdictionCode?: string | null;
 }
 
 export interface ArchiveMetadata {
@@ -107,7 +118,8 @@ export interface RentalProperty extends ArchiveMetadata {
   propertyType: typeof propertyTypes[number];
   address: PropertyAddress;
   timeZone: string;
-  verificationStatus: string;
+  jurisdictionCode?: string | null;
+  verificationStatus: "not_started" | "pending" | "changes_requested" | "verified" | "rejected" | "expired" | "suspended";
   publicationStatus: typeof propertyPublicationStatuses[number];
   version: number;
   createdAt: string;
@@ -198,6 +210,7 @@ export interface InternalPublicListing {
 export const propertyAddressSchema: z.ZodType<PropertyAddress>;
 export const rentableUnitInputSchema: z.ZodType<RentableUnitInput>;
 export const createRentalPropertyInputSchema: z.ZodType<CreateRentalPropertyInput>;
+export const updateRentalPropertyInputSchema: z.ZodType<UpdateRentalPropertyInput>;
 export const rentalPropertySchema: z.ZodType<RentalProperty>;
 export const rentableUnitSchema: z.ZodType<RentableUnit>;
 export const pricingVersionSchema: z.ZodType<PricingVersion>;
@@ -215,6 +228,45 @@ export interface LandlordOnboardingDecisionInput {
   reason: string;
 }
 
+export interface JurisdictionPolicyActivationInput {
+  policyKey: string;
+  jurisdictionCode: string;
+  version: number;
+  rulePayload: Record<string, unknown>;
+  requiresCounselApproval: boolean;
+  ownerApproval: {
+    approvedAt?: string;
+    approvedByUserId: string;
+    evidenceHash?: string;
+    sourceReference: string;
+  };
+  counselApproval?: {
+    approvedAt?: string;
+    approvedByUserId: string;
+    evidenceHash?: string;
+    sourceReference: string;
+  } | null;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}
+
+export interface JurisdictionPolicyActivationResult {
+  activationId: string;
+  jurisdictionCode: string;
+  policyKey: string;
+  policyVersionId: string;
+  version: number;
+}
+
+export interface PropertyVerificationStatusInput {
+  status: "not_started" | "pending" | "changes_requested" | "verified" | "rejected" | "expired" | "suspended";
+}
+
+export interface PropertyVerificationStatusResult {
+  propertyId: string;
+  status: "not_started" | "pending" | "changes_requested" | "verified" | "rejected" | "expired" | "suspended";
+}
+
 export interface LandlordOnboardingApplication {
   applicantName: string;
   decidedAt: string | null;
@@ -227,10 +279,14 @@ export interface LandlordOnboardingApplication {
 
 export const landlordOnboardingApplicationInputSchema: z.ZodType<LandlordOnboardingApplicationInput>;
 export const landlordOnboardingDecisionInputSchema: z.ZodType<LandlordOnboardingDecisionInput>;
+export const jurisdictionPolicyActivationInputSchema: z.ZodType<JurisdictionPolicyActivationInput>;
+export const propertyVerificationStatusInputSchema: z.ZodType<PropertyVerificationStatusInput>;
 export const landlordOnboardingApplicationSchema: z.ZodType<LandlordOnboardingApplication>;
 export const landlordOnboardingApplicationListSchema: z.ZodType<{
   items: LandlordOnboardingApplication[];
 }>;
+export const jurisdictionPolicyActivationResultSchema: z.ZodType<JurisdictionPolicyActivationResult>;
+export const propertyVerificationStatusResultSchema: z.ZodType<PropertyVerificationStatusResult>;
 export const publicPropertyProjectionSchema: z.ZodType<PublicPropertyProjection>;
 export const publicPropertyListQuerySchema: z.ZodType<PublicPropertyListQuery>;
 
@@ -304,6 +360,16 @@ export const publicRequestReceiptEnvelopeSchema: z.ZodType<{
 export const publicListingPublicationEnvelopeSchema: z.ZodType<{
   auditEventId?: string;
   data: { listingId: string; status: "published" | "withdrawn" };
+  meta: Meta;
+}>;
+export const jurisdictionPolicyActivationEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: JurisdictionPolicyActivationResult;
+  meta: Meta;
+}>;
+export const propertyVerificationStatusEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: PropertyVerificationStatusResult;
   meta: Meta;
 }>;
 export const landlordOnboardingApplicationEnvelopeSchema: z.ZodType<{

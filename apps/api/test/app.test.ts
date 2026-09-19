@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  jurisdictionPolicyActivationEnvelopeSchema,
+  propertyVerificationStatusEnvelopeSchema,
   problemSchema,
   publicListingPublicationEnvelopeSchema,
   publicPropertyEnvelopeSchema,
@@ -9,6 +11,7 @@ import {
 
 import { buildApp, parseCorsOrigins } from "../src/app.js";
 import { createMemoryPublicPropertyGateway } from "../src/properties/gateway.js";
+import type { InventoryGateway } from "../src/properties/inventory-gateway.js";
 import { createMemoryPublicViewingRequestGateway } from "../src/properties/viewing-gateway.js";
 import type { PublicListingPublicationGateway } from "../src/properties/publication-gateway.js";
 
@@ -100,10 +103,12 @@ describe("KEYFORTA API runtime", () => {
     const document = specification.json();
     expect(document.servers).toEqual([{ url: "/api/v1" }]);
     expect(Object.keys(document.paths).sort()).toEqual([
+      "/admin/jurisdiction-policies/activate",
       "/landlord-onboarding-applications",
       "/landlord-onboarding-applications/{applicationId}/decision",
       "/properties",
       "/properties/{propertyId}",
+      "/properties/{propertyId}/verification-status",
       "/public-listings/{listingId}/publish",
       "/public-listings/{listingId}/withdraw",
       "/viewing-requests",
@@ -646,6 +651,147 @@ describe("protected public listing publication", () => {
     expect(response.json().error.code).toBe("NOT_FOUND");
     expect(response.body).not.toContain("organization");
     expect(response.body).not.toContain("authorization");
+  });
+});
+
+describe("platform-admin jurisdiction-policy and verification routes", () => {
+  const adminObjectId = "00000000-0000-4000-8000-000000000702";
+  const propertyId = "00000000-0000-4000-8000-000000000910";
+  const organizationId = "00000000-0000-4000-8000-000000000900";
+
+  function createDependencies() {
+    const activations: Parameters<InventoryGateway["activateJurisdictionPolicy"]>[0][] = [];
+    const verificationUpdates: Parameters<InventoryGateway["setPropertyVerificationStatus"]>[0][] = [];
+    return {
+      activations,
+      authenticator: {
+        async authenticate(authorization: string) {
+          if (authorization === "Bearer synthetic-admin") {
+            return { objectId: adminObjectId, subject: "synthetic-admin" };
+          }
+          if (authorization === "Bearer outsider") {
+            return { objectId: "00000000-0000-4000-8000-000000000799", subject: "synthetic-outsider" };
+          }
+          return { objectId: "00000000-0000-4000-8000-000000000799", subject: "synthetic-outsider" };
+        },
+      },
+      inventory: {
+        async activateJurisdictionPolicy(command) {
+          activations.push(command);
+          return {
+            activationId: "00000000-0000-4000-8000-000000000960",
+            jurisdictionCode: command.jurisdictionCode,
+            policyKey: command.policyKey,
+            policyVersionId: "00000000-0000-4000-8000-000000000961",
+            version: command.version,
+          };
+        },
+        async setPropertyVerificationStatus(command) {
+          verificationUpdates.push(command);
+          return {
+            propertyId: command.propertyId,
+            status: command.status,
+          };
+        },
+      } satisfies InventoryGateway,
+      platformAdminObjectIds: new Set([adminObjectId]),
+      verificationUpdates,
+    };
+  }
+
+  it("lets platform administrators activate CD-KN policy and set verification status", async () => {
+    const dependencies = createDependencies();
+    const app = await buildApp(dependencies);
+    apps.push(app);
+
+    const activation = await app.inject({
+      headers: {
+        authorization: "Bearer synthetic-admin",
+        "x-request-id": "policy-activation-01",
+      },
+      method: "POST",
+      payload: {
+        policyKey: "property_verification",
+        jurisdictionCode: "CD-KN",
+        version: 1,
+        rulePayload: {},
+        requiresCounselApproval: false,
+        ownerApproval: {
+          approvedByUserId: adminObjectId,
+          sourceReference: "issue-79",
+        },
+        effectiveFrom: "2026-09-18T00:00:00.000Z",
+      },
+      url: "/api/v1/admin/jurisdiction-policies/activate",
+    });
+    const verification = await app.inject({
+      headers: {
+        authorization: "Bearer synthetic-admin",
+        "x-organization-id": organizationId,
+        "x-request-id": "property-verify-01",
+      },
+      method: "PATCH",
+      payload: { status: "verified" },
+      url: `/api/v1/properties/${propertyId}/verification-status`,
+    });
+
+    expect(activation.statusCode).toBe(201);
+    jurisdictionPolicyActivationEnvelopeSchema.parse(activation.json());
+    expect(verification.statusCode).toBe(200);
+    propertyVerificationStatusEnvelopeSchema.parse(verification.json());
+    expect(dependencies.activations).toEqual([expect.objectContaining({
+      correlationId: "policy-activation-01",
+      jurisdictionCode: "CD-KN",
+      policyKey: "property_verification",
+      subject: "synthetic-admin",
+    })]);
+    expect(dependencies.verificationUpdates).toEqual([{
+      correlationId: "property-verify-01",
+      organizationId,
+      propertyId,
+      status: "verified",
+      subject: "synthetic-admin",
+    }]);
+  });
+
+  it("fails closed for non-platform-admin callers", async () => {
+    const dependencies = createDependencies();
+    const app = await buildApp(dependencies);
+    apps.push(app);
+
+    const activation = await app.inject({
+      headers: {
+        authorization: "Bearer outsider",
+      },
+      method: "POST",
+      payload: {
+        policyKey: "property_verification",
+        jurisdictionCode: "CD-KN",
+        version: 1,
+        rulePayload: {},
+        requiresCounselApproval: false,
+        ownerApproval: {
+          approvedByUserId: adminObjectId,
+          sourceReference: "issue-79",
+        },
+        effectiveFrom: "2026-09-18T00:00:00.000Z",
+      },
+      url: "/api/v1/admin/jurisdiction-policies/activate",
+    });
+    const verification = await app.inject({
+      headers: {
+        authorization: "Bearer outsider",
+        "x-organization-id": organizationId,
+      },
+      method: "PATCH",
+      payload: { status: "verified" },
+      url: `/api/v1/properties/${propertyId}/verification-status`,
+    });
+
+    expect(activation.statusCode).toBe(404);
+    expect(verification.statusCode).toBe(404);
+    expect(dependencies.activations).toEqual([]);
+    expect(dependencies.verificationUpdates).toEqual([]);
   });
 });
 

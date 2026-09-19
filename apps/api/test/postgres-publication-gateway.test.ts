@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DatabaseClient, DatabaseSession } from "../src/database.js";
 import { createPostgresPublicListingPublicationGateway } from "../src/properties/publication-gateway.js";
+import { createPostgresInventoryGateway } from "../src/properties/inventory-gateway.js";
 
 describe("PostgreSQL public listing publication gateway", () => {
   it.each([
@@ -84,5 +85,79 @@ describe("PostgreSQL public listing publication gateway", () => {
 
     expect(queries).toHaveLength(1);
     expect(queries[0]).toContain("app.resolve_actor");
+  });
+
+  it("activates jurisdiction policy and verification through correlated runtime commands", async () => {
+    const queries: Array<{ parameters: readonly unknown[]; text: string }> = [];
+    const session: DatabaseSession = {
+      async query(text, parameters = []) {
+        queries.push({ parameters, text });
+        if (text.includes("resolve_actor")) {
+          return { rows: [{ actor_id: "00000000-0000-4000-8000-000000000940" }] };
+        }
+        if (text.includes("activate_jurisdiction_policy")) {
+          return {
+            rows: [{
+              activation_id: "00000000-0000-4000-8000-000000000960",
+              jurisdiction_code: "CD-KN",
+              policy_key: "property_verification",
+              policy_version_id: "00000000-0000-4000-8000-000000000961",
+              version: 1,
+            }],
+          };
+        }
+        if (text.includes("set_property_verification_status")) {
+          return {
+            rows: [{
+              property_id: "00000000-0000-4000-8000-000000000910",
+              verification_status: "verified",
+            }],
+          };
+        }
+        return { rows: [] };
+      },
+    };
+    const client: DatabaseClient = {
+      query: session.query,
+      async transaction(operation) {
+        return operation(session);
+      },
+    };
+    const gateway = createPostgresInventoryGateway(client);
+
+    await expect(gateway.activateJurisdictionPolicy({
+      correlationId: "policy-activation-01",
+      effectiveFrom: "2026-09-18T00:00:00.000Z",
+      jurisdictionCode: "CD-KN",
+      ownerApproval: {
+        approvedByUserId: "00000000-0000-4000-8000-000000000940",
+        sourceReference: "issue-79",
+      },
+      policyKey: "property_verification",
+      requiresCounselApproval: false,
+      rulePayload: {},
+      subject: "synthetic-admin",
+      version: 1,
+    })).resolves.toEqual({
+      activationId: "00000000-0000-4000-8000-000000000960",
+      jurisdictionCode: "CD-KN",
+      policyKey: "property_verification",
+      policyVersionId: "00000000-0000-4000-8000-000000000961",
+      version: 1,
+    });
+
+    await expect(gateway.setPropertyVerificationStatus({
+      correlationId: "property-verify-01",
+      organizationId: "00000000-0000-4000-8000-000000000900",
+      propertyId: "00000000-0000-4000-8000-000000000910",
+      status: "verified",
+      subject: "synthetic-admin",
+    })).resolves.toEqual({
+      propertyId: "00000000-0000-4000-8000-000000000910",
+      status: "verified",
+    });
+
+    expect(queries.some(({ text }) => text.includes("activate_jurisdiction_policy"))).toBe(true);
+    expect(queries.some(({ text }) => text.includes("set_property_verification_status"))).toBe(true);
   });
 });
