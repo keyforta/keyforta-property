@@ -68,7 +68,21 @@ export function createBrowserEntraAuth(configuration) {
           });
           await client.initialize();
           const redirectResult = await client.handleRedirectPromise();
-          const account = redirectResult?.account || client.getActiveAccount() || client.getAllAccounts()[0];
+          let account = redirectResult?.account || client.getActiveAccount() || client.getAllAccounts()[0];
+          if (!account) {
+            // MemoryStorage does not survive a page reload, so the in-memory
+            // account list is empty here even for a still-valid session.
+            // ssoSilent() re-establishes the session from the browser's
+            // existing Microsoft Entra session cookie (not from any
+            // client-side persisted token store) so a refresh does not force
+            // the user to sign in again while their Entra session is valid.
+            try {
+              const silentResult = await client.ssoSilent({ scopes: [config.apiScope] });
+              account = silentResult?.account || null;
+            } catch {
+              account = null;
+            }
+          }
           if (account) client.setActiveAccount(account);
           publish({
             status: account ? 'signed-in' : 'signed-out',
