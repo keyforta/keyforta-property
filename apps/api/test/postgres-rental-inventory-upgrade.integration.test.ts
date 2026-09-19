@@ -33,7 +33,7 @@ describePostgres("PostgreSQL 0022 rental-inventory v1.0 initialization", () => {
     `);
 
     const migrationFiles = (await readdir(migrationDirectory))
-      .filter((fileName) => /^00(0[1-9]|1[0-9]|2[0-3])_[a-z0-9_]+\.sql$/.test(fileName))
+      .filter((fileName) => /^00(0[1-9]|1[0-9]|2[01])_[a-z0-9_]+\.sql$/.test(fileName))
       .sort();
     for (const fileName of migrationFiles) {
       await applyMigration(
@@ -165,7 +165,7 @@ describePostgres("PostgreSQL 0022 rental-inventory v1.0 initialization", () => {
             and column_name = 'snapshot'
             and data_type = 'jsonb'
           ) as listing_snapshot_is_jsonb,
-        to_regprocedure('app.runtime_schema_v0023_ready()') is not null
+        to_regprocedure('app.runtime_schema_v0021_ready()') is not null
           as previous_runtime_ready_exists,
         app.runtime_schema_v0022_ready() as ready
     `);

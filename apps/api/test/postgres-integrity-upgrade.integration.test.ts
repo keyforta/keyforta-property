@@ -49,17 +49,17 @@ describePostgres("PostgreSQL 0021 organization-integrity upgrade", () => {
         ('00000000-0000-4000-8000-000000000b00', 'Synthetic upgrade A'),
         ('00000000-0000-4000-8000-000000000b01', 'Synthetic upgrade B');
       insert into app.properties (
-        id, organization_id, name, address, verification_status, publication_status
+        id, organization_id, name, property_type, address, time_zone, verification_status, publication_status
       ) values
         (
           '00000000-0000-4000-8000-000000000b10',
           '00000000-0000-4000-8000-000000000b00',
-          'Synthetic property A', 'Private A', 'pending', 'draft'
+          'Synthetic property A', 'apartment_building', '{"avenueOrStreet":"Avenue Colonel Mondjiba","number":"1","quartier":"Ngaliema","commune":"Ngaliema","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft'
         ),
         (
           '00000000-0000-4000-8000-000000000b11',
           '00000000-0000-4000-8000-000000000b01',
-          'Synthetic property B', 'Private B', 'pending', 'draft'
+          'Synthetic property B', 'apartment_building', '{"avenueOrStreet":"Avenue Kasa-Vubu","number":"2","quartier":"Kalamu","commune":"Kalamu","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft'
         );
       insert into app.units (
         id, organization_id, property_id, label,

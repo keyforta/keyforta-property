@@ -1,6 +1,6 @@
 begin;
 
-create function app.public_listing_is_eligible(requested_listing_id uuid)
+create function app.runtime_public_listing_is_eligible(requested_listing_id uuid)
 returns boolean
 language sql
 security definer
@@ -17,7 +17,7 @@ as $$
       on property.id = listing.property_id
      and property.organization_id = listing.organization_id
     join lateral (
-      select pricing.id, pricing.amount_minor, pricing.currency
+      select pricing.id, pricing.amount_minor
       from app.unit_pricing_versions as pricing
       where pricing.organization_id = listing.organization_id
         and pricing.unit_id = listing.unit_id
@@ -30,7 +30,7 @@ as $$
       limit 1
     ) as current_pricing on true
     join lateral (
-      select availability.id, availability.status, availability.effective_from
+      select availability.id, availability.status
       from app.unit_availability_versions as availability
       where availability.organization_id = listing.organization_id
         and availability.unit_id = listing.unit_id
@@ -48,7 +48,7 @@ as $$
       and listing.published_at is not null
       and listing.withdrawn_at is null
       and property.archived_at is null
-      and property.verification_status = 'pending'
+      and property.verification_status not in ('rejected', 'expired', 'suspended')
       and property.publication_status in ('draft', 'pending_review', 'paused')
       and unit.archived_at is null
       and unit.publication_status = 'published'
@@ -58,7 +58,7 @@ as $$
 $$;
 
 create policy published_listing_read on app.public_listings for select
-  using (app.public_listing_is_eligible(id));
+  using (app.runtime_public_listing_is_eligible(id));
 
 create function app.get_public_listing(requested_identifier text)
 returns table (
@@ -83,9 +83,9 @@ stable
 set search_path = pg_catalog, app
 as $$
   with matched as (
-    select listing.*, listing.snapshot -> 'projection' as projection
+    select listing.*
     from app.public_listings as listing
-    where app.public_listing_is_eligible(listing.id)
+    where app.runtime_public_listing_is_eligible(listing.id)
       and (
         listing.id::text = requested_identifier
         or lower((listing.snapshot -> 'projection' ->> 'id')) = lower(requested_identifier)
@@ -112,15 +112,8 @@ as $$
     ((matched.snapshot -> 'projection' ->> 'monthlyRentMinor'))::bigint as monthly_rent_minor,
     (matched.snapshot -> 'projection' ->> 'currency')::char(3) as currency,
     ((matched.snapshot -> 'projection' ->> 'availableFrom'))::date as available_from,
-    coalesce(
-      array(
-        select jsonb_array_elements_text(matched.snapshot -> 'projection' -> 'amenities')
-      ),
-      array[]::text[]
-    ) as amenities,
-    array(
-      select jsonb_array_elements_text(matched.snapshot -> 'projection' -> 'imageUrls')
-    ) as image_urls
+    coalesce(array(select jsonb_array_elements_text(matched.snapshot -> 'projection' -> 'amenities')), array[]::text[]) as amenities,
+    coalesce(array(select jsonb_array_elements_text(matched.snapshot -> 'projection' -> 'imageUrls')), array[]::text[]) as image_urls
   from matched
 $$;
 
@@ -171,30 +164,14 @@ begin
       ((listing.snapshot -> 'projection' ->> 'monthlyRentMinor'))::bigint as monthly_rent_minor,
       (listing.snapshot -> 'projection' ->> 'currency')::char(3) as currency,
       ((listing.snapshot -> 'projection' ->> 'availableFrom'))::date as available_from,
-      coalesce(
-        array(
-          select jsonb_array_elements_text(listing.snapshot -> 'projection' -> 'amenities')
-        ),
-        array[]::text[]
-      ) as amenities,
-      array(
-        select jsonb_array_elements_text(listing.snapshot -> 'projection' -> 'imageUrls')
-      ) as image_urls
+      coalesce(array(select jsonb_array_elements_text(listing.snapshot -> 'projection' -> 'amenities')), array[]::text[]) as amenities,
+      coalesce(array(select jsonb_array_elements_text(listing.snapshot -> 'projection' -> 'imageUrls')), array[]::text[]) as image_urls
     from app.public_listings as listing
-    where app.public_listing_is_eligible(listing.id)
+    where app.runtime_public_listing_is_eligible(listing.id)
       and (requested_city is null or lower(listing.snapshot -> 'projection' ->> 'city') = lower(requested_city))
-      and (
-        requested_district is null
-        or (listing.snapshot -> 'projection' ->> 'district') ilike '%' || requested_district || '%'
-      )
-      and (
-        requested_bedrooms is null
-        or ((listing.snapshot -> 'projection' ->> 'bedrooms'))::integer >= requested_bedrooms
-      )
-      and (
-        requested_max_rent_minor is null
-        or ((listing.snapshot -> 'projection' ->> 'monthlyRentMinor'))::bigint <= requested_max_rent_minor
-      )
+      and (requested_district is null or (listing.snapshot -> 'projection' ->> 'district') ilike '%' || requested_district || '%')
+      and (requested_bedrooms is null or ((listing.snapshot -> 'projection' ->> 'bedrooms'))::integer >= requested_bedrooms)
+      and (requested_max_rent_minor is null or ((listing.snapshot -> 'projection' ->> 'monthlyRentMinor'))::bigint <= requested_max_rent_minor)
   ), cursor_row as (
     select candidate.created_at, candidate.id, candidate.slug, candidate.title
     from filtered as candidate
@@ -207,30 +184,21 @@ begin
         requested_sort = 'created_at_desc'
         and (
           candidate.created_at < (select cursor_row.created_at from cursor_row)
-          or (
-            candidate.created_at = (select cursor_row.created_at from cursor_row)
-            and candidate.id > (select cursor_row.id from cursor_row)
-          )
+          or (candidate.created_at = (select cursor_row.created_at from cursor_row) and candidate.id > (select cursor_row.id from cursor_row))
         )
       )
       or (
         requested_sort = 'name_asc'
         and (
           candidate.title > (select cursor_row.title from cursor_row)
-          or (
-            candidate.title = (select cursor_row.title from cursor_row)
-            and candidate.id > (select cursor_row.id from cursor_row)
-          )
+          or (candidate.title = (select cursor_row.title from cursor_row) and candidate.id > (select cursor_row.id from cursor_row))
         )
       )
       or (
         requested_sort = 'name_desc'
         and (
           candidate.title < (select cursor_row.title from cursor_row)
-          or (
-            candidate.title = (select cursor_row.title from cursor_row)
-            and candidate.id > (select cursor_row.id from cursor_row)
-          )
+          or (candidate.title = (select cursor_row.title from cursor_row) and candidate.id > (select cursor_row.id from cursor_row))
         )
       )
   ), ordered as (
@@ -297,19 +265,16 @@ as $$
 declare
   listing record;
 begin
-  select candidate.id, candidate.organization_id into listing
+  select projection.id, candidate.organization_id into listing
   from app.get_public_listing(requested_identifier) as projection
-  join app.public_listings as candidate
-    on candidate.id = projection.id
+  join app.public_listings as candidate on candidate.id = projection.id
   limit 1;
 
   if not found then
     return false;
   end if;
 
-  perform pg_advisory_xact_lock(
-    hashtextextended(listing.id::text || ':' || lower(requested_email), 0)
-  );
+  perform pg_advisory_xact_lock(hashtextextended(listing.id::text || ':' || lower(requested_email), 0));
   perform set_config('app.organization_id', listing.organization_id::text, true);
 
   if not exists (
@@ -346,8 +311,8 @@ declare
   correlation text := nullif(current_setting('app.correlation_id', true), '');
   listing app.public_listings%rowtype;
   assignment_event_id uuid;
-  assignment_action text;
-  property app.properties%rowtype;
+  property_record app.properties%rowtype;
+  unit_record app.units%rowtype;
   current_pricing record;
   current_availability record;
   listing_snapshot jsonb;
@@ -367,11 +332,17 @@ begin
     return false;
   end if;
 
-  select event.id, event.action into assignment_event_id, assignment_action
+  select event.id into assignment_event_id
   from app.manager_property_assignment_events as event
   join app.memberships as membership
     on membership.organization_id = event.organization_id
    and membership.user_id = event.manager_user_id
+  join app.manager_property_assignments as assignment
+    on assignment.organization_id = event.organization_id
+   and assignment.property_id = event.property_id
+   and assignment.manager_user_id = event.manager_user_id
+   and assignment.assigned_at = event.occurred_at
+   and assignment.revoked_at is null
   where event.organization_id = organization
     and event.property_id = listing.property_id
     and event.manager_user_id = actor
@@ -379,19 +350,7 @@ begin
     and membership.role in ('landlord', 'manager')
     and membership.active
     and membership.effective_from <= transaction_timestamp()
-    and (
-      membership.effective_to is null
-      or transaction_timestamp() < membership.effective_to
-    )
-    and exists (
-      select 1
-      from app.manager_property_assignments as assignment
-      where assignment.organization_id = event.organization_id
-        and assignment.property_id = event.property_id
-        and assignment.manager_user_id = event.manager_user_id
-        and assignment.assigned_at = event.occurred_at
-        and assignment.revoked_at is null
-    )
+    and (membership.effective_to is null or transaction_timestamp() < membership.effective_to)
   order by event.occurred_at desc, event.id desc
   limit 1;
 
@@ -404,27 +363,22 @@ begin
       return false;
     end if;
 
-    select * into property
+    select * into property_record
     from app.properties
     where organization_id = organization
       and id = listing.property_id;
+    select * into unit_record
+    from app.units
+    where organization_id = organization
+      and id = listing.unit_id
+      and property_id = listing.property_id;
 
     if not found
-      or property.archived_at is not null
-      or property.verification_status in ('rejected', 'expired', 'suspended')
-      or property.publication_status not in ('draft', 'pending_review', 'paused') then
-      return false;
-    end if;
-
-    if not exists (
-      select 1
-      from app.units as unit
-      where unit.organization_id = organization
-        and unit.id = listing.unit_id
-        and unit.property_id = listing.property_id
-        and unit.archived_at is null
-        and unit.publication_status = 'published'
-    ) then
+      or property_record.archived_at is not null
+      or property_record.verification_status in ('rejected', 'expired', 'suspended')
+      or property_record.publication_status not in ('draft', 'pending_review', 'paused')
+      or unit_record.archived_at is not null
+      or unit_record.publication_status <> 'published' then
       return false;
     end if;
 
@@ -433,10 +387,7 @@ begin
     where pricing.organization_id = organization
       and pricing.unit_id = listing.unit_id
       and pricing.effective_from <= transaction_timestamp()
-      and (
-        pricing.effective_to is null
-        or transaction_timestamp() < pricing.effective_to
-      )
+      and (pricing.effective_to is null or transaction_timestamp() < pricing.effective_to)
     order by pricing.effective_from desc, pricing.id desc
     limit 1;
 
@@ -445,40 +396,35 @@ begin
     where availability.organization_id = organization
       and availability.unit_id = listing.unit_id
       and availability.effective_from <= transaction_timestamp()
-      and (
-        availability.effective_to is null
-        or transaction_timestamp() < availability.effective_to
-      )
+      and (availability.effective_to is null or transaction_timestamp() < availability.effective_to)
     order by availability.effective_from desc, availability.id desc
     limit 1;
 
-    if current_pricing.id is null
-      or current_availability.id is null
-      or current_availability.status <> 'available' then
+    if current_pricing.id is null or current_availability.id is null or current_availability.status <> 'available' then
       return false;
     end if;
 
     listing_snapshot := jsonb_build_object(
       'propertyId', listing.property_id,
-      'propertyVersion', property.version,
+      'propertyVersion', property_record.version,
       'unitId', listing.unit_id,
-      'unitVersion', 1,
+      'unitVersion', unit_record.version,
       'pricingVersionId', current_pricing.id,
       'availabilityVersionId', current_availability.id,
       'projection', jsonb_build_object(
         'id', listing.id::text,
-        'name', property.name || ' — ' || (select unit.label from app.units as unit where unit.organization_id = organization and unit.id = listing.unit_id),
-        'summary', coalesce(listing.snapshot -> 'projection' ->> 'summary', property.name || ' listing'),
-        'city', property.address ->> 'city',
-        'district', property.address ->> 'quartier',
-        'bedrooms', (select unit.bedrooms from app.units as unit where unit.organization_id = organization and unit.id = listing.unit_id),
-        'bathrooms', (select unit.bathrooms from app.units as unit where unit.organization_id = organization and unit.id = listing.unit_id),
+        'name', property_record.name || ' — ' || unit_record.label,
+        'summary', coalesce(listing.snapshot -> 'projection' ->> 'summary', property_record.name || ' listing'),
+        'city', property_record.address ->> 'city',
+        'district', property_record.address ->> 'quartier',
+        'bedrooms', unit_record.bedrooms,
+        'bathrooms', unit_record.bathrooms,
         'monthlyRentMinor', current_pricing.amount_minor::text,
         'currency', current_pricing.currency,
         'availableFrom', (current_availability.effective_from at time zone 'UTC')::date,
         'amenities', coalesce(listing.snapshot -> 'projection' -> 'amenities', '[]'::jsonb),
         'imageUrls', coalesce(listing.snapshot -> 'projection' -> 'imageUrls', '[]'::jsonb),
-        'areaSquareMeters', (select unit.area_square_meters from app.units as unit where unit.organization_id = organization and unit.id = listing.unit_id)
+        'areaSquareMeters', unit_record.area_square_meters
       )
     );
 
@@ -515,7 +461,7 @@ begin
     correlation_id, action, source, occurred_at
   ) values (
     organization, listing.id, listing.property_id, listing.unit_id, actor,
-    assignment_event_id, assignment_action, listing.version + 1,
+    assignment_event_id, 'assigned', listing.version + 1,
     correlation, event_action, 'runtime_api', transaction_timestamp()
   );
 
@@ -532,7 +478,7 @@ as $$
   select true
 $$;
 
-revoke all on function app.public_listing_is_eligible(uuid) from public;
+revoke all on function app.runtime_public_listing_is_eligible(uuid) from public;
 revoke all on function app.get_public_listing(text) from public;
 revoke all on function app.list_public_listings_page(text, text, integer, bigint, text, text, integer) from public;
 revoke all on function app.create_public_listing_inquiry(text, text, text, text, timestamptz, text, text, text) from public;
@@ -543,7 +489,5 @@ grant execute on function app.list_public_listings_page(text, text, integer, big
 grant execute on function app.create_public_listing_inquiry(text, text, text, text, timestamptz, text, text, text) to keyforta_runtime;
 grant execute on function app.set_public_listing_publication(uuid, boolean) to keyforta_runtime;
 grant execute on function app.runtime_schema_v0023_ready() to keyforta_runtime;
-
-grant select on app.public_listings to keyforta_runtime;
 
 commit;

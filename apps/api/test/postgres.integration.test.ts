@@ -52,10 +52,10 @@ describePostgres("PostgreSQL public discovery integration", () => {
         ('00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000951', 'manager', true),
         ('00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000952', 'manager', true);
       insert into app.properties (
-        id, organization_id, name, address, verification_status, publication_status
+        id, organization_id, name, property_type, address, time_zone, verification_status, publication_status
       ) values
-        ('00000000-0000-4000-8000-000000000910', '00000000-0000-4000-8000-000000000900', 'Synthetic A', 'Private A', 'pending', 'draft'),
-        ('00000000-0000-4000-8000-000000000911', '00000000-0000-4000-8000-000000000901', 'Synthetic B', 'Private B', 'pending', 'draft');
+        ('00000000-0000-4000-8000-000000000910', '00000000-0000-4000-8000-000000000900', 'Synthetic A', 'apartment_building', '{"avenueOrStreet":"Avenue de la Paix","number":"10","quartier":"Gombe","commune":"Gombe","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft'),
+        ('00000000-0000-4000-8000-000000000911', '00000000-0000-4000-8000-000000000901', 'Synthetic B', 'apartment_building', '{"avenueOrStreet":"Boulevard du 30 Juin","number":"22","quartier":"Limete","commune":"Limete","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft');
       insert into app.units (
         id, organization_id, property_id, label, publication_status, availability_status
       ) values

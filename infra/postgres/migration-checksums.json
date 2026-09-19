@@ -21,5 +21,5 @@
   "0020_fix_publication_property_reference.sql": "0f23c86138f2e9f45e4c210f61ac82be7b430335ca54c4918eb94413e8350fcb",
   "0021_organization_reference_integrity.sql": "429ecdf7193c087a6755271f0749b6d4d40cc4f0394a42f513f5e90297342db3",
   "0022_rental_inventory_v1.sql": "68fd4ca28a32a0197f2517908cf0c8ee162c12d18f7f613867844b9e84ee1e74",
-  "0023_rental_inventory_runtime_functions.sql": "38849f41f558cedbcdd5fcf0d6e1c90d1c044841877f0ee6a7aa464a32741d6e"
+  "0023_rental_inventory_runtime_functions.sql": "d647c623b96bed8995fea7c6c9e857daf66d27c769452655684d152058dda821"
 }
