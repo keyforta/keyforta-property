@@ -116,6 +116,14 @@ paths:
         - { $ref: '#/components/parameters/RequestCorrelation' }
       requestBody: { $ref: '#/components/requestBodies/PropertyVerificationStatus' }
       responses: { '200': { $ref: '#/components/responses/PropertyVerificationStatus' }, '400': { $ref: '#/components/responses/Problem' }, '401': { $ref: '#/components/responses/Problem' }, '404': { $ref: '#/components/responses/Problem' }, '503': { $ref: '#/components/responses/Problem' } }
+  /session/memberships:
+    get:
+      tags: [Identity]
+      operationId: listActorMemberships
+      x-keyforta-runtime: true
+      parameters:
+        - { $ref: '#/components/parameters/RequestCorrelation' }
+      responses: { '200': { $ref: '#/components/responses/ActorMembershipList' }, '401': { $ref: '#/components/responses/Problem' }, '503': { $ref: '#/components/responses/Problem' } }
   /admin/jurisdiction-policies/activate:
     post:
       tags: [Administration]
@@ -264,6 +272,7 @@ components:
     LandlordOnboardingApplication: { description: Landlord onboarding application, headers: { X-Request-Id: { $ref: '#/components/headers/RequestId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/LandlordOnboardingApplicationEnvelope' } } } }
     LandlordOnboardingApplicationList: { description: Landlord onboarding review queue, headers: { X-Request-Id: { $ref: '#/components/headers/RequestId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/LandlordOnboardingApplicationListEnvelope' } } } }
     PropertyVerificationStatus: { description: Property verification status changed, headers: { X-Request-Id: { $ref: '#/components/headers/RequestId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/PropertyVerificationStatusEnvelope' } } } }
+    ActorMembershipList: { description: Authenticated actor's organization/role memberships, headers: { X-Request-Id: { $ref: '#/components/headers/RequestId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/ActorMembershipListEnvelope' } } } }
     Problem: { description: Correlated error response, headers: { X-Request-Id: { $ref: '#/components/headers/RequestId' } }, content: { application/json: { schema: { $ref: '#/components/schemas/Problem' } } } }
     Unit: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
     Application: { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
@@ -295,6 +304,7 @@ components:
     JurisdictionPolicyActivationEnvelope: { type: object, required: [data, meta], properties: { data: { type: object, required: [activationId, jurisdictionCode, policyKey, policyVersionId, version], properties: { activationId: { type: string, format: uuid }, jurisdictionCode: { type: string, pattern: '^[A-Z]{2}(-[A-Z0-9]{1,6})?$' }, policyKey: { type: string }, policyVersionId: { type: string, format: uuid }, version: { type: integer, minimum: 1 } }, additionalProperties: false }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
     PropertyVerificationStatusInput: { type: object, required: [status], properties: { status: { type: string, enum: [not_started, pending, changes_requested, verified, rejected, expired, suspended] } }, additionalProperties: false }
     PropertyVerificationStatusEnvelope: { type: object, required: [data, meta], properties: { data: { type: object, required: [propertyId, status], properties: { propertyId: { type: string, format: uuid }, status: { type: string, enum: [not_started, pending, changes_requested, verified, rejected, expired, suspended] } }, additionalProperties: false }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
+    ActorMembershipListEnvelope: { type: object, required: [data, meta], properties: { data: { type: array, items: { type: object, required: [organizationId, role], properties: { organizationId: { type: string, format: uuid }, role: { type: string, enum: [landlord, manager, tenant, auditor] } }, additionalProperties: false } }, meta: { $ref: '#/components/schemas/Meta' } }, additionalProperties: false }
     LandlordOnboardingApplicationInput: { type: object, required: [applicantName, proposedOrganizationName], properties: { applicantName: { type: string, minLength: 2, maxLength: 120, pattern: '^\s*\S(?:.*\S)\s*$' }, proposedOrganizationName: { type: string, minLength: 2, maxLength: 160, pattern: '^\s*\S(?:.*\S)\s*$' } }, additionalProperties: false }
     LandlordOnboardingDecisionInput: { type: object, required: [decision, reason], properties: { decision: { type: string, enum: [approved, rejected] }, reason: { type: string, minLength: 3, maxLength: 1000, pattern: '^\s*\S.{1,}\S\s*$' } }, additionalProperties: false }
     LandlordOnboardingApplication: { type: object, required: [id, applicantName, proposedOrganizationName, status, submittedAt, decidedAt, decisionReason], properties: { id: { type: string, format: uuid }, applicantName: { type: string }, proposedOrganizationName: { type: string }, status: { type: string, enum: [pending, approved, rejected] }, submittedAt: { type: string, format: date-time }, decidedAt: { type: [string, 'null'], format: date-time }, decisionReason: { type: [string, 'null'] } }, additionalProperties: false }
