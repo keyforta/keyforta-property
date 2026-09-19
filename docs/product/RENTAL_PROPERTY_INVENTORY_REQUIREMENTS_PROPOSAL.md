@@ -350,9 +350,9 @@ renumbering existing evidence.
 
 V1 excludes property sales, valuation, mortgages, MLS or channel syndication,
 neighborhood datasets, investment analytics, autonomous pricing, automated
-reservations/acceptance (public and invited rental applications are in scope,
-per the PRD amendment for issue #75, but always require explicit human review),
-ownership adjudication, native mobile
+(non-human) unit reservation and application acceptance (public and invited
+rental applications are in scope, per the PRD amendment for issue #75, but
+always require explicit human review), ownership adjudication, native mobile
 applications, a persisted Portfolio aggregate, geocoding, utility meters,
 building/floor aggregates, and destructive deletion of inventory history.
 
