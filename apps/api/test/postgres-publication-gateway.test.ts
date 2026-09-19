@@ -148,7 +148,6 @@ describe("PostgreSQL public listing publication gateway", () => {
 
     await expect(gateway.setPropertyVerificationStatus({
       correlationId: "property-verify-01",
-      organizationId: "00000000-0000-4000-8000-000000000900",
       propertyId: "00000000-0000-4000-8000-000000000910",
       status: "verified",
       subject: "synthetic-admin",
