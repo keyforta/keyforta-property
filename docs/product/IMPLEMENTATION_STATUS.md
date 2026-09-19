@@ -1,7 +1,7 @@
 # Product implementation status
 
-**Verified against repository source:** 2026-09-17  
-**Baseline commit:** `17560f848514ee4ed77b63e7c980efd1e1f9d3f1`
+**Verified against repository source:** 2026-09-19  
+**Baseline commit:** `976c7015a0eac95176bb0dfcb21aaa31cca1c260`
 
 This is the single documentation summary of current delivery status. Source,
 tests, executable migrations, manifests, and workflows at the reviewed commit
