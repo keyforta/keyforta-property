@@ -13,7 +13,7 @@ describe("PostgreSQL public listing publication gateway", () => {
     const session: DatabaseSession = {
       async query(text, parameters = []) {
         queries.push({ parameters, text });
-        if (text.includes("resolve_actor")) {
+        if (text.includes("resolve_actor") || text.includes("resolve_platform_actor")) {
           return { rows: [{ actor_id: "00000000-0000-4000-8000-000000000940" }] };
         }
         return text.includes("set_public_listing_publication")
@@ -92,7 +92,7 @@ describe("PostgreSQL public listing publication gateway", () => {
     const session: DatabaseSession = {
       async query(text, parameters = []) {
         queries.push({ parameters, text });
-        if (text.includes("resolve_actor")) {
+        if (text.includes("resolve_actor") || text.includes("resolve_platform_actor")) {
           return { rows: [{ actor_id: "00000000-0000-4000-8000-000000000940" }] };
         }
         if (text.includes("activate_jurisdiction_policy")) {

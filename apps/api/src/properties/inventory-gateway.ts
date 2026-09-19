@@ -59,7 +59,7 @@ export function createPostgresInventoryGateway(
     async activateJurisdictionPolicy(command) {
       return client.transaction(async (session) => {
         const actor = await session.query(
-          "select * from app.resolve_actor($1, null)",
+          "select * from app.resolve_platform_actor($1)",
           [command.subject],
         );
         const row = actor.rows[0] as ResolvedActor | undefined;
