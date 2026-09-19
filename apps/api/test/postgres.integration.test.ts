@@ -586,7 +586,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
         ownerEvidence.rows[0]!.id,
         counselEvidence.rows[0]!.id,
         "2026-09-16T00:00:00Z",
-        "2026-09-18T00:00:00Z",
+        "2026-09-17T00:00:00Z",
         "00000000-0000-4000-8000-000000000940",
         "synthetic-fully-approved",
       ],
@@ -1129,7 +1129,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
         "2026-09-18T00:00:00Z",
         null,
         "00000000-0000-4000-8000-000000000950",
-        "policy-activation-01",
+        "policy-activation-prereq-01",
       ],
     );
     expect((activation.rows[0] as { id?: string } | undefined)?.id).toBeDefined();
