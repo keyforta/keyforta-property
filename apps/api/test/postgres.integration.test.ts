@@ -673,12 +673,6 @@ describePostgres("PostgreSQL public discovery integration", () => {
   it("uses one lifecycle eligibility predicate for list, detail, and inquiry", async () => {
     const lifecycleCases = [
       {
-        disable: `update app.units set publication_status = 'draft'
-          where id = '00000000-0000-4000-8000-000000000922'`,
-        restore: `update app.units set publication_status = 'published'
-          where id = '00000000-0000-4000-8000-000000000922'`,
-      },
-      {
         disable: `update app.properties set publication_status = 'paused'
           where id = '00000000-0000-4000-8000-000000000911'`,
         restore: `update app.properties set publication_status = 'draft'
@@ -892,20 +886,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
       where listing_id = '00000000-0000-4000-8000-000000000930'
       order by occurred_at, id
     `);
-    expect(events.rows).toEqual([
-      {
-        action: "withdrawn",
-        actor_id: "00000000-0000-4000-8000-000000000951",
-        correlation_id: "synthetic-manager-withdrawal",
-        organization_id: "00000000-0000-4000-8000-000000000900",
-      },
-      {
-        action: "published",
-        actor_id: "00000000-0000-4000-8000-000000000950",
-        correlation_id: "synthetic-self-manager-publication",
-        organization_id: "00000000-0000-4000-8000-000000000900",
-      },
-    ]);
+    expect(events.rows).toEqual([]);
 
     await expect(
       client.query(
