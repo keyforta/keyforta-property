@@ -1054,85 +1054,6 @@ describePostgres("PostgreSQL public discovery integration", () => {
       total_count: "2",
     });
 
-    it("requires an active jurisdiction policy before a Property can be verified, and allows CD-KN once activated", async () => {
-      await expect(
-        client.query(
-          "select * from app.set_property_verification_status($1, $2, $3)",
-          [
-            "00000000-0000-4000-8000-000000000910",
-            "verified",
-            "00000000-0000-4000-8000-000000000950",
-          ],
-        ),
-      ).rejects.toThrow(/active jurisdiction policy/);
-
-      await client.query(`
-        update app.properties
-        set jurisdiction_code = 'CD-KN'
-        where id = '00000000-0000-4000-8000-000000000910';
-        insert into app.jurisdiction_policy_versions (
-          id, policy_key, jurisdiction_code, version, rule_payload,
-          requires_counsel_approval, created_by_user_id
-        ) values (
-          '00000000-0000-4000-8000-000000000970',
-          'property_verification',
-          'CD-KN',
-          1,
-          '{}'::jsonb,
-          false,
-          '00000000-0000-4000-8000-000000000950'
-        );
-        insert into app.policy_approval_evidence (
-          id, policy_version_id, approval_role, approved_by_user_id, source_reference
-        ) values (
-          '00000000-0000-4000-8000-000000000971',
-          '00000000-0000-4000-8000-000000000970',
-          'policy_owner',
-          '00000000-0000-4000-8000-000000000950',
-          'issue-79'
-        );
-      `);
-
-      await runtimeClient.query("begin");
-      await runtimeClient.query("set local role keyforta_runtime");
-      await runtimeClient.query("select set_config('app.correlation_id', $1, true)", [
-        "policy-activation-01",
-      ]);
-      const activation = await runtimeClient.query(
-        "select app.activate_jurisdiction_policy($1, $2, $3, $4, $5, $6, $7) as id",
-        [
-          "00000000-0000-4000-8000-000000000970",
-          "00000000-0000-4000-8000-000000000971",
-          null,
-          "2026-09-18T00:00:00Z",
-          null,
-          "00000000-0000-4000-8000-000000000950",
-          "policy-activation-01",
-        ],
-      );
-      expect((activation.rows[0] as { id?: string } | undefined)?.id).toBeDefined();
-      const verified = await runtimeClient.query(
-        "select * from app.set_property_verification_status($1, $2, $3)",
-        [
-          "00000000-0000-4000-8000-000000000910",
-          "verified",
-          "00000000-0000-4000-8000-000000000950",
-        ],
-      );
-      await runtimeClient.query("commit");
-
-      expect(verified.rows).toEqual([{
-        property_id: "00000000-0000-4000-8000-000000000910",
-        verification_status: "verified",
-      }]);
-
-      const property = await client.query<{ verification_status: string }>(
-        "select verification_status from app.properties where id = $1",
-        ["00000000-0000-4000-8000-000000000910"],
-      );
-      expect(property.rows[0]?.verification_status).toBe("verified");
-    });
-
     const secondPage = await listPage(firstPage.next_cursor);
     expect(secondPage).toEqual({
       cursor_valid: true,
@@ -1148,6 +1069,85 @@ describePostgres("PostgreSQL public discovery integration", () => {
       next_cursor: null,
       total_count: "2",
     });
+  });
+
+  it("requires an active jurisdiction policy before a Property can be verified, and allows CD-KN once activated", async () => {
+    await expect(
+      client.query(
+        "select * from app.set_property_verification_status($1, $2, $3)",
+        [
+          "00000000-0000-4000-8000-000000000910",
+          "verified",
+          "00000000-0000-4000-8000-000000000950",
+        ],
+      ),
+    ).rejects.toThrow(/active jurisdiction policy/);
+
+    await client.query(`
+      update app.properties
+      set jurisdiction_code = 'CD-KN'
+      where id = '00000000-0000-4000-8000-000000000910';
+      insert into app.jurisdiction_policy_versions (
+        id, policy_key, jurisdiction_code, version, rule_payload,
+        requires_counsel_approval, created_by_user_id
+      ) values (
+        '00000000-0000-4000-8000-000000000970',
+        'property_verification',
+        'CD-KN',
+        1,
+        '{}'::jsonb,
+        false,
+        '00000000-0000-4000-8000-000000000950'
+      );
+      insert into app.policy_approval_evidence (
+        id, policy_version_id, approval_role, approved_by_user_id, source_reference
+      ) values (
+        '00000000-0000-4000-8000-000000000971',
+        '00000000-0000-4000-8000-000000000970',
+        'policy_owner',
+        '00000000-0000-4000-8000-000000000950',
+        'issue-79'
+      );
+    `);
+
+    await runtimeClient.query("begin");
+    await runtimeClient.query("set local role keyforta_runtime");
+    await runtimeClient.query("select set_config('app.correlation_id', $1, true)", [
+      "policy-activation-01",
+    ]);
+    const activation = await runtimeClient.query(
+      "select app.activate_jurisdiction_policy($1, $2, $3, $4, $5, $6, $7) as id",
+      [
+        "00000000-0000-4000-8000-000000000970",
+        "00000000-0000-4000-8000-000000000971",
+        null,
+        "2026-09-18T00:00:00Z",
+        null,
+        "00000000-0000-4000-8000-000000000950",
+        "policy-activation-01",
+      ],
+    );
+    expect((activation.rows[0] as { id?: string } | undefined)?.id).toBeDefined();
+    const verified = await runtimeClient.query(
+      "select * from app.set_property_verification_status($1, $2, $3)",
+      [
+        "00000000-0000-4000-8000-000000000910",
+        "verified",
+        "00000000-0000-4000-8000-000000000950",
+      ],
+    );
+    await runtimeClient.query("commit");
+
+    expect(verified.rows).toEqual([{
+      property_id: "00000000-0000-4000-8000-000000000910",
+      verification_status: "verified",
+    }]);
+
+    const property = await client.query<{ verification_status: string }>(
+      "select verification_status from app.properties where id = $1",
+      ["00000000-0000-4000-8000-000000000910"],
+    );
+    expect(property.rows[0]?.verification_status).toBe("verified");
   });
 
   it("derives inquiry organization from the listing and suppresses duplicates", async () => {
