@@ -1072,6 +1072,12 @@ describePostgres("PostgreSQL public discovery integration", () => {
   });
 
   it("requires an active jurisdiction policy before a Property can be verified, and allows CD-KN once activated", async () => {
+    await client.query(`
+      update app.properties
+      set jurisdiction_code = 'CD-KN'
+      where id = '00000000-0000-4000-8000-000000000910';
+    `);
+
     await expect(
       client.query(
         "select * from app.set_property_verification_status($1, $2, $3)",
@@ -1084,9 +1090,6 @@ describePostgres("PostgreSQL public discovery integration", () => {
     ).rejects.toThrow(/active jurisdiction policy/);
 
     await client.query(`
-      update app.properties
-      set jurisdiction_code = 'CD-KN'
-      where id = '00000000-0000-4000-8000-000000000910';
       insert into app.jurisdiction_policy_versions (
         id, policy_key, jurisdiction_code, version, rule_payload,
         requires_counsel_approval, created_by_user_id
