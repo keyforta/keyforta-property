@@ -2,28 +2,21 @@
 
 **Status:** Normative lifecycle contract v1.0
 
-The diagrams in this document propose adopting the same vocabulary as the
-target SQL `verification_status` enum
-(`docs/database/V001__keyforta_schema.sql`). Note that
+The diagrams in this document adopt the same vocabulary as the target SQL
+`verification_status` enum (`docs/database/V001__keyforta_schema.sql`), as
+ratified by the product owner in issue #85 (2026-09-18). Note that
 `packages/contracts/src/index.js`'s `rentalPropertySchema` currently accepts
 `verificationStatus` as free-form bounded text (not validated against the
 SQL enum) and its `'verified'` branch is a guard that rejects that value
-pending the jurisdiction policy catalogue — it does not demonstrate the SQL
-vocabulary is already implemented as an enum in code. **This is a proposed
-resolution to the vocabulary mismatch tracked in issue #85 and in the
-requirements-gap report — it is not yet product-owner ratified.** Issue #85
-remains open. Until it is approved, treat this vocabulary as the working
-direction, not settled contract; implementers should confirm issue #85 is
-closed before relying on it as final.
+pending the jurisdiction policy catalogue — API/contracts owners still need
+to add enum validation as a normal implementation follow-up, but the
+vocabulary itself is now settled contract, not a proposal.
 
 ## 1. Transition format
 
 Each transition has a command, authorized actor, guard, side effects, emitted event, and audit record. Invalid transitions return `STATE_CONFLICT`. The backend must not expose a generic status update.
 
 ## 2. Property verification
-
-> **Proposed vocabulary, pending issue #85 ratification.** See the note at
-> the top of this document.
 
 ```text
 not_started → pending → changes_requested → pending
@@ -262,9 +255,6 @@ blocks archive/deletion. Privileged support access additionally requires a
 reason, target, scope, expiry, approver, and visibility.
 
 ## 8. Operator verification and eligibility
-
-> **Proposed vocabulary, pending issue #85 ratification.** See the note at
-> the top of this document.
 
 ```text
 not_started → pending → changes_requested → pending
