@@ -5,16 +5,21 @@
 The diagrams in this document use the same vocabulary as the target SQL
 `verification_status` enum (`docs/database/V001__keyforta_schema.sql`), which
 is also what `packages/contracts/src/index.js` checks against
-(`verificationStatus === 'verified'`). This resolves the vocabulary mismatch
-previously tracked in the requirements-gap report and in issue #85: the SQL
-enum is normative because it is the one already implemented, so this contract
-was updated to match it rather than the other way around.
+(`verificationStatus === 'verified'`). **This is a proposed resolution to the
+vocabulary mismatch tracked in issue #85 and in the requirements-gap report —
+it is not yet product-owner ratified.** Issue #85 remains open. Until it is
+approved, treat this vocabulary as the working direction, not settled
+contract; implementers should confirm issue #85 is closed before relying on
+it as final.
 
 ## 1. Transition format
 
 Each transition has a command, authorized actor, guard, side effects, emitted event, and audit record. Invalid transitions return `STATE_CONFLICT`. The backend must not expose a generic status update.
 
 ## 2. Property verification
+
+> **Proposed vocabulary, pending issue #85 ratification.** See the note at
+> the top of this document.
 
 ```text
 not_started → pending → changes_requested → pending
@@ -253,6 +258,9 @@ blocks archive/deletion. Privileged support access additionally requires a
 reason, target, scope, expiry, approver, and visibility.
 
 ## 8. Operator verification and eligibility
+
+> **Proposed vocabulary, pending issue #85 ratification.** See the note at
+> the top of this document.
 
 ```text
 not_started → pending → changes_requested → pending
