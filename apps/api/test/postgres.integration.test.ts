@@ -685,10 +685,46 @@ describePostgres("PostgreSQL public discovery integration", () => {
           where id = '00000000-0000-4000-8000-000000000922'`,
       },
       {
-        disable: `update app.units set availability_status = 'unavailable'
-          where id = '00000000-0000-4000-8000-000000000922'`,
-        restore: `update app.units set availability_status = 'available'
-          where id = '00000000-0000-4000-8000-000000000922'`,
+        disable: `
+          update app.unit_availability_versions
+          set effective_to = transaction_timestamp()
+          where unit_id = '00000000-0000-4000-8000-000000000922'
+            and effective_to is null;
+          insert into app.unit_availability_versions (
+            id, organization_id, unit_id, status, reason_code, effective_from,
+            created_by, correlation_id, source
+          ) values (
+            '00000000-0000-4000-8000-000000000a52',
+            '00000000-0000-4000-8000-000000000901',
+            '00000000-0000-4000-8000-000000000922',
+            'unavailable',
+            'synthetic_test_disable',
+            transaction_timestamp(),
+            '00000000-0000-4000-8000-000000000952',
+            'availability-b-disable',
+            'integration_test'
+          );
+        `,
+        restore: `
+          update app.unit_availability_versions
+          set effective_to = transaction_timestamp()
+          where id = '00000000-0000-4000-8000-000000000a52'
+            and effective_to is null;
+          insert into app.unit_availability_versions (
+            id, organization_id, unit_id, status, reason_code, effective_from,
+            created_by, correlation_id, source
+          ) values (
+            '00000000-0000-4000-8000-000000000a62',
+            '00000000-0000-4000-8000-000000000901',
+            '00000000-0000-4000-8000-000000000922',
+            'available',
+            null,
+            transaction_timestamp(),
+            '00000000-0000-4000-8000-000000000952',
+            'availability-b-restore',
+            'integration_test'
+          );
+        `,
       },
       {
         disable: `update app.public_listings set status = 'withdrawn'
