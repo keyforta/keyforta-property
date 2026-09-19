@@ -65,10 +65,21 @@ or UI documentation says "portfolio" (for example, a landlord's or manager's
 portfolio), it means a derived, query-time scope over `Property` rows owned or
 managed by a given organization/party — computed by joining `Property` with
 the effective-dated ownership/management `Relationship` records from Party &
-Relationship. Any "portfolio summary" (property/unit counts, occupancy) is a
-Reporting-context read model, not new persisted state. Do not create a
-`Portfolio` table, aggregate root, or ID. (Resolves issue #85, requirements-gap
-row "Portfolio concept ownership".)
+Relationship. This same derived scope has two uses, and neither requires
+persisting a `Portfolio` entity:
+
+1. **Authorization scope** — the backend implementation specification (AUTH-004,
+   "Property manager: Only the effective delegated portfolio and participant
+   records") uses it to bound which `Property`/participant records a manager's
+   operational commands may act on. This is evaluated at request time from
+   `Relationship` facts, not read from a stored `Portfolio` row.
+2. **Reporting read model** — a "portfolio summary" (property/unit counts,
+   occupancy) is a Reporting-context read model.
+
+Neither use requires new persisted state. Do not create a
+`Portfolio` table, aggregate root, or ID. (Proposed resolution for issue #85,
+requirements-gap row "Portfolio concept ownership" — pending product-owner
+ratification.)
 
 ### Leasing & Occupancy
 

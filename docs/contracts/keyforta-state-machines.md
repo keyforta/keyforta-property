@@ -2,15 +2,19 @@
 
 **Status:** Normative lifecycle contract v1.0
 
-The diagrams in this document use the same vocabulary as the target SQL
-`verification_status` enum (`docs/database/V001__keyforta_schema.sql`), which
-is also what `packages/contracts/src/index.js` checks against
-(`verificationStatus === 'verified'`). **This is a proposed resolution to the
-vocabulary mismatch tracked in issue #85 and in the requirements-gap report —
-it is not yet product-owner ratified.** Issue #85 remains open. Until it is
-approved, treat this vocabulary as the working direction, not settled
-contract; implementers should confirm issue #85 is closed before relying on
-it as final.
+The diagrams in this document propose adopting the same vocabulary as the
+target SQL `verification_status` enum
+(`docs/database/V001__keyforta_schema.sql`). Note that
+`packages/contracts/src/index.js`'s `rentalPropertySchema` currently accepts
+`verificationStatus` as free-form bounded text (not validated against the
+SQL enum) and its `'verified'` branch is a guard that rejects that value
+pending the jurisdiction policy catalogue — it does not demonstrate the SQL
+vocabulary is already implemented as an enum in code. **This is a proposed
+resolution to the vocabulary mismatch tracked in issue #85 and in the
+requirements-gap report — it is not yet product-owner ratified.** Issue #85
+remains open. Until it is approved, treat this vocabulary as the working
+direction, not settled contract; implementers should confirm issue #85 is
+closed before relying on it as final.
 
 ## 1. Transition format
 
