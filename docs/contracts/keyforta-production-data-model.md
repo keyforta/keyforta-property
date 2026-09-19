@@ -548,7 +548,7 @@ foundation; this appendix remains a supporting conceptual view.
 | ------------ | ------------------------------------------------------------------------- |
 | Organization | Organization, Membership, Role, Invitation                                |
 | Party        | Person, Company, ContactMethod, PartyRole, Consent                        |
-| Property     | Portfolio, Property, Unit, Asset, Meter, Media                            |
+| Property     | Property, Unit, Asset, Meter, Media (Portfolio is a derived scope over Property rows — used as both an authorization scope, per AUTH-004's delegated-portfolio boundary, and a Reporting read model — not a persisted entity; see `keyforta-context-map-and-ownership.md` §Property & Inventory, pending issue #85 ratification) |
 | Lease        | Lease, LeaseVersion, LeaseParty, Occupancy, Handover                      |
 | Pricing      | RentRule, Concession, DepositRule, ChargeSchedule                         |
 | Finance      | Charge, LedgerEntry, Payment, Allocation, Receipt, Reconciliation         |

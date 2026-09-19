@@ -60,6 +60,39 @@ This context answers: “How are two parties related to a subject during a time 
 
 This context is the source of truth for physical and publishable inventory. Leasing consumes published units; it does not update property tables directly.
 
+**Portfolio** is not an aggregate, table, or persisted entity. Wherever product
+or UI documentation says "portfolio" (for example, a landlord's or manager's
+portfolio), it means a derived, query-time scope over `Property` rows, but the
+authoritative source for that scope differs by relationship type:
+
+- For **landlord ownership**, it is the effective-dated ownership
+  `Relationship` records from Party & Relationship.
+- For **manager delegation**, it is **not** a generic `Relationship` row —
+  it is the active-assignment projection over
+  `app.manager_property_assignments` (`infra/postgres/migrations/0004_manager_property_assignments.sql`),
+  which tracks `revoked_at` and audited actor/correlation metadata
+  (`docs/engineering/THREAT_MODEL.md` §"Manager portfolio queries scope
+  properties, units, and leases through active property assignments").
+  A manager's portfolio scope must exclude revoked assignments.
+
+This same derived scope has two uses, and neither requires persisting a
+`Portfolio` entity:
+
+1. **Authorization scope** — the backend implementation specification (AUTH-004,
+   "Property manager: Only the effective delegated portfolio and participant
+   records") uses it to bound which `Property`/participant records a manager's
+   operational commands may act on. This is evaluated at request time from the
+   active `manager_property_assignments` projection (not a stored `Portfolio`
+   row), honoring revocation.
+2. **Reporting read model** — a "portfolio summary" (property/unit counts,
+   occupancy) is a Reporting-context read model, derived the same way per
+   relationship type above.
+
+Neither use requires new persisted state. Do not create a
+`Portfolio` table, aggregate root, or ID. (Proposed resolution for issue #85,
+requirements-gap row "Portfolio concept ownership" — pending product-owner
+ratification.)
+
 ### Leasing & Occupancy
 
 This context is the source of truth for applications, contractual lease terms, and occupancy periods. Billing consumes activated lease terms; a payment cannot activate a lease.

@@ -2,9 +2,19 @@
 
 **Status:** Normative lifecycle contract v1.0
 
-The diagrams in this document visualize this normative contract. They do not
-assert a direct mapping to the target SQL verification enum; the unresolved
-verification vocabulary mismatch is recorded in the requirements-gap report.
+The diagrams in this document propose adopting the same vocabulary as the
+target SQL `verification_status` enum
+(`docs/database/V001__keyforta_schema.sql`). Note that
+`packages/contracts/src/index.js`'s `rentalPropertySchema` currently accepts
+`verificationStatus` as free-form bounded text (not validated against the
+SQL enum) and its `'verified'` branch is a guard that rejects that value
+pending the jurisdiction policy catalogue — it does not demonstrate the SQL
+vocabulary is already implemented as an enum in code. **This is a proposed
+resolution to the vocabulary mismatch tracked in issue #85 and in the
+requirements-gap report — it is not yet product-owner ratified.** Issue #85
+remains open. Until it is approved, treat this vocabulary as the working
+direction, not settled contract; implementers should confirm issue #85 is
+closed before relying on it as final.
 
 ## 1. Transition format
 
@@ -12,33 +22,43 @@ Each transition has a command, authorized actor, guard, side effects, emitted ev
 
 ## 2. Property verification
 
+> **Proposed vocabulary, pending issue #85 ratification.** See the note at
+> the top of this document.
+
 ```text
-not_started → submitted → under_review → approved
-                               └───────→ rejected
-approved → expired
+not_started → pending → changes_requested → pending
+                     └─→ verified → suspended → pending
+                     └─→ rejected
+verified → expired
 ```
 
 ```mermaid
 stateDiagram-v2
     [*] --> not_started
-    not_started --> submitted: SubmitPropertyForVerification
-    submitted --> under_review: StartPropertyReview
-    under_review --> approved: ApprovePropertyVerification
-    under_review --> rejected: RejectPropertyVerification
-    rejected --> submitted: SubmitPropertyForVerification
-    approved --> expired: ExpirePropertyVerification
+    not_started --> pending: SubmitPropertyForVerification
+    pending --> changes_requested: RequestPropertyVerificationChanges
+    changes_requested --> pending: SubmitPropertyForVerification
+    pending --> verified: ApprovePropertyVerification
+    pending --> rejected: RejectPropertyVerification
+    verified --> suspended: SuspendPropertyVerification
+    suspended --> pending: SubmitPropertyForVerification
+    verified --> expired: ExpirePropertyVerification
+    rejected --> pending: SubmitPropertyForVerification
 ```
 
 | From | Command | Actor | Guard | To | Event |
 | --- | --- | --- | --- | --- | --- |
-| `not_started` | `SubmitPropertyForVerification` | Landlord/manager | Required property, ownership/management evidence present | `submitted` | `PropertyVerificationSubmitted` |
-| `submitted` | `StartPropertyReview` | Platform admin | Evidence package readable; review not already active | `under_review` | `PropertyVerificationReviewStarted` |
-| `under_review` | `ApprovePropertyVerification` | Platform admin | Evidence meets configured policy; reason recorded | `approved` | `PropertyVerificationApproved` |
-| `under_review` | `RejectPropertyVerification` | Platform admin | Reason and missing evidence recorded | `rejected` | `PropertyVerificationRejected` |
-| `approved` | `ExpirePropertyVerification` | Scheduled policy job | Policy validity period elapsed | `expired` | `PropertyVerificationExpired` |
-| `rejected` | `SubmitPropertyForVerification` | Landlord/manager | New evidence or corrected data supplied | `submitted` | `PropertyVerificationResubmitted` |
+| `not_started` | `SubmitPropertyForVerification` | Landlord/manager | Required property, ownership/management evidence present | `pending` | `PropertyVerificationSubmitted` |
+| `pending` | `RequestPropertyVerificationChanges` | Platform admin | Evidence package incomplete or unclear; reason recorded | `changes_requested` | `PropertyVerificationChangesRequested` |
+| `changes_requested` | `SubmitPropertyForVerification` | Landlord/manager | Corrected or additional evidence supplied | `pending` | `PropertyVerificationResubmitted` |
+| `pending` | `ApprovePropertyVerification` | Platform admin | Evidence meets configured policy; reason recorded | `verified` | `PropertyVerificationApproved` |
+| `pending` | `RejectPropertyVerification` | Platform admin | Reason and missing evidence recorded | `rejected` | `PropertyVerificationRejected` |
+| `verified` | `SuspendPropertyVerification` | Platform admin | Policy violation or evidence revoked post-verification; reason recorded | `suspended` | `PropertyVerificationSuspended` |
+| `suspended` | `SubmitPropertyForVerification` | Landlord/manager | Corrected or additional evidence supplied | `pending` | `PropertyVerificationResubmitted` |
+| `verified` | `ExpirePropertyVerification` | Scheduled policy job | Policy validity period elapsed | `expired` | `PropertyVerificationExpired` |
+| `rejected` | `SubmitPropertyForVerification` | Landlord/manager | New evidence or corrected data supplied | `pending` | `PropertyVerificationResubmitted` |
 
-Approval is a workflow status, not a legal title determination. DRC property/legal evidence rules remain policy-configurable until counsel approval.
+Approval (`verified`) is a workflow status, not a legal title determination. DRC property/legal evidence rules remain policy-configurable until counsel approval.
 
 ## 3. Application
 
@@ -243,24 +263,28 @@ reason, target, scope, expiry, approver, and visibility.
 
 ## 8. Operator verification and eligibility
 
+> **Proposed vocabulary, pending issue #85 ratification.** See the note at
+> the top of this document.
+
 ```text
-not_started → submitted → under_review → verified
-                               └───────→ rejected
-verified → suspended → verified
-verified → expired → submitted
+not_started → pending → changes_requested → pending
+                     └─→ verified → suspended → pending
+                     └─→ rejected
+verified → expired → pending
 ```
 
 ```mermaid
 stateDiagram-v2
     [*] --> not_started
-    not_started --> submitted
-    submitted --> under_review
-    under_review --> verified
-    under_review --> rejected
+    not_started --> pending
+    pending --> changes_requested
+    changes_requested --> pending
+    pending --> verified
+    pending --> rejected
     verified --> suspended
-    suspended --> verified
+    suspended --> pending
     verified --> expired
-    expired --> submitted
+    expired --> pending
 ```
 
 An operator may publish a service offer only in `verified` state. Verification does not grant access to any property. An assignment and active access window are still required.

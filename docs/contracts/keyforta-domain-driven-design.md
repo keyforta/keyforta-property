@@ -80,6 +80,9 @@ Owns the physical and commercial inventory hierarchy:
 
 `Portfolio → Property → Unit → Availability / Pricing`
 
+(`Portfolio` here is a derived query scope, not a persisted aggregate — see
+`keyforta-context-map-and-ownership.md` §"Property & Inventory".)
+
 Supports residential apartments, houses, and commercial spaces without changing the core identity of a property or unit.
 
 ### 4.4 Leasing & Occupancy context
@@ -603,6 +606,9 @@ contracts.
 #### Structural hierarchy
 
 `Organization → Portfolio → Property → Unit`
+
+(`Portfolio` is a derived read-model scope over `Property`, not a persisted
+entity — see `keyforta-context-map-and-ownership.md` §"Property & Inventory".)
 
 #### Initial bounded modules
 
