@@ -39,6 +39,12 @@ const roleNavKeys = {
 };
 
 export function readSession() {
+  // The `?role=`/persisted-demo-session path exists only for local QA of the
+  // role-specific dashboards (see README "Known limitation"); it must never
+  // be reachable in a deployed build, since it bypasses the Entra sign-in
+  // gate below.
+  if (!import.meta.env.DEV) return null;
+
   const params = new URLSearchParams(window.location.search);
   const requestedRole = params.get('role');
   if (requestedRole && roleKeys.includes(requestedRole)) {

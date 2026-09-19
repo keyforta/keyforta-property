@@ -38,8 +38,12 @@ export function resolveApiBaseUrl() {
 
 function statusCopy(status, t) {
   const key = status === 'published' ? 'published' : status === 'draft' ? 'draft' : 'withdrawn';
+  // `command` is the stable API wire value (see apps/api/src/app.ts's
+  // public-listings command handler); `action` is the translated button
+  // label for display only and must never be sent to the API.
   return {
     action: t(`listing_publication.status.${key}.action`),
+    command: key === 'published' ? 'withdraw' : 'publish',
     badge: t(`listing_publication.status.${key}.badge`),
     detail: t(`listing_publication.status.${key}.detail`),
   };
@@ -251,7 +255,7 @@ export function ListingPublicationPanel({
                 <Button
                   aria-label={isBusy ? t('listing_publication.saving_named', { title: listing.title }) : t('listing_publication.action_named', { action: copy.action, title: listing.title })}
                   disabled={disableActions}
-                  onClick={() => runCommand(listing.id, copy.action.toLowerCase())}
+                  onClick={() => runCommand(listing.id, copy.command)}
                 >
                   {isBusy ? <><Spinner size='tiny' /> {t('listing_publication.saving')}</> : copy.action}
                 </Button>

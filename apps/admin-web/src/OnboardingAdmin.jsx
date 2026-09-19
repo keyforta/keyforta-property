@@ -41,7 +41,7 @@ function ReviewCard({ application, busy, onDecision }) {
   const pending = application.status === 'pending';
   return <article className="application-card">
     <div className="application-heading"><div><p className="eyebrow">{application.proposedOrganizationName}</p><h2>{application.applicantName}</h2></div>
-      <Badge appearance="tint" color={pending ? 'warning' : application.status === 'approved' ? 'success' : 'danger'}>{application.status}</Badge></div>
+      <Badge appearance="tint" color={pending ? 'warning' : application.status === 'approved' ? 'success' : 'danger'}>{t(`review.status.${application.status}`, { defaultValue: application.status })}</Badge></div>
     <dl><div><dt>{t('review.submitted')}</dt><dd>{formatDate(application.submittedAt)}</dd></div>
       {application.decidedAt && <div><dt>{t('review.decided')}</dt><dd>{formatDate(application.decidedAt)}</dd></div>}</dl>
     {pending ? <form onSubmit={(event) => event.preventDefault()}>

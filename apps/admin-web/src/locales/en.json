@@ -20,6 +20,11 @@
   "review": {
     "submitted": "Submitted",
     "decided": "Decided",
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
     "decision_reason_label": "Decision reason",
     "decision_reason_hint": "Required for both approval and rejection.",
     "approve": "Approve",

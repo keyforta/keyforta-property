@@ -20,6 +20,11 @@
   "review": {
     "submitted": "Soumis",
     "decided": "D\u00e9cid\u00e9",
+    "status": {
+      "pending": "En attente",
+      "approved": "Approuv\u00e9",
+      "rejected": "Rejet\u00e9"
+    },
     "decision_reason_label": "Motif de la d\u00e9cision",
     "decision_reason_hint": "Requis pour l'approbation comme pour le rejet.",
     "approve": "Approuver",
