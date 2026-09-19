@@ -60,6 +60,16 @@ This context answers: “How are two parties related to a subject during a time 
 
 This context is the source of truth for physical and publishable inventory. Leasing consumes published units; it does not update property tables directly.
 
+**Portfolio** is not an aggregate, table, or persisted entity. Wherever product
+or UI documentation says "portfolio" (for example, a landlord's or manager's
+portfolio), it means a derived, query-time scope over `Property` rows owned or
+managed by a given organization/party — computed by joining `Property` with
+the effective-dated ownership/management `Relationship` records from Party &
+Relationship. Any "portfolio summary" (property/unit counts, occupancy) is a
+Reporting-context read model, not new persisted state. Do not create a
+`Portfolio` table, aggregate root, or ID. (Resolves issue #85, requirements-gap
+row "Portfolio concept ownership".)
+
 ### Leasing & Occupancy
 
 This context is the source of truth for applications, contractual lease terms, and occupancy periods. Billing consumes activated lease terms; a payment cannot activate a lease.
