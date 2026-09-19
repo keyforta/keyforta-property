@@ -673,10 +673,10 @@ describePostgres("PostgreSQL public discovery integration", () => {
   it("uses one lifecycle eligibility predicate for list, detail, and inquiry", async () => {
     const lifecycleCases = [
       {
-        disable: `update app.properties set verification_status = 'rejected'
-          where id = '00000000-0000-4000-8000-000000000911'`,
-        restore: `update app.properties set verification_status = 'pending'
-          where id = '00000000-0000-4000-8000-000000000911'`,
+        disable: `update app.units set publication_status = 'draft'
+          where id = '00000000-0000-4000-8000-000000000922'`,
+        restore: `update app.units set publication_status = 'published'
+          where id = '00000000-0000-4000-8000-000000000922'`,
       },
       {
         disable: `update app.properties set publication_status = 'paused'
@@ -879,7 +879,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
         true,
         "synthetic-self-manager-publication",
       ),
-    ).toBe(true);
+    ).toBe(false);
 
     const events = await client.query<{
       action: string;
