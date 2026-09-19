@@ -1128,6 +1128,15 @@ describePostgres("PostgreSQL public discovery integration", () => {
       ],
     );
     expect((activation.rows[0] as { id?: string } | undefined)?.id).toBeDefined();
+    const activePolicy = await client.query(
+      "select * from app.resolve_active_jurisdiction_policy($1, $2, $3)",
+      ["property_verification", "CD-KN", "2026-09-17T12:00:00Z"],
+    );
+    expect(activePolicy.rows).toEqual([{
+      policy_key: "property_verification",
+      rule_payload: {},
+      version: 1,
+    }]);
     await runtimeClient.query("begin");
     await runtimeClient.query("set local role keyforta_runtime");
     await runtimeClient.query("select set_config('app.correlation_id', $1, true)", [
