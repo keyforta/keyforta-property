@@ -106,8 +106,35 @@ export function createPostgresInventoryGateway(
           select
             app.activate_jurisdiction_policy(
               (select id from selected_policy),
-              (select id from inserted_owner),
-              (select id from inserted_counsel),
+              coalesce(
+                (select id from inserted_owner),
+                (
+                  select evidence.id
+                  from app.policy_approval_evidence as evidence
+                  join selected_policy on selected_policy.id = evidence.policy_version_id
+                  where evidence.approval_role = 'policy_owner'
+                    and evidence.approved_by_user_id = $7
+                    and evidence.source_reference = $9
+                    and coalesce(evidence.evidence_hash, '') = coalesce($10, '')
+                  order by evidence.created_at desc, evidence.id desc
+                  limit 1
+                )
+              ),
+              coalesce(
+                (select id from inserted_counsel),
+                (
+                  select evidence.id
+                  from app.policy_approval_evidence as evidence
+                  join selected_policy on selected_policy.id = evidence.policy_version_id
+                  where $11::uuid is not null
+                    and evidence.approval_role = 'qualified_counsel'
+                    and evidence.approved_by_user_id = $11
+                    and evidence.source_reference = $13
+                    and coalesce(evidence.evidence_hash, '') = coalesce($14, '')
+                  order by evidence.created_at desc, evidence.id desc
+                  limit 1
+                )
+              ),
               $15::timestamptz,
               $16::timestamptz,
               $6,
