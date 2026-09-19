@@ -12,7 +12,7 @@ authority.
 
 | Experience      | Primary user                                      | Purpose                                                                          | Operating boundary                                                             |
 | --------------- | ------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Public website  | Visitor or prospective tenant                     | Discover published rentals, request a visit, contact the team, and reach sign-in | No applications, automatic reservations, or private records                    |
+| Public website  | Visitor or prospective tenant                     | Discover published rentals, request a visit, submit a rental application, and reach sign-in | Submission does not reserve the unit; automatic reservation or acceptance is not permitted — every application requires explicit human review (see PRD amendment, issue #75) |
 | Tenant portal   | Tenant or co-tenant                               | Understand and manage the user's own tenancy                                     | Access is limited to the user's accepted leases and related records            |
 | Manager portal  | Authorized property manager                       | Perform delegated daily property operations                                      | Cannot change ownership, organization security, or reserved landlord decisions |
 | Landlord portal | Property owner or authorized owner representative | Control the portfolio, approve sensitive actions, and review performance         | Human approval remains required for legal and financial decisions              |
@@ -397,7 +397,7 @@ flowchart LR
     F["Submit viewing inquiry [UI]"]
     V["Validation error: correct fields [UI]"]
     S["Inquiry received [UI]"]
-    N["No public application or reservation [UI]"]
+    N["Submit rental application (pending human review; not an automatic reservation) [UI]"]
   end
   subgraph PublicAPI[Public listing and inquiry API]
     L["Loading listing projection [UI]"]
