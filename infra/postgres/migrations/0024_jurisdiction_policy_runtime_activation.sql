@@ -1,7 +1,13 @@
 begin;
 
 alter table app.properties
+  drop constraint properties_verification_status_check,
   add column jurisdiction_code text,
+  add constraint properties_verification_status_check
+    check (verification_status in (
+      'not_started', 'pending', 'changes_requested', 'verified',
+      'rejected', 'expired', 'suspended'
+    )),
   add constraint properties_jurisdiction_code_check
     check (
       jurisdiction_code is null
