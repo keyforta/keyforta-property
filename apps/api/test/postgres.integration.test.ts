@@ -592,7 +592,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
       ],
     );
 
-    const active = await resolvePolicy("2026-09-17T00:00:00Z");
+    const active = await resolvePolicy("2026-09-16T12:00:00Z");
     expect(active.rows).toEqual([
       {
         policy_key: policyKey,
@@ -601,7 +601,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
       },
     ]);
 
-    const expired = await resolvePolicy("2026-09-18T00:00:00Z");
+    const expired = await resolvePolicy("2026-09-17T00:00:00Z");
     expect(expired.rowCount).toBe(0);
 
     await client.query(
@@ -1161,7 +1161,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
 
     const activation = await gateway.activateJurisdictionPolicy({
       correlationId: "gateway-policy-activation-01",
-      effectiveFrom: "2026-09-18T00:00:00.000Z",
+      effectiveFrom: "2026-09-19T00:00:00.000Z",
       jurisdictionCode: "CD-KN",
       ownerApproval: {
         approvedByUserId: "00000000-0000-4000-8000-000000000950",
