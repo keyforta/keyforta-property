@@ -57,11 +57,11 @@ describePostgres("PostgreSQL public discovery integration", () => {
         ('00000000-0000-4000-8000-000000000910', '00000000-0000-4000-8000-000000000900', 'Synthetic A', 'apartment_building', '{"avenueOrStreet":"Avenue de la Paix","number":"10","quartier":"Gombe","commune":"Gombe","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft'),
         ('00000000-0000-4000-8000-000000000911', '00000000-0000-4000-8000-000000000901', 'Synthetic B', 'apartment_building', '{"avenueOrStreet":"Boulevard du 30 Juin","number":"22","quartier":"Limete","commune":"Limete","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft');
       insert into app.units (
-        id, organization_id, property_id, label, publication_status, availability_status
+        id, organization_id, property_id, label, canonical_label, unit_type, bedrooms, bathrooms, furnishing_status, publication_status, availability_status
       ) values
-        ('00000000-0000-4000-8000-000000000920', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Published', 'published', 'available'),
-        ('00000000-0000-4000-8000-000000000921', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Draft', 'published', 'available'),
-        ('00000000-0000-4000-8000-000000000922', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000911', 'Published', 'published', 'available');
+        ('00000000-0000-4000-8000-000000000920', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Published', 'published', 'apartment', 2, 1, 'unfurnished', 'published', 'available'),
+        ('00000000-0000-4000-8000-000000000921', '00000000-0000-4000-8000-000000000900', '00000000-0000-4000-8000-000000000910', 'Draft', 'draft', 'apartment', 2, 1, 'unfurnished', 'published', 'available'),
+        ('00000000-0000-4000-8000-000000000922', '00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000911', 'Published', 'published', 'apartment', 3, 2, 'unfurnished', 'published', 'available');
       insert into app.manager_property_assignments (
         organization_id, property_id, manager_user_id, assigned_by_user_id
       ) values (

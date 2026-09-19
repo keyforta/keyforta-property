@@ -616,8 +616,8 @@ describePostgres("PostgreSQL 0022 rental-inventory v1.0 initialization", () => {
     `);
     expect(controls.rows[0]).toEqual({
       all_rls_forced: true,
-      public_reader_exists: true,
-      publication_command_exists: true,
+      public_reader_exists: false,
+      publication_command_exists: false,
       runtime_can_write_properties: false,
       runtime_can_write_units: false,
       runtime_can_read_publication_events: false,
