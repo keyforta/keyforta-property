@@ -287,6 +287,14 @@ export const landlordOnboardingApplicationListSchema: z.ZodType<{
 }>;
 export const jurisdictionPolicyActivationResultSchema: z.ZodType<JurisdictionPolicyActivationResult>;
 export const propertyVerificationStatusResultSchema: z.ZodType<PropertyVerificationStatusResult>;
+
+export interface ActorMembership {
+  organizationId: string;
+  role: "landlord" | "manager" | "tenant" | "auditor";
+}
+
+export const actorMembershipSchema: z.ZodType<ActorMembership>;
+export const actorMembershipListSchema: z.ZodType<ActorMembership[]>;
 export const publicPropertyProjectionSchema: z.ZodType<PublicPropertyProjection>;
 export const publicPropertyListQuerySchema: z.ZodType<PublicPropertyListQuery>;
 
@@ -370,6 +378,11 @@ export const jurisdictionPolicyActivationEnvelopeSchema: z.ZodType<{
 export const propertyVerificationStatusEnvelopeSchema: z.ZodType<{
   auditEventId?: string;
   data: PropertyVerificationStatusResult;
+  meta: Meta;
+}>;
+export const actorMembershipListEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: ActorMembership[];
   meta: Meta;
 }>;
 export const landlordOnboardingApplicationEnvelopeSchema: z.ZodType<{

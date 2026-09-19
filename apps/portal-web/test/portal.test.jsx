@@ -1,5 +1,5 @@
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   signInMock: vi.fn(),
   signOutMock: vi.fn(),
   initializeMock: vi.fn(),
+  getAccessTokenMock: vi.fn(async () => 'entra-access-token'),
 }));
 
 vi.mock('@keyforta/browser-auth', () => ({
@@ -22,8 +23,13 @@ vi.mock('@keyforta/browser-auth', () => ({
     initialize: mocks.initializeMock,
     signIn: mocks.signInMock,
     signOut: mocks.signOutMock,
-    getAccessToken: vi.fn(),
+    getAccessToken: mocks.getAccessTokenMock,
   }),
+}));
+
+const membershipListMock = vi.hoisted(() => vi.fn());
+vi.mock('@keyforta/api-client', () => ({
+  createApiClient: () => ({ list: membershipListMock }),
 }));
 
 import { Portal } from '../src/portal-app.jsx';
@@ -42,6 +48,9 @@ describe('Portal', () => {
     mocks.signInMock.mockClear();
     mocks.signOutMock.mockClear();
     mocks.initializeMock.mockClear();
+    mocks.getAccessTokenMock.mockClear();
+    membershipListMock.mockReset();
+    membershipListMock.mockResolvedValue({ data: [], meta: { requestId: 'req-1' } });
     i18n.changeLanguage('en');
   });
 
@@ -150,5 +159,38 @@ describe('Portal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Switch to French' }));
     fireEvent.click(screen.getByRole('button', { name: 'Portefeuille' }));
     expect(screen.getByRole('heading', { name: 'Publier ou retirer les annonces attribuées' })).toBeInTheDocument();
+  });
+
+  it('resolves a real Entra sign-in with a membership into a real (non-demo) workspace session', async () => {
+    mocks.authState.current = { status: 'signed-in', account: { name: 'Marie L.', username: 'marie@example.com', email: 'marie@example.com' } };
+    membershipListMock.mockResolvedValue({
+      data: [{ organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', role: 'manager' }],
+      meta: { requestId: 'req-2' },
+    });
+    renderPortal();
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Coordinate the work behind every home.' })).toBeInTheDocument();
+    });
+    expect(screen.getByText('marie@example.com')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Workspace access pending.' })).not.toBeInTheDocument();
+    expect(membershipListMock).toHaveBeenCalledWith('session/memberships');
+
+    expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => {
+      expect(mocks.getAccessTokenMock).toHaveBeenCalled();
+    });
+  });
+
+  it('keeps showing the pending-access state for a signed-in identity with an empty membership lookup', async () => {
+    mocks.authState.current = { status: 'signed-in', account: { name: 'Amina K.', username: 'amina@example.com' } };
+    membershipListMock.mockResolvedValue({ data: [], meta: { requestId: 'req-3' } });
+    renderPortal();
+
+    await waitFor(() => {
+      expect(membershipListMock).toHaveBeenCalled();
+    });
+    expect(screen.getByRole('heading', { name: 'Workspace access pending.' })).toBeInTheDocument();
   });
 });

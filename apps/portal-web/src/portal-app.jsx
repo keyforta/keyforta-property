@@ -12,6 +12,7 @@ import { AppBrand } from '@keyforta/ui';
 import './i18n.js';
 import './styles.css';
 import { ListingPublicationPanel } from './listing-publication-panel.jsx';
+import { useMembership } from './hooks/use-membership.js';
 
 // Real Microsoft Entra B2B guest sign-in (issue #77 decision), mirroring
 // admin-web's working pattern. Falls back to an 'unavailable' status when
@@ -104,6 +105,15 @@ function PendingWorkspaceAccess({ auth, onSignOut }) {
   );
 }
 
+// Maps `app.organization_role` (server enum) to the portal's UI role keys.
+// 'auditor' has no dedicated portal workspace yet, so it intentionally falls
+// through to the pending-access state rather than a fabricated role.
+const membershipRoleToRoleKey = {
+  landlord: 'landlord',
+  manager: 'manager',
+  tenant: 'tenant',
+};
+
 export function Portal() {
   const { t, i18n } = useTranslation();
   const [session, setSession] = useState(readSession);
@@ -112,6 +122,28 @@ export function Portal() {
   const [managerListings] = useState([]);
   const auth = useSyncExternalStore(portalAuth.subscribe, portalAuth.getSnapshot, portalAuth.getSnapshot);
   useEffect(() => { portalAuth.initialize(); }, []);
+  const membership = useMembership(auth, portalAuth);
+
+  // Once a real Entra sign-in resolves to at least one active membership,
+  // build a real (non-demo) session for the first matching organization.
+  // TODO: support explicit multi-organization selection; today the first
+  // resolved membership is used, matching current onboarding (one org).
+  useEffect(() => {
+    if (session || auth.status !== 'signed-in') return;
+    const resolved = membership.memberships?.[0];
+    if (!resolved) return;
+    const roleKey = membershipRoleToRoleKey[resolved.role];
+    if (!roleKey) return;
+    setSession({
+      email: auth.account?.email || auth.account?.username || auth.account?.name || '',
+      role: roleKey,
+      organizationId: resolved.organizationId,
+      issuedAt: new Date().toISOString(),
+      getAccessToken: () => portalAuth.getAccessToken(),
+      signIn: () => portalAuth.signIn(),
+    });
+  }, [auth.account, auth.status, membership.memberships, session]);
+
   const roleKey = session && roleKeys.includes(session.role) ? session.role : 'tenant';
   const showListingPublication = roleKey === 'manager' && (active === 'portfolio' || active === 'overview');
   const listingPublicationEmptyState = active === 'portfolio'
@@ -134,6 +166,9 @@ export function Portal() {
 
   if (!session) {
     if (auth.status === 'signed-in') {
+      // An empty (or still-loading) membership lookup is the correct,
+      // honest state for an identity truly without workspace access — it
+      // must not fabricate a session (see README "Known limitation").
       return <PendingWorkspaceAccess auth={auth} onSignOut={() => portalAuth.signOut()} />;
     }
     return <LoginGate auth={auth} />;

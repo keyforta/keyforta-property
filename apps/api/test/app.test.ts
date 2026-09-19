@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  actorMembershipListEnvelopeSchema,
   jurisdictionPolicyActivationEnvelopeSchema,
   propertyVerificationStatusEnvelopeSchema,
   problemSchema,
@@ -10,6 +11,7 @@ import {
 } from "@keyforta/contracts";
 
 import { buildApp, parseCorsOrigins } from "../src/app.js";
+import type { MembershipLookupGateway } from "../src/identity/membership-gateway.js";
 import { createMemoryPublicPropertyGateway } from "../src/properties/gateway.js";
 import type { InventoryGateway } from "../src/properties/inventory-gateway.js";
 import { createMemoryPublicViewingRequestGateway } from "../src/properties/viewing-gateway.js";
@@ -111,6 +113,7 @@ describe("KEYFORTA API runtime", () => {
       "/properties/{propertyId}/verification-status",
       "/public-listings/{listingId}/publish",
       "/public-listings/{listingId}/withdraw",
+      "/session/memberships",
       "/viewing-requests",
     ]);
     expect(document.paths["/properties"].post).toBeUndefined();
@@ -879,5 +882,98 @@ describe("anonymous public viewing requests", () => {
     expect(limited.statusCode).toBe(429);
     expect(limited.headers["retry-after"]).toBeDefined();
     expect(limited.json().error.code).toBe("RATE_LIMITED");
+  });
+});
+describe("GET /api/v1/session/memberships", () => {
+  function createDependencies(memberships: Awaited<ReturnType<MembershipLookupGateway["lookupMemberships"]>>) {
+    const lookups: Parameters<MembershipLookupGateway["lookupMemberships"]>[0][] = [];
+    return {
+      authenticator: {
+        async authenticate(authorization: string) {
+          if (authorization === ['Bearer', 'synthetic-landlord'].join(' ')) {
+            return { objectId: "00000000-0000-4000-8000-000000000701", subject: "synthetic-landlord" };
+          }
+          return undefined;
+        },
+      },
+      lookups,
+      membershipLookup: {
+        async lookupMemberships(command) {
+          lookups.push(command);
+          return memberships;
+        },
+      } satisfies MembershipLookupGateway,
+    };
+  }
+
+  it("returns 401 when no bearer credential is supplied", async () => {
+    const dependencies = createDependencies([]);
+    const app = await buildApp(dependencies);
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/session/memberships",
+    });
+
+    expect(response.statusCode).toBe(401);
+    problemSchema.parse(response.json());
+    expect(dependencies.lookups).toEqual([]);
+  });
+
+  it("returns the authenticated subject's memberships", async () => {
+    const dependencies = createDependencies([
+      { organizationId: "00000000-0000-4000-8000-000000000900", role: "landlord" },
+    ]);
+    const app = await buildApp(dependencies);
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: ["Bearer", "synthetic-landlord"].join(" ") },
+      method: "GET",
+      url: "/api/v1/session/memberships",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const parsed = actorMembershipListEnvelopeSchema.parse(response.json());
+    expect(parsed.data).toEqual([
+      { organizationId: "00000000-0000-4000-8000-000000000900", role: "landlord" },
+    ]);
+    expect(dependencies.lookups).toEqual([{ subject: "synthetic-landlord" }]);
+  });
+
+  it("returns an empty array for a subject with no memberships (workspace access pending)", async () => {
+    const dependencies = createDependencies([]);
+    const app = await buildApp(dependencies);
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: ["Bearer", "synthetic-landlord"].join(" ") },
+      method: "GET",
+      url: "/api/v1/session/memberships",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const parsed = actorMembershipListEnvelopeSchema.parse(response.json());
+    expect(parsed.data).toEqual([]);
+  });
+
+  it("returns 503 when membership lookup is not configured", async () => {
+    const app = await buildApp({
+      authenticator: {
+        async authenticate() {
+          return { objectId: "00000000-0000-4000-8000-000000000701", subject: "synthetic-landlord" };
+        },
+      },
+    });
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: ["Bearer", "synthetic-landlord"].join(" ") },
+      method: "GET",
+      url: "/api/v1/session/memberships",
+    });
+
+    expect(response.statusCode).toBe(503);
   });
 });

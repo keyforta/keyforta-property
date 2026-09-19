@@ -9,6 +9,7 @@ import {
   createRuntimeDatabaseClient,
 } from "./database.js";
 import { createPostgresLandlordOnboardingGateway } from "./onboarding/gateway.js";
+import { createPostgresMembershipLookupGateway } from "./identity/membership-gateway.js";
 import { developmentPublicProperties } from "./properties/development-data.js";
 import { createMemoryPublicPropertyGateway } from "./properties/gateway.js";
 import { createPostgresInventoryGateway } from "./properties/inventory-gateway.js";
@@ -72,6 +73,9 @@ const landlordOnboarding = databaseClient
 const inventory = databaseClient
   ? createPostgresInventoryGateway(databaseClient)
   : undefined;
+const membershipLookup = databaseClient
+  ? createPostgresMembershipLookupGateway(databaseClient)
+  : undefined;
 const platformAdminObjectIds = parsePlatformAdminObjectIds(
   process.env.PLATFORM_ADMIN_OBJECT_IDS,
 );
@@ -90,6 +94,7 @@ try {
     ...(corsAllowedOrigins.length > 0 ? { corsOrigin: corsAllowedOrigins } : {}),
     ...(landlordOnboarding ? { landlordOnboarding } : {}),
     ...(inventory ? { inventory } : {}),
+    ...(membershipLookup ? { membershipLookup } : {}),
     ...(publicListingPublication ? { publicListingPublication } : {}),
     platformAdminObjectIds,
     publicProperties,

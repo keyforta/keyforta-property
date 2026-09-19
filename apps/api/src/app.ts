@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import {
+  actorMembershipListEnvelopeSchema,
   jurisdictionPolicyActivationEnvelopeSchema,
   jurisdictionPolicyActivationInputSchema,
   landlordOnboardingApplicationIdSchema,
@@ -33,6 +34,7 @@ import {
   InvalidPublicPropertyCursorError,
   type PublicPropertyGateway,
 } from "./properties/gateway.js";
+import type { MembershipLookupGateway } from "./identity/membership-gateway.js";
 import type { InventoryGateway } from "./properties/inventory-gateway.js";
 import type { PublicListingPublicationGateway } from "./properties/publication-gateway.js";
 import type { PublicViewingRequestGateway } from "./properties/viewing-gateway.js";
@@ -47,6 +49,7 @@ export interface AppDependencies {
   landlordOnboarding?: LandlordOnboardingGateway;
   landlordOnboardingRateLimitMax?: number;
   inventory?: InventoryGateway;
+  membershipLookup?: MembershipLookupGateway;
   platformAdminObjectIds?: ReadonlySet<string>;
   publicListingPublication?: PublicListingPublicationGateway;
   publicProperties?: PublicPropertyGateway;
@@ -581,6 +584,37 @@ export async function buildApp(
       );
     },
   );
+
+  app.get("/api/v1/session/memberships", async (request, reply) => {
+    if (!dependencies.authenticator || !dependencies.membershipLookup) {
+      return reply.status(503).send(problem(
+        request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+        "Session membership lookup is temporarily unavailable.",
+      ));
+    }
+    const principal = await authenticate(
+      request.headers.authorization,
+      dependencies.authenticator,
+    );
+    if (!principal) {
+      return reply.status(401).send(problem(
+        request.id, 401, "UNAUTHENTICATED", "Unauthorized",
+        "A valid bearer credential is required.",
+      ));
+    }
+    // Membership resolution is server-side only: the authenticated subject
+    // is the sole input, never a client-supplied organization id, so a
+    // caller cannot claim access to an organization it does not belong to.
+    const memberships = await dependencies.membershipLookup.lookupMemberships({
+      subject: principal.subject,
+    });
+    return reply.send(
+      actorMembershipListEnvelopeSchema.parse({
+        data: memberships,
+        meta: { requestId: request.id },
+      }),
+    );
+  });
 
   app.post(
     "/api/v1/landlord-onboarding-applications",

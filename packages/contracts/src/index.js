@@ -53,6 +53,7 @@ export const runtimeHttpOperations = Object.freeze({
 	withdrawPublicListing: { method: 'POST', path: '/public-listings/{listingId}/withdraw', authentication: 'required' },
 	activateJurisdictionPolicy: { method: 'POST', path: '/admin/jurisdiction-policies/activate', authentication: 'required' },
 	setPropertyVerificationStatus: { method: 'PATCH', path: '/properties/{propertyId}/verification-status', authentication: 'required' },
+	listActorMemberships: { method: 'GET', path: '/session/memberships', authentication: 'required' },
 	submitLandlordOnboardingApplication: { method: 'POST', path: '/landlord-onboarding-applications', authentication: 'required' },
 	listLandlordOnboardingApplications: { method: 'GET', path: '/landlord-onboarding-applications', authentication: 'required' },
 	decideLandlordOnboardingApplication: { method: 'POST', path: '/landlord-onboarding-applications/{applicationId}/decision', authentication: 'required' },
@@ -399,6 +400,13 @@ export const propertyVerificationStatusResultSchema = z.object({
 	status: z.enum(['not_started', 'pending', 'changes_requested', 'verified', 'rejected', 'expired', 'suspended']),
 }).strict();
 
+export const actorMembershipSchema = z.object({
+	organizationId: organizationIdSchema,
+	role: z.enum(['landlord', 'manager', 'tenant', 'auditor']),
+}).strict();
+
+export const actorMembershipListSchema = z.array(actorMembershipSchema);
+
 export const publicPropertyProjectionSchema = z.object({
 	address: z.string(),
 	amenities: z.array(z.string()),
@@ -553,6 +561,8 @@ export const publicListingPublicationEnvelopeSchema = envelopeSchema(z.object({
 export const jurisdictionPolicyActivationEnvelopeSchema = envelopeSchema(jurisdictionPolicyActivationResultSchema);
 
 export const propertyVerificationStatusEnvelopeSchema = envelopeSchema(propertyVerificationStatusResultSchema);
+
+export const actorMembershipListEnvelopeSchema = envelopeSchema(actorMembershipListSchema);
 
 export const landlordOnboardingApplicationEnvelopeSchema = envelopeSchema(landlordOnboardingApplicationSchema);
 

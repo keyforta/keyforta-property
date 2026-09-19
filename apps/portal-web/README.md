@@ -9,7 +9,7 @@ The authenticated Keyforta application for four role modules:
 
 This app owns role-specific navigation and workflows. It must consume `@keyforta/contracts`, `@keyforta/api-client`, and approved browser-auth boundaries; it must not duplicate domain types or permission rules.
 
-The app starts at a Microsoft Entra B2B guest sign-in gate (decision #77) and shows an honest "workspace access pending" state for identities with no organization membership assigned yet, since no backend endpoint currently resolves a signed-in identity to its organization/role memberships. A `?role=` query-string shortcut remains available for local QA/demo review of the role-specific dashboards; it must not fabricate bearer tokens or perform protected API mutations.
+The app starts at a Microsoft Entra B2B guest sign-in gate (decision #77) and shows an honest "workspace access pending" state for identities with no organization membership assigned yet, resolved server-side via `GET /api/v1/session/memberships` (see "Real session resolution" below). A `?role=` query-string shortcut remains available for local QA/demo review of the role-specific dashboards; it must not fabricate bearer tokens or perform protected API mutations.
 
 ## Runtime configuration
 
@@ -25,6 +25,9 @@ For deployed builds, configure:
 
 When `VITE_ENTRA_*` values are absent, sign-in falls back to an "unavailable" status rather than failing, so the app remains usable via the `?role=` demo shortcut. When `VITE_KEYFORTA_API_BASE_URL` is not set, the portal uses relative `/api/v1` requests and relies on the dev proxy or same-origin deployment routing. The Entra app registration must include the exact local and deployed `/auth/callback` redirect URIs; never place a client secret or token in a `VITE_` value.
 
-## Known limitation / follow-up
+## Real session resolution
 
-Issue #71 delivers the listing-publication panel, command wiring, and component coverage for real authenticated sessions. Issue #78 (blocked by decision #77, now resolved as Entra B2B) delivers the real sign-in/sign-out gate above. What remains open: no API endpoint yet resolves a signed-in Entra identity to its organization memberships/role, so every real sign-in currently lands on the "workspace access pending" state. Adding that lookup requires a new database migration, which conflicts with the guarded destructive migration `0022_rental_inventory_v1.sql` sitting immediately past the runtime migration boundary — that sequencing conflict needs its own architecture decision before the membership lookup can be implemented. The `?role=` demo shortcut correctly keeps publication commands disabled rather than pretending to mutate protected API state.
+Once Microsoft Entra sign-in resolves to a signed-in identity (issue #77), the portal calls `GET /api/v1/session/memberships` with the Entra access token to resolve that identity's organization/role memberships server-side (issue #78). Organization id and role are never trusted from the browser: they are derived solely from the authenticated subject on the API side (`app.resolve_actor_memberships`). The first active membership returned becomes the workspace's real (non-demo) session; a signed-in identity with zero memberships correctly and honestly stays on the "workspace access pending" screen rather than fabricating access. Multi-organization selection is not yet implemented (see the `TODO` in `src/portal-app.jsx`) since current onboarding only creates a single membership per identity.
+
+The `?role=` query-string shortcut remains available for local QA/demo review of the role-specific dashboards; it must not fabricate bearer tokens or perform protected API mutations, and is never reachable in a deployed build.
+

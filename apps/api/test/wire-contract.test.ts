@@ -30,6 +30,9 @@ describe("OpenAPI runtime wire contract", () => {
         async activateJurisdictionPolicy() { return undefined; },
         async setPropertyVerificationStatus() { return undefined; },
       },
+      membershipLookup: {
+        async lookupMemberships() { return []; },
+      },
       publicListingPublication: {
         async setPublication() { return false; },
       },
