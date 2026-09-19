@@ -10,7 +10,9 @@ if (!entrySource.includes('FluentProvider') || !entrySource.includes('createRoot
 if (!source.includes('createBrowserEntraAuth') || !source.includes("status === 'signed-in'")) throw new Error('Verified Entra login gate is missing.');
 if (!/redirectUri: ['"]\/auth\/callback['"]/.test(source) || !/completeBrowserEntraRedirect\(\)/.test(entrySource)) throw new Error('Admin authentication must use the MSAL redirect bridge callback.');
 if (!source.includes("queue.status === 'empty'") || !source.includes("queue.status === 'denied'") || !source.includes("status: 'error'")) throw new Error('Explicit onboarding queue states are missing.');
-if (!source.includes('Decision reason') || !source.includes("'approved'") || !source.includes("'rejected'")) throw new Error('Onboarding decision controls are missing.');
+const localeSource = await readFile(join(root, 'src/locales/en.json'), 'utf8');
+if (!source.includes("t('review.decision_reason_label')") || !source.includes("'approved'") || !source.includes("'rejected'")) throw new Error('Onboarding decision controls are missing.');
+if (!JSON.parse(localeSource).review?.decision_reason_label || !JSON.parse(localeSource).review?.status?.approved || !JSON.parse(localeSource).review?.status?.rejected) throw new Error('Onboarding decision/status translations are missing.');
 if (/localStorage|admin@test|sample|metrics|Recent platform activity|Bandalungwa|operator@example/.test(`${entrySource}\n${source}`)) throw new Error('Demo admin identity or customer data must not be present.');
 const apiSource = await readFile(join(root, 'src/onboarding-api.js'), 'utf8');
 if (!/getAccessToken\(\)[\s\S]*authorization: `Bearer \$\{accessToken\}`/.test(apiSource)) throw new Error('Admin API calls must acquire an Entra bearer token.');
