@@ -54,8 +54,8 @@ describePostgres("PostgreSQL public discovery integration", () => {
       insert into app.properties (
         id, organization_id, name, address, verification_status, publication_status
       ) values
-        ('00000000-0000-4000-8000-000000000910', '00000000-0000-4000-8000-000000000900', 'Synthetic A', 'Private A', 'verified', 'published'),
-        ('00000000-0000-4000-8000-000000000911', '00000000-0000-4000-8000-000000000901', 'Synthetic B', 'Private B', 'verified', 'published');
+        ('00000000-0000-4000-8000-000000000910', '00000000-0000-4000-8000-000000000900', 'Synthetic A', 'Private A', 'pending', 'draft'),
+        ('00000000-0000-4000-8000-000000000911', '00000000-0000-4000-8000-000000000901', 'Synthetic B', 'Private B', 'pending', 'draft');
       insert into app.units (
         id, organization_id, property_id, label, publication_status, availability_status
       ) values
@@ -100,7 +100,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     const result = await client.query<{ count: string }>(
       "select count(*)::text as count from app.schema_migrations",
     );
-    expect(result.rows[0]?.count).toBe("21");
+    expect(result.rows[0]?.count).toBe("23");
   });
 
   it("accepts same-organization and rejects cross-organization parent references", async () => {

@@ -136,7 +136,7 @@ test("REQ-032 REQ-036 PROP-020 validates Property lifecycle metadata", () => {
   }).success, false);
   assert.equal(rentalPropertySchema.safeParse({
     ...property,
-    publicationStatus: "published",
+    publicationStatus: "pending_review",
   }).success, false);
   assert.equal(rentalPropertySchema.safeParse({
     ...property,
@@ -161,6 +161,7 @@ test("REQ-032 REQ-036 PROP-020 validates Property lifecycle metadata", () => {
     archiveReason: "No longer managed.",
   }).success, false);
   assert.equal(rentalPropertySchema.safeParse({ ...property, publicationStatus: "deleted" }).success, false);
+  assert.equal(rentalPropertySchema.safeParse({ ...property, verificationStatus: 'verified' }).success, false);
 });
 
 test("REQ-033 PROP-020 validates Unit bounds and archive metadata", () => {

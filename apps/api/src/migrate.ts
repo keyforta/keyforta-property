@@ -11,7 +11,7 @@ const migrationDirectory = fileURLToPath(
   new URL("../../../infra/postgres/migrations", import.meta.url),
 );
 const migrationLockKey = 4_514_670_274;
-const runtimeMigrationBoundary = "0021_organization_reference_integrity.sql";
+const runtimeMigrationBoundary = "0023_rental_inventory_runtime_functions.sql";
 
 function checksum(content: string): string {
   return createHash("sha256").update(content).digest("hex");

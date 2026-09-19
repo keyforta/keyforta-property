@@ -141,7 +141,7 @@ export function createPostgresPublicPropertyGateway(
       const row = result.rows[0];
       return row ? toProjection(parsePublicListingRow(row)) : undefined;
     },
-    async list(query) {
+    async list(query: PublicPropertyListQuery) {
       const result = await client.query(
         "select * from app.list_public_listings_page($1, $2, $3, $4, $5, $6, $7)",
         [

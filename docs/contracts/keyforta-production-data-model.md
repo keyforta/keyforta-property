@@ -195,14 +195,7 @@ media and jurisdiction-policy activations. The migration remains checksummed,
 transactional, and forward-only; it is not authorization to reset an environment
 containing production or customer data.
 
-Migration `0022` removes the `v0021` runtime-readiness marker because the current
-API gateways call listing functions that this schema intentionally removes. It
-must not be deployed independently. Release requires the compatible API slice in
-the same controlled rollout. Until that slice advances the migration runner's
-explicit runtime boundary, normal migration and deployment commands stop at
-`0021`; direct application of `0022` makes the current API fail startup. Rollback
-after application is a forward correction or fresh-environment rebuild, not
-deployment of the incompatible pre-`0022` API revision.
+Migrations `0022` and `0023_rental_inventory_runtime_functions.sql` now ship as one controlled runtime cutover. `0022` still must not be applied ahead of the compatible API slice, but the runtime boundary now advances through `0023`, which restores the public-listing read/write functions against the per-unit inventory schema, preserves manager-assignment publication evidence, and keeps direct table mutation unavailable to the runtime role. Jurisdiction-policy activation for publication remains follow-up work (issue #110); the cutover only restores the pre-existing runtime surface on top of the new schema without inventing policy approvals or seeding legal data.
 
 ### `jurisdiction_policy_versions`, approval evidence, and activations
 
