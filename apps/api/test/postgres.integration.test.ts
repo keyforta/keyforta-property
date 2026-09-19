@@ -1178,7 +1178,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     const activation = await gateway.activateJurisdictionPolicy({
       correlationId: "gateway-policy-activation-01",
       effectiveFrom: "2026-09-19T00:00:00.000Z",
-      jurisdictionCode: "CD-KN",
+      jurisdictionCode: "CD-GW",
       ownerApproval: {
         approvedByUserId: "00000000-0000-4000-8000-000000000950",
         sourceReference: "issue-79",
@@ -1191,7 +1191,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     });
 
     expect(activation).toEqual(expect.objectContaining({
-      jurisdictionCode: "CD-KN",
+      jurisdictionCode: "CD-GW",
       policyKey: "property_verification",
       version: 2,
     }));
@@ -1208,7 +1208,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     );
     expect(activationRows.rows).toEqual([{
       correlation_id: "gateway-policy-activation-01",
-      jurisdiction_code: "CD-KN",
+      jurisdiction_code: "CD-GW",
       policy_key: "property_verification",
     }]);
   });
