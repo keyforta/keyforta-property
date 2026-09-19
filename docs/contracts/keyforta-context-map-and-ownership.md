@@ -89,9 +89,9 @@ This same derived scope has two uses, and neither requires persisting a
    relationship type above.
 
 Neither use requires new persisted state. Do not create a
-`Portfolio` table, aggregate root, or ID. (Proposed resolution for issue #85,
-requirements-gap row "Portfolio concept ownership" — pending product-owner
-ratification.)
+`Portfolio` table, aggregate root, or ID. (Ratified by the product owner in
+issue #85, ratified 2026-09-18, requirements-gap row "Portfolio concept
+ownership".)
 
 ### Leasing & Occupancy
 
