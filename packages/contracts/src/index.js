@@ -49,6 +49,13 @@ export const listEnvelopeSchema = (itemSchema) => z.object({
 export const runtimeHttpOperations = Object.freeze({
 	listProperties: { method: 'GET', path: '/properties', authentication: 'anonymous' },
 	getProperty: { method: 'GET', path: '/properties/{propertyId}', authentication: 'anonymous' },
+	createProperty: { method: 'POST', path: '/properties', authentication: 'required' },
+	listMyRentalProperties: { method: 'GET', path: '/properties/mine', authentication: 'required' },
+	archiveProperty: { method: 'DELETE', path: '/properties/{propertyId}', authentication: 'required' },
+	addRentalUnit: { method: 'POST', path: '/properties/{propertyId}/units', authentication: 'required' },
+	setUnitPricing: { method: 'PATCH', path: '/units/{unitId}/pricing', authentication: 'required' },
+	setUnitAvailability: { method: 'PATCH', path: '/units/{unitId}/availability', authentication: 'required' },
+	archiveUnit: { method: 'DELETE', path: '/units/{unitId}', authentication: 'required' },
 	publishPublicListing: { method: 'POST', path: '/public-listings/{listingId}/publish', authentication: 'required' },
 	withdrawPublicListing: { method: 'POST', path: '/public-listings/{listingId}/withdraw', authentication: 'required' },
 	activateJurisdictionPolicy: { method: 'POST', path: '/admin/jurisdiction-policies/activate', authentication: 'required' },
@@ -66,6 +73,7 @@ export const organizationIdSchema = z.uuid();
 export const publicListingIdSchema = z.uuid();
 export const landlordOnboardingApplicationIdSchema = z.uuid();
 export const propertyIdSchema = z.uuid();
+export const unitIdSchema = z.uuid();
 
 export const propertyTypes = Object.freeze([
 	'apartment_building',
@@ -568,6 +576,103 @@ export const landlordOnboardingApplicationEnvelopeSchema = envelopeSchema(landlo
 
 export const landlordOnboardingApplicationListEnvelopeSchema = z.object({
 	items: z.array(landlordOnboardingApplicationSchema),
+	meta: metaSchema,
+}).strict();
+
+export const rentalPropertyCreationResultSchema = z.object({
+	propertyId: z.uuid(),
+	propertyVersion: positiveVersionSchema,
+	unitId: z.uuid(),
+	unitVersion: positiveVersionSchema,
+}).strict();
+
+export const rentalPropertyCreationEnvelopeSchema = envelopeSchema(rentalPropertyCreationResultSchema);
+
+export const rentableUnitCreationResultSchema = z.object({
+	unitId: z.uuid(),
+	unitVersion: positiveVersionSchema,
+}).strict();
+
+export const rentableUnitCreationEnvelopeSchema = envelopeSchema(rentableUnitCreationResultSchema);
+
+export const setUnitPricingInputSchema = z.object({
+	amountMinor: z.number().int().positive().safe(),
+	currency: z.enum(supportedCurrencies),
+	effectiveFrom: timestampSchema,
+}).strict();
+
+export const pricingVersionCreationResultSchema = z.object({
+	pricingVersionId: z.uuid(),
+}).strict();
+
+export const pricingVersionCreationEnvelopeSchema = envelopeSchema(pricingVersionCreationResultSchema);
+
+export const setUnitAvailabilityInputSchema = z.object({
+	status: z.enum(['unavailable', 'available']),
+	reasonCode: boundedTextSchema(64).nullable().optional(),
+	effectiveFrom: timestampSchema,
+}).strict().superRefine((value, context) => {
+	if (value.status === 'unavailable' && !value.reasonCode) {
+		context.addIssue({
+			code: 'custom',
+			message: 'Unavailable intervals require a reason code',
+			path: ['reasonCode'],
+		});
+	}
+	if (value.status === 'available' && value.reasonCode) {
+		context.addIssue({
+			code: 'custom',
+			message: 'Available intervals cannot carry an unavailable reason code',
+			path: ['reasonCode'],
+		});
+	}
+});
+
+export const availabilityVersionCreationResultSchema = z.object({
+	availabilityVersionId: z.uuid(),
+}).strict();
+
+export const availabilityVersionCreationEnvelopeSchema = envelopeSchema(availabilityVersionCreationResultSchema);
+
+export const archiveRentalInventoryInputSchema = z.object({
+	reason: boundedTextSchema(1000),
+}).strict();
+
+export const archiveRentalInventoryResultSchema = z.object({
+	archived: z.literal(true),
+}).strict();
+
+export const archiveRentalInventoryEnvelopeSchema = envelopeSchema(archiveRentalInventoryResultSchema);
+
+export const rentalPropertyProjectionSchema = z.object({
+	id: z.uuid(),
+	name: boundedTextSchema(160),
+	propertyType: z.enum(propertyTypes),
+	address: propertyAddressSchema,
+	timeZone: ianaTimeZoneSchema,
+	jurisdictionCode: jurisdictionCodeSchema.nullable(),
+	verificationStatus: z.enum(['not_started', 'pending', 'changes_requested', 'verified', 'rejected', 'expired', 'suspended']),
+	publicationStatus: z.enum(propertyPublicationStatuses),
+	version: positiveVersionSchema,
+	archivedAt: timestampSchema.nullable(),
+	units: z.array(z.object({
+		id: z.uuid(),
+		label: boundedTextSchema(320),
+		unitType: z.enum(unitTypes),
+		bedrooms: z.number().int().min(0),
+		bathrooms: z.number().int().min(1),
+		areaSquareMeters: z.number().int().min(1).nullable(),
+		floorLabel: boundedTextSchema(40).nullable(),
+		furnishingStatus: z.enum(furnishingStatuses),
+		availabilityStatus: z.enum(unitAvailabilityStatuses),
+		publicationStatus: z.enum(inventoryPublicationStatuses),
+		version: positiveVersionSchema,
+		archivedAt: timestampSchema.nullable(),
+	}).strict()),
+}).strict();
+
+export const rentalPropertyListEnvelopeSchema = z.object({
+	items: z.array(rentalPropertyProjectionSchema),
 	meta: metaSchema,
 }).strict();
 

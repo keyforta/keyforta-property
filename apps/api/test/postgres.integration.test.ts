@@ -139,7 +139,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     const result = await client.query<{ count: string }>(
       "select count(*)::text as count from app.schema_migrations",
     );
-    expect(result.rows[0]?.count).toBe("27");
+    expect(result.rows[0]?.count).toBe("28");
   });
 
   it("accepts same-organization and rejects cross-organization parent references", async () => {

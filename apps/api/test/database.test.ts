@@ -13,7 +13,7 @@ describe("assertRuntimeDatabaseReady", () => {
 
     await expect(assertRuntimeDatabaseReady({ query })).resolves.toBeUndefined();
     expect(query).toHaveBeenCalledWith(
-      "select app.runtime_schema_v0023_ready() as ready",
+      "select app.runtime_schema_v0028_ready() as ready",
     );
   });
 
