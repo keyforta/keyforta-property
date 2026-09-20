@@ -602,6 +602,15 @@ begin
     raise exception 'the supplied version is stale' using errcode = '40001';
   end if;
 
+  -- Lock the parent Property so a concurrent archive of a sibling Unit on
+  -- the same Property cannot also observe (and act on) the pre-archive
+  -- active-Unit count: whichever transaction locks the Property first
+  -- serializes against the other, which then re-counts after the first
+  -- commits.
+  perform 1 from app.properties
+  where organization_id = organization and id = unit_record.property_id
+  for update;
+
   select count(*) into active_unit_count
   from app.units
   where organization_id = organization
@@ -695,6 +704,16 @@ begin
   if property_record.version <> requested_expected_version then
     raise exception 'the supplied version is stale' using errcode = '40001';
   end if;
+
+  -- Lock every non-archived Unit of this Property before checking for
+  -- blocking leases, so a concurrent create_lease_draft call (which locks
+  -- the same Unit row before inserting) cannot create a new lease on one
+  -- of these Units between this check and the archive below.
+  perform 1 from app.units
+  where organization_id = organization
+    and property_id = requested_property_id
+    and archived_at is null
+  for update;
 
   select count(*) into blocking_lease_count
   from app.leases as lease
@@ -809,6 +828,118 @@ grant execute on function app.set_unit_availability(
 ) to keyforta_runtime;
 grant execute on function app.archive_rental_unit(uuid, text, integer, text, text) to keyforta_runtime;
 grant execute on function app.archive_rental_property(uuid, text, integer, text, text) to keyforta_runtime;
+
+-- Superseding definition of app.create_lease_draft (currently defined by
+-- migration 0012_lease_provenance.sql, which replaced the original
+-- 0006_create_lease_drafts.sql version). The prior version did not lock the
+-- target Unit row, so a lease could be drafted concurrently with (and
+-- after) archive_rental_unit/archive_rental_property had already checked
+-- for blocking leases and started archiving, leaving an archived Unit with
+-- a non-archived lease. Locking the Unit row here participates in the same
+-- row lock that the archive commands take, so the two paths are
+-- serialized against each other; whichever runs first wins the race and
+-- the other observes the up-to-date archived_at/lease state.
+create or replace function app.create_lease_draft(
+  requested_unit_id uuid,
+  requested_tenant_user_id uuid,
+  requested_currency char(3),
+  requested_base_rent_minor bigint,
+  requested_starts_on date,
+  requested_source_type app.lease_source_type,
+  requested_application_id uuid,
+  requested_external_justification text
+) returns app.leases
+language plpgsql
+security definer
+set search_path = pg_catalog, app
+as $$
+declare
+  organization uuid := app.current_organization_id();
+  actor uuid := nullif(current_setting('app.actor_id', true), '')::uuid;
+  correlation text := nullif(current_setting('app.correlation_id', true), '');
+  unit_record app.units%rowtype;
+  created_lease app.leases%rowtype;
+begin
+  if organization is null or actor is null or correlation is null or not exists (
+    select 1 from app.memberships
+    where organization_id = organization
+      and user_id = actor
+      and role = 'landlord'
+      and active
+  ) then
+    raise exception 'landlord context is required';
+  end if;
+  if requested_base_rent_minor <= 0 then
+    raise exception 'base rent must be positive';
+  end if;
+
+  select * into unit_record
+  from app.units
+  where organization_id = organization and id = requested_unit_id
+  for update;
+
+  if not found or unit_record.archived_at is not null then
+    return null;
+  end if;
+
+  if not exists (
+    select 1 from app.memberships
+    where organization_id = organization
+      and user_id = requested_tenant_user_id
+      and role = 'tenant'
+      and active
+  ) then
+    return null;
+  end if;
+  if exists (
+    select 1 from app.leases
+    where organization_id = organization and unit_id = requested_unit_id
+  ) then
+    return null;
+  end if;
+
+  if requested_source_type = 'platform_application' then
+    perform 1
+    from app.tenant_applications
+    where organization_id = organization
+      and id = requested_application_id
+      and tenant_user_id = requested_tenant_user_id
+      and status = 'approved'
+    for update;
+    if not found or exists (
+      select 1 from app.leases
+      where organization_id = organization
+        and application_id = requested_application_id
+    ) then
+      return null;
+    end if;
+  elsif requested_source_type <> 'external'
+    or length(trim(coalesce(requested_external_justification, ''))) not between 10 and 1000
+  then
+    return null;
+  end if;
+
+  insert into app.leases (
+    organization_id, unit_id, tenant_user_id, currency,
+    base_rent_minor, starts_on, accepted_at, source_type,
+    application_id, external_justification
+  ) values (
+    organization, requested_unit_id, requested_tenant_user_id,
+    requested_currency, requested_base_rent_minor, requested_starts_on, null,
+    requested_source_type, requested_application_id,
+    case when requested_source_type = 'external'
+      then trim(requested_external_justification) else null end
+  ) returning * into created_lease;
+
+  insert into app.audit_events (
+    organization_id, actor_id, correlation_id, action, entity_type, entity_id
+  ) values (
+    organization, actor, correlation, 'lease.draft_created', 'lease', created_lease.id
+  );
+
+  return created_lease;
+end
+$$;
 
 create function app.list_rental_properties_for_actor()
 returns jsonb

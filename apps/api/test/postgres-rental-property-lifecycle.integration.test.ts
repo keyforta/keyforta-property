@@ -608,4 +608,252 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       managerAssigned!.propertyId,
     );
   });
+
+  it("never leaves zero active Units when two sibling Units are archived concurrently", async () => {
+    const created = await gateway().createRentalProperty({
+      address,
+      correlationId: "corr-concurrent-archive-create",
+      firstUnit,
+      idempotencyKey: "idem-concurrent-archive-create",
+      name: "Synthetic Concurrent Archive Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    const propertyId = created?.propertyId;
+    if (!propertyId) throw new Error("expected a created Property");
+
+    const secondUnit = await gateway().addRentalUnit({
+      correlationId: "corr-concurrent-archive-add-unit",
+      idempotencyKey: "idem-concurrent-archive-add-unit",
+      organizationId: organizationA,
+      propertyId,
+      source: "test",
+      subject: landlordSubject,
+      unit: { ...firstUnit, label: "Unit B" },
+    });
+    if (!secondUnit) throw new Error("expected a second Unit");
+
+    const [firstResult, secondResult] = await Promise.all([
+      gateway().archiveRentalUnit({
+        correlationId: "corr-concurrent-archive-unit-1",
+        expectedVersion: created!.unitVersion,
+        organizationId: organizationA,
+        reason: "concurrent archive race regression",
+        source: "test",
+        subject: landlordSubject,
+        unitId: created!.unitId,
+      }),
+      gateway().archiveRentalUnit({
+        correlationId: "corr-concurrent-archive-unit-2",
+        expectedVersion: secondUnit.unitVersion,
+        organizationId: organizationA,
+        reason: "concurrent archive race regression",
+        source: "test",
+        subject: landlordSubject,
+        unitId: secondUnit.unitId,
+      }),
+    ]);
+
+    // Exactly one concurrent archive can win: the last-active-Unit guard
+    // must observe the other's outcome rather than both proceeding from a
+    // stale count of two active Units.
+    expect([firstResult, secondResult].filter((result) => result === true)).toHaveLength(1);
+
+    const activeUnitCount = await client.query(
+      `select count(*)::int as count from app.units
+       where organization_id = $1 and property_id = $2 and archived_at is null`,
+      [organizationA, propertyId],
+    );
+    expect(activeUnitCount.rows[0].count).toBe(1);
+  });
+
+  it("never leaves an archived Unit with a non-archived lease when archive races a concurrent lease draft", async () => {
+    const tenantSubject = "synthetic-rental-tenant-archive-race";
+    await client.query(
+      `insert into app.users (id, external_subject, display_name) values
+        (gen_random_uuid(), $1, 'Synthetic Archive-Race Tenant')
+       on conflict (external_subject) do update set display_name = excluded.display_name`,
+      [tenantSubject],
+    );
+    await client.query(
+      `insert into app.memberships (organization_id, user_id, role, active)
+       select $1, id, 'tenant', true from app.users where external_subject = $2`,
+      [organizationA, tenantSubject],
+    );
+
+    const created = await gateway().createRentalProperty({
+      address,
+      correlationId: "corr-archive-lease-race-create",
+      firstUnit,
+      idempotencyKey: "idem-archive-lease-race-create",
+      name: "Synthetic Archive-Lease Race Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    const unitId = created?.unitId;
+    if (!unitId) throw new Error("expected a created Unit");
+
+    const createLeaseDraft = async () => {
+      const session = await pool.connect();
+      try {
+        await session.query("begin");
+        await session.query("select * from app.resolve_actor($1, $2)", [
+          landlordSubject,
+          organizationA,
+        ]);
+        await session.query("select set_config('app.correlation_id', $1, true)", [
+          "corr-archive-lease-race-draft",
+        ]);
+        const tenant = await session.query(
+          "select id from app.users where external_subject = $1",
+          [tenantSubject],
+        );
+        const result = await session.query(
+          "select * from app.create_lease_draft($1, $2, $3, $4, $5, $6, $7, $8)",
+          [
+            unitId,
+            tenant.rows[0].id,
+            "USD",
+            150_000,
+            new Date().toISOString().slice(0, 10),
+            "external",
+            null,
+            "Bail historique enregistre avant le parcours de candidature synthetique.",
+          ],
+        );
+        await session.query("commit");
+        return result.rows[0];
+      } catch (error) {
+        await session.query("rollback");
+        throw error;
+      } finally {
+        session.release();
+      }
+    };
+
+    await Promise.all([
+      gateway().archiveRentalUnit({
+        correlationId: "corr-archive-lease-race-archive",
+        expectedVersion: created!.unitVersion,
+        organizationId: organizationA,
+        reason: "archive vs. lease-draft race regression",
+        source: "test",
+        subject: landlordSubject,
+        unitId,
+      }),
+      createLeaseDraft(),
+    ]);
+
+    // Whichever transaction commits first, the Unit's lock must serialize the
+    // two paths: an archived Unit can never retain a non-archived lease.
+    const invariantViolation = await client.query(
+      `select count(*)::int as count
+       from app.leases as lease
+       join app.units as unit
+         on unit.organization_id = lease.organization_id and unit.id = lease.unit_id
+       where unit.organization_id = $1 and unit.id = $2
+         and unit.archived_at is not null and lease.archived_at is null`,
+      [organizationA, unitId],
+    );
+    expect(invariantViolation.rows[0].count).toBe(0);
+  });
+
+  it("never leaves an archived Unit with a non-archived lease when Property archive races a concurrent lease draft", async () => {
+    const tenantSubject = "synthetic-rental-tenant-property-archive-race";
+    await client.query(
+      `insert into app.users (id, external_subject, display_name) values
+        (gen_random_uuid(), $1, 'Synthetic Property Archive-Race Tenant')
+       on conflict (external_subject) do update set display_name = excluded.display_name`,
+      [tenantSubject],
+    );
+    await client.query(
+      `insert into app.memberships (organization_id, user_id, role, active)
+       select $1, id, 'tenant', true from app.users where external_subject = $2`,
+      [organizationA, tenantSubject],
+    );
+
+    const created = await gateway().createRentalProperty({
+      address,
+      correlationId: "corr-property-archive-lease-race-create",
+      firstUnit,
+      idempotencyKey: "idem-property-archive-lease-race-create",
+      name: "Synthetic Property-Archive-Lease Race Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    const propertyId = created?.propertyId;
+    const unitId = created?.unitId;
+    if (!propertyId || !unitId) throw new Error("expected a created Property and Unit");
+
+    const createLeaseDraft = async () => {
+      const session = await pool.connect();
+      try {
+        await session.query("begin");
+        await session.query("select * from app.resolve_actor($1, $2)", [
+          landlordSubject,
+          organizationA,
+        ]);
+        await session.query("select set_config('app.correlation_id', $1, true)", [
+          "corr-property-archive-lease-race-draft",
+        ]);
+        const tenant = await session.query(
+          "select id from app.users where external_subject = $1",
+          [tenantSubject],
+        );
+        const result = await session.query(
+          "select * from app.create_lease_draft($1, $2, $3, $4, $5, $6, $7, $8)",
+          [
+            unitId,
+            tenant.rows[0].id,
+            "USD",
+            150_000,
+            new Date().toISOString().slice(0, 10),
+            "external",
+            null,
+            "Bail historique enregistre avant le parcours de candidature synthetique.",
+          ],
+        );
+        await session.query("commit");
+        return result.rows[0];
+      } catch (error) {
+        await session.query("rollback");
+        throw error;
+      } finally {
+        session.release();
+      }
+    };
+
+    await Promise.all([
+      gateway().archiveRentalProperty({
+        correlationId: "corr-property-archive-lease-race-archive",
+        expectedVersion: created!.propertyVersion,
+        organizationId: organizationA,
+        propertyId,
+        reason: "property archive vs. lease-draft race regression",
+        source: "test",
+        subject: landlordSubject,
+      }),
+      createLeaseDraft(),
+    ]);
+
+    const invariantViolation = await client.query(
+      `select count(*)::int as count
+       from app.leases as lease
+       join app.units as unit
+         on unit.organization_id = lease.organization_id and unit.id = lease.unit_id
+       where unit.organization_id = $1 and unit.property_id = $2
+         and unit.archived_at is not null and lease.archived_at is null`,
+      [organizationA, propertyId],
+    );
+    expect(invariantViolation.rows[0].count).toBe(0);
+  });
 });
