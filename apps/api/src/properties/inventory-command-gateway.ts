@@ -20,6 +20,7 @@ export interface CreateRentalPropertyCommand {
   address: PropertyAddress;
   correlationId: string;
   firstUnit: RentableUnitInput;
+  idempotencyKey: string;
   jurisdictionCode?: string | null;
   name: string;
   organizationId: string;
@@ -38,6 +39,7 @@ export interface RentalPropertyCreationResult {
 
 export interface AddRentalUnitCommand {
   correlationId: string;
+  idempotencyKey: string;
   organizationId: string;
   propertyId: string;
   source: string;
@@ -156,6 +158,13 @@ export class RentalInventoryAuthorizationError extends Error {
   }
 }
 
+export class RentalInventoryNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RentalInventoryNotFoundError";
+  }
+}
+
 export class RentalInventoryConflictError extends Error {
   constructor(message: string) {
     super(message);
@@ -164,6 +173,7 @@ export class RentalInventoryConflictError extends Error {
 }
 
 const authorizationErrorCode = "42501";
+const notFoundErrorCode = "P0002";
 
 async function resolveActor(
   session: {
@@ -191,6 +201,9 @@ function translateWriteError(error: unknown): never {
   if (isPostgresError(error)) {
     if (error.code === authorizationErrorCode) {
       throw new RentalInventoryAuthorizationError();
+    }
+    if (error.code === notFoundErrorCode) {
+      throw new RentalInventoryNotFoundError(error.message);
     }
     if (error.code === "23505") {
       throw new RentalInventoryConflictError(
@@ -249,7 +262,7 @@ export function createPostgresRentalInventoryCommandGateway(
           const result = await session.query(
             `select * from app.create_rental_property(
               $1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9::smallint, $10::smallint,
-              $11, $12, $13, $14, $15
+              $11, $12, $13, $14, $15, $16
             )`,
             [
               command.name,
@@ -265,6 +278,7 @@ export function createPostgresRentalInventoryCommandGateway(
               areaSquareMeters,
               floorLabel,
               furnishingStatus,
+              command.idempotencyKey,
               command.correlationId,
               command.source,
             ],
@@ -316,7 +330,7 @@ export function createPostgresRentalInventoryCommandGateway(
         try {
           const result = await session.query(
             `select * from app.add_rental_unit(
-              $1, $2, $3, $4, $5::smallint, $6::smallint, $7, $8, $9, $10, $11
+              $1, $2, $3, $4, $5::smallint, $6::smallint, $7, $8, $9, $10, $11, $12
             )`,
             [
               command.propertyId,
@@ -328,6 +342,7 @@ export function createPostgresRentalInventoryCommandGateway(
               areaSquareMeters,
               floorLabel,
               furnishingStatus,
+              command.idempotencyKey,
               command.correlationId,
               command.source,
             ],

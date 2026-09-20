@@ -7,6 +7,7 @@ import {
   createPostgresRentalInventoryCommandGateway,
   RentalInventoryAuthorizationError,
   RentalInventoryConflictError,
+  RentalInventoryNotFoundError,
 } from "../src/properties/inventory-command-gateway.js";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -104,6 +105,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       address,
       correlationId: "corr-create-1",
       firstUnit,
+      idempotencyKey: "idem-create-1",
       name: "Synthetic Property One",
       organizationId: organizationA,
       propertyType: "apartment_building",
@@ -123,6 +125,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       address,
       correlationId: "corr-create-2",
       firstUnit,
+      idempotencyKey: "idem-create-2",
       name: "Synthetic Property Two",
       organizationId: organizationA,
       propertyType: "apartment_building",
@@ -132,12 +135,73 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     })).rejects.toThrow(RentalInventoryAuthorizationError);
   });
 
+  it("replays a Property creation for the same idempotency key and payload instead of creating a duplicate", async () => {
+    const propertyGateway = gateway();
+    const command = {
+      address,
+      correlationId: "corr-idempotent-create",
+      firstUnit,
+      idempotencyKey: "idem-replay-property",
+      name: "Synthetic Idempotent Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building" as const,
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    };
+
+    const first = await propertyGateway.createRentalProperty(command);
+    const replay = await propertyGateway.createRentalProperty({
+      ...command,
+      correlationId: "corr-idempotent-create-replay",
+    });
+
+    expect(replay).toEqual(first);
+
+    const propertyCount = await client.query(
+      `select count(*)::int as count from app.properties
+       where organization_id = $1 and name = $2`,
+      [organizationA, command.name],
+    );
+    expect(propertyCount.rows[0].count).toBe(1);
+  });
+
+  it("rejects a Property creation replay that reuses an idempotency key with a different payload", async () => {
+    const propertyGateway = gateway();
+    await propertyGateway.createRentalProperty({
+      address,
+      correlationId: "corr-idempotent-conflict-create",
+      firstUnit,
+      idempotencyKey: "idem-replay-property-conflict",
+      name: "Synthetic Idempotent Conflict Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+
+    await expect(propertyGateway.createRentalProperty({
+      address,
+      correlationId: "corr-idempotent-conflict-create-2",
+      firstUnit,
+      idempotencyKey: "idem-replay-property-conflict",
+      name: "Synthetic Idempotent Conflict Property Two",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    })).rejects.toThrow(RentalInventoryConflictError);
+  });
+
   it("supports the full add-unit, pricing, availability, and archive lifecycle with authorization and conflict guards", async () => {
     const propertyGateway = gateway();
     const created = await propertyGateway.createRentalProperty({
       address,
       correlationId: "corr-lifecycle-create",
       firstUnit,
+      idempotencyKey: "idem-lifecycle-create",
       name: "Synthetic Lifecycle Property",
       organizationId: organizationA,
       propertyType: "apartment_building",
@@ -162,6 +226,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // Unassigned manager cannot add a Unit to this Property.
     await expect(gateway().addRentalUnit({
       correlationId: "corr-add-unit-denied",
+      idempotencyKey: "idem-add-unit-denied",
       organizationId: organizationA,
       propertyId,
       source: "test",
@@ -172,6 +237,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // Assigned manager can add a second Unit.
     const secondUnit = await gateway().addRentalUnit({
       correlationId: "corr-add-unit",
+      idempotencyKey: "idem-add-unit",
       organizationId: organizationA,
       propertyId,
       source: "test",
@@ -183,6 +249,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // Duplicate canonical labels are rejected as a conflict.
     await expect(gateway().addRentalUnit({
       correlationId: "corr-add-unit-duplicate",
+      idempotencyKey: "idem-add-unit-duplicate",
       organizationId: organizationA,
       propertyId,
       source: "test",
@@ -235,8 +302,8 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
 
     // Cross-organization actors cannot see or archive this Property's Units:
     // organization-scoping means the Unit is simply not found, so the command
-    // resolves to `false` rather than disclosing its existence.
-    const crossOrgArchiveAttempt = await gateway().archiveRentalUnit({
+    // raises a not-found error rather than disclosing its existence.
+    await expect(gateway().archiveRentalUnit({
       correlationId: "corr-archive-cross-org",
       expectedVersion: availability!.unitVersion,
       organizationId: organizationB,
@@ -244,8 +311,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       source: "test",
       subject: crossOrgSubject,
       unitId: secondUnit!.unitId,
-    });
-    expect(crossOrgArchiveAttempt).toBe(false);
+    })).rejects.toThrow(RentalInventoryNotFoundError);
 
     // Archiving the first Unit succeeds while a second active Unit remains.
     const firstUnitArchived = await gateway().archiveRentalUnit({
@@ -291,6 +357,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       address,
       correlationId: "corr-deactivated-manager-create",
       firstUnit,
+      idempotencyKey: "idem-deactivated-manager-create",
       name: "Synthetic Deactivated Manager Property",
       organizationId: organizationA,
       propertyType: "apartment_building",
@@ -346,6 +413,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       address,
       correlationId: "corr-future-availability-create",
       firstUnit,
+      idempotencyKey: "idem-future-availability-create",
       name: "Synthetic Future Availability Property",
       organizationId: organizationA,
       propertyType: "apartment_building",
@@ -381,6 +449,66 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       subject: landlordSubject,
     });
     expect(propertyArchived).toBe(true);
+
+    // No open (still-scheduled) availability interval should remain once the
+    // Property (and its Unit) is archived, including intervals that were
+    // future-dated at the moment of archiving.
+    const openIntervals = await client.query(
+      `select count(*)::int as count from app.unit_availability_versions
+       where organization_id = $1 and unit_id = $2 and effective_to is null`,
+      [organizationA, created!.unitId],
+    );
+    expect(openIntervals.rows[0].count).toBe(0);
+  });
+
+  it("replays an add-Unit command for the same idempotency key and payload instead of creating a duplicate Unit", async () => {
+    const propertyGateway = gateway();
+    const created = await propertyGateway.createRentalProperty({
+      address,
+      correlationId: "corr-idempotent-unit-create",
+      firstUnit,
+      idempotencyKey: "idem-unit-property-create",
+      name: "Synthetic Idempotent Unit Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    const propertyId = created?.propertyId;
+    expect(propertyId).toBeTruthy();
+    if (!propertyId) throw new Error("expected a created Property");
+
+    const command = {
+      correlationId: "corr-idempotent-add-unit",
+      idempotencyKey: "idem-replay-unit",
+      organizationId: organizationA,
+      propertyId,
+      source: "test",
+      subject: landlordSubject,
+      unit: { ...firstUnit, label: "Idempotent Unit" },
+    };
+
+    const first = await propertyGateway.addRentalUnit(command);
+    const replay = await propertyGateway.addRentalUnit({
+      ...command,
+      correlationId: "corr-idempotent-add-unit-replay",
+    });
+
+    expect(replay).toEqual(first);
+
+    const unitCount = await client.query(
+      `select count(*)::int as count from app.units
+       where organization_id = $1 and property_id = $2 and canonical_label = $3`,
+      [organizationA, propertyId, "idempotent unit"],
+    );
+    expect(unitCount.rows[0].count).toBe(1);
+
+    await expect(propertyGateway.addRentalUnit({
+      ...command,
+      correlationId: "corr-idempotent-add-unit-conflict",
+      unit: { ...firstUnit, label: "Idempotent Unit Two" },
+    })).rejects.toThrow(RentalInventoryConflictError);
   });
 
   it("lists only the Properties and Units visible to the requesting actor", async () => {
@@ -389,6 +517,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       address,
       correlationId: "corr-visibility-landlord-only",
       firstUnit: { ...firstUnit, label: "Landlord Only Unit" },
+      idempotencyKey: "idem-visibility-landlord-only",
       name: "Landlord Only Property",
       organizationId: organizationA,
       propertyType: "single_family",
@@ -400,6 +529,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       address,
       correlationId: "corr-visibility-manager-assigned",
       firstUnit: { ...firstUnit, label: "Manager Assigned Unit" },
+      idempotencyKey: "idem-visibility-manager-assigned",
       name: "Manager Assigned Property",
       organizationId: organizationA,
       propertyType: "single_family",

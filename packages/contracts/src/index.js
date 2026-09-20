@@ -207,6 +207,10 @@ export const rentableUnitInputSchema = z.object({
 	furnishingStatus: z.enum(furnishingStatuses),
 }).strict();
 
+export const addRentalUnitInputSchema = rentableUnitInputSchema.extend({
+	idempotencyKey: boundedTextSchema(128),
+}).strict();
+
 export const createRentalPropertyInputSchema = z.object({
 	name: boundedTextSchema(160),
 	propertyType: z.enum(propertyTypes),
@@ -214,6 +218,7 @@ export const createRentalPropertyInputSchema = z.object({
 	timeZone: ianaTimeZoneSchema,
 	jurisdictionCode: jurisdictionCodeSchema.nullable().optional(),
 	firstUnit: rentableUnitInputSchema,
+	idempotencyKey: boundedTextSchema(128),
 }).strict();
 
 export const updateRentalPropertyInputSchema = z.object({

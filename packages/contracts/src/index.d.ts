@@ -89,6 +89,10 @@ export interface RentableUnitInput {
   furnishingStatus: typeof furnishingStatuses[number];
 }
 
+export interface AddRentalUnitInput extends RentableUnitInput {
+  idempotencyKey: string;
+}
+
 export interface CreateRentalPropertyInput {
   name: string;
   propertyType: typeof propertyTypes[number];
@@ -96,6 +100,7 @@ export interface CreateRentalPropertyInput {
   timeZone: string;
   jurisdictionCode?: string | null;
   firstUnit: RentableUnitInput;
+  idempotencyKey: string;
 }
 
 export interface UpdateRentalPropertyInput {
@@ -210,6 +215,7 @@ export interface InternalPublicListing {
 
 export const propertyAddressSchema: z.ZodType<PropertyAddress>;
 export const rentableUnitInputSchema: z.ZodType<RentableUnitInput>;
+export const addRentalUnitInputSchema: z.ZodType<AddRentalUnitInput>;
 export const createRentalPropertyInputSchema: z.ZodType<CreateRentalPropertyInput>;
 export const updateRentalPropertyInputSchema: z.ZodType<UpdateRentalPropertyInput>;
 export const rentalPropertySchema: z.ZodType<RentalProperty>;

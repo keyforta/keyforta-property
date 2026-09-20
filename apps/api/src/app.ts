@@ -5,6 +5,7 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import {
   actorMembershipListEnvelopeSchema,
+  addRentalUnitInputSchema,
   archiveRentalInventoryEnvelopeSchema,
   archiveRentalInventoryInputSchema,
   availabilityVersionCreationEnvelopeSchema,
@@ -29,7 +30,6 @@ import {
   publicRequestReceiptSchema,
   publicViewingRequestInputSchema,
   rentableUnitCreationEnvelopeSchema,
-  rentableUnitInputSchema,
   rentalPropertyCreationEnvelopeSchema,
   rentalPropertyListEnvelopeSchema,
   setUnitAvailabilityInputSchema,
@@ -51,6 +51,7 @@ import type { InventoryGateway } from "./properties/inventory-gateway.js";
 import {
   RentalInventoryAuthorizationError,
   RentalInventoryConflictError,
+  RentalInventoryNotFoundError,
   type RentalInventoryCommandGateway,
 } from "./properties/inventory-command-gateway.js";
 import type { PublicListingPublicationGateway } from "./properties/publication-gateway.js";
@@ -647,6 +648,12 @@ export async function buildApp(
         "The requested resource was not found.",
       ));
     }
+    if (error instanceof RentalInventoryNotFoundError) {
+      return reply.status(404).send(problem(
+        request.id, 404, "NOT_FOUND", "Not Found",
+        "The requested resource was not found.",
+      ));
+    }
     if (error instanceof RentalInventoryConflictError) {
       return reply.status(409).send(problem(
         request.id, 409, "CONFLICT", "Conflict", error.message,
@@ -676,6 +683,7 @@ export async function buildApp(
         address: parsedInput.data.address,
         correlationId: request.id,
         firstUnit: parsedInput.data.firstUnit,
+        idempotencyKey: parsedInput.data.idempotencyKey,
         jurisdictionCode: parsedInput.data.jurisdictionCode ?? null,
         name: parsedInput.data.name,
         organizationId: context.organizationId,
@@ -739,7 +747,7 @@ export async function buildApp(
       const context = await authenticateOrganizationRequest(request, reply);
       if (!context) return undefined;
       const parsedPropertyId = propertyIdSchema.safeParse(request.params.propertyId);
-      const parsedInput = rentableUnitInputSchema.safeParse(request.body);
+      const parsedInput = addRentalUnitInputSchema.safeParse(request.body);
       if (!parsedPropertyId.success || !parsedInput.success) {
         return reply.status(400).send(problem(
           request.id, 400, "VALIDATION_ERROR", "Validation Error",
@@ -748,13 +756,15 @@ export async function buildApp(
         ));
       }
       try {
+        const { idempotencyKey, ...unit } = parsedInput.data;
         const created = await dependencies.rentalInventoryCommands.addRentalUnit({
           correlationId: request.id,
+          idempotencyKey,
           organizationId: context.organizationId,
           propertyId: parsedPropertyId.data,
           source: "runtime_api",
           subject: context.principal.subject,
-          unit: parsedInput.data,
+          unit,
         });
         if (!created) {
           return reply.status(404).send(problem(

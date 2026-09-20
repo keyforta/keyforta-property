@@ -90,6 +90,87 @@ as $$
   )
 $$;
 
+-- Implements the PROP-014 idempotency-key replay requirement for the two
+-- Property/Unit creation commands: within one actor and operation, replaying
+-- the same idempotency key with the same payload returns the original
+-- creation result instead of creating a duplicate record, while reusing the
+-- key with a different payload is rejected as a conflict. Update commands
+-- (pricing, availability, archive) are already protected against duplicate
+-- application on retry by their `requested_expected_version` guard: a retry
+-- of an already-applied mutation finds a stale version and is rejected.
+create table app.rental_inventory_creation_replays (
+  organization_id uuid not null references app.organizations(id),
+  actor_id uuid not null references app.users(id),
+  operation text not null check (char_length(btrim(operation)) between 1 and 64),
+  idempotency_key text not null check (char_length(btrim(idempotency_key)) between 1 and 128),
+  payload_hash text not null check (char_length(payload_hash) = 64),
+  result jsonb not null,
+  created_at timestamptz not null default transaction_timestamp(),
+  primary key (organization_id, actor_id, operation, idempotency_key)
+);
+
+create function app.resolve_rental_inventory_creation_replay(
+  requested_organization_id uuid,
+  requested_actor_id uuid,
+  requested_operation text,
+  requested_idempotency_key text,
+  requested_payload jsonb,
+  out replay_result jsonb,
+  out is_replay boolean
+)
+language plpgsql
+security definer
+set search_path = pg_catalog, app
+as $$
+declare
+  existing app.rental_inventory_creation_replays%rowtype;
+  payload_hash text := encode(public.digest(requested_payload::text, 'sha256'), 'hex');
+begin
+  select * into existing
+  from app.rental_inventory_creation_replays
+  where organization_id = requested_organization_id
+    and actor_id = requested_actor_id
+    and operation = requested_operation
+    and idempotency_key = requested_idempotency_key
+  for update;
+
+  if not found then
+    replay_result := null;
+    is_replay := false;
+    return;
+  end if;
+
+  if existing.payload_hash <> payload_hash then
+    raise exception 'the idempotency key was already used with a different payload'
+      using errcode = '23505';
+  end if;
+
+  replay_result := existing.result;
+  is_replay := true;
+end
+$$;
+
+create function app.record_rental_inventory_creation_replay(
+  requested_organization_id uuid,
+  requested_actor_id uuid,
+  requested_operation text,
+  requested_idempotency_key text,
+  requested_payload jsonb,
+  requested_result jsonb
+) returns void
+language sql
+security definer
+set search_path = pg_catalog, app
+as $$
+  insert into app.rental_inventory_creation_replays (
+    organization_id, actor_id, operation, idempotency_key, payload_hash, result
+  ) values (
+    requested_organization_id, requested_actor_id, requested_operation,
+    requested_idempotency_key, encode(public.digest(requested_payload::text, 'sha256'), 'hex'),
+    requested_result
+  )
+$$;
+
 create function app.create_rental_property(
   requested_name text,
   requested_property_type text,
@@ -104,6 +185,7 @@ create function app.create_rental_property(
   requested_unit_area_square_meters integer,
   requested_unit_floor_label text,
   requested_unit_furnishing_status text,
+  requested_idempotency_key text,
   requested_correlation_id text,
   requested_source text
 ) returns table (
@@ -122,6 +204,8 @@ declare
   correlation text := coalesce(requested_correlation_id, nullif(current_setting('app.correlation_id', true), ''));
   created_property app.properties%rowtype;
   created_unit app.units%rowtype;
+  payload jsonb;
+  replay record;
 begin
   if organization is null or actor is null or correlation is null then
     raise exception 'trusted request context is required';
@@ -129,6 +213,30 @@ begin
 
   if not app.actor_is_active_landlord(organization, actor) then
     raise exception 'only an active landlord may create a Property' using errcode = '42501';
+  end if;
+
+  payload := jsonb_build_object(
+    'name', requested_name, 'propertyType', requested_property_type,
+    'address', requested_address, 'timeZone', requested_time_zone,
+    'jurisdictionCode', requested_jurisdiction_code,
+    'unitLabel', requested_unit_label, 'unitType', requested_unit_type,
+    'unitBedrooms', requested_unit_bedrooms, 'unitBathrooms', requested_unit_bathrooms,
+    'unitAreaSquareMeters', requested_unit_area_square_meters,
+    'unitFloorLabel', requested_unit_floor_label,
+    'unitFurnishingStatus', requested_unit_furnishing_status
+  );
+
+  select * into replay from app.resolve_rental_inventory_creation_replay(
+    organization, actor, 'create_rental_property', requested_idempotency_key, payload
+  );
+
+  if replay.is_replay then
+    property_id := (replay.replay_result ->> 'propertyId')::uuid;
+    property_version := (replay.replay_result ->> 'propertyVersion')::integer;
+    unit_id := (replay.replay_result ->> 'unitId')::uuid;
+    unit_version := (replay.replay_result ->> 'unitVersion')::integer;
+    return next;
+    return;
   end if;
 
   insert into app.properties (
@@ -172,6 +280,15 @@ begin
   property_version := created_property.version;
   unit_id := created_unit.id;
   unit_version := created_unit.version;
+
+  perform app.record_rental_inventory_creation_replay(
+    organization, actor, 'create_rental_property', requested_idempotency_key, payload,
+    jsonb_build_object(
+      'propertyId', property_id, 'propertyVersion', property_version,
+      'unitId', unit_id, 'unitVersion', unit_version
+    )
+  );
+
   return next;
 end
 $$;
@@ -186,6 +303,7 @@ create function app.add_rental_unit(
   requested_area_square_meters integer,
   requested_floor_label text,
   requested_furnishing_status text,
+  requested_idempotency_key text,
   requested_correlation_id text,
   requested_source text
 ) returns table (unit_id uuid, unit_version integer)
@@ -199,6 +317,8 @@ declare
   correlation text := coalesce(requested_correlation_id, nullif(current_setting('app.correlation_id', true), ''));
   property_record app.properties%rowtype;
   created_unit app.units%rowtype;
+  payload jsonb;
+  replay record;
 begin
   if organization is null or actor is null or correlation is null then
     raise exception 'trusted request context is required';
@@ -215,6 +335,24 @@ begin
 
   if not app.actor_can_manage_property(organization, requested_property_id, actor) then
     raise exception 'the actor is not authorized to manage this Property' using errcode = '42501';
+  end if;
+
+  payload := jsonb_build_object(
+    'propertyId', requested_property_id, 'label', requested_label,
+    'unitType', requested_unit_type, 'bedrooms', requested_bedrooms,
+    'bathrooms', requested_bathrooms, 'areaSquareMeters', requested_area_square_meters,
+    'floorLabel', requested_floor_label, 'furnishingStatus', requested_furnishing_status
+  );
+
+  select * into replay from app.resolve_rental_inventory_creation_replay(
+    organization, actor, 'add_rental_unit', requested_idempotency_key, payload
+  );
+
+  if replay.is_replay then
+    unit_id := (replay.replay_result ->> 'unitId')::uuid;
+    unit_version := (replay.replay_result ->> 'unitVersion')::integer;
+    return next;
+    return;
   end if;
 
   insert into app.units (
@@ -243,6 +381,12 @@ begin
 
   unit_id := created_unit.id;
   unit_version := created_unit.version;
+
+  perform app.record_rental_inventory_creation_replay(
+    organization, actor, 'add_rental_unit', requested_idempotency_key, payload,
+    jsonb_build_object('unitId', unit_id, 'unitVersion', unit_version)
+  );
+
   return next;
 end
 $$;
@@ -428,7 +572,7 @@ begin
   for update;
 
   if not found or unit_record.archived_at is not null then
-    return false;
+    raise exception 'the requested Unit was not found' using errcode = 'P0002';
   end if;
 
   if not app.actor_can_manage_property(organization, unit_record.property_id, actor) then
@@ -463,12 +607,20 @@ begin
       version = version + 1, updated_at = transaction_timestamp()
   where organization_id = organization and unit_id = requested_unit_id and status = 'published';
 
+  -- History rows are append-only (a trigger rejects DELETE and any UPDATE
+  -- other than closing effective_to from null), so a not-yet-started
+  -- (future-dated) interval cannot be removed; it is closed at the instant
+  -- after its own effective_from, which satisfies the half-open interval
+  -- constraint (effective_to > effective_from) while leaving no open
+  -- interval once the Unit is archived.
   update app.unit_availability_versions
-  set effective_to = clock_timestamp()
+  set effective_to = case
+    when effective_from > clock_timestamp() then effective_from + interval '1 microsecond'
+    else clock_timestamp()
+  end
   where organization_id = organization
     and unit_id = requested_unit_id
-    and effective_to is null
-    and effective_from <= clock_timestamp();
+    and effective_to is null;
 
   update app.units
   set archived_at = transaction_timestamp(), archived_by = actor,
@@ -514,7 +666,7 @@ begin
   for update;
 
   if not found or property_record.archived_at is not null then
-    return false;
+    raise exception 'the requested Property was not found' using errcode = 'P0002';
   end if;
 
   if not app.actor_can_manage_property(organization, requested_property_id, actor) then
@@ -543,30 +695,39 @@ begin
     and property_id = requested_property_id
     and status = 'published';
 
+  -- History rows are append-only (see archive_rental_unit for the trigger
+  -- rationale): close each open interval at `now`, or at the instant after
+  -- its own effective_from if it has not started yet, so no open interval
+  -- remains once every Unit is archived.
   update app.unit_availability_versions as availability
-  set effective_to = clock_timestamp()
+  set effective_to = case
+    when availability.effective_from > clock_timestamp()
+      then availability.effective_from + interval '1 microsecond'
+    else clock_timestamp()
+  end
   from app.units as unit
   where unit.organization_id = organization
     and unit.property_id = requested_property_id
     and availability.organization_id = unit.organization_id
     and availability.unit_id = unit.id
-    and availability.effective_to is null
-    and availability.effective_from <= clock_timestamp();
+    and availability.effective_to is null;
 
   for unit_row in
     select * from app.units
     where organization_id = organization
       and property_id = requested_property_id
       and archived_at is null
+    for update
   loop
     update app.units
     set archived_at = transaction_timestamp(), archived_by = actor,
         archive_reason = requested_reason, publication_status = 'archived',
         version = version + 1, updated_at = transaction_timestamp()
-    where organization_id = organization and id = unit_row.id;
+    where organization_id = organization and id = unit_row.id
+    returning version into unit_row.version;
 
     perform app.record_rental_inventory_event(
-      organization, 'unit', unit_row.id, unit_row.version + 1, actor,
+      organization, 'unit', unit_row.id, unit_row.version, actor,
       correlation, 'unit.archived', requested_reason, requested_source
     );
   end loop;
@@ -591,12 +752,19 @@ revoke all on function app.actor_can_manage_property(uuid, uuid, uuid) from publ
 revoke all on function app.record_rental_inventory_event(
   uuid, text, uuid, integer, uuid, text, text, text, text
 ) from public;
+revoke all on function app.resolve_rental_inventory_creation_replay(
+  uuid, uuid, text, text, jsonb
+) from public;
+revoke all on function app.record_rental_inventory_creation_replay(
+  uuid, uuid, text, text, jsonb, jsonb
+) from public;
+revoke all on table app.rental_inventory_creation_replays from public;
 revoke all on function app.create_rental_property(
   text, text, jsonb, text, text, text, text, text, smallint, smallint,
-  integer, text, text, text, text
+  integer, text, text, text, text, text
 ) from public;
 revoke all on function app.add_rental_unit(
-  uuid, text, text, text, smallint, smallint, integer, text, text, text, text
+  uuid, text, text, text, smallint, smallint, integer, text, text, text, text, text
 ) from public;
 revoke all on function app.set_unit_pricing(
   uuid, bigint, char(3), timestamptz, integer, text, text
@@ -609,10 +777,10 @@ revoke all on function app.archive_rental_property(uuid, text, integer, text, te
 
 grant execute on function app.create_rental_property(
   text, text, jsonb, text, text, text, text, text, smallint, smallint,
-  integer, text, text, text, text
+  integer, text, text, text, text, text
 ) to keyforta_runtime;
 grant execute on function app.add_rental_unit(
-  uuid, text, text, text, smallint, smallint, integer, text, text, text, text
+  uuid, text, text, text, smallint, smallint, integer, text, text, text, text, text
 ) to keyforta_runtime;
 grant execute on function app.set_unit_pricing(
   uuid, bigint, char(3), timestamptz, integer, text, text
