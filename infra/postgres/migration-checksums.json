@@ -26,5 +26,5 @@
   "0025_platform_admin_actor_resolution.sql": "75f65eaf32e60fdc5f4039960748717045326ea328fa82cb7d45f27d28ac4bd5",
   "0026_runtime_jurisdiction_policy_grants.sql": "57d5f80282bd14f92723df62168091267dfd1aa8c9ae2a5e9b9bc4b1e212297f",
   "0027_actor_membership_resolution.sql": "8be1eaf2af7e2dfe286b03d81cd37a533791a8ca97a1d45a35739a08a2e58328",
-  "0028_rental_property_and_unit_commands.sql": "bfca873717b7d58cf483828b9fc8b0b229e329f4d09b7c8910c53b6c6590912b"
+  "0028_rental_property_and_unit_commands.sql": "2f7e525f36accb1635266133af7c54e78e190177ea754fbde2eab73117772e2d"
 }

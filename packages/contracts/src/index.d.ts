@@ -242,6 +242,7 @@ export interface SetUnitPricingInput {
   currency: typeof supportedCurrencies[number];
   effectiveFrom: string;
   expectedVersion: number;
+  idempotencyKey: string;
 }
 
 export interface PricingVersionCreationResult {
@@ -254,6 +255,7 @@ export interface SetUnitAvailabilityInput {
   reasonCode?: string | null;
   effectiveFrom: string;
   expectedVersion: number;
+  idempotencyKey: string;
 }
 
 export interface AvailabilityVersionCreationResult {
@@ -264,6 +266,7 @@ export interface AvailabilityVersionCreationResult {
 export interface ArchiveRentalInventoryInput {
   reason: string;
   expectedVersion: number;
+  idempotencyKey: string;
 }
 
 export interface ArchiveRentalInventoryResult {

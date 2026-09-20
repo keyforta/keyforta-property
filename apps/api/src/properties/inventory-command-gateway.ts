@@ -58,6 +58,7 @@ export interface SetUnitPricingCommand {
   currency: string;
   effectiveFrom: string;
   expectedVersion: number;
+  idempotencyKey: string;
   organizationId: string;
   source: string;
   subject: string;
@@ -68,6 +69,7 @@ export interface SetUnitAvailabilityCommand {
   correlationId: string;
   effectiveFrom: string;
   expectedVersion: number;
+  idempotencyKey: string;
   organizationId: string;
   reasonCode?: string | null;
   source: string;
@@ -79,6 +81,7 @@ export interface SetUnitAvailabilityCommand {
 export interface ArchiveRentalUnitCommand {
   correlationId: string;
   expectedVersion: number;
+  idempotencyKey: string;
   organizationId: string;
   reason: string;
   source: string;
@@ -89,6 +92,7 @@ export interface ArchiveRentalUnitCommand {
 export interface ArchiveRentalPropertyCommand {
   correlationId: string;
   expectedVersion: number;
+  idempotencyKey: string;
   organizationId: string;
   propertyId: string;
   reason: string;
@@ -366,13 +370,14 @@ export function createPostgresRentalInventoryCommandGateway(
         ]);
         try {
           const result = await session.query(
-            `select * from app.set_unit_pricing($1, $2, $3, $4, $5, $6, $7)`,
+            `select * from app.set_unit_pricing($1, $2, $3, $4, $5, $6, $7, $8)`,
             [
               command.unitId,
               command.amountMinor,
               command.currency,
               command.effectiveFrom,
               command.expectedVersion,
+              command.idempotencyKey,
               command.correlationId,
               command.source,
             ],
@@ -396,13 +401,14 @@ export function createPostgresRentalInventoryCommandGateway(
         ]);
         try {
           const result = await session.query(
-            `select * from app.set_unit_availability($1, $2, $3, $4, $5, $6, $7)`,
+            `select * from app.set_unit_availability($1, $2, $3, $4, $5, $6, $7, $8)`,
             [
               command.unitId,
               command.status,
               command.reasonCode ?? null,
               command.effectiveFrom,
               command.expectedVersion,
+              command.idempotencyKey,
               command.correlationId,
               command.source,
             ],
@@ -429,11 +435,12 @@ export function createPostgresRentalInventoryCommandGateway(
         ]);
         try {
           const result = await session.query(
-            "select app.archive_rental_unit($1, $2, $3, $4, $5) as archived",
+            "select app.archive_rental_unit($1, $2, $3, $4, $5, $6) as archived",
             [
               command.unitId,
               command.reason,
               command.expectedVersion,
+              command.idempotencyKey,
               command.correlationId,
               command.source,
             ],
@@ -453,11 +460,12 @@ export function createPostgresRentalInventoryCommandGateway(
         ]);
         try {
           const result = await session.query(
-            "select app.archive_rental_property($1, $2, $3, $4, $5) as archived",
+            "select app.archive_rental_property($1, $2, $3, $4, $5, $6) as archived",
             [
               command.propertyId,
               command.reason,
               command.expectedVersion,
+              command.idempotencyKey,
               command.correlationId,
               command.source,
             ],

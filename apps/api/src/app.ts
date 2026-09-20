@@ -811,6 +811,7 @@ export async function buildApp(
           currency: parsedInput.data.currency,
           effectiveFrom: parsedInput.data.effectiveFrom,
           expectedVersion: parsedInput.data.expectedVersion,
+          idempotencyKey: parsedInput.data.idempotencyKey,
           organizationId: context.organizationId,
           source: "runtime_api",
           subject: context.principal.subject,
@@ -859,6 +860,7 @@ export async function buildApp(
           correlationId: request.id,
           effectiveFrom: parsedInput.data.effectiveFrom,
           expectedVersion: parsedInput.data.expectedVersion,
+          idempotencyKey: parsedInput.data.idempotencyKey,
           organizationId: context.organizationId,
           reasonCode: parsedInput.data.reasonCode ?? null,
           source: "runtime_api",
@@ -908,6 +910,7 @@ export async function buildApp(
         const archived = await dependencies.rentalInventoryCommands.archiveRentalUnit({
           correlationId: request.id,
           expectedVersion: parsedInput.data.expectedVersion,
+          idempotencyKey: parsedInput.data.idempotencyKey,
           organizationId: context.organizationId,
           reason: parsedInput.data.reason,
           source: "runtime_api",
@@ -956,6 +959,7 @@ export async function buildApp(
         const archived = await dependencies.rentalInventoryCommands.archiveRentalProperty({
           correlationId: request.id,
           expectedVersion: parsedInput.data.expectedVersion,
+          idempotencyKey: parsedInput.data.idempotencyKey,
           organizationId: context.organizationId,
           propertyId: parsedPropertyId.data,
           reason: parsedInput.data.reason,

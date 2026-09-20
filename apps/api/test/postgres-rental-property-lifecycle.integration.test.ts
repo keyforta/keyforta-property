@@ -293,6 +293,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     const pricing = await gateway().setUnitPricing({
       amountMinor: 150_000,
       correlationId: "corr-pricing",
+      idempotencyKey: "idem-pricing",
       currency: "USD",
       effectiveFrom: new Date().toISOString(),
       expectedVersion: secondUnit!.unitVersion,
@@ -308,6 +309,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     await expect(gateway().setUnitPricing({
       amountMinor: 175_000,
       correlationId: "corr-pricing-stale",
+      idempotencyKey: "idem-pricing-stale",
       currency: "USD",
       effectiveFrom: new Date().toISOString(),
       expectedVersion: secondUnit!.unitVersion,
@@ -321,6 +323,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // by the preceding pricing command.
     const availability = await gateway().setUnitAvailability({
       correlationId: "corr-availability",
+      idempotencyKey: "idem-availability",
       effectiveFrom: new Date().toISOString(),
       expectedVersion: pricing!.unitVersion,
       organizationId: organizationA,
@@ -337,6 +340,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // raises a not-found error rather than disclosing its existence.
     await expect(gateway().archiveRentalUnit({
       correlationId: "corr-archive-cross-org",
+      idempotencyKey: "idem-archive-cross-org",
       expectedVersion: availability!.unitVersion,
       organizationId: organizationB,
       reason: "cross-organization attempt",
@@ -348,6 +352,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // Archiving the first Unit succeeds while a second active Unit remains.
     const firstUnitArchived = await gateway().archiveRentalUnit({
       correlationId: "corr-archive-first-unit",
+      idempotencyKey: "idem-archive-first-unit",
       expectedVersion: created!.unitVersion,
       organizationId: organizationA,
       reason: "consolidating inventory",
@@ -361,6 +366,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // the SQL guard resolves to `false` rather than raising.
     const lastUnitArchiveAttempt = await gateway().archiveRentalUnit({
       correlationId: "corr-archive-last-unit",
+      idempotencyKey: "idem-archive-last-unit",
       expectedVersion: availability!.unitVersion,
       organizationId: organizationA,
       reason: "attempting to archive the only remaining unit",
@@ -373,6 +379,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // The Property (with its one remaining Unit) can be archived with a reason.
     const propertyArchived = await gateway().archiveRentalProperty({
       correlationId: "corr-archive-property",
+      idempotencyKey: "idem-archive-property",
       expectedVersion: created!.propertyVersion,
       organizationId: organizationA,
       propertyId,
@@ -421,6 +428,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     await expect(gateway().setUnitPricing({
       amountMinor: 200_000,
       correlationId: "corr-deactivated-manager-pricing",
+      idempotencyKey: "idem-deactivated-manager-pricing",
       currency: "USD",
       effectiveFrom: new Date().toISOString(),
       expectedVersion: created!.unitVersion,
@@ -460,6 +468,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365).toISOString();
     const scheduledAvailability = await gateway().setUnitAvailability({
       correlationId: "corr-future-availability-set",
+      idempotencyKey: "idem-future-availability-set",
       effectiveFrom: farFuture,
       expectedVersion: created!.unitVersion,
       organizationId: organizationA,
@@ -473,6 +482,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
 
     const propertyArchived = await gateway().archiveRentalProperty({
       correlationId: "corr-future-availability-archive",
+      idempotencyKey: "idem-future-availability-archive",
       expectedVersion: created!.propertyVersion,
       organizationId: organizationA,
       propertyId,
@@ -540,6 +550,134 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       ...command,
       correlationId: "corr-idempotent-add-unit-conflict",
       unit: { ...firstUnit, label: "Idempotent Unit Two" },
+    })).rejects.toThrow(RentalInventoryConflictError);
+  });
+
+  it("replays pricing, availability, and archive mutations for the same idempotency key and payload instead of applying them twice", async () => {
+    const propertyGateway = gateway();
+    const created = await propertyGateway.createRentalProperty({
+      address,
+      correlationId: "corr-idempotent-mutation-create",
+      firstUnit,
+      idempotencyKey: "idem-mutation-property-create",
+      name: "Synthetic Idempotent Mutation Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    expect(created?.unitId).toBeTruthy();
+    if (!created?.unitId) throw new Error("expected a created Unit");
+    const propertyId = created.propertyId;
+
+    const secondUnit = await propertyGateway.addRentalUnit({
+      correlationId: "corr-idempotent-mutation-second-unit",
+      idempotencyKey: "idem-mutation-second-unit",
+      organizationId: organizationA,
+      propertyId,
+      source: "test",
+      subject: landlordSubject,
+      unit: { ...firstUnit, label: "Second Unit" },
+    });
+    expect(secondUnit?.unitId).toBeTruthy();
+    if (!secondUnit?.unitId) throw new Error("expected a second created Unit");
+
+    const pricingCommand = {
+      amountMinor: 150_000,
+      correlationId: "corr-idempotent-pricing",
+      idempotencyKey: "idem-replay-pricing",
+      currency: "USD",
+      effectiveFrom: new Date().toISOString(),
+      expectedVersion: created.unitVersion,
+      organizationId: organizationA,
+      source: "test",
+      subject: landlordSubject,
+      unitId: created.unitId,
+    };
+    const firstPricing = await propertyGateway.setUnitPricing(pricingCommand);
+    const replayPricing = await propertyGateway.setUnitPricing({
+      ...pricingCommand,
+      correlationId: "corr-idempotent-pricing-replay",
+    });
+    expect(replayPricing).toEqual(firstPricing);
+
+    await expect(propertyGateway.setUnitPricing({
+      ...pricingCommand,
+      amountMinor: 175_000,
+      correlationId: "corr-idempotent-pricing-conflict",
+    })).rejects.toThrow(RentalInventoryConflictError);
+
+    const availabilityCommand = {
+      correlationId: "corr-idempotent-availability",
+      idempotencyKey: "idem-replay-availability",
+      effectiveFrom: new Date().toISOString(),
+      expectedVersion: firstPricing!.unitVersion,
+      organizationId: organizationA,
+      source: "test",
+      status: "available" as const,
+      subject: landlordSubject,
+      unitId: created.unitId,
+    };
+    const firstAvailability = await propertyGateway.setUnitAvailability(availabilityCommand);
+    const replayAvailability = await propertyGateway.setUnitAvailability({
+      ...availabilityCommand,
+      correlationId: "corr-idempotent-availability-replay",
+    });
+    expect(replayAvailability).toEqual(firstAvailability);
+
+    await expect(propertyGateway.setUnitAvailability({
+      ...availabilityCommand,
+      status: "unavailable",
+      correlationId: "corr-idempotent-availability-conflict",
+    })).rejects.toThrow(RentalInventoryConflictError);
+
+    const archiveUnitCommand = {
+      correlationId: "corr-idempotent-unit-archive",
+      idempotencyKey: "idem-replay-unit-archive",
+      expectedVersion: secondUnit.unitVersion,
+      organizationId: organizationA,
+      reason: "consolidating inventory",
+      source: "test",
+      subject: landlordSubject,
+      unitId: secondUnit.unitId,
+    };
+    const firstUnitArchive = await propertyGateway.archiveRentalUnit(archiveUnitCommand);
+    const replayUnitArchive = await propertyGateway.archiveRentalUnit({
+      ...archiveUnitCommand,
+      correlationId: "corr-idempotent-unit-archive-replay",
+    });
+    expect(replayUnitArchive).toBe(firstUnitArchive);
+    expect(firstUnitArchive).toBe(true);
+
+    await expect(propertyGateway.archiveRentalUnit({
+      ...archiveUnitCommand,
+      reason: "a different reason",
+      correlationId: "corr-idempotent-unit-archive-conflict",
+    })).rejects.toThrow(RentalInventoryConflictError);
+
+    const archivePropertyCommand = {
+      correlationId: "corr-idempotent-property-archive",
+      idempotencyKey: "idem-replay-property-archive",
+      expectedVersion: created.propertyVersion,
+      organizationId: organizationA,
+      propertyId: created.propertyId,
+      reason: "portfolio wind-down",
+      source: "test",
+      subject: landlordSubject,
+    };
+    const firstPropertyArchive = await propertyGateway.archiveRentalProperty(archivePropertyCommand);
+    const replayPropertyArchive = await propertyGateway.archiveRentalProperty({
+      ...archivePropertyCommand,
+      correlationId: "corr-idempotent-property-archive-replay",
+    });
+    expect(replayPropertyArchive).toBe(firstPropertyArchive);
+    expect(firstPropertyArchive).toBe(true);
+
+    await expect(propertyGateway.archiveRentalProperty({
+      ...archivePropertyCommand,
+      reason: "a different reason",
+      correlationId: "corr-idempotent-property-archive-conflict",
     })).rejects.toThrow(RentalInventoryConflictError);
   });
 
@@ -639,6 +777,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     const [firstResult, secondResult] = await Promise.all([
       gateway().archiveRentalUnit({
         correlationId: "corr-concurrent-archive-unit-1",
+        idempotencyKey: "idem-concurrent-archive-unit-1",
         expectedVersion: created!.unitVersion,
         organizationId: organizationA,
         reason: "concurrent archive race regression",
@@ -648,6 +787,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       }),
       gateway().archiveRentalUnit({
         correlationId: "corr-concurrent-archive-unit-2",
+        idempotencyKey: "idem-concurrent-archive-unit-2",
         expectedVersion: secondUnit.unitVersion,
         organizationId: organizationA,
         reason: "concurrent archive race regression",
@@ -740,6 +880,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     await Promise.all([
       gateway().archiveRentalUnit({
         correlationId: "corr-archive-lease-race-archive",
+        idempotencyKey: "idem-archive-lease-race-archive",
         expectedVersion: created!.unitVersion,
         organizationId: organizationA,
         reason: "archive vs. lease-draft race regression",
@@ -835,6 +976,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     await Promise.all([
       gateway().archiveRentalProperty({
         correlationId: "corr-property-archive-lease-race-archive",
+        idempotencyKey: "idem-property-archive-lease-race-archive",
         expectedVersion: created!.propertyVersion,
         organizationId: organizationA,
         propertyId,

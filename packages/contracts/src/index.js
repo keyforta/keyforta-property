@@ -605,6 +605,7 @@ export const setUnitPricingInputSchema = z.object({
 	currency: z.enum(supportedCurrencies),
 	effectiveFrom: timestampSchema,
 	expectedVersion: positiveVersionSchema,
+	idempotencyKey: boundedTextSchema(128),
 }).strict();
 
 export const pricingVersionCreationResultSchema = z.object({
@@ -619,6 +620,7 @@ export const setUnitAvailabilityInputSchema = z.object({
 	reasonCode: boundedTextSchema(64).nullable().optional(),
 	effectiveFrom: timestampSchema,
 	expectedVersion: positiveVersionSchema,
+	idempotencyKey: boundedTextSchema(128),
 }).strict().superRefine((value, context) => {
 	if (value.status === 'unavailable' && !value.reasonCode) {
 		context.addIssue({
@@ -646,6 +648,7 @@ export const availabilityVersionCreationEnvelopeSchema = envelopeSchema(availabi
 export const archiveRentalInventoryInputSchema = z.object({
 	reason: boundedTextSchema(1000),
 	expectedVersion: positiveVersionSchema,
+	idempotencyKey: boundedTextSchema(128),
 }).strict();
 
 export const archiveRentalInventoryResultSchema = z.object({
