@@ -285,6 +285,104 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     expect(propertyArchived).toBe(true);
   });
 
+  it("denies mutation from a manager whose membership has been deactivated even if the assignment remains", async () => {
+    const propertyGateway = gateway();
+    const created = await propertyGateway.createRentalProperty({
+      address,
+      correlationId: "corr-deactivated-manager-create",
+      firstUnit,
+      name: "Synthetic Deactivated Manager Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    const propertyId = created?.propertyId;
+    expect(propertyId).toBeTruthy();
+    if (!propertyId) throw new Error("expected a created Property");
+
+    await client.query(
+      `insert into app.manager_property_assignments (
+        organization_id, property_id, manager_user_id, assigned_by_user_id
+      ) select $1, $2, u.id, l.id
+        from app.users u, app.users l
+        where u.external_subject = $3 and l.external_subject = $4`,
+      [organizationA, propertyId, assignedManagerSubject, landlordSubject],
+    );
+
+    // Deactivate the manager's membership while the assignment row remains.
+    await client.query(
+      `update app.memberships set active = false
+       where organization_id = $1 and role = 'manager'
+         and user_id = (select id from app.users where external_subject = $2)`,
+      [organizationA, assignedManagerSubject],
+    );
+
+    await expect(gateway().setUnitPricing({
+      amountMinor: 200_000,
+      correlationId: "corr-deactivated-manager-pricing",
+      currency: "USD",
+      effectiveFrom: new Date().toISOString(),
+      expectedVersion: created!.unitVersion,
+      organizationId: organizationA,
+      source: "test",
+      subject: assignedManagerSubject,
+      unitId: created!.unitId,
+    })).rejects.toThrow(RentalInventoryAuthorizationError);
+
+    // Reactivate so it doesn't affect other tests sharing this database.
+    await client.query(
+      `update app.memberships set active = true
+       where organization_id = $1 and role = 'manager'
+         and user_id = (select id from app.users where external_subject = $2)`,
+      [organizationA, assignedManagerSubject],
+    );
+  });
+
+  it("archives a Property whose Unit has a future-dated availability interval without violating the half-open interval constraint", async () => {
+    const propertyGateway = gateway();
+    const created = await propertyGateway.createRentalProperty({
+      address,
+      correlationId: "corr-future-availability-create",
+      firstUnit,
+      name: "Synthetic Future Availability Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    const propertyId = created?.propertyId;
+    expect(propertyId).toBeTruthy();
+    if (!propertyId) throw new Error("expected a created Property");
+
+    const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365).toISOString();
+    const scheduledAvailability = await gateway().setUnitAvailability({
+      correlationId: "corr-future-availability-set",
+      effectiveFrom: farFuture,
+      expectedVersion: created!.unitVersion,
+      organizationId: organizationA,
+      source: "test",
+      status: "unavailable",
+      reasonCode: "scheduled-renovation",
+      subject: landlordSubject,
+      unitId: created!.unitId,
+    });
+    expect(scheduledAvailability?.availabilityVersionId).toBeTruthy();
+
+    const propertyArchived = await gateway().archiveRentalProperty({
+      correlationId: "corr-future-availability-archive",
+      expectedVersion: created!.propertyVersion,
+      organizationId: organizationA,
+      propertyId,
+      reason: "archiving despite a future-dated availability interval",
+      source: "test",
+      subject: landlordSubject,
+    });
+    expect(propertyArchived).toBe(true);
+  });
+
   it("lists only the Properties and Units visible to the requesting actor", async () => {
     const propertyGateway = gateway();
     const landlordOnly = await propertyGateway.createRentalProperty({

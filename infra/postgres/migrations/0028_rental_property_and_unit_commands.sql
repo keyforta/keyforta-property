@@ -47,11 +47,21 @@ as $$
     app.actor_is_active_landlord(requested_organization_id, requested_actor_id)
     or exists (
       select 1
-      from app.manager_property_assignments
-      where organization_id = requested_organization_id
-        and property_id = requested_property_id
-        and manager_user_id = requested_actor_id
-        and revoked_at is null
+      from app.manager_property_assignments as assignment
+      join app.memberships as membership
+        on membership.organization_id = assignment.organization_id
+        and membership.user_id = assignment.manager_user_id
+      where assignment.organization_id = requested_organization_id
+        and assignment.property_id = requested_property_id
+        and assignment.manager_user_id = requested_actor_id
+        and assignment.revoked_at is null
+        and membership.role in ('landlord', 'manager')
+        and membership.active
+        and membership.effective_from <= transaction_timestamp()
+        and (
+          membership.effective_to is null
+          or transaction_timestamp() < membership.effective_to
+        )
     )
 $$;
 
@@ -457,7 +467,8 @@ begin
   set effective_to = clock_timestamp()
   where organization_id = organization
     and unit_id = requested_unit_id
-    and effective_to is null;
+    and effective_to is null
+    and effective_from <= clock_timestamp();
 
   update app.units
   set archived_at = transaction_timestamp(), archived_by = actor,
@@ -539,7 +550,8 @@ begin
     and unit.property_id = requested_property_id
     and availability.organization_id = unit.organization_id
     and availability.unit_id = unit.id
-    and availability.effective_to is null;
+    and availability.effective_to is null
+    and availability.effective_from <= clock_timestamp();
 
   for unit_row in
     select * from app.units
@@ -670,11 +682,19 @@ begin
       and (
         is_landlord
         or exists (
-          select 1 from app.manager_property_assignments a
+          select 1
+          from app.manager_property_assignments a
+          join app.memberships m
+            on m.organization_id = a.organization_id
+            and m.user_id = a.manager_user_id
           where a.organization_id = organization
             and a.property_id = p.id
             and a.manager_user_id = actor
             and a.revoked_at is null
+            and m.role in ('landlord', 'manager')
+            and m.active
+            and m.effective_from <= transaction_timestamp()
+            and (m.effective_to is null or transaction_timestamp() < m.effective_to)
         )
       )
   ) properties_with_units;
