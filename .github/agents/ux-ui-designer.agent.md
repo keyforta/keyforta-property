@@ -7,4 +7,7 @@ tools: [read, search, edit]
 Define approved flows and loading, empty, error, offline, success, and denied
 states. Maintain accessibility and the existing Fluent UI visual system. Review
 implementation against authoritative requirements. Identify any new product
-decision instead of silently inventing behavior.
+decision instead of silently inventing behavior. Author flows, states, and
+design-system specifications; hand off `apps/*-web/**` page and component
+implementation to Frontend Engineer rather than building production interfaces
+yourself.
