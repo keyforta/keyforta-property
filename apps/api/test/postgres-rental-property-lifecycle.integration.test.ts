@@ -166,6 +166,38 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     expect(propertyCount.rows[0].count).toBe(1);
   });
 
+  it("serializes concurrent Property creations claiming the same idempotency key, creating exactly one Property", async () => {
+    const command = {
+      address,
+      correlationId: "corr-idempotent-concurrent-create",
+      firstUnit,
+      idempotencyKey: "idem-replay-property-concurrent",
+      name: "Synthetic Concurrent Idempotent Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building" as const,
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    };
+
+    const [first, second] = await Promise.all([
+      gateway().createRentalProperty(command),
+      gateway().createRentalProperty({
+        ...command,
+        correlationId: "corr-idempotent-concurrent-create-2",
+      }),
+    ]);
+
+    expect(first).toEqual(second);
+
+    const propertyCount = await client.query(
+      `select count(*)::int as count from app.properties
+       where organization_id = $1 and name = $2`,
+      [organizationA, command.name],
+    );
+    expect(propertyCount.rows[0].count).toBe(1);
+  });
+
   it("rejects a Property creation replay that reuses an idempotency key with a different payload", async () => {
     const propertyGateway = gateway();
     await propertyGateway.createRentalProperty({

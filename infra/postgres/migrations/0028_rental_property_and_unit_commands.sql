@@ -98,13 +98,25 @@ $$;
 -- (pricing, availability, archive) are already protected against duplicate
 -- application on retry by their `requested_expected_version` guard: a retry
 -- of an already-applied mutation finds a stale version and is rejected.
+--
+-- Concurrent claims of the same (organization, actor, operation,
+-- idempotency_key) are serialized rather than racing: resolve first tries to
+-- insert a `result = null` placeholder row (the unique primary key makes a
+-- concurrent insert of the same key block until the first attempt commits or
+-- rolls back), then locks and re-reads that row with `for update`. A caller
+-- that observes a null `result` owns the claim and must call
+-- `record_rental_inventory_creation_replay` (an update, not an insert) before
+-- committing; a caller that observes a populated `result` is a genuine
+-- replay and returns it without re-running the business logic. If the
+-- claiming transaction rolls back (for example a validation failure), its
+-- placeholder row rolls back with it, so a retry can claim the key again.
 create table app.rental_inventory_creation_replays (
   organization_id uuid not null references app.organizations(id),
   actor_id uuid not null references app.users(id),
   operation text not null check (char_length(btrim(operation)) between 1 and 64),
   idempotency_key text not null check (char_length(btrim(idempotency_key)) between 1 and 128),
   payload_hash text not null check (char_length(payload_hash) = 64),
-  result jsonb not null,
+  result jsonb,
   created_at timestamptz not null default transaction_timestamp(),
   primary key (organization_id, actor_id, operation, idempotency_key)
 );
@@ -126,6 +138,14 @@ declare
   existing app.rental_inventory_creation_replays%rowtype;
   payload_hash text := encode(public.digest(requested_payload::text, 'sha256'), 'hex');
 begin
+  insert into app.rental_inventory_creation_replays (
+    organization_id, actor_id, operation, idempotency_key, payload_hash, result
+  ) values (
+    requested_organization_id, requested_actor_id, requested_operation,
+    requested_idempotency_key, payload_hash, null
+  )
+  on conflict (organization_id, actor_id, operation, idempotency_key) do nothing;
+
   select * into existing
   from app.rental_inventory_creation_replays
   where organization_id = requested_organization_id
@@ -134,15 +154,15 @@ begin
     and idempotency_key = requested_idempotency_key
   for update;
 
-  if not found then
-    replay_result := null;
-    is_replay := false;
-    return;
-  end if;
-
   if existing.payload_hash <> payload_hash then
     raise exception 'the idempotency key was already used with a different payload'
       using errcode = '23505';
+  end if;
+
+  if existing.result is null then
+    replay_result := null;
+    is_replay := false;
+    return;
   end if;
 
   replay_result := existing.result;
@@ -162,13 +182,12 @@ language sql
 security definer
 set search_path = pg_catalog, app
 as $$
-  insert into app.rental_inventory_creation_replays (
-    organization_id, actor_id, operation, idempotency_key, payload_hash, result
-  ) values (
-    requested_organization_id, requested_actor_id, requested_operation,
-    requested_idempotency_key, encode(public.digest(requested_payload::text, 'sha256'), 'hex'),
-    requested_result
-  )
+  update app.rental_inventory_creation_replays
+  set result = requested_result
+  where organization_id = requested_organization_id
+    and actor_id = requested_actor_id
+    and operation = requested_operation
+    and idempotency_key = requested_idempotency_key
 $$;
 
 create function app.create_rental_property(
