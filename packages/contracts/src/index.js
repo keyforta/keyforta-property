@@ -599,10 +599,12 @@ export const setUnitPricingInputSchema = z.object({
 	amountMinor: z.number().int().positive().safe(),
 	currency: z.enum(supportedCurrencies),
 	effectiveFrom: timestampSchema,
+	expectedVersion: positiveVersionSchema,
 }).strict();
 
 export const pricingVersionCreationResultSchema = z.object({
 	pricingVersionId: z.uuid(),
+	unitVersion: positiveVersionSchema,
 }).strict();
 
 export const pricingVersionCreationEnvelopeSchema = envelopeSchema(pricingVersionCreationResultSchema);
@@ -611,6 +613,7 @@ export const setUnitAvailabilityInputSchema = z.object({
 	status: z.enum(['unavailable', 'available']),
 	reasonCode: boundedTextSchema(64).nullable().optional(),
 	effectiveFrom: timestampSchema,
+	expectedVersion: positiveVersionSchema,
 }).strict().superRefine((value, context) => {
 	if (value.status === 'unavailable' && !value.reasonCode) {
 		context.addIssue({
@@ -630,12 +633,14 @@ export const setUnitAvailabilityInputSchema = z.object({
 
 export const availabilityVersionCreationResultSchema = z.object({
 	availabilityVersionId: z.uuid(),
+	unitVersion: positiveVersionSchema,
 }).strict();
 
 export const availabilityVersionCreationEnvelopeSchema = envelopeSchema(availabilityVersionCreationResultSchema);
 
 export const archiveRentalInventoryInputSchema = z.object({
 	reason: boundedTextSchema(1000),
+	expectedVersion: positiveVersionSchema,
 }).strict();
 
 export const archiveRentalInventoryResultSchema = z.object({

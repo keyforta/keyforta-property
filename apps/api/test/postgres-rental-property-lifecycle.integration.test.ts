@@ -196,17 +196,34 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       correlationId: "corr-pricing",
       currency: "USD",
       effectiveFrom: new Date().toISOString(),
+      expectedVersion: secondUnit!.unitVersion,
       organizationId: organizationA,
       source: "test",
       subject: landlordSubject,
       unitId: secondUnit!.unitId,
     });
     expect(pricing?.pricingVersionId).toBeTruthy();
+    expect(pricing?.unitVersion).toBe(secondUnit!.unitVersion + 1);
 
-    // Availability can be set on the second Unit.
+    // A stale expected version is rejected as a conflict without mutating state.
+    await expect(gateway().setUnitPricing({
+      amountMinor: 175_000,
+      correlationId: "corr-pricing-stale",
+      currency: "USD",
+      effectiveFrom: new Date().toISOString(),
+      expectedVersion: secondUnit!.unitVersion,
+      organizationId: organizationA,
+      source: "test",
+      subject: landlordSubject,
+      unitId: secondUnit!.unitId,
+    })).rejects.toThrow(RentalInventoryConflictError);
+
+    // Availability can be set on the second Unit, using the version returned
+    // by the preceding pricing command.
     const availability = await gateway().setUnitAvailability({
       correlationId: "corr-availability",
       effectiveFrom: new Date().toISOString(),
+      expectedVersion: pricing!.unitVersion,
       organizationId: organizationA,
       source: "test",
       status: "available",
@@ -214,12 +231,14 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       unitId: secondUnit!.unitId,
     });
     expect(availability?.availabilityVersionId).toBeTruthy();
+    expect(availability?.unitVersion).toBe(pricing!.unitVersion + 1);
 
     // Cross-organization actors cannot see or archive this Property's Units:
     // organization-scoping means the Unit is simply not found, so the command
     // resolves to `false` rather than disclosing its existence.
     const crossOrgArchiveAttempt = await gateway().archiveRentalUnit({
       correlationId: "corr-archive-cross-org",
+      expectedVersion: availability!.unitVersion,
       organizationId: organizationB,
       reason: "cross-organization attempt",
       source: "test",
@@ -231,6 +250,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // Archiving the first Unit succeeds while a second active Unit remains.
     const firstUnitArchived = await gateway().archiveRentalUnit({
       correlationId: "corr-archive-first-unit",
+      expectedVersion: created!.unitVersion,
       organizationId: organizationA,
       reason: "consolidating inventory",
       source: "test",
@@ -243,6 +263,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // the SQL guard resolves to `false` rather than raising.
     const lastUnitArchiveAttempt = await gateway().archiveRentalUnit({
       correlationId: "corr-archive-last-unit",
+      expectedVersion: availability!.unitVersion,
       organizationId: organizationA,
       reason: "attempting to archive the only remaining unit",
       source: "test",
@@ -254,6 +275,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     // The Property (with its one remaining Unit) can be archived with a reason.
     const propertyArchived = await gateway().archiveRentalProperty({
       correlationId: "corr-archive-property",
+      expectedVersion: created!.propertyVersion,
       organizationId: organizationA,
       propertyId,
       reason: "portfolio wind-down",

@@ -800,6 +800,7 @@ export async function buildApp(
           correlationId: request.id,
           currency: parsedInput.data.currency,
           effectiveFrom: parsedInput.data.effectiveFrom,
+          expectedVersion: parsedInput.data.expectedVersion,
           organizationId: context.organizationId,
           source: "runtime_api",
           subject: context.principal.subject,
@@ -811,7 +812,7 @@ export async function buildApp(
             "The requested resource was not found.",
           ));
         }
-        return reply.status(201).send(
+        return reply.status(200).send(
           pricingVersionCreationEnvelopeSchema.parse({
             data: created,
             meta: { requestId: request.id },
@@ -847,6 +848,7 @@ export async function buildApp(
         const created = await dependencies.rentalInventoryCommands.setUnitAvailability({
           correlationId: request.id,
           effectiveFrom: parsedInput.data.effectiveFrom,
+          expectedVersion: parsedInput.data.expectedVersion,
           organizationId: context.organizationId,
           reasonCode: parsedInput.data.reasonCode ?? null,
           source: "runtime_api",
@@ -860,7 +862,7 @@ export async function buildApp(
             "The requested resource was not found.",
           ));
         }
-        return reply.status(201).send(
+        return reply.status(200).send(
           availabilityVersionCreationEnvelopeSchema.parse({
             data: created,
             meta: { requestId: request.id },
@@ -895,6 +897,7 @@ export async function buildApp(
       try {
         const archived = await dependencies.rentalInventoryCommands.archiveRentalUnit({
           correlationId: request.id,
+          expectedVersion: parsedInput.data.expectedVersion,
           organizationId: context.organizationId,
           reason: parsedInput.data.reason,
           source: "runtime_api",
@@ -942,6 +945,7 @@ export async function buildApp(
       try {
         const archived = await dependencies.rentalInventoryCommands.archiveRentalProperty({
           correlationId: request.id,
+          expectedVersion: parsedInput.data.expectedVersion,
           organizationId: context.organizationId,
           propertyId: parsedPropertyId.data,
           reason: parsedInput.data.reason,

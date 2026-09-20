@@ -235,24 +235,29 @@ export interface SetUnitPricingInput {
   amountMinor: number;
   currency: typeof supportedCurrencies[number];
   effectiveFrom: string;
+  expectedVersion: number;
 }
 
 export interface PricingVersionCreationResult {
   pricingVersionId: string;
+  unitVersion: number;
 }
 
 export interface SetUnitAvailabilityInput {
   status: "unavailable" | "available";
   reasonCode?: string | null;
   effectiveFrom: string;
+  expectedVersion: number;
 }
 
 export interface AvailabilityVersionCreationResult {
   availabilityVersionId: string;
+  unitVersion: number;
 }
 
 export interface ArchiveRentalInventoryInput {
   reason: string;
+  expectedVersion: number;
 }
 
 export interface ArchiveRentalInventoryResult {

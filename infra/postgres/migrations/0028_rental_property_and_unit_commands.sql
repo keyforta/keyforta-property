@@ -28,6 +28,8 @@ as $$
       and user_id = requested_actor_id
       and role = 'landlord'
       and active
+      and effective_from <= transaction_timestamp()
+      and (effective_to is null or transaction_timestamp() < effective_to)
   )
 $$;
 
@@ -240,9 +242,10 @@ create function app.set_unit_pricing(
   requested_amount_minor bigint,
   requested_currency char(3),
   requested_effective_from timestamptz,
+  requested_expected_version integer,
   requested_correlation_id text,
   requested_source text
-) returns table (pricing_version_id uuid)
+) returns table (pricing_version_id uuid, unit_version integer)
 language plpgsql
 security definer
 set search_path = pg_catalog, app
@@ -271,6 +274,10 @@ begin
     raise exception 'the actor is not authorized to manage this Unit' using errcode = '42501';
   end if;
 
+  if unit_record.version <> requested_expected_version then
+    raise exception 'the supplied version is stale' using errcode = '40001';
+  end if;
+
   update app.unit_pricing_versions
   set effective_to = requested_effective_from
   where organization_id = organization
@@ -285,9 +292,10 @@ begin
     'month', requested_effective_from, actor, correlation, requested_source
   ) returning id into new_id;
 
-  update app.units
+    update app.units
   set version = version + 1, updated_at = transaction_timestamp()
-  where organization_id = organization and id = requested_unit_id;
+  where organization_id = organization and id = requested_unit_id
+  returning version into unit_version;
 
   perform app.record_rental_inventory_event(
     organization, 'pricing_version', new_id, 1, actor, correlation,
@@ -304,9 +312,10 @@ create function app.set_unit_availability(
   requested_status text,
   requested_reason_code text,
   requested_effective_from timestamptz,
+  requested_expected_version integer,
   requested_correlation_id text,
   requested_source text
-) returns table (availability_version_id uuid)
+) returns table (availability_version_id uuid, unit_version integer)
 language plpgsql
 security definer
 set search_path = pg_catalog, app
@@ -337,6 +346,10 @@ begin
     raise exception 'the actor is not authorized to manage this Unit' using errcode = '42501';
   end if;
 
+  if unit_record.version <> requested_expected_version then
+    raise exception 'the supplied version is stale' using errcode = '40001';
+  end if;
+
   update app.unit_availability_versions
   set effective_to = requested_effective_from
   where organization_id = organization
@@ -354,6 +367,7 @@ begin
   select exists (
     select 1 from app.leases
     where organization_id = organization and unit_id = requested_unit_id
+      and accepted_at is not null and archived_at is null
   ) into is_occupied;
 
   derived_status := case when is_occupied then 'occupied' else requested_status end;
@@ -362,7 +376,8 @@ begin
   set availability_status = derived_status,
       version = version + 1,
       updated_at = transaction_timestamp()
-  where organization_id = organization and id = requested_unit_id;
+  where organization_id = organization and id = requested_unit_id
+  returning version into unit_version;
 
   perform app.record_rental_inventory_event(
     organization, 'availability_version', new_id, 1, actor, correlation,
@@ -377,6 +392,7 @@ $$;
 create function app.archive_rental_unit(
   requested_unit_id uuid,
   requested_reason text,
+  requested_expected_version integer,
   requested_correlation_id text,
   requested_source text
 ) returns boolean
@@ -409,6 +425,10 @@ begin
     raise exception 'the actor is not authorized to manage this Unit' using errcode = '42501';
   end if;
 
+  if unit_record.version <> requested_expected_version then
+    raise exception 'the supplied version is stale' using errcode = '40001';
+  end if;
+
   select count(*) into active_unit_count
   from app.units
   where organization_id = organization
@@ -421,7 +441,8 @@ begin
 
   select count(*) into blocking_lease_count
   from app.leases
-  where organization_id = organization and unit_id = requested_unit_id;
+  where organization_id = organization and unit_id = requested_unit_id
+    and archived_at is null;
 
   if blocking_lease_count > 0 then
     return false;
@@ -456,6 +477,7 @@ $$;
 create function app.archive_rental_property(
   requested_property_id uuid,
   requested_reason text,
+  requested_expected_version integer,
   requested_correlation_id text,
   requested_source text
 ) returns boolean
@@ -488,11 +510,16 @@ begin
     raise exception 'the actor is not authorized to manage this Property' using errcode = '42501';
   end if;
 
+  if property_record.version <> requested_expected_version then
+    raise exception 'the supplied version is stale' using errcode = '40001';
+  end if;
+
   select count(*) into blocking_lease_count
   from app.leases as lease
   join app.units as unit
     on unit.organization_id = lease.organization_id and unit.id = lease.unit_id
-  where unit.organization_id = organization and unit.property_id = requested_property_id;
+  where unit.organization_id = organization and unit.property_id = requested_property_id
+    and lease.archived_at is null;
 
   if blocking_lease_count > 0 then
     return false;
@@ -560,13 +587,13 @@ revoke all on function app.add_rental_unit(
   uuid, text, text, text, smallint, smallint, integer, text, text, text, text
 ) from public;
 revoke all on function app.set_unit_pricing(
-  uuid, bigint, char(3), timestamptz, text, text
+  uuid, bigint, char(3), timestamptz, integer, text, text
 ) from public;
 revoke all on function app.set_unit_availability(
-  uuid, text, text, timestamptz, text, text
+  uuid, text, text, timestamptz, integer, text, text
 ) from public;
-revoke all on function app.archive_rental_unit(uuid, text, text, text) from public;
-revoke all on function app.archive_rental_property(uuid, text, text, text) from public;
+revoke all on function app.archive_rental_unit(uuid, text, integer, text, text) from public;
+revoke all on function app.archive_rental_property(uuid, text, integer, text, text) from public;
 
 grant execute on function app.create_rental_property(
   text, text, jsonb, text, text, text, text, text, smallint, smallint,
@@ -576,13 +603,13 @@ grant execute on function app.add_rental_unit(
   uuid, text, text, text, smallint, smallint, integer, text, text, text, text
 ) to keyforta_runtime;
 grant execute on function app.set_unit_pricing(
-  uuid, bigint, char(3), timestamptz, text, text
+  uuid, bigint, char(3), timestamptz, integer, text, text
 ) to keyforta_runtime;
 grant execute on function app.set_unit_availability(
-  uuid, text, text, timestamptz, text, text
+  uuid, text, text, timestamptz, integer, text, text
 ) to keyforta_runtime;
-grant execute on function app.archive_rental_unit(uuid, text, text, text) to keyforta_runtime;
-grant execute on function app.archive_rental_property(uuid, text, text, text) to keyforta_runtime;
+grant execute on function app.archive_rental_unit(uuid, text, integer, text, text) to keyforta_runtime;
+grant execute on function app.archive_rental_property(uuid, text, integer, text, text) to keyforta_runtime;
 
 create function app.list_rental_properties_for_actor()
 returns jsonb
@@ -634,10 +661,12 @@ begin
         ) order by u.label), '[]'::jsonb)
         from app.units u
         where u.property_id = p.id and u.organization_id = organization
+          and u.archived_at is null
       )
     ) as property_row
     from app.properties p
     where p.organization_id = organization
+      and p.archived_at is null
       and (
         is_landlord
         or exists (

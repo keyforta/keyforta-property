@@ -55,6 +55,7 @@ export interface SetUnitPricingCommand {
   correlationId: string;
   currency: string;
   effectiveFrom: string;
+  expectedVersion: number;
   organizationId: string;
   source: string;
   subject: string;
@@ -64,6 +65,7 @@ export interface SetUnitPricingCommand {
 export interface SetUnitAvailabilityCommand {
   correlationId: string;
   effectiveFrom: string;
+  expectedVersion: number;
   organizationId: string;
   reasonCode?: string | null;
   source: string;
@@ -74,6 +76,7 @@ export interface SetUnitAvailabilityCommand {
 
 export interface ArchiveRentalUnitCommand {
   correlationId: string;
+  expectedVersion: number;
   organizationId: string;
   reason: string;
   source: string;
@@ -83,6 +86,7 @@ export interface ArchiveRentalUnitCommand {
 
 export interface ArchiveRentalPropertyCommand {
   correlationId: string;
+  expectedVersion: number;
   organizationId: string;
   propertyId: string;
   reason: string;
@@ -139,10 +143,10 @@ export interface RentalInventoryCommandGateway {
   ): Promise<readonly RentalPropertyProjection[]>;
   setUnitAvailability(
     command: SetUnitAvailabilityCommand,
-  ): Promise<{ availabilityVersionId: string } | undefined>;
+  ): Promise<{ availabilityVersionId: string; unitVersion: number } | undefined>;
   setUnitPricing(
     command: SetUnitPricingCommand,
-  ): Promise<{ pricingVersionId: string } | undefined>;
+  ): Promise<{ pricingVersionId: string; unitVersion: number } | undefined>;
 }
 
 export class RentalInventoryAuthorizationError extends Error {
@@ -196,6 +200,11 @@ function translateWriteError(error: unknown): never {
     if (error.code === "23514") {
       throw new RentalInventoryConflictError(
         "The requested change does not satisfy a required invariant.",
+      );
+    }
+    if (error.code === "40001") {
+      throw new RentalInventoryConflictError(
+        "The supplied version is stale; reload and retry with the current version.",
       );
     }
   }
@@ -342,19 +351,22 @@ export function createPostgresRentalInventoryCommandGateway(
         ]);
         try {
           const result = await session.query(
-            `select * from app.set_unit_pricing($1, $2, $3, $4, $5, $6)`,
+            `select * from app.set_unit_pricing($1, $2, $3, $4, $5, $6, $7)`,
             [
               command.unitId,
               command.amountMinor,
               command.currency,
               command.effectiveFrom,
+              command.expectedVersion,
               command.correlationId,
               command.source,
             ],
           );
-          const row = result.rows[0] as { pricing_version_id?: string } | undefined;
-          if (!row?.pricing_version_id) return undefined;
-          return { pricingVersionId: row.pricing_version_id };
+          const row = result.rows[0] as
+            | { pricing_version_id?: string; unit_version?: number }
+            | undefined;
+          if (!row?.pricing_version_id || row.unit_version === undefined) return undefined;
+          return { pricingVersionId: row.pricing_version_id, unitVersion: row.unit_version };
         } catch (error) {
           translateWriteError(error);
         }
@@ -369,21 +381,25 @@ export function createPostgresRentalInventoryCommandGateway(
         ]);
         try {
           const result = await session.query(
-            `select * from app.set_unit_availability($1, $2, $3, $4, $5, $6)`,
+            `select * from app.set_unit_availability($1, $2, $3, $4, $5, $6, $7)`,
             [
               command.unitId,
               command.status,
               command.reasonCode ?? null,
               command.effectiveFrom,
+              command.expectedVersion,
               command.correlationId,
               command.source,
             ],
           );
           const row = result.rows[0] as
-            | { availability_version_id?: string }
+            | { availability_version_id?: string; unit_version?: number }
             | undefined;
-          if (!row?.availability_version_id) return undefined;
-          return { availabilityVersionId: row.availability_version_id };
+          if (!row?.availability_version_id || row.unit_version === undefined) return undefined;
+          return {
+            availabilityVersionId: row.availability_version_id,
+            unitVersion: row.unit_version,
+          };
         } catch (error) {
           translateWriteError(error);
         }
@@ -398,8 +414,14 @@ export function createPostgresRentalInventoryCommandGateway(
         ]);
         try {
           const result = await session.query(
-            "select app.archive_rental_unit($1, $2, $3, $4) as archived",
-            [command.unitId, command.reason, command.correlationId, command.source],
+            "select app.archive_rental_unit($1, $2, $3, $4, $5) as archived",
+            [
+              command.unitId,
+              command.reason,
+              command.expectedVersion,
+              command.correlationId,
+              command.source,
+            ],
           );
           return (result.rows[0] as { archived?: boolean } | undefined)?.archived === true;
         } catch (error) {
@@ -416,10 +438,11 @@ export function createPostgresRentalInventoryCommandGateway(
         ]);
         try {
           const result = await session.query(
-            "select app.archive_rental_property($1, $2, $3, $4) as archived",
+            "select app.archive_rental_property($1, $2, $3, $4, $5) as archived",
             [
               command.propertyId,
               command.reason,
+              command.expectedVersion,
               command.correlationId,
               command.source,
             ],
