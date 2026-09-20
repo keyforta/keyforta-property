@@ -36,6 +36,9 @@ in this repository.
 8. For AI behavior, update the evaluation set and safe-fallback test.
 9. Run `pnpm verify`; required GitHub CI checks must pass before merge.
 10. Update documentation in the same pull request.
+11. When opening the pull request, request a GitHub Copilot code review on it
+    in addition to any human reviewers. Do this for every PR an agent opens,
+    without needing to be asked.
 
 Every pull request must show four things, in this order, in its description:
 **before (broken) evidence → failing test (red) → after (working) evidence →
