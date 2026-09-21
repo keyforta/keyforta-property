@@ -299,6 +299,50 @@ describe('Portal', () => {
     expect(screen.getByText('Unit 2A')).toBeInTheDocument();
   });
 
+  it('surfaces an explicit error state (not an empty portfolio) when the property feed request fails, and retries on demand (issue #116)', async () => {
+    mocks.authState.current = { status: 'signed-in', account: { name: 'Jean B.', username: 'jean@example.com', email: 'jean@example.com' } };
+    membershipListMock.mockResolvedValue({
+      data: [{ organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', role: 'landlord' }],
+      meta: { requestId: 'req-landlord-membership-2' },
+    });
+    rentalPropertiesGetMock.mockRejectedValueOnce(new Error('feed unavailable'));
+
+    renderPortal();
+
+    await waitFor(() => expect(rentalPropertiesGetMock).toHaveBeenCalledWith('properties', 'mine'));
+    expect(await screen.findByText(/couldn't load your properties/i)).toBeInTheDocument();
+    expect(screen.queryByText('Riverside Apartments')).not.toBeInTheDocument();
+
+    rentalPropertiesGetMock.mockResolvedValueOnce({
+      items: [{
+        id: 'b1e6f8b0-2f5f-4c2a-9d3b-6b9a2b4f0d11',
+        name: 'Riverside Apartments',
+        propertyType: 'apartment_building',
+        address: {
+          avenueOrStreet: 'Avenue de la Paix',
+          number: '12',
+          quartier: 'Gombe',
+          commune: 'Gombe',
+          city: 'Kinshasa',
+          province: 'Kinshasa',
+          countryCode: 'CD',
+        },
+        timeZone: 'Africa/Kinshasa',
+        jurisdictionCode: null,
+        verificationStatus: 'not_started',
+        publicationStatus: 'draft',
+        version: 1,
+        archivedAt: null,
+        units: [],
+      }],
+      meta: { requestId: 'req-properties-retry' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+    expect(await screen.findByText('Riverside Apartments')).toBeInTheDocument();
+    expect(screen.queryByText(/couldn't load your properties/i)).not.toBeInTheDocument();
+  });
+
   it('keeps showing the pending-access state for a signed-in identity with an empty membership lookup', async () => {
     mocks.authState.current = { status: 'signed-in', account: { name: 'Amina K.', username: 'amina@example.com' } };
     membershipListMock.mockResolvedValue({ data: [], meta: { requestId: 'req-3' } });
