@@ -9,10 +9,11 @@ vi.mock('@keyforta/ui', () => ({
 }));
 
 const create = vi.hoisted(() => vi.fn());
+const update = vi.hoisted(() => vi.fn());
 const createApiClientOptions = vi.hoisted(() => []);
 const createApiClientMock = vi.hoisted(() => vi.fn((options) => {
   createApiClientOptions.push(options);
-  return { create };
+  return { create, update };
 }));
 vi.mock('@keyforta/api-client', () => ({
   createApiClient: createApiClientMock,
@@ -92,6 +93,7 @@ function fillCreatePropertyForm() {
 describe('PropertyManagementPanel', () => {
   beforeEach(() => {
     create.mockReset();
+    update.mockReset();
     createApiClientMock.mockClear();
     createApiClientOptions.length = 0;
     i18n.changeLanguage('en');
@@ -187,6 +189,69 @@ describe('PropertyManagementPanel', () => {
     renderPanel({ feedError: new Error('boom'), onRetryFeed });
     expect(screen.getByText(/couldn't load your properties/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRetryFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets pricing for an existing unit once the actor signs in (issue #116)', async () => {
+    update.mockResolvedValueOnce({
+      data: { pricingVersionId: 'f1a2b3c4-5d6e-4f70-8a1b-2c3d4e5f6a71', unitVersion: 2 },
+      meta: { requestId: 'req-3' },
+    });
+    const onRetryFeed = vi.fn();
+    renderPanel({ onRetryFeed });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Monthly rent amount*'), { target: { value: '400.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing' }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith(
+      `units/${properties[0].units[0].id}`,
+      'pricing',
+      expect.objectContaining({ amountMinor: 40050, currency: 'CDF', expectedVersion: 1 }),
+    ));
+    expect(await screen.findByText('Pricing updated successfully.')).toBeInTheDocument();
+    expect(onRetryFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a reason code before marking a unit unavailable (issue #116)', async () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Availability status'), { target: { value: 'unavailable' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update availability' }));
+
+    expect(await screen.findByText('A reason is required when marking a unit unavailable.')).toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('sets availability for an existing unit once the actor signs in (issue #116)', async () => {
+    update.mockResolvedValueOnce({
+      data: { availabilityVersionId: 'a9b8c7d6-5e4f-4a3b-9c2d-1e0f9a8b7c65', unitVersion: 2 },
+      meta: { requestId: 'req-4' },
+    });
+    const onRetryFeed = vi.fn();
+    renderPanel({ onRetryFeed });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Availability status'), { target: { value: 'unavailable' } });
+    fireEvent.change(screen.getByLabelText('Reason*'), { target: { value: 'Undergoing renovation' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update availability' }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith(
+      `units/${properties[0].units[0].id}`,
+      'availability',
+      expect.objectContaining({ status: 'unavailable', reasonCode: 'Undergoing renovation', expectedVersion: 1 }),
+    ));
+    expect(await screen.findByText('Availability updated successfully.')).toBeInTheDocument();
     expect(onRetryFeed).toHaveBeenCalledTimes(1);
   });
 
