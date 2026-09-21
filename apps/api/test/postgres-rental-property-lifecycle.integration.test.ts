@@ -9,6 +9,7 @@ import {
   RentalInventoryConflictError,
   RentalInventoryNotFoundError,
 } from "../src/properties/inventory-command-gateway.js";
+import { createPostgresPublicListingPublicationGateway } from "../src/properties/publication-gateway.js";
 import { ensureTestRuntimeRole } from "./support/ensure-test-runtime-role.js";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -86,6 +87,10 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
   });
 
   const gateway = () => createPostgresRentalInventoryCommandGateway(
+    createRuntimeDatabaseClient(runtimePool),
+  );
+
+  const publicationGateway = () => createPostgresPublicListingPublicationGateway(
     createRuntimeDatabaseClient(runtimePool),
   );
 
@@ -882,6 +887,71 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     expect(unassignedManagerView.map((property) => property.id)).not.toContain(
       managerAssigned!.propertyId,
     );
+  });
+
+  it("scopes the public-listing portfolio feed to the actor's own manageable listings (issue #114)", async () => {
+    const created = await gateway().createRentalProperty({
+      address,
+      correlationId: "corr-listing-feed-create",
+      firstUnit: { ...firstUnit, label: "Listing Feed Unit" },
+      idempotencyKey: "idem-listing-feed-create",
+      name: "Synthetic Listing Feed Property",
+      organizationId: organizationA,
+      propertyType: "single_family",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    expect(created?.propertyId).toBeTruthy();
+    expect(created?.unitId).toBeTruthy();
+
+    // No `create public listing` command exists yet (REQ-035/PROP-019 gate
+    // new listing creation until media activation is approved); this is a
+    // pre-launch synthetic fixture row, the same kind #114 describes as the
+    // only listings that exist today.
+    const listing = await client.query(
+      `insert into app.public_listings (organization_id, property_id, unit_id, status)
+       values ($1, $2, $3, 'draft')
+       returning id`,
+      [organizationA, created!.propertyId, created!.unitId],
+    );
+    const listingId = listing.rows[0].id as string;
+
+    await client.query(
+      `insert into app.manager_property_assignments (
+        organization_id, property_id, manager_user_id, assigned_by_user_id
+      ) select $1, $2, u.id, l.id
+        from app.users u, app.users l
+        where u.external_subject = $3 and l.external_subject = $4`,
+      [organizationA, created!.propertyId, assignedManagerSubject, landlordSubject],
+    );
+
+    const landlordFeed = await publicationGateway().listForActor({
+      correlationId: "corr-listing-feed-landlord",
+      organizationId: organizationA,
+      subject: landlordSubject,
+    });
+    expect(landlordFeed.map((item) => item.id)).toContain(listingId);
+
+    const assignedManagerFeed = await publicationGateway().listForActor({
+      correlationId: "corr-listing-feed-assigned-manager",
+      organizationId: organizationA,
+      subject: assignedManagerSubject,
+    });
+    expect(assignedManagerFeed.map((item) => item.id)).toContain(listingId);
+
+    const unassignedManagerFeed = await publicationGateway().listForActor({
+      correlationId: "corr-listing-feed-unassigned-manager",
+      organizationId: organizationA,
+      subject: unassignedManagerSubject,
+    });
+    expect(unassignedManagerFeed.map((item) => item.id)).not.toContain(listingId);
+
+    await expect(publicationGateway().listForActor({
+      correlationId: "corr-listing-feed-cross-org",
+      organizationId: organizationA,
+      subject: crossOrgSubject,
+    })).rejects.toThrow(RentalInventoryAuthorizationError);
   });
 
   it("never leaves zero active Units when two sibling Units are archived concurrently", async () => {

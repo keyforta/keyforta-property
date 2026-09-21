@@ -113,6 +113,7 @@ describe("KEYFORTA API runtime", () => {
       "/properties/{propertyId}",
       "/properties/{propertyId}/units",
       "/properties/{propertyId}/verification-status",
+      "/public-listings/mine",
       "/public-listings/{listingId}/publish",
       "/public-listings/{listingId}/withdraw",
       "/session/memberships",
@@ -552,6 +553,7 @@ describe("protected public listing publication", () => {
       },
       commands,
       publicListingPublication: {
+        async listForActor() { return []; },
         async setPublication(command: Parameters<PublicListingPublicationGateway["setPublication"]>[0]) {
           commands.push(command);
           return changed;

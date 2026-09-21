@@ -13,6 +13,7 @@ import './i18n.js';
 import './styles.css';
 import { ListingPublicationPanel } from './listing-publication-panel.jsx';
 import { useMembership } from './hooks/use-membership.js';
+import { useManagerListings } from './hooks/use-manager-listings.js';
 
 // Real Microsoft Entra B2B guest sign-in (issue #77 decision), mirroring
 // admin-web's working pattern. Falls back to an 'unavailable' status when
@@ -119,10 +120,10 @@ export function Portal() {
   const [session, setSession] = useState(readSession);
   const [active, setActive] = useState('overview');
   const [completedAction, setCompletedAction] = useState('');
-  const [managerListings] = useState([]);
   const auth = useSyncExternalStore(portalAuth.subscribe, portalAuth.getSnapshot, portalAuth.getSnapshot);
   useEffect(() => { portalAuth.initialize(); }, []);
   const membership = useMembership(auth, portalAuth);
+  const { listings: managerListings } = useManagerListings(session);
 
   // Once a real Entra sign-in resolves to at least one active membership,
   // build a real (non-demo) session for the first matching organization.
