@@ -1,11 +1,50 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Client, type Pool } from "pg";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import {
   assertRuntimeDatabaseReady,
   createDatabasePool,
   createRuntimeDatabaseClient,
 } from "../src/database.js";
+
+const migrationPath = fileURLToPath(
+  new URL(
+    "../../../infra/postgres/migrations/0028_rental_property_and_unit_commands.sql",
+    import.meta.url,
+  ),
+);
+const databaseSourcePath = fileURLToPath(new URL("../src/database.ts", import.meta.url));
+
+function extractCreateRentalPropertyParameterTypes(): string[] {
+  const migration = readFileSync(migrationPath, "utf8");
+  const match = migration.match(
+    /create function app\.create_rental_property\(([\s\S]*?)\)\s*returns/,
+  );
+  if (!match) {
+    throw new Error(
+      "Could not locate the app.create_rental_property declaration in migration 0028.",
+    );
+  }
+  return (match[1] ?? "")
+    .split(",")
+    .map((parameter) => parameter.trim().split(/\s+/).pop())
+    .filter((type): type is string => Boolean(type));
+}
+
+function extractFallbackSignatureParameterTypes(): string[] {
+  const source = readFileSync(databaseSourcePath, "utf8");
+  const match = source.match(
+    /to_regprocedure\('app\.create_rental_property\(([^)]*)\)'\)/,
+  );
+  if (!match) {
+    throw new Error(
+      "Could not locate the create_rental_property readiness fallback in database.ts.",
+    );
+  }
+  return (match[1] ?? "").split(",").filter(Boolean);
+}
 
 describe("assertRuntimeDatabaseReady", () => {
   it("accepts only the current runtime schema marker", async () => {
@@ -22,6 +61,28 @@ describe("assertRuntimeDatabaseReady", () => {
 
     await expect(assertRuntimeDatabaseReady({ query })).rejects.toThrow(
       "The runtime database schema is not ready.",
+    );
+  });
+
+  it("falls back to a matching create_rental_property signature when the readiness marker is unavailable", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ ready: false }] })
+      .mockResolvedValueOnce({ rows: [{ ready: true }] });
+
+    await expect(assertRuntimeDatabaseReady({ query })).resolves.toBeUndefined();
+  });
+
+  it("keeps the readiness fallback signature in sync with app.create_rental_property", () => {
+    // Regression test: the fallback string previously dropped the trailing
+    // `requested_source text` parameter, so during a rolling/partially
+    // upgraded deployment (where runtime_schema_v0028_ready() is not yet
+    // available) the fallback would report the schema as not ready even
+    // though app.create_rental_property already existed, blocking API
+    // startup. This asserts the fallback's parameter list always matches
+    // the migration's declared signature exactly.
+    expect(extractFallbackSignatureParameterTypes()).toEqual(
+      extractCreateRentalPropertyParameterTypes(),
     );
   });
 });

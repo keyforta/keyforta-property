@@ -34,7 +34,7 @@ export async function assertRuntimeDatabaseReady(
   );
   if ((result.rows[0] as { ready?: unknown } | undefined)?.ready !== true) {
     const fallback = await database.query(
-      "select to_regprocedure('app.create_rental_property(text,text,jsonb,text,text,text,text,text,smallint,smallint,integer,text,text,text,text)') is not null as ready",
+      "select to_regprocedure('app.create_rental_property(text,text,jsonb,text,text,text,text,text,smallint,smallint,integer,text,text,text,text,text)') is not null as ready",
     );
     if ((fallback.rows[0] as { ready?: unknown } | undefined)?.ready === true) {
       return;
