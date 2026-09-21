@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { applyMigration, applyMigrations } from "../src/migrate.js";
 import { createRuntimeDatabaseClient } from "../src/database.js";
 import { createPostgresInventoryGateway } from "../src/properties/inventory-gateway.js";
+import { ensureTestRuntimeRole } from "./support/ensure-test-runtime-role.js";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 const describePostgres = testDatabaseUrl ? describe : describe.skip;
@@ -29,18 +30,8 @@ describePostgres("PostgreSQL public discovery integration", () => {
     await adminPool.query(`create database ${databaseName}`);
     client = await pool.connect();
     await applyMigrations(client);
+    await ensureTestRuntimeRole(client);
     await client.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'keyforta_test_runtime') then
-          create role keyforta_test_runtime login password 'synthetic-test-runtime-password'
-            nosuperuser nocreatedb nocreaterole noinherit;
-        end if;
-      end
-      $$;
-      alter role keyforta_test_runtime login password 'synthetic-test-runtime-password' noinherit;
-      grant keyforta_runtime to keyforta_test_runtime;
-
       insert into app.organizations (id, name) values
         ('00000000-0000-4000-8000-000000000900', 'Synthetic organization A'),
         ('00000000-0000-4000-8000-000000000901', 'Synthetic organization B');

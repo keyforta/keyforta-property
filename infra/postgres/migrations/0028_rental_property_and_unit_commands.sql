@@ -437,10 +437,23 @@ begin
     raise exception 'trusted request context is required';
   end if;
 
-  -- Idempotency-key replay (PROP-014): resolved before the expected-version
-  -- guard below, so a retry of an already-applied mutation returns the
-  -- original result instead of being rejected as a stale-version conflict
-  -- once the Unit's version has advanced.
+  select * into unit_record
+  from app.units
+  where organization_id = organization and id = requested_unit_id
+  for update;
+
+  if not found or unit_record.archived_at is not null then
+    raise exception 'the requested Unit was not found' using errcode = 'P0002';
+  end if;
+
+  if not app.actor_can_manage_property(organization, unit_record.property_id, actor) then
+    raise exception 'the actor is not authorized to manage this Unit' using errcode = '42501';
+  end if;
+
+  -- Idempotency-key replay (PROP-014): resolved only after the current
+  -- actor's authorization is confirmed above, so a caller whose membership
+  -- or property assignment has since been revoked cannot replay a cached
+  -- result they are no longer authorized to see.
   payload := jsonb_build_object(
     'unitId', requested_unit_id, 'amountMinor', requested_amount_minor,
     'currency', requested_currency, 'effectiveFrom', requested_effective_from,
@@ -456,19 +469,6 @@ begin
     unit_version := (replay.replay_result ->> 'unitVersion')::integer;
     return next;
     return;
-  end if;
-
-  select * into unit_record
-  from app.units
-  where organization_id = organization and id = requested_unit_id
-  for update;
-
-  if not found or unit_record.archived_at is not null then
-    raise exception 'the requested Unit was not found' using errcode = 'P0002';
-  end if;
-
-  if not app.actor_can_manage_property(organization, unit_record.property_id, actor) then
-    raise exception 'the actor is not authorized to manage this Unit' using errcode = '42501';
   end if;
 
   if unit_record.version <> requested_expected_version then
@@ -539,8 +539,21 @@ begin
     raise exception 'trusted request context is required';
   end if;
 
-  -- Idempotency-key replay (PROP-014): see set_unit_pricing above for the
-  -- rationale for resolving before the expected-version guard.
+  select * into unit_record
+  from app.units
+  where organization_id = organization and id = requested_unit_id
+  for update;
+
+  if not found or unit_record.archived_at is not null then
+    raise exception 'the requested Unit was not found' using errcode = 'P0002';
+  end if;
+
+  if not app.actor_can_manage_property(organization, unit_record.property_id, actor) then
+    raise exception 'the actor is not authorized to manage this Unit' using errcode = '42501';
+  end if;
+
+  -- Idempotency-key replay (PROP-014): resolved only after the current
+  -- actor's authorization is confirmed above (see set_unit_pricing).
   payload := jsonb_build_object(
     'unitId', requested_unit_id, 'status', requested_status,
     'reasonCode', requested_reason_code, 'effectiveFrom', requested_effective_from,
@@ -556,19 +569,6 @@ begin
     unit_version := (replay.replay_result ->> 'unitVersion')::integer;
     return next;
     return;
-  end if;
-
-  select * into unit_record
-  from app.units
-  where organization_id = organization and id = requested_unit_id
-  for update;
-
-  if not found or unit_record.archived_at is not null then
-    raise exception 'the requested Unit was not found' using errcode = 'P0002';
-  end if;
-
-  if not app.actor_can_manage_property(organization, unit_record.property_id, actor) then
-    raise exception 'the actor is not authorized to manage this Unit' using errcode = '42501';
   end if;
 
   if unit_record.version <> requested_expected_version then
@@ -647,10 +647,26 @@ begin
     raise exception 'trusted request context is required';
   end if;
 
-  -- Idempotency-key replay (PROP-014): resolved before the Unit lookup
-  -- below, because after a successful archive the Unit is treated as
-  -- not-found (archived_at is not null); without this, a retry would raise
-  -- P0002 instead of returning the original true/false result.
+  -- Look up the Unit regardless of archived state (archived rows are not
+  -- deleted) so both the not-found check and the authorization check below
+  -- can run before any idempotency-key replay is honored.
+  select * into unit_record
+  from app.units
+  where organization_id = organization and id = requested_unit_id
+  for update;
+
+  if not found then
+    raise exception 'the requested Unit was not found' using errcode = 'P0002';
+  end if;
+
+  if not app.actor_can_manage_property(organization, unit_record.property_id, actor) then
+    raise exception 'the actor is not authorized to manage this Unit' using errcode = '42501';
+  end if;
+
+  -- Idempotency-key replay (PROP-014): resolved only after the current
+  -- actor's authorization is confirmed above, so a caller whose membership
+  -- or property assignment has since been revoked cannot replay a cached
+  -- archive result they are no longer authorized to see.
   payload := jsonb_build_object(
     'unitId', requested_unit_id, 'reason', requested_reason,
     'expectedVersion', requested_expected_version
@@ -664,17 +680,10 @@ begin
     return (replay.replay_result ->> 'archived')::boolean;
   end if;
 
-  select * into unit_record
-  from app.units
-  where organization_id = organization and id = requested_unit_id
-  for update;
-
-  if not found or unit_record.archived_at is not null then
+  -- Not a replay: a Unit already archived by a different (non-matching)
+  -- request is not-found for a fresh archive attempt.
+  if unit_record.archived_at is not null then
     raise exception 'the requested Unit was not found' using errcode = 'P0002';
-  end if;
-
-  if not app.actor_can_manage_property(organization, unit_record.property_id, actor) then
-    raise exception 'the actor is not authorized to manage this Unit' using errcode = '42501';
   end if;
 
   if unit_record.version <> requested_expected_version then
@@ -697,6 +706,12 @@ begin
     and archived_at is null;
 
   if active_unit_count <= 1 then
+    archived := false;
+  elsif unit_record.availability_status = 'occupied' then
+    -- REQ-036/PROP-016: guard the authoritative occupancy state directly,
+    -- not only the presence of a non-archived lease row, since occupancy
+    -- can be recorded independently of (or become stale relative to) the
+    -- leases table.
     archived := false;
   else
     select count(*) into blocking_lease_count
@@ -769,6 +784,7 @@ declare
   correlation text := coalesce(requested_correlation_id, nullif(current_setting('app.correlation_id', true), ''));
   property_record app.properties%rowtype;
   blocking_lease_count integer;
+  occupied_unit_count integer;
   unit_row app.units%rowtype;
   payload jsonb;
   replay record;
@@ -778,10 +794,26 @@ begin
     raise exception 'trusted request context is required';
   end if;
 
-  -- Idempotency-key replay (PROP-014): resolved before the Property lookup
-  -- below, because after a successful archive the Property is treated as
-  -- not-found (archived_at is not null); without this, a retry would raise
-  -- P0002 instead of returning the original true/false result.
+  -- Look up the Property regardless of archived state (archived rows are
+  -- not deleted) so both the not-found check and the authorization check
+  -- below can run before any idempotency-key replay is honored.
+  select * into property_record
+  from app.properties
+  where organization_id = organization and id = requested_property_id
+  for update;
+
+  if not found then
+    raise exception 'the requested Property was not found' using errcode = 'P0002';
+  end if;
+
+  if not app.actor_can_manage_property(organization, requested_property_id, actor) then
+    raise exception 'the actor is not authorized to manage this Property' using errcode = '42501';
+  end if;
+
+  -- Idempotency-key replay (PROP-014): resolved only after the current
+  -- actor's authorization is confirmed above, so a caller whose membership
+  -- or property assignment has since been revoked cannot replay a cached
+  -- archive result they are no longer authorized to see.
   payload := jsonb_build_object(
     'propertyId', requested_property_id, 'reason', requested_reason,
     'expectedVersion', requested_expected_version
@@ -795,17 +827,10 @@ begin
     return (replay.replay_result ->> 'archived')::boolean;
   end if;
 
-  select * into property_record
-  from app.properties
-  where organization_id = organization and id = requested_property_id
-  for update;
-
-  if not found or property_record.archived_at is not null then
+  -- Not a replay: a Property already archived by a different (non-matching)
+  -- request is not-found for a fresh archive attempt.
+  if property_record.archived_at is not null then
     raise exception 'the requested Property was not found' using errcode = 'P0002';
-  end if;
-
-  if not app.actor_can_manage_property(organization, requested_property_id, actor) then
-    raise exception 'the actor is not authorized to manage this Property' using errcode = '42501';
   end if;
 
   if property_record.version <> requested_expected_version then
@@ -829,7 +854,16 @@ begin
   where unit.organization_id = organization and unit.property_id = requested_property_id
     and lease.archived_at is null;
 
-  if blocking_lease_count > 0 then
+  -- REQ-036/PROP-016: guard the authoritative occupancy state directly, not
+  -- only the presence of a non-archived lease row (see archive_rental_unit).
+  select count(*) into occupied_unit_count
+  from app.units
+  where organization_id = organization
+    and property_id = requested_property_id
+    and archived_at is null
+    and availability_status = 'occupied';
+
+  if blocking_lease_count > 0 or occupied_unit_count > 0 then
     archived := false;
   else
     update app.public_listings

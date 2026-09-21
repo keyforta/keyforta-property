@@ -9,6 +9,7 @@ import {
   RentalInventoryConflictError,
   RentalInventoryNotFoundError,
 } from "../src/properties/inventory-command-gateway.js";
+import { ensureTestRuntimeRole } from "./support/ensure-test-runtime-role.js";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 const describePostgres = testDatabaseUrl ? describe : describe.skip;
@@ -40,24 +41,22 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     runtimeDatabaseUrl.password = "synthetic-test-runtime-password";
   }
   const runtimePool = new Pool({ connectionString: runtimeDatabaseUrl?.toString() });
+  // This suite races several concurrent sessions against `pool`/`runtimePool`
+  // (see the "never leaves ..." tests below). `drop database ... with
+  // (force)` in afterAll can terminate a backend a fraction of a second
+  // after `pool.end()`/`runtimePool.end()` already began closing it,
+  // otherwise surfacing as an unhandled client "error" event that crashes
+  // the whole test run instead of being scoped to this file's teardown.
+  pool.on("error", () => {});
+  runtimePool.on("error", () => {});
   let client: PoolClient;
 
   beforeAll(async () => {
     await adminPool.query(`create database ${databaseName}`);
     client = await pool.connect();
     await applyMigrations(client);
+    await ensureTestRuntimeRole(client);
     await client.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'keyforta_test_runtime') then
-          create role keyforta_test_runtime login password 'synthetic-test-runtime-password'
-            nosuperuser nocreatedb nocreaterole noinherit;
-        end if;
-      end
-      $$;
-      alter role keyforta_test_runtime login password 'synthetic-test-runtime-password' noinherit;
-      grant keyforta_runtime to keyforta_test_runtime;
-
       insert into app.organizations (id, name) values
         ('${organizationA}', 'Synthetic rental org A'),
         ('${organizationB}', 'Synthetic rental org B');
@@ -445,6 +444,144 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
          and user_id = (select id from app.users where external_subject = $2)`,
       [organizationA, assignedManagerSubject],
     );
+  });
+
+  it("denies replaying a cached mutation after the actor's authorization has been revoked", async () => {
+    const propertyGateway = gateway();
+    const created = await propertyGateway.createRentalProperty({
+      address,
+      correlationId: "corr-revoked-replay-create",
+      firstUnit,
+      idempotencyKey: "idem-revoked-replay-create",
+      name: "Synthetic Revoked Replay Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    const propertyId = created?.propertyId;
+    expect(propertyId).toBeTruthy();
+    if (!propertyId) throw new Error("expected a created Property");
+
+    await client.query(
+      `insert into app.manager_property_assignments (
+        organization_id, property_id, manager_user_id, assigned_by_user_id
+      ) select $1, $2, u.id, l.id
+        from app.users u, app.users l
+        where u.external_subject = $3 and l.external_subject = $4`,
+      [organizationA, propertyId, assignedManagerSubject, landlordSubject],
+    );
+
+    const pricingCommand = {
+      amountMinor: 210_000,
+      correlationId: "corr-revoked-replay-pricing",
+      idempotencyKey: "idem-revoked-replay-pricing",
+      currency: "USD",
+      effectiveFrom: new Date().toISOString(),
+      expectedVersion: created!.unitVersion,
+      organizationId: organizationA,
+      source: "test",
+      subject: assignedManagerSubject,
+      unitId: created!.unitId,
+    };
+    const firstPricing = await propertyGateway.setUnitPricing(pricingCommand);
+    expect(firstPricing?.pricingVersionId).toBeTruthy();
+
+    // Revoke only the manager's assignment to this specific Property after
+    // the mutation has already succeeded and been recorded for
+    // idempotency-key replay. The manager's membership stays active (and
+    // `app.resolve_actor` keeps succeeding for them), so this isolates the
+    // per-Property authorization check inside `set_unit_pricing` itself
+    // rather than the outer actor-resolution gate.
+    await client.query(
+      `update app.manager_property_assignments set revoked_at = now()
+       where organization_id = $1 and property_id = $2
+         and manager_user_id = (select id from app.users where external_subject = $3)`,
+      [organizationA, propertyId, assignedManagerSubject],
+    );
+
+    // Replaying the exact same idempotency key and payload must still be
+    // authorized against the actor's *current* standing: a manager whose
+    // property assignment has been revoked cannot resurrect a cached
+    // result they are no longer authorized to see.
+    await expect(propertyGateway.setUnitPricing({
+      ...pricingCommand,
+      correlationId: "corr-revoked-replay-pricing-attempt",
+    })).rejects.toThrow(RentalInventoryAuthorizationError);
+
+    // Re-assign so it doesn't affect other tests sharing this database.
+    await client.query(
+      `update app.manager_property_assignments set revoked_at = null
+       where organization_id = $1 and property_id = $2
+         and manager_user_id = (select id from app.users where external_subject = $3)`,
+      [organizationA, propertyId, assignedManagerSubject],
+    );
+  });
+
+  it("blocks archiving a Unit or Property whose recorded occupancy state is occupied even without a matching non-archived lease", async () => {
+    const propertyGateway = gateway();
+    const created = await propertyGateway.createRentalProperty({
+      address,
+      correlationId: "corr-occupied-guard-create",
+      firstUnit,
+      idempotencyKey: "idem-occupied-guard-create",
+      name: "Synthetic Occupied Guard Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    const propertyId = created?.propertyId;
+    expect(propertyId).toBeTruthy();
+    if (!propertyId) throw new Error("expected a created Property");
+    if (!created?.unitId) throw new Error("expected a created Unit");
+
+    const secondUnit = await propertyGateway.addRentalUnit({
+      correlationId: "corr-occupied-guard-second-unit",
+      idempotencyKey: "idem-occupied-guard-second-unit",
+      organizationId: organizationA,
+      propertyId,
+      source: "test",
+      subject: landlordSubject,
+      unit: { ...firstUnit, label: "Occupied Guard Second Unit" },
+    });
+    expect(secondUnit?.unitId).toBeTruthy();
+    if (!secondUnit?.unitId) throw new Error("expected a second created Unit");
+
+    // Simulate an occupancy state recorded independently of (or left stale
+    // relative to) the leases table, by setting the Unit's authoritative
+    // availability_status directly: no lease row exists for either Unit.
+    await client.query(
+      `update app.units set availability_status = 'occupied'
+       where organization_id = $1 and id = $2`,
+      [organizationA, secondUnit.unitId],
+    );
+
+    const unitArchiveAttempt = await propertyGateway.archiveRentalUnit({
+      correlationId: "corr-occupied-guard-unit-archive",
+      idempotencyKey: "idem-occupied-guard-unit-archive",
+      expectedVersion: secondUnit.unitVersion,
+      organizationId: organizationA,
+      reason: "attempting to archive an occupied unit",
+      source: "test",
+      subject: landlordSubject,
+      unitId: secondUnit.unitId,
+    });
+    expect(unitArchiveAttempt).toBe(false);
+
+    const propertyArchiveAttempt = await propertyGateway.archiveRentalProperty({
+      correlationId: "corr-occupied-guard-property-archive",
+      idempotencyKey: "idem-occupied-guard-property-archive",
+      expectedVersion: created.propertyVersion,
+      organizationId: organizationA,
+      propertyId,
+      reason: "attempting to archive a property with an occupied unit",
+      source: "test",
+      subject: landlordSubject,
+    });
+    expect(propertyArchiveAttempt).toBe(false);
   });
 
   it("archives a Property whose Unit has a future-dated availability interval without violating the half-open interval constraint", async () => {
