@@ -240,16 +240,6 @@ begin
     raise exception 'a PublicListing already exists for this Unit' using errcode = '23505';
   end if;
 
-  -- actor_can_manage_property authorizes an active landlord even without an
-  -- explicit manager_property_assignments row (unlike a manager, who must
-  -- already hold one to pass that check). Without also recording an
-  -- assignment here, app.list_public_listings_for_actor (which, like the
-  -- rest of the portfolio feed, is deliberately scoped to explicit
-  -- assignments per issue #114) would never surface the listing back to
-  -- that landlord. Self-assigning is a no-op (and harmless) when the actor
-  -- is a manager who is already assigned, or already self-assigned.
-  perform app.set_manager_property_assignment(unit_record.property_id, actor, true);
-
   perform app.validate_public_listing_media_payload(
     requested_title, requested_summary, requested_image_urls
   );
@@ -529,28 +519,48 @@ begin
     join app.units u
       on u.organization_id = l.organization_id and u.id = l.unit_id
     where l.organization_id = organization
-      and exists (
-        select 1
-        from app.manager_property_assignment_events as event
-        join app.memberships as membership
-          on membership.organization_id = event.organization_id
-         and membership.user_id = event.manager_user_id
-        join app.manager_property_assignments as assignment
-          on assignment.organization_id = event.organization_id
-         and assignment.property_id = event.property_id
-         and assignment.manager_user_id = event.manager_user_id
-         and assignment.assigned_at = event.occurred_at
-         and assignment.revoked_at is null
-        where event.organization_id = organization
-          and event.property_id = l.property_id
-          and event.manager_user_id = actor
-          and event.action = 'assigned'
-          and membership.role in ('landlord', 'manager')
-          and membership.active
-          and membership.effective_from <= transaction_timestamp()
-          and (membership.effective_to is null or transaction_timestamp() < membership.effective_to)
-        order by event.occurred_at desc, event.id desc
-        limit 1
+      and (
+        exists (
+          select 1
+          from app.manager_property_assignment_events as event
+          join app.memberships as membership
+            on membership.organization_id = event.organization_id
+           and membership.user_id = event.manager_user_id
+          join app.manager_property_assignments as assignment
+            on assignment.organization_id = event.organization_id
+           and assignment.property_id = event.property_id
+           and assignment.manager_user_id = event.manager_user_id
+           and assignment.assigned_at = event.occurred_at
+           and assignment.revoked_at is null
+          where event.organization_id = organization
+            and event.property_id = l.property_id
+            and event.manager_user_id = actor
+            and event.action = 'assigned'
+            and membership.role in ('landlord', 'manager')
+            and membership.active
+            and membership.effective_from <= transaction_timestamp()
+            and (membership.effective_to is null or transaction_timestamp() < membership.effective_to)
+          order by event.occurred_at desc, event.id desc
+          limit 1
+        )
+        or (
+          -- A landlord may create/edit a PublicListing on a property with no
+          -- manager_property_assignments row at all (actor_can_manage_property
+          -- authorizes an active landlord unconditionally). Without this
+          -- fallback such a listing would never appear in the landlord's own
+          -- feed. This does not affect issue #114's scoping: as soon as any
+          -- manager (including the landlord acting as a self-assigned
+          -- manager) is actively assigned to the property, only that
+          -- assignment (via the exists clause above) determines visibility.
+          app.actor_is_active_landlord(organization, actor)
+          and not exists (
+            select 1
+            from app.manager_property_assignments as assignment
+            where assignment.organization_id = organization
+              and assignment.property_id = l.property_id
+              and assignment.revoked_at is null
+          )
+        )
       )
   ) listings;
 

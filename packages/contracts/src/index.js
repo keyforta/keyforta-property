@@ -110,6 +110,14 @@ const boundedTextSchema = (maximum) => z.string().trim().min(1).max(maximum);
 // (app.validate_public_listing_media_payload); an http:// URL must fail
 // here with a 400 validation error rather than reach the SQL layer.
 const httpsImageUrlSchema = z.url({ protocol: /^https$/ }).max(2048);
+// PublicListing title/summary input must mirror the database check in
+// migration 0030 (app.validate_public_listing_media_payload), which
+// requires a title of 3-140 characters and a summary of 10-4000
+// characters; without matching minimums here, a too-short value would
+// pass this 400 validation layer and only fail later as a raw SQL
+// conflict.
+const publicListingTitleInputSchema = z.string().trim().min(3).max(140);
+const publicListingSummaryInputSchema = z.string().trim().min(10).max(4000);
 const timestampSchema = z.iso.datetime();
 const positiveVersionSchema = z.number().int().positive();
 const actorIdSchema = z.uuid();
@@ -612,8 +620,8 @@ export const publicListingListEnvelopeSchema = z.object({
 export const createPublicListingInputSchema = z.object({
 	idempotencyKey: boundedTextSchema(128),
 	imageUrls: z.array(httpsImageUrlSchema).min(1).max(10),
-	summary: boundedTextSchema(4000),
-	title: boundedTextSchema(140),
+	summary: publicListingSummaryInputSchema,
+	title: publicListingTitleInputSchema,
 }).strict();
 
 export const createPublicListingResultSchema = z.object({
@@ -628,8 +636,8 @@ export const createPublicListingEnvelopeSchema = envelopeSchema(createPublicList
 export const updatePublicListingDraftInputSchema = z.object({
 	expectedVersion: positiveVersionSchema,
 	imageUrls: z.array(httpsImageUrlSchema).min(1).max(10),
-	summary: boundedTextSchema(4000),
-	title: boundedTextSchema(140),
+	summary: publicListingSummaryInputSchema,
+	title: publicListingTitleInputSchema,
 }).strict();
 
 export const updatePublicListingDraftResultSchema = z.object({

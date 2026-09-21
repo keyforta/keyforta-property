@@ -91,6 +91,47 @@ test("REQ-037 publicListingSummarySchema and pendingPublicListingMediaReviewSche
   );
 });
 
+test("REQ-037 createPublicListingInputSchema and updatePublicListingDraftInputSchema require the same title/summary bounds as the database validator (3-140, 10-4000)", () => {
+  const createBase = {
+    idempotencyKey: "create-listing-1",
+    imageUrls: [validImageUrl],
+    summary: "A bright two-bedroom unit close to transit and shops.",
+    title: "Riverside apartment — Unit 2A",
+  };
+  assert.equal(
+    createPublicListingInputSchema.safeParse({ ...createBase, title: "AB" }).success,
+    false,
+  );
+  assert.equal(
+    createPublicListingInputSchema.safeParse({ ...createBase, title: "ABC" }).success,
+    true,
+  );
+  assert.equal(
+    createPublicListingInputSchema.safeParse({ ...createBase, summary: "123456789" }).success,
+    false,
+  );
+  assert.equal(
+    createPublicListingInputSchema.safeParse({ ...createBase, summary: "1234567890" }).success,
+    true,
+  );
+
+  const updateBase = {
+    expectedVersion: 1,
+    imageUrls: [validImageUrl],
+    summary: "A bright two-bedroom unit close to transit and shops.",
+    title: "Riverside apartment — Unit 2A",
+  };
+  assert.equal(
+    updatePublicListingDraftInputSchema.safeParse({ ...updateBase, title: "AB" }).success,
+    false,
+  );
+  assert.equal(
+    updatePublicListingDraftInputSchema.safeParse({ ...updateBase, summary: "123456789" })
+      .success,
+    false,
+  );
+});
+
 test("REQ-037 publicListingMediaReviewInputSchema requires reviewer notes to reject", () => {
   assert.equal(
     publicListingMediaReviewInputSchema.safeParse({ decision: "approved" }).success,

@@ -1016,6 +1016,68 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     })).rejects.toThrow(RentalInventoryAuthorizationError);
   });
 
+  it("surfaces a landlord's own listing in the portfolio feed even with no explicit manager_property_assignments row, without disturbing an unrelated assigned manager's feed", async () => {
+    // create_public_listing authorizes an active landlord unconditionally
+    // (app.actor_can_manage_property), unlike a manager who must already
+    // hold a manager_property_assignments row. Regression coverage for the
+    // Copilot review finding: the landlord must still see this listing in
+    // their own feed afterward, without list_public_listings_for_actor
+    // requiring (or create_public_listing silently creating) an assignment.
+    const unassignedProperty = await gateway().createRentalProperty({
+      address,
+      correlationId: "corr-listing-feed-unassigned-create",
+      firstUnit: { ...firstUnit, label: "Unassigned-Property Unit" },
+      idempotencyKey: "idem-listing-feed-unassigned-create",
+      name: "Synthetic Unassigned Listing Feed Property",
+      organizationId: organizationA,
+      propertyType: "single_family",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    expect(unassignedProperty?.propertyId).toBeTruthy();
+
+    const noAssignmentRow = await client.query(
+      "select count(*)::int as count from app.manager_property_assignments where organization_id = $1 and property_id = $2 and revoked_at is null",
+      [organizationA, unassignedProperty!.propertyId],
+    );
+    expect(noAssignmentRow.rows[0].count).toBe(0);
+
+    const listing = await gateway().createPublicListing({
+      correlationId: "corr-listing-feed-unassigned-listing",
+      idempotencyKey: "idem-listing-feed-unassigned-listing",
+      imageUrls: ["https://images.test/unassigned.jpg"],
+      organizationId: organizationA,
+      source: "test",
+      subject: landlordSubject,
+      summary: "A quiet unit awaiting its first manager assignment.",
+      title: "Unassigned-property listing",
+      unitId: unassignedProperty!.unitId,
+    });
+    expect(listing?.listingId).toBeTruthy();
+
+    // create_public_listing must not have created a side-effect assignment.
+    const stillNoAssignmentRow = await client.query(
+      "select count(*)::int as count from app.manager_property_assignments where organization_id = $1 and property_id = $2 and revoked_at is null",
+      [organizationA, unassignedProperty!.propertyId],
+    );
+    expect(stillNoAssignmentRow.rows[0].count).toBe(0);
+
+    const landlordFeed = await publicationGateway().listForActor({
+      correlationId: "corr-listing-feed-unassigned-landlord",
+      organizationId: organizationA,
+      subject: landlordSubject,
+    });
+    expect(landlordFeed.map((item) => item.id)).toContain(listing!.listingId);
+
+    const unassignedManagerFeed = await publicationGateway().listForActor({
+      correlationId: "corr-listing-feed-unassigned-manager-check",
+      organizationId: organizationA,
+      subject: unassignedManagerSubject,
+    });
+    expect(unassignedManagerFeed.map((item) => item.id)).not.toContain(listing!.listingId);
+  });
+
   it("keeps the portfolio feed within the wire-contract length bounds for maximum-length property/unit/address fields (issue #114)", async () => {
     // properties.name <= 160, units.label <= 80, address.commune/city <= 160
     // (migration 0022 check constraints). title = name + " — " (3) + label;
