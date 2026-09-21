@@ -1,0 +1,419 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Field, Input, Select, Spinner } from '@fluentui/react-components';
+import { useTranslation } from 'react-i18next';
+import i18n from './i18n.js';
+import { createApiClient } from '@keyforta/api-client';
+import {
+  furnishingStatuses,
+  propertyTypes,
+  rentalPropertyCreationEnvelopeSchema,
+  rentableUnitCreationEnvelopeSchema,
+  unitTypes,
+} from '@keyforta/contracts';
+import { resolveApiBaseUrl } from './listing-publication-panel.jsx';
+
+const emptyPropertyForm = {
+  name: '',
+  propertyType: propertyTypes[0],
+  avenueOrStreet: '',
+  number: '',
+  quartier: '',
+  commune: '',
+  city: '',
+  province: '',
+  countryCode: '',
+  postalCode: '',
+  timeZone: '',
+  jurisdictionCode: '',
+  unitLabel: '',
+  unitType: unitTypes[0],
+  bedrooms: '0',
+  bathrooms: '1',
+  furnishingStatus: furnishingStatuses[0],
+};
+
+const emptyUnitForm = {
+  label: '',
+  unitType: unitTypes[0],
+  bedrooms: '0',
+  bathrooms: '1',
+  furnishingStatus: furnishingStatuses[0],
+};
+
+function generateIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `idempotency-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+async function resolveCommandAccessToken(session) {
+  if (!session?.getAccessToken) throw new Error(i18n.t('property_management.sign_in_first'));
+  return session.getAccessToken();
+}
+
+async function createPropertyManagementClient(session, accessToken) {
+  return createApiClient({
+    baseUrl: resolveApiBaseUrl().baseUrl,
+    getOrganizationId: () => session?.organizationId ?? null,
+    getToken: () => accessToken,
+  });
+}
+
+function CreatePropertyForm({ disabled, onSubmit, t }) {
+  const [form, setForm] = useState(emptyPropertyForm);
+  const [busy, setBusy] = useState(false);
+  const set = (field) => (_event, data) => setForm((current) => ({ ...current, [field]: data.value }));
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const submitted = await onSubmit(form);
+      if (submitted) setForm(emptyPropertyForm);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form aria-labelledby='create-property-title' className='property-form' onSubmit={handleSubmit}>
+      <h3 id='create-property-title'>{t('property_management.create_property_title')}</h3>
+      <Field label={t('property_management.field.name')} required>
+        <Input required value={form.name} onChange={set('name')} />
+      </Field>
+      <Field label={t('property_management.field.property_type')}>
+        <Select value={form.propertyType} onChange={set('propertyType')}>
+          {propertyTypes.map((option) => (
+            <option key={option} value={option}>{t(`property_management.property_type.${option}`)}</option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={t('property_management.field.avenue_or_street')} required>
+        <Input required value={form.avenueOrStreet} onChange={set('avenueOrStreet')} />
+      </Field>
+      <Field label={t('property_management.field.number')} required>
+        <Input required value={form.number} onChange={set('number')} />
+      </Field>
+      <Field label={t('property_management.field.quartier')} required>
+        <Input required value={form.quartier} onChange={set('quartier')} />
+      </Field>
+      <Field label={t('property_management.field.commune')} required>
+        <Input required value={form.commune} onChange={set('commune')} />
+      </Field>
+      <Field label={t('property_management.field.city')} required>
+        <Input required value={form.city} onChange={set('city')} />
+      </Field>
+      <Field label={t('property_management.field.province')} required>
+        <Input required value={form.province} onChange={set('province')} />
+      </Field>
+      <Field label={t('property_management.field.country_code')} required>
+        <Input maxLength={2} required value={form.countryCode} onChange={set('countryCode')} />
+      </Field>
+      <Field label={t('property_management.field.postal_code_optional')}>
+        <Input value={form.postalCode} onChange={set('postalCode')} />
+      </Field>
+      <Field label={t('property_management.field.time_zone')} required>
+        <Input placeholder='Africa/Kinshasa' required value={form.timeZone} onChange={set('timeZone')} />
+      </Field>
+      <Field label={t('property_management.field.jurisdiction_code_optional')}>
+        <Input value={form.jurisdictionCode} onChange={set('jurisdictionCode')} />
+      </Field>
+      <Field label={t('property_management.field.first_unit_label')} required>
+        <Input required value={form.unitLabel} onChange={set('unitLabel')} />
+      </Field>
+      <Field label={t('property_management.field.unit_type')}>
+        <Select value={form.unitType} onChange={set('unitType')}>
+          {unitTypes.map((option) => (
+            <option key={option} value={option}>{t(`property_management.unit_type.${option}`)}</option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={t('property_management.field.bedrooms')} required>
+        <Input min={0} required type='number' value={form.bedrooms} onChange={set('bedrooms')} />
+      </Field>
+      <Field label={t('property_management.field.bathrooms')} required>
+        <Input min={1} required type='number' value={form.bathrooms} onChange={set('bathrooms')} />
+      </Field>
+      <Field label={t('property_management.field.furnishing_status')}>
+        <Select value={form.furnishingStatus} onChange={set('furnishingStatus')}>
+          {furnishingStatuses.map((option) => (
+            <option key={option} value={option}>{t(`property_management.furnishing_status.${option}`)}</option>
+          ))}
+        </Select>
+      </Field>
+      <Button appearance='primary' disabled={disabled || busy} type='submit'>
+        {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.create_property_submit')}
+      </Button>
+    </form>
+  );
+}
+
+function AddUnitForm({ disabled, onSubmit, propertyId, t }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(emptyUnitForm);
+  const [busy, setBusy] = useState(false);
+  const set = (field) => (_event, data) => setForm((current) => ({ ...current, [field]: data.value }));
+
+  if (!open) {
+    return (
+      <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
+        {t('property_management.add_unit_toggle')}
+      </Button>
+    );
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const submitted = await onSubmit(propertyId, form);
+      if (submitted) {
+        setForm(emptyUnitForm);
+        setOpen(false);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form aria-label={t('property_management.add_unit_title')} className='unit-form' onSubmit={handleSubmit}>
+      <Field label={t('property_management.field.unit_label')} required>
+        <Input required value={form.label} onChange={set('label')} />
+      </Field>
+      <Field label={t('property_management.field.unit_type')}>
+        <Select value={form.unitType} onChange={set('unitType')}>
+          {unitTypes.map((option) => (
+            <option key={option} value={option}>{t(`property_management.unit_type.${option}`)}</option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={t('property_management.field.bedrooms')} required>
+        <Input min={0} required type='number' value={form.bedrooms} onChange={set('bedrooms')} />
+      </Field>
+      <Field label={t('property_management.field.bathrooms')} required>
+        <Input min={1} required type='number' value={form.bathrooms} onChange={set('bathrooms')} />
+      </Field>
+      <Field label={t('property_management.field.furnishing_status')}>
+        <Select value={form.furnishingStatus} onChange={set('furnishingStatus')}>
+          {furnishingStatuses.map((option) => (
+            <option key={option} value={option}>{t(`property_management.furnishing_status.${option}`)}</option>
+          ))}
+        </Select>
+      </Field>
+      <div className='unit-form-actions'>
+        <Button appearance='primary' disabled={busy} type='submit'>
+          {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.add_unit_submit')}
+        </Button>
+        <Button appearance='subtle' disabled={busy} onClick={() => setOpen(false)} type='button'>
+          {t('property_management.cancel')}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export function PropertyManagementPanel({
+  feedError,
+  feedLoading,
+  onRetryFeed,
+  properties,
+  session,
+}) {
+  const { t } = useTranslation();
+  const hasOrganizationContext = Boolean(session?.organizationId);
+  const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : !hasOrganizationContext ? 'organization-unavailable' : session?.getAccessToken ? 'sign-in-required' : 'unavailable');
+  const [message, setMessage] = useState('');
+  const [messageTone, setMessageTone] = useState('');
+  const apiConfig = useMemo(() => resolveApiBaseUrl(), []);
+
+  useEffect(() => {
+    if (session?.sessionMode === 'demo') {
+      setTokenStatus('demo');
+      return;
+    }
+    if (!session?.organizationId) {
+      setTokenStatus('organization-unavailable');
+      return;
+    }
+    if (!session?.getAccessToken) {
+      setTokenStatus('unavailable');
+      return;
+    }
+    setTokenStatus('sign-in-required');
+  }, [session]);
+
+  const enableLiveCommands = async () => {
+    if (!session?.getAccessToken || !session?.organizationId) return;
+    setMessage('');
+    setMessageTone('');
+    setTokenStatus('loading');
+    try {
+      let accessToken;
+      try {
+        accessToken = await resolveCommandAccessToken(session);
+      } catch (error) {
+        if (typeof session.signIn === 'function') {
+          await session.signIn();
+          accessToken = await resolveCommandAccessToken(session);
+        } else {
+          throw error;
+        }
+      }
+      if (!accessToken) {
+        setTokenStatus('sign-in-required');
+        return;
+      }
+      setTokenStatus('ready');
+    } catch (error) {
+      setTokenStatus('sign-in-required');
+      setMessage(error instanceof Error ? error.message : t('property_management.sign_in_error'));
+      setMessageTone('error');
+    }
+  };
+
+  const disableActions = tokenStatus !== 'ready';
+
+  const submitCreateProperty = async (form) => {
+    if (disableActions) return false;
+    setMessage('');
+    setMessageTone('');
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.create('properties', {
+        name: form.name,
+        propertyType: form.propertyType,
+        address: {
+          avenueOrStreet: form.avenueOrStreet,
+          number: form.number,
+          quartier: form.quartier,
+          commune: form.commune,
+          city: form.city,
+          province: form.province,
+          countryCode: form.countryCode.toUpperCase(),
+          ...(form.postalCode ? { postalCode: form.postalCode } : {}),
+        },
+        timeZone: form.timeZone,
+        jurisdictionCode: form.jurisdictionCode || null,
+        firstUnit: {
+          label: form.unitLabel,
+          unitType: form.unitType,
+          bedrooms: Number(form.bedrooms),
+          bathrooms: Number(form.bathrooms),
+          furnishingStatus: form.furnishingStatus,
+        },
+        idempotencyKey: generateIdempotencyKey(),
+      });
+      rentalPropertyCreationEnvelopeSchema.parse(payload);
+      setMessage(t('property_management.create_property_success'));
+      setMessageTone('success');
+      if (onRetryFeed) onRetryFeed();
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t('property_management.create_property_failed'));
+      setMessageTone('error');
+      return false;
+    }
+  };
+
+  const submitAddUnit = async (propertyId, form) => {
+    if (disableActions) return false;
+    setMessage('');
+    setMessageTone('');
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.create(`properties/${propertyId}/units`, {
+        label: form.label,
+        unitType: form.unitType,
+        bedrooms: Number(form.bedrooms),
+        bathrooms: Number(form.bathrooms),
+        furnishingStatus: form.furnishingStatus,
+        idempotencyKey: generateIdempotencyKey(),
+      });
+      rentableUnitCreationEnvelopeSchema.parse(payload);
+      setMessage(t('property_management.add_unit_success'));
+      setMessageTone('success');
+      if (onRetryFeed) onRetryFeed();
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t('property_management.add_unit_failed'));
+      setMessageTone('error');
+      return false;
+    }
+  };
+
+  return (
+    <section aria-labelledby='property-management-title' className='panel property-panel'>
+      <div className='panel-head'>
+        <div>
+          <p className='kicker'>{t('property_management.kicker')}</p>
+          <h2 id='property-management-title'>{t('property_management.title')}</h2>
+        </div>
+      </div>
+      {apiConfig.rejectedConfiguredValue ? (
+        <p className='publication-feedback' data-tone='error' role='alert'>
+          {t('property_management.rejected_base_url')}
+        </p>
+      ) : null}
+      {tokenStatus === 'loading' ? (
+        <p className='publication-feedback' data-tone='success' role='status'>{t('property_management.resolving_token')}</p>
+      ) : null}
+      {tokenStatus === 'demo' ? (
+        <p className='publication-feedback' data-tone='error' role='alert'>{t('property_management.demo_session')}</p>
+      ) : null}
+      {tokenStatus === 'organization-unavailable' ? (
+        <p className='publication-feedback' data-tone='error' role='alert'>{t('property_management.organization_unavailable')}</p>
+      ) : null}
+      {tokenStatus === 'sign-in-required' ? (
+        <div className='publication-feedback' data-tone='error' role='alert'>
+          <p>{t('property_management.sign_in_required')}</p>
+          <Button appearance='secondary' onClick={enableLiveCommands}>{t('property_management.sign_in_to_continue')}</Button>
+        </div>
+      ) : null}
+      {tokenStatus === 'unavailable' ? (
+        <p className='publication-feedback' data-tone='error' role='alert'>{t('property_management.unavailable')}</p>
+      ) : null}
+      {feedLoading ? (
+        <p className='publication-feedback' data-tone='success' role='status'>{t('property_management.feed_loading')}</p>
+      ) : null}
+      {feedError ? (
+        <div className='publication-feedback' data-tone='error' role='alert'>
+          <p>{t('property_management.feed_error')}</p>
+          {onRetryFeed ? <Button appearance='secondary' onClick={onRetryFeed}>{t('property_management.feed_retry')}</Button> : null}
+        </div>
+      ) : null}
+      {!feedLoading && !feedError && properties.length === 0 ? (
+        <p className='publication-empty'>{t('property_management.empty_state')}</p>
+      ) : null}
+      {!feedLoading && !feedError && properties.length > 0 ? (
+        <div className='rows' role='list' aria-label={t('property_management.portfolio')}>
+          {properties.map((property) => (
+            <div className='property-row' key={property.id} role='listitem'>
+              <strong>{property.name}</strong>
+              <span className='listing-meta'>{t(`property_management.property_type.${property.propertyType}`)}</span>
+              <div className='unit-rows'>
+                {property.units.map((unit) => (
+                  <div className='unit-row' key={unit.id}>
+                    <span>{unit.label}</span>
+                    <span className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</span>
+                    <span className='status'>{t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}</span>
+                  </div>
+                ))}
+              </div>
+              <AddUnitForm disabled={disableActions} onSubmit={submitAddUnit} propertyId={property.id} t={t} />
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {message ? (
+        <p className='publication-feedback' data-tone={messageTone} role={messageTone === 'error' ? 'alert' : 'status'}>
+          {message}
+        </p>
+      ) : null}
+      <CreatePropertyForm disabled={disableActions} onSubmit={submitCreateProperty} t={t} />
+    </section>
+  );
+}

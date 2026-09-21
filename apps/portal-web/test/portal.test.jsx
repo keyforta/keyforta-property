@@ -29,8 +29,12 @@ vi.mock('@keyforta/browser-auth', () => ({
 
 const membershipListMock = vi.hoisted(() => vi.fn());
 const publicListingGetMock = vi.hoisted(() => vi.fn());
+const rentalPropertiesGetMock = vi.hoisted(() => vi.fn());
 vi.mock('@keyforta/api-client', () => ({
-  createApiClient: () => ({ list: membershipListMock, get: publicListingGetMock }),
+  createApiClient: () => ({
+    list: membershipListMock,
+    get: (resource, id) => (resource === 'properties' ? rentalPropertiesGetMock(resource, id) : publicListingGetMock(resource, id)),
+  }),
 }));
 
 import { Portal } from '../src/portal-app.jsx';
@@ -54,6 +58,8 @@ describe('Portal', () => {
     membershipListMock.mockResolvedValue({ data: [], meta: { requestId: 'req-1' } });
     publicListingGetMock.mockReset();
     publicListingGetMock.mockResolvedValue({ items: [], meta: { requestId: 'req-listings-1' } });
+    rentalPropertiesGetMock.mockReset();
+    rentalPropertiesGetMock.mockResolvedValue({ items: [], meta: { requestId: 'req-properties-1' } });
     i18n.changeLanguage('en');
   });
 
@@ -224,6 +230,73 @@ describe('Portal', () => {
     await waitFor(() => {
       expect(mocks.getAccessTokenMock).toHaveBeenCalled();
     });
+  });
+
+  it('shows the property management panel only for landlord overview and properties views (issue #116)', () => {
+    localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'landlord@test.keyforta.com', role: 'landlord', issuedAt: '2026-09-18T00:00:00.000Z', organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }));
+    renderPortal();
+    expect(screen.getByRole('heading', { name: 'Create and manage your properties and units' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Applications' }));
+    expect(screen.queryByRole('heading', { name: 'Create and manage your properties and units' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Properties' }));
+    expect(screen.getByRole('heading', { name: 'Create and manage your properties and units' })).toBeInTheDocument();
+  });
+
+  it('does not show the property management panel for non-landlord roles', () => {
+    localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'manager@test.keyforta.com', role: 'manager', issuedAt: '2026-09-18T00:00:00.000Z', organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }));
+    renderPortal();
+    expect(screen.queryByRole('heading', { name: 'Create and manage your properties and units' })).not.toBeInTheDocument();
+  });
+
+  it('fetches the authoritative property/unit portfolio for a landlord with a real access token (issue #116)', async () => {
+    mocks.authState.current = { status: 'signed-in', account: { name: 'Jean B.', username: 'jean@example.com', email: 'jean@example.com' } };
+    membershipListMock.mockResolvedValue({
+      data: [{ organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', role: 'landlord' }],
+      meta: { requestId: 'req-landlord-membership' },
+    });
+    rentalPropertiesGetMock.mockResolvedValue({
+      items: [{
+        id: 'b1e6f8b0-2f5f-4c2a-9d3b-6b9a2b4f0d11',
+        name: 'Riverside Apartments',
+        propertyType: 'apartment_building',
+        address: {
+          avenueOrStreet: 'Avenue de la Paix',
+          number: '12',
+          quartier: 'Gombe',
+          commune: 'Gombe',
+          city: 'Kinshasa',
+          province: 'Kinshasa',
+          countryCode: 'CD',
+        },
+        timeZone: 'Africa/Kinshasa',
+        jurisdictionCode: null,
+        verificationStatus: 'not_started',
+        publicationStatus: 'draft',
+        version: 1,
+        archivedAt: null,
+        units: [{
+          id: 'e2c1a3f4-5b6c-4d7e-8f9a-0b1c2d3e4f56',
+          label: 'Unit 2A',
+          unitType: 'apartment',
+          bedrooms: 2,
+          bathrooms: 1,
+          areaSquareMeters: null,
+          floorLabel: null,
+          furnishingStatus: 'unfurnished',
+          availabilityStatus: 'available',
+          publicationStatus: 'draft',
+          version: 1,
+          archivedAt: null,
+        }],
+      }],
+      meta: { requestId: 'req-properties-2' },
+    });
+
+    renderPortal();
+
+    await waitFor(() => expect(rentalPropertiesGetMock).toHaveBeenCalledWith('properties', 'mine'));
+    expect(await screen.findByText('Riverside Apartments')).toBeInTheDocument();
+    expect(screen.getByText('Unit 2A')).toBeInTheDocument();
   });
 
   it('keeps showing the pending-access state for a signed-in identity with an empty membership lookup', async () => {

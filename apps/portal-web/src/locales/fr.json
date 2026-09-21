@@ -116,5 +116,79 @@
         "detail": "L'annonce est masqu\u00e9e de la place de march\u00e9 publique."
       }
     }
+  },
+  "property_management": {
+    "kicker": "Portefeuille immobilier",
+    "title": "Cr\u00e9ez et g\u00e9rez vos propri\u00e9t\u00e9s et unit\u00e9s",
+    "rejected_base_url": "La gestion des propri\u00e9t\u00e9s a ignor\u00e9 une URL de base API invalide ou non s\u00e9curis\u00e9e et est revenue au chemin API relatif approuv\u00e9.",
+    "resolving_token": "R\u00e9solution de votre jeton d'acc\u00e8s au portail\u2026",
+    "demo_session": "Les sessions de d\u00e9monstration du portail ne peuvent pas cr\u00e9er ou g\u00e9rer de propri\u00e9t\u00e9s. Connectez-vous avec Microsoft Entra avant d'ajouter une propri\u00e9t\u00e9 ou une unit\u00e9.",
+    "organization_unavailable": "La gestion des propri\u00e9t\u00e9s n'est pas disponible tant qu'un contexte d'organisation n'est pas s\u00e9lectionn\u00e9 pour cette session de portail.",
+    "sign_in_required": "Connectez-vous avec Microsoft Entra pour activer la cr\u00e9ation de propri\u00e9t\u00e9s et d'unit\u00e9s pour cette session.",
+    "sign_in_to_continue": "Se connecter pour continuer",
+    "unavailable": "La gestion des propri\u00e9t\u00e9s n'est pas disponible tant que l'acc\u00e8s Microsoft Entra n'est pas connect\u00e9 pour cette session de portail.",
+    "sign_in_error": "Connectez-vous avec Microsoft Entra pour continuer.",
+    "sign_in_first": "Connectez-vous avant de continuer.",
+    "feed_loading": "Chargement de vos propri\u00e9t\u00e9s\u2026",
+    "feed_error": "Nous n'avons pas pu charger vos propri\u00e9t\u00e9s. Cela ne signifie pas que vous n'en avez pas \u2014 r\u00e9essayez.",
+    "feed_retry": "R\u00e9essayer",
+    "portfolio": "Vos propri\u00e9t\u00e9s",
+    "empty_state": "Vous n'avez pas encore cr\u00e9\u00e9 de propri\u00e9t\u00e9. Utilisez le formulaire ci-dessous pour ajouter votre premi\u00e8re propri\u00e9t\u00e9.",
+    "create_property_title": "Ajouter une propri\u00e9t\u00e9",
+    "create_property_submit": "Cr\u00e9er la propri\u00e9t\u00e9",
+    "create_property_success": "Propri\u00e9t\u00e9 cr\u00e9\u00e9e avec succ\u00e8s.",
+    "create_property_failed": "La propri\u00e9t\u00e9 n'a pas pu \u00eatre cr\u00e9\u00e9e pour le moment.",
+    "add_unit_toggle": "Ajouter une unit\u00e9",
+    "add_unit_title": "Ajouter une unit\u00e9",
+    "add_unit_submit": "Cr\u00e9er l'unit\u00e9",
+    "add_unit_success": "Unit\u00e9 cr\u00e9\u00e9e avec succ\u00e8s.",
+    "add_unit_failed": "L'unit\u00e9 n'a pas pu \u00eatre cr\u00e9\u00e9e pour le moment.",
+    "cancel": "Annuler",
+    "saving": "Enregistrement\u2026",
+    "field": {
+      "name": "Nom de la propri\u00e9t\u00e9",
+      "property_type": "Type de propri\u00e9t\u00e9",
+      "avenue_or_street": "Avenue ou rue",
+      "number": "Num\u00e9ro",
+      "quartier": "Quartier",
+      "commune": "Commune",
+      "city": "Ville",
+      "province": "Province",
+      "country_code": "Code pays (ISO 3166-1 alpha-2)",
+      "postal_code_optional": "Code postal (facultatif)",
+      "time_zone": "Fuseau horaire (identifiant IANA)",
+      "jurisdiction_code_optional": "Code de juridiction (facultatif)",
+      "first_unit_label": "Libell\u00e9 de la premi\u00e8re unit\u00e9",
+      "unit_label": "Libell\u00e9 de l'unit\u00e9",
+      "unit_type": "Type d'unit\u00e9",
+      "bedrooms": "Chambres",
+      "bathrooms": "Salles de bain",
+      "furnishing_status": "\u00c9tat d'ameublement"
+    },
+    "property_type": {
+      "apartment_building": "Immeuble d'appartements",
+      "single_family": "Maison individuelle",
+      "townhouse": "Maison de ville",
+      "mixed_use": "Usage mixte",
+      "other": "Autre"
+    },
+    "unit_type": {
+      "studio": "Studio",
+      "apartment": "Appartement",
+      "house": "Maison",
+      "townhouse": "Maison de ville",
+      "commercial": "Commercial",
+      "other": "Autre"
+    },
+    "furnishing_status": {
+      "unfurnished": "Non meubl\u00e9",
+      "part_furnished": "Semi-meubl\u00e9",
+      "furnished": "Meubl\u00e9"
+    },
+    "unit_availability_status": {
+      "unavailable": "Indisponible",
+      "available": "Disponible",
+      "occupied": "Occup\u00e9e"
+    }
   }
 }

@@ -352,6 +352,57 @@ button {
   gap: 10px;
   flex-wrap: wrap;
 }
+.property-panel {
+  display: grid;
+  gap: 16px;
+}
+.property-row {
+  display: grid;
+  gap: 10px;
+  padding: 17px 0;
+  border-bottom: 1px solid #e8eee9;
+}
+.property-row:last-child {
+  border-bottom: 0;
+}
+.unit-rows {
+  display: grid;
+  gap: 8px;
+}
+.unit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: #f3f8f4;
+  border-radius: 10px;
+}
+.property-form,
+.unit-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  align-items: start;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #dce8e0;
+  border-radius: 14px;
+  background: #fbfdfb;
+  margin-top: 16px;
+}
+.property-form h3 {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+}
+.property-form button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.unit-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+}
 .publication-feedback {
   margin: 0;
   padding: 12px 14px;
@@ -376,6 +427,14 @@ button {
     grid-template-columns: 1fr;
   }
   .listing-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+  .property-form,
+  .unit-form {
+    grid-template-columns: 1fr;
+  }
+  .unit-row {
     grid-template-columns: 1fr;
     align-items: start;
   }

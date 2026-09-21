@@ -12,8 +12,10 @@ import { AppBrand } from '@keyforta/ui';
 import './i18n.js';
 import './styles.css';
 import { ListingPublicationPanel } from './listing-publication-panel.jsx';
+import { PropertyManagementPanel } from './property-management-panel.jsx';
 import { useMembership } from './hooks/use-membership.js';
 import { useManagerListings } from './hooks/use-manager-listings.js';
+import { useRentalProperties } from './hooks/use-rental-properties.js';
 
 // Real Microsoft Entra B2B guest sign-in (issue #77 decision), mirroring
 // admin-web's working pattern. Falls back to an 'unavailable' status when
@@ -129,6 +131,12 @@ export function Portal() {
     error: managerListingsError,
     retry: retryManagerListings,
   } = useManagerListings(session);
+  const {
+    properties: rentalProperties,
+    loading: rentalPropertiesLoading,
+    error: rentalPropertiesError,
+    retry: retryRentalProperties,
+  } = useRentalProperties(session);
 
   // Once a real Entra sign-in resolves to at least one active membership,
   // build a real (non-demo) session for the first matching organization.
@@ -155,6 +163,10 @@ export function Portal() {
   const listingPublicationEmptyState = active === 'portfolio'
     ? t('listing_publication.empty_state_portfolio')
     : t('listing_publication.empty_state');
+  // Landlords are the only actors authorized to create a Property
+  // (app.actor_is_active_landlord, migration 0028); issue #116 identified
+  // that no portal UI existed to call this already-approved/implemented API.
+  const showPropertyManagement = roleKey === 'landlord' && (active === 'properties' || active === 'overview');
 
   const toggleLanguage = () => {
     i18n.changeLanguage(i18n.resolvedLanguage === 'en' ? 'fr' : 'en');
@@ -230,6 +242,15 @@ export function Portal() {
               feedLoading={managerListingsLoading}
               listings={managerListings}
               onRetryFeed={retryManagerListings}
+              session={session}
+            />
+          ) : null}
+          {showPropertyManagement ? (
+            <PropertyManagementPanel
+              feedError={rentalPropertiesError}
+              feedLoading={rentalPropertiesLoading}
+              onRetryFeed={retryRentalProperties}
+              properties={rentalProperties}
               session={session}
             />
           ) : null}
