@@ -23,6 +23,7 @@ import {
   propertyVerificationStatusEnvelopeSchema,
   propertyVerificationStatusInputSchema,
   publicListingIdSchema,
+  publicListingListEnvelopeSchema,
   publicPropertyIdSchema,
   publicPropertyListQuerySchema,
   publicPropertyListResultSchema,
@@ -726,6 +727,38 @@ export async function buildApp(
       });
       return reply.send(
         rentalPropertyListEnvelopeSchema.parse({
+          items,
+          meta: { requestId: request.id },
+        }),
+      );
+    } catch (error) {
+      return handleRentalInventoryError(error, request, reply);
+    }
+  });
+
+  // REQ-035 / issue #114: read-only feed of the actor's own manageable
+  // PublicListings — assignment-scoped for every actor, including landlords,
+  // matching app.set_public_listing_publication (0023)'s authorization model
+  // exactly (organization ownership alone does not grant listing-publication
+  // authority). This lets the portal offer a picker instead of a manual
+  // listing-ID text field. This does not create or mutate listings.
+  app.get("/api/v1/public-listings/mine", async (request, reply) => {
+    if (!dependencies.authenticator || !dependencies.publicListingPublication) {
+      return reply.status(503).send(problem(
+        request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+        "Listing publication is temporarily unavailable.",
+      ));
+    }
+    const context = await authenticateOrganizationRequest(request, reply);
+    if (!context) return undefined;
+    try {
+      const items = await dependencies.publicListingPublication.listForActor({
+        correlationId: request.id,
+        organizationId: context.organizationId,
+        subject: context.principal.subject,
+      });
+      return reply.send(
+        publicListingListEnvelopeSchema.parse({
           items,
           meta: { requestId: request.id },
         }),

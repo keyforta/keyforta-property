@@ -28,8 +28,9 @@ vi.mock('@keyforta/browser-auth', () => ({
 }));
 
 const membershipListMock = vi.hoisted(() => vi.fn());
+const publicListingGetMock = vi.hoisted(() => vi.fn());
 vi.mock('@keyforta/api-client', () => ({
-  createApiClient: () => ({ list: membershipListMock }),
+  createApiClient: () => ({ list: membershipListMock, get: publicListingGetMock }),
 }));
 
 import { Portal } from '../src/portal-app.jsx';
@@ -51,6 +52,8 @@ describe('Portal', () => {
     mocks.getAccessTokenMock.mockClear();
     membershipListMock.mockReset();
     membershipListMock.mockResolvedValue({ data: [], meta: { requestId: 'req-1' } });
+    publicListingGetMock.mockReset();
+    publicListingGetMock.mockResolvedValue({ items: [], meta: { requestId: 'req-listings-1' } });
     i18n.changeLanguage('en');
   });
 
@@ -127,7 +130,7 @@ describe('Portal', () => {
     expect(screen.queryByRole('heading', { name: 'Publish or withdraw assigned listings' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Portfolio' }));
     expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
-    expect(screen.getByText(/No assigned listings are loaded in this prototype yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No listings are currently assigned to you/i)).toBeInTheDocument();
   });
 
   it('shows a saved acknowledgement for quick actions', () => {
@@ -151,6 +154,46 @@ describe('Portal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Switch to French' }));
     expect(screen.getByRole('heading', { name: 'Tout ce qui concerne votre logement, au même endroit.' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument();
+  });
+
+  it('fetches the authoritative listing portfolio feed for a manager with a real access token (issue #114)', async () => {
+    mocks.authState.current = { status: 'signed-in', account: { name: 'Priya S.', username: 'priya@example.com', email: 'priya@example.com' } };
+    membershipListMock.mockResolvedValue({
+      data: [{ organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', role: 'manager' }],
+      meta: { requestId: 'req-manager-membership' },
+    });
+    publicListingGetMock.mockResolvedValue({
+      items: [{ id: '6d5f0d4f-e7ca-4c96-b67b-513f871f3f1a', title: 'Riverside apartment · Unit 2A', status: 'withdrawn', note: 'Ready to publish.' }],
+      meta: { requestId: 'req-listings-2' },
+    });
+
+    renderPortal();
+
+    await waitFor(() => expect(publicListingGetMock).toHaveBeenCalledWith('public-listings', 'mine'));
+    expect(await screen.findByText('Riverside apartment · Unit 2A')).toBeInTheDocument();
+    expect(screen.queryByText(/No assigned listings are loaded in this prototype yet/i)).not.toBeInTheDocument();
+  });
+
+  it('surfaces an explicit error state (not an empty portfolio) when the listing feed request fails (issue #114)', async () => {
+    mocks.authState.current = { status: 'signed-in', account: { name: 'Priya S.', username: 'priya@example.com', email: 'priya@example.com' } };
+    membershipListMock.mockResolvedValue({
+      data: [{ organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', role: 'manager' }],
+      meta: { requestId: 'req-manager-membership' },
+    });
+    publicListingGetMock.mockRejectedValue(new Error('feed unavailable'));
+
+    renderPortal();
+
+    await waitFor(() => expect(publicListingGetMock).toHaveBeenCalledWith('public-listings', 'mine'));
+    expect(await screen.findByText(/couldn't load your assigned listings/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Assigned listings will appear here after the portfolio feed is available/i)).not.toBeInTheDocument();
+  });
+
+  it('does not fetch the listing portfolio feed for a demo session', () => {
+    window.history.replaceState({}, '', '/?role=manager&email=manager@example.com');
+    renderPortal();
+    expect(screen.getByRole('heading', { name: 'Coordinate the work behind every home.' })).toBeInTheDocument();
+    expect(publicListingGetMock).not.toHaveBeenCalled();
   });
 
   it('keeps the listing publication panel tied to the Portfolio section after switching language', () => {

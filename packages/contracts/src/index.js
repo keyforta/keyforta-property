@@ -58,6 +58,7 @@ export const runtimeHttpOperations = Object.freeze({
 	archiveUnit: { method: 'DELETE', path: '/units/{unitId}', authentication: 'required' },
 	publishPublicListing: { method: 'POST', path: '/public-listings/{listingId}/publish', authentication: 'required' },
 	withdrawPublicListing: { method: 'POST', path: '/public-listings/{listingId}/withdraw', authentication: 'required' },
+	listMyPublicListings: { method: 'GET', path: '/public-listings/mine', authentication: 'required' },
 	activateJurisdictionPolicy: { method: 'POST', path: '/admin/jurisdiction-policies/activate', authentication: 'required' },
 	setPropertyVerificationStatus: { method: 'PATCH', path: '/properties/{propertyId}/verification-status', authentication: 'required' },
 	listActorMemberships: { method: 'GET', path: '/session/memberships', authentication: 'required' },
@@ -570,6 +571,23 @@ export const publicListingPublicationEnvelopeSchema = envelopeSchema(z.object({
 	listingId: publicListingIdSchema,
 	status: z.enum(['published', 'withdrawn']),
 }).strict());
+
+// Bounds mirror the SQL projection in app.list_public_listings_for_actor
+// (migration 0029): title = properties.name (<=160) + " — " (3) +
+// units.label (<=80) = 243 max; note = address.commune (<=160) + ", " (2) +
+// address.city (<=160) = 322 max. A property/unit pair at the true maximum
+// lengths must round-trip through this schema without a parse failure.
+export const publicListingSummarySchema = z.object({
+	id: publicListingIdSchema,
+	note: boundedTextSchema(322),
+	status: z.enum(publicListingStatuses),
+	title: boundedTextSchema(243),
+}).strict();
+
+export const publicListingListEnvelopeSchema = z.object({
+	items: z.array(publicListingSummarySchema),
+	meta: metaSchema,
+}).strict();
 
 export const jurisdictionPolicyActivationEnvelopeSchema = envelopeSchema(jurisdictionPolicyActivationResultSchema);
 

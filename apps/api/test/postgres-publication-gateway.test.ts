@@ -1,10 +1,82 @@
 import { describe, expect, it } from "vitest";
 
 import type { DatabaseClient, DatabaseSession } from "../src/database.js";
+import { RentalInventoryAuthorizationError } from "../src/properties/inventory-command-gateway.js";
 import { createPostgresPublicListingPublicationGateway } from "../src/properties/publication-gateway.js";
 import { createPostgresInventoryGateway } from "../src/properties/inventory-gateway.js";
 
 describe("PostgreSQL public listing publication gateway", () => {
+  it("resolves the actor and returns the manageable listing feed in one transaction", async () => {
+    const queries: Array<{ parameters: readonly unknown[]; text: string }> = [];
+    const listings = [
+      { id: "00000000-0000-4000-8000-000000000930", note: "Gombe, Kinshasa", status: "draft", title: "Alpha Residence — Unit 1" },
+    ];
+    const session: DatabaseSession = {
+      async query(text, parameters = []) {
+        queries.push({ parameters, text });
+        if (text.includes("resolve_actor")) {
+          return { rows: [{ actor_id: "00000000-0000-4000-8000-000000000940" }] };
+        }
+        return text.includes("list_public_listings_for_actor")
+          ? { rows: [{ listings }] }
+          : { rows: [] };
+      },
+    };
+    let transactions = 0;
+    const client: DatabaseClient = {
+      query: session.query,
+      async transaction(operation) {
+        transactions += 1;
+        return operation(session);
+      },
+    };
+    const gateway = createPostgresPublicListingPublicationGateway(client);
+
+    await expect(gateway.listForActor({
+      correlationId: "listing-feed-request-01",
+      organizationId: "00000000-0000-4000-8000-000000000900",
+      subject: "synthetic-landlord-a",
+    })).resolves.toEqual(listings);
+
+    expect(transactions).toBe(1);
+    expect(queries).toEqual([
+      {
+        parameters: [
+          "synthetic-landlord-a",
+          "00000000-0000-4000-8000-000000000900",
+        ],
+        text: expect.stringContaining("app.resolve_actor"),
+      },
+      {
+        parameters: [],
+        text: expect.stringContaining("app.list_public_listings_for_actor"),
+      },
+    ]);
+  });
+
+  it("denies an actor with no active membership without querying the listing feed", async () => {
+    const queries: string[] = [];
+    const session: DatabaseSession = {
+      async query(text) {
+        queries.push(text);
+        return { rows: [] };
+      },
+    };
+    const gateway = createPostgresPublicListingPublicationGateway({
+      query: session.query,
+      transaction: (operation) => operation(session),
+    });
+
+    await expect(gateway.listForActor({
+      correlationId: "listing-feed-request-denied",
+      organizationId: "00000000-0000-4000-8000-000000000901",
+      subject: "synthetic-landlord-a",
+    })).rejects.toThrow(RentalInventoryAuthorizationError);
+
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).toContain("app.resolve_actor");
+  });
+
   it.each([
     [true, true],
     [false, false],

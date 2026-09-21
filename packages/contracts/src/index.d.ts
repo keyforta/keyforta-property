@@ -493,6 +493,17 @@ export const publicListingPublicationEnvelopeSchema: z.ZodType<{
   data: { listingId: string; status: "published" | "withdrawn" };
   meta: Meta;
 }>;
+export interface PublicListingSummary {
+  id: string;
+  note: string;
+  status: "draft" | "published" | "withdrawn";
+  title: string;
+}
+export const publicListingSummarySchema: z.ZodType<PublicListingSummary>;
+export const publicListingListEnvelopeSchema: z.ZodType<{
+  items: PublicListingSummary[];
+  meta: Meta;
+}>;
 export const jurisdictionPolicyActivationEnvelopeSchema: z.ZodType<{
   auditEventId?: string;
   data: JurisdictionPolicyActivationResult;

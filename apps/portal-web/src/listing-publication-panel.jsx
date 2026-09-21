@@ -1,12 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Input, Spinner } from '@fluentui/react-components';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Spinner } from '@fluentui/react-components';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
-import {
-  publicListingIdSchema,
-  publicListingPublicationEnvelopeSchema,
-} from '@keyforta/contracts';
+import { publicListingPublicationEnvelopeSchema } from '@keyforta/contracts';
 
 function isLoopbackHost(hostname) {
   return hostname === '127.0.0.1' || hostname === 'localhost';
@@ -64,7 +61,10 @@ async function resolveCommandAccessToken(session) {
 
 export function ListingPublicationPanel({
   emptyState,
+  feedError,
+  feedLoading,
   listings,
+  onRetryFeed,
   session,
 }) {
   const { t } = useTranslation();
@@ -73,11 +73,8 @@ export function ListingPublicationPanel({
   const [busyListingId, setBusyListingId] = useState('');
   const [message, setMessage] = useState('');
   const [messageTone, setMessageTone] = useState('');
-  const [manualListingId, setManualListingId] = useState('');
-  const [manualListingError, setManualListingError] = useState('');
   const hasOrganizationContext = Boolean(session?.organizationId);
   const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : !hasOrganizationContext ? 'organization-unavailable' : session?.getAccessToken ? 'sign-in-required' : 'unavailable');
-  const inputRef = useRef(null);
   const apiConfig = useMemo(() => resolveApiBaseUrl(), []);
 
   useEffect(() => {
@@ -169,29 +166,9 @@ export function ListingPublicationPanel({
     }
   };
 
-  const submitManualCommand = async (event, nextCommand) => {
-    event.preventDefault();
-    if (!manualListingId.trim()) {
-      setManualListingError(t('listing_publication.enter_listing_id'));
-      setMessage('');
-      setMessageTone('');
-      inputRef.current?.focus();
-      return;
-    }
-    try {
-      const listingId = publicListingIdSchema.parse(manualListingId.trim());
-      setManualListingError('');
-      await runCommand(listingId, nextCommand);
-    } catch {
-      setManualListingError(t('listing_publication.invalid_listing_id'));
-      setMessage('');
-      setMessageTone('');
-      inputRef.current?.focus();
-    }
-  };
+
 
   const disableActions = Boolean(busyListingId) || tokenStatus !== 'ready';
-  const manualBusy = busyListingId && !items.some((item) => item.id === busyListingId);
 
   return (
     <section
@@ -236,9 +213,19 @@ export function ListingPublicationPanel({
           {t('listing_publication.unavailable')}
         </p>
       ) : null}
-      {items.length === 0 ? (
+      {feedLoading ? (
+        <p className='publication-feedback' data-tone='success' role='status'>{t('listing_publication.feed_loading')}</p>
+      ) : null}
+      {feedError ? (
+        <div className='publication-feedback' data-tone='error' role='alert'>
+          <p>{t('listing_publication.feed_error')}</p>
+          {onRetryFeed ? <Button appearance='secondary' onClick={onRetryFeed}>{t('listing_publication.feed_retry')}</Button> : null}
+        </div>
+      ) : null}
+      {!feedLoading && !feedError && items.length === 0 ? (
         <p className='publication-empty'>{resolvedEmptyState}</p>
-      ) : (
+      ) : null}
+      {!feedLoading && !feedError && items.length > 0 ? (
         <div className='rows' role='list' aria-label={t('listing_publication.assigned_listings')}>
           {items.map((listing) => {
             const copy = statusCopy(listing.status, t);
@@ -263,31 +250,7 @@ export function ListingPublicationPanel({
             );
           })}
         </div>
-      )}
-      <div className='manual-listing-form'>
-        <label htmlFor='manual-listing-id'>{t('listing_publication.listing_id_label')}</label>
-        <Input
-          aria-describedby={manualListingError ? 'manual-listing-id-error' : 'manual-listing-id-help'}
-          aria-invalid={manualListingError ? 'true' : 'false'}
-          id='manual-listing-id'
-          onChange={(_, data) => {
-            setManualListingId(data.value);
-            if (manualListingError) setManualListingError('');
-          }}
-          placeholder={t('listing_publication.listing_id_placeholder')}
-          ref={inputRef}
-          value={manualListingId}
-        />
-        <p className='publication-note' id='manual-listing-id-help'>
-          {t('listing_publication.listing_id_help')}
-        </p>
-        {manualListingError ? <p className='publication-feedback' data-tone='error' id='manual-listing-id-error'>{manualListingError}</p> : null}
-        <div className='manual-listing-actions'>
-          <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'publish')}>{t('listing_publication.publish_by_id')}</Button>
-          <Button appearance='secondary' disabled={disableActions} onClick={(event) => submitManualCommand(event, 'withdraw')}>{t('listing_publication.withdraw_by_id')}</Button>
-        </div>
-        {manualBusy ? <p className='publication-feedback' data-tone='success' role='status'>{t('listing_publication.sending_command')}</p> : null}
-      </div>
+      ) : null}
       {message ? (
         <p
           className='publication-feedback'

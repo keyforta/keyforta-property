@@ -250,56 +250,29 @@ describe('ListingPublicationPanel', () => {
     expect(await screen.findByText('Publication service unavailable.')).toBeInTheDocument();
   });
 
-  it('supports explicit publish and withdraw commands by manual listing id', async () => {
-    command
-      .mockImplementationOnce(() => new Promise((resolve) => setTimeout(() => resolve({ data: { listingId: listings[0].id, status: 'published' }, meta: { requestId: 'req-manual-publish' } }), 0)))
-      .mockResolvedValueOnce({ data: { listingId: listings[0].id, status: 'withdrawn' }, meta: { requestId: 'req-manual-withdraw' } });
-    renderPanel({ listings: [] });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeEnabled());
-    fireEvent.change(screen.getByLabelText('Listing ID'), { target: { value: listings[0].id } });
-    fireEvent.click(screen.getByRole('button', { name: 'Publish by ID' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeDisabled());
-    await waitFor(() => expect(command).toHaveBeenNthCalledWith(1, 'public-listings', listings[0].id, 'publish'));
-    expect(await screen.findByText('Listing published successfully.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Withdraw by ID' }));
-    await waitFor(() => expect(command).toHaveBeenNthCalledWith(2, 'public-listings', listings[0].id, 'withdraw'));
-    expect(await screen.findByText('Listing withdrawn successfully.')).toBeInTheDocument();
+  it('does not render a manual listing-ID entry point (issue #114: feed replaces manual entry)', async () => {
+    renderPanel();
+    expect(screen.queryByLabelText('Listing ID')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Publish by ID' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Withdraw by ID' })).not.toBeInTheDocument();
   });
 
-  it('returns focus and field-level validation metadata for invalid manual listing ids', async () => {
-    renderPanel({ listings: [] });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeEnabled());
-    fireEvent.change(screen.getByLabelText('Listing ID'), { target: { value: 'not-a-uuid' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Publish by ID' }));
-
-    const input = screen.getByLabelText('Listing ID');
-    const error = await screen.findByText((content, element) => content === 'Enter a valid listing ID.' && element.id === 'manual-listing-id-error');
-    expect(input).toHaveFocus();
-    expect(input).toHaveAttribute('aria-invalid', 'true');
-    expect(input).toHaveAttribute('aria-describedby', 'manual-listing-id-error');
-    expect(error).toHaveAttribute('id', 'manual-listing-id-error');
-    expect(command).not.toHaveBeenCalled();
+  it('shows an assignment-scoped empty message (not a manual-ID fallback) when the portfolio feed has no listings', async () => {
+    renderPanel({ listings: [], emptyState: 'No listings are currently assigned to you. Listings you are assigned to manage will appear here automatically.' });
+    expect(screen.getByText(/No listings are currently assigned to you/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Use a trusted listing ID/i)).not.toBeInTheDocument();
   });
 
   it('disables live mutation controls for demo sessions', () => {
     renderPanel({ session: { ...baseSession, sessionMode: 'demo', getAccessToken: undefined } });
     expect(screen.getByText(/Demo portal sessions cannot change listing publication/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Withdraw by ID' })).toBeDisabled();
   });
 
   it('disables live mutation controls when organization context is missing', async () => {
     renderPanel({ session: { ...baseSession, organizationId: null } });
     expect(screen.getByText(/Listing publication is unavailable until an organization context is selected/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Withdraw by ID' })).toBeDisabled();
     expect(command).not.toHaveBeenCalled();
   });
 
@@ -307,8 +280,6 @@ describe('ListingPublicationPanel', () => {
     renderPanel({ session: { ...baseSession, getAccessToken: undefined } });
     expect(screen.getByText(/Listing publication is unavailable until Microsoft Entra access is connected/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Publish by ID' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Withdraw by ID' })).toBeDisabled();
   });
 
   it('has no critical accessibility violations', async () => {
