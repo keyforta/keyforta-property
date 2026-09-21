@@ -130,7 +130,7 @@ describe('Portal', () => {
     expect(screen.queryByRole('heading', { name: 'Publish or withdraw assigned listings' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Portfolio' }));
     expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
-    expect(screen.getByText(/No assigned listings are loaded in this prototype yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No listings are currently assigned to you/i)).toBeInTheDocument();
   });
 
   it('shows a saved acknowledgement for quick actions', () => {
