@@ -66,6 +66,7 @@ test("REQ-032 PROP-009 PROP-020 rejects client authority and requires the first 
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: unitInput,
   });
 
@@ -77,12 +78,14 @@ test("REQ-032 PROP-009 PROP-020 rejects client authority and requires the first 
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
   }).success, false);
   assert.equal(createRentalPropertyInputSchema.safeParse({
     name: "Gombe Residence",
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: unitInput,
     organizationId: ids.organization,
   }).success, false);
@@ -91,8 +94,9 @@ test("REQ-032 PROP-009 PROP-020 rejects client authority and requires the first 
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: unitInput,
-  }, ["name", "propertyType", "address", "timeZone", "firstUnit"]);
+  }, ["name", "propertyType", "address", "timeZone", "firstUnit", "idempotencyKey"]);
   assertRequiredFields(createRentalPropertyInputSchema.shape.firstUnit, unitInput, [
     "label",
     "unitType",
@@ -105,6 +109,7 @@ test("REQ-032 PROP-009 PROP-020 rejects client authority and requires the first 
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     jurisdictionCode: "CD-KN",
     firstUnit: unitInput,
   }).success, true);
@@ -113,6 +118,7 @@ test("REQ-032 PROP-009 PROP-020 rejects client authority and requires the first 
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     jurisdictionCode: "not-an-approved-catalogue-value",
     firstUnit: unitInput,
   }).success, false);
@@ -287,6 +293,7 @@ test("REQ-033 PROP-011 normalizes NFC and trims Unicode White_Space", () => {
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: { ...unitInput, label: "\u0085Cafe\u0301\u0085" },
   });
 
@@ -303,6 +310,7 @@ test("REQ-033 PROP-011 normalizes NFC and trims Unicode White_Space", () => {
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: { ...unitInput, label: "\uD800" },
   }).success, false);
   assert.equal(createRentalPropertyInputSchema.safeParse({
@@ -310,6 +318,7 @@ test("REQ-033 PROP-011 normalizes NFC and trims Unicode White_Space", () => {
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: { ...unitInput, label: "é".repeat(80) },
   }).success, true);
   assert.equal(createRentalPropertyInputSchema.safeParse({
@@ -317,6 +326,7 @@ test("REQ-033 PROP-011 normalizes NFC and trims Unicode White_Space", () => {
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: { ...unitInput, label: "é".repeat(81) },
   }).success, false);
   assert.equal(createRentalPropertyInputSchema.safeParse({
@@ -324,6 +334,7 @@ test("REQ-033 PROP-011 normalizes NFC and trims Unicode White_Space", () => {
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: { ...unitInput, label: "x".repeat(10000) },
   }).success, false);
   const expandedLabel = "\uFB03".repeat(80);
@@ -352,6 +363,7 @@ test("REQ-032 PROP-020 validates address catalogues and text bounds", () => {
     propertyType: "apartment_building",
     address: { ...address, countryCode: "ZZ" },
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: unitInput,
   }).success, false);
   assert.equal(createRentalPropertyInputSchema.safeParse({
@@ -359,6 +371,7 @@ test("REQ-032 PROP-020 validates address catalogues and text bounds", () => {
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: unitInput,
   }).success, true);
   assert.equal(createRentalPropertyInputSchema.safeParse({
@@ -366,6 +379,7 @@ test("REQ-032 PROP-020 validates address catalogues and text bounds", () => {
     propertyType: "apartment_building",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: unitInput,
   }).success, false);
   assert.equal(createRentalPropertyInputSchema.safeParse({
@@ -373,6 +387,7 @@ test("REQ-032 PROP-020 validates address catalogues and text bounds", () => {
     propertyType: "condominium",
     address,
     timeZone: "Africa/Kinshasa",
+    idempotencyKey: "idem-test",
     firstUnit: unitInput,
   }).success, false);
 });

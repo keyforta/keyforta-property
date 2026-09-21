@@ -5,6 +5,11 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import {
   actorMembershipListEnvelopeSchema,
+  addRentalUnitInputSchema,
+  archiveRentalInventoryEnvelopeSchema,
+  archiveRentalInventoryInputSchema,
+  availabilityVersionCreationEnvelopeSchema,
+  createRentalPropertyInputSchema,
   jurisdictionPolicyActivationEnvelopeSchema,
   jurisdictionPolicyActivationInputSchema,
   landlordOnboardingApplicationIdSchema,
@@ -13,6 +18,7 @@ import {
   landlordOnboardingApplicationSchema,
   landlordOnboardingDecisionInputSchema,
   organizationIdSchema,
+  pricingVersionCreationEnvelopeSchema,
   propertyIdSchema,
   propertyVerificationStatusEnvelopeSchema,
   propertyVerificationStatusInputSchema,
@@ -23,9 +29,15 @@ import {
   publicPropertyProjectionSchema,
   publicRequestReceiptSchema,
   publicViewingRequestInputSchema,
+  rentableUnitCreationEnvelopeSchema,
+  rentalPropertyCreationEnvelopeSchema,
+  rentalPropertyListEnvelopeSchema,
+  setUnitAvailabilityInputSchema,
+  setUnitPricingInputSchema,
+  unitIdSchema,
 } from "@keyforta/contracts";
 import { canAccess } from "@keyforta/authorization";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 
 import { registerApiDocs } from "./api-docs.js";
 import type { Principal, PrincipalAuthenticator } from "./authentication.js";
@@ -36,6 +48,12 @@ import {
 } from "./properties/gateway.js";
 import type { MembershipLookupGateway } from "./identity/membership-gateway.js";
 import type { InventoryGateway } from "./properties/inventory-gateway.js";
+import {
+  RentalInventoryAuthorizationError,
+  RentalInventoryConflictError,
+  RentalInventoryNotFoundError,
+  type RentalInventoryCommandGateway,
+} from "./properties/inventory-command-gateway.js";
 import type { PublicListingPublicationGateway } from "./properties/publication-gateway.js";
 import type { PublicViewingRequestGateway } from "./properties/viewing-gateway.js";
 
@@ -55,6 +73,7 @@ export interface AppDependencies {
   publicProperties?: PublicPropertyGateway;
   publicViewingRequests?: PublicViewingRequestGateway;
   readiness?: () => Promise<void>;
+  rentalInventoryCommands?: RentalInventoryCommandGateway;
   useAuthorizationModule?: boolean;
   viewingRequestRateLimitMax?: number;
 }
@@ -582,6 +601,386 @@ export async function buildApp(
           meta: { requestId: request.id },
         }),
       );
+    },
+  );
+
+  // Rental Property and Unit lifecycle (REQ-032, REQ-033, REQ-034, REQ-036).
+  // REQ-035 (PublicListing creation, publication, and media) is intentionally
+  // not exposed here: PROP-019 requires new listing creation, publication,
+  // republication, and image mutation to stay rejected until a separately
+  // approved media-activation requirement is implemented.
+  const authenticateOrganizationRequest = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => {
+    const principal = await authenticate(
+      request.headers.authorization,
+      dependencies.authenticator,
+    );
+    if (!principal) {
+      reply.status(401).send(problem(
+        request.id, 401, "UNAUTHENTICATED", "Unauthorized",
+        "A valid bearer credential is required.",
+      ));
+      return undefined;
+    }
+    const parsedOrganizationId = organizationIdSchema.safeParse(
+      request.headers["x-organization-id"],
+    );
+    if (!parsedOrganizationId.success) {
+      reply.status(400).send(problem(
+        request.id, 400, "VALIDATION_ERROR", "Validation Error",
+        "The organization ID is invalid.",
+      ));
+      return undefined;
+    }
+    return { organizationId: parsedOrganizationId.data, principal };
+  };
+
+  const handleRentalInventoryError = (
+    error: unknown,
+    request: { id: string },
+    reply: { status(code: number): { send(body: unknown): unknown } },
+  ) => {
+    if (error instanceof RentalInventoryAuthorizationError) {
+      return reply.status(404).send(problem(
+        request.id, 404, "NOT_FOUND", "Not Found",
+        "The requested resource was not found.",
+      ));
+    }
+    if (error instanceof RentalInventoryNotFoundError) {
+      return reply.status(404).send(problem(
+        request.id, 404, "NOT_FOUND", "Not Found",
+        "The requested resource was not found.",
+      ));
+    }
+    if (error instanceof RentalInventoryConflictError) {
+      return reply.status(409).send(problem(
+        request.id, 409, "CONFLICT", "Conflict", error.message,
+      ));
+    }
+    throw error;
+  };
+
+  app.post("/api/v1/properties", async (request, reply) => {
+    if (!dependencies.authenticator || !dependencies.rentalInventoryCommands) {
+      return reply.status(503).send(problem(
+        request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+        "Rental property creation is temporarily unavailable.",
+      ));
+    }
+    const context = await authenticateOrganizationRequest(request, reply);
+    if (!context) return undefined;
+    const parsedInput = createRentalPropertyInputSchema.safeParse(request.body);
+    if (!parsedInput.success) {
+      return reply.status(400).send(problem(
+        request.id, 400, "VALIDATION_ERROR", "Validation Error",
+        "The Property is invalid.", parsedInput.error.flatten(),
+      ));
+    }
+    try {
+      const created = await dependencies.rentalInventoryCommands.createRentalProperty({
+        address: parsedInput.data.address,
+        correlationId: request.id,
+        firstUnit: parsedInput.data.firstUnit,
+        idempotencyKey: parsedInput.data.idempotencyKey,
+        jurisdictionCode: parsedInput.data.jurisdictionCode ?? null,
+        name: parsedInput.data.name,
+        organizationId: context.organizationId,
+        propertyType: parsedInput.data.propertyType,
+        source: "runtime_api",
+        subject: context.principal.subject,
+        timeZone: parsedInput.data.timeZone,
+      });
+      if (!created) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      return reply.status(201).send(
+        rentalPropertyCreationEnvelopeSchema.parse({
+          data: created,
+          meta: { requestId: request.id },
+        }),
+      );
+    } catch (error) {
+      return handleRentalInventoryError(error, request, reply);
+    }
+  });
+
+  app.get("/api/v1/properties/mine", async (request, reply) => {
+    if (!dependencies.authenticator || !dependencies.rentalInventoryCommands) {
+      return reply.status(503).send(problem(
+        request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+        "Rental property listing is temporarily unavailable.",
+      ));
+    }
+    const context = await authenticateOrganizationRequest(request, reply);
+    if (!context) return undefined;
+    try {
+      const items = await dependencies.rentalInventoryCommands.listRentalProperties({
+        correlationId: request.id,
+        organizationId: context.organizationId,
+        subject: context.principal.subject,
+      });
+      return reply.send(
+        rentalPropertyListEnvelopeSchema.parse({
+          items,
+          meta: { requestId: request.id },
+        }),
+      );
+    } catch (error) {
+      return handleRentalInventoryError(error, request, reply);
+    }
+  });
+
+  app.post<{ Params: { propertyId: string } }>(
+    "/api/v1/properties/:propertyId/units",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.rentalInventoryCommands) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "Unit creation is temporarily unavailable.",
+        ));
+      }
+      const context = await authenticateOrganizationRequest(request, reply);
+      if (!context) return undefined;
+      const parsedPropertyId = propertyIdSchema.safeParse(request.params.propertyId);
+      const parsedInput = addRentalUnitInputSchema.safeParse(request.body);
+      if (!parsedPropertyId.success || !parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The Unit is invalid.",
+          parsedInput.success ? undefined : parsedInput.error.flatten(),
+        ));
+      }
+      try {
+        const { idempotencyKey, ...unit } = parsedInput.data;
+        const created = await dependencies.rentalInventoryCommands.addRentalUnit({
+          correlationId: request.id,
+          idempotencyKey,
+          organizationId: context.organizationId,
+          propertyId: parsedPropertyId.data,
+          source: "runtime_api",
+          subject: context.principal.subject,
+          unit,
+        });
+        if (!created) {
+          return reply.status(404).send(problem(
+            request.id, 404, "NOT_FOUND", "Not Found",
+            "The requested resource was not found.",
+          ));
+        }
+        return reply.status(201).send(
+          rentableUnitCreationEnvelopeSchema.parse({
+            data: created,
+            meta: { requestId: request.id },
+          }),
+        );
+      } catch (error) {
+        return handleRentalInventoryError(error, request, reply);
+      }
+    },
+  );
+
+  app.patch<{ Params: { unitId: string } }>(
+    "/api/v1/units/:unitId/pricing",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.rentalInventoryCommands) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "Unit pricing is temporarily unavailable.",
+        ));
+      }
+      const context = await authenticateOrganizationRequest(request, reply);
+      if (!context) return undefined;
+      const parsedUnitId = unitIdSchema.safeParse(request.params.unitId);
+      const parsedInput = setUnitPricingInputSchema.safeParse(request.body);
+      if (!parsedUnitId.success || !parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The pricing change is invalid.",
+          parsedInput.success ? undefined : parsedInput.error.flatten(),
+        ));
+      }
+      try {
+        const created = await dependencies.rentalInventoryCommands.setUnitPricing({
+          amountMinor: parsedInput.data.amountMinor,
+          correlationId: request.id,
+          currency: parsedInput.data.currency,
+          effectiveFrom: parsedInput.data.effectiveFrom,
+          expectedVersion: parsedInput.data.expectedVersion,
+          idempotencyKey: parsedInput.data.idempotencyKey,
+          organizationId: context.organizationId,
+          source: "runtime_api",
+          subject: context.principal.subject,
+          unitId: parsedUnitId.data,
+        });
+        if (!created) {
+          return reply.status(404).send(problem(
+            request.id, 404, "NOT_FOUND", "Not Found",
+            "The requested resource was not found.",
+          ));
+        }
+        return reply.status(200).send(
+          pricingVersionCreationEnvelopeSchema.parse({
+            data: created,
+            meta: { requestId: request.id },
+          }),
+        );
+      } catch (error) {
+        return handleRentalInventoryError(error, request, reply);
+      }
+    },
+  );
+
+  app.patch<{ Params: { unitId: string } }>(
+    "/api/v1/units/:unitId/availability",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.rentalInventoryCommands) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "Unit availability is temporarily unavailable.",
+        ));
+      }
+      const context = await authenticateOrganizationRequest(request, reply);
+      if (!context) return undefined;
+      const parsedUnitId = unitIdSchema.safeParse(request.params.unitId);
+      const parsedInput = setUnitAvailabilityInputSchema.safeParse(request.body);
+      if (!parsedUnitId.success || !parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The availability change is invalid.",
+          parsedInput.success ? undefined : parsedInput.error.flatten(),
+        ));
+      }
+      try {
+        const created = await dependencies.rentalInventoryCommands.setUnitAvailability({
+          correlationId: request.id,
+          effectiveFrom: parsedInput.data.effectiveFrom,
+          expectedVersion: parsedInput.data.expectedVersion,
+          idempotencyKey: parsedInput.data.idempotencyKey,
+          organizationId: context.organizationId,
+          reasonCode: parsedInput.data.reasonCode ?? null,
+          source: "runtime_api",
+          status: parsedInput.data.status,
+          subject: context.principal.subject,
+          unitId: parsedUnitId.data,
+        });
+        if (!created) {
+          return reply.status(404).send(problem(
+            request.id, 404, "NOT_FOUND", "Not Found",
+            "The requested resource was not found.",
+          ));
+        }
+        return reply.status(200).send(
+          availabilityVersionCreationEnvelopeSchema.parse({
+            data: created,
+            meta: { requestId: request.id },
+          }),
+        );
+      } catch (error) {
+        return handleRentalInventoryError(error, request, reply);
+      }
+    },
+  );
+
+  app.delete<{ Params: { unitId: string } }>(
+    "/api/v1/units/:unitId",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.rentalInventoryCommands) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "Unit archive is temporarily unavailable.",
+        ));
+      }
+      const context = await authenticateOrganizationRequest(request, reply);
+      if (!context) return undefined;
+      const parsedUnitId = unitIdSchema.safeParse(request.params.unitId);
+      const parsedInput = archiveRentalInventoryInputSchema.safeParse(request.body);
+      if (!parsedUnitId.success || !parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The archive request is invalid.",
+          parsedInput.success ? undefined : parsedInput.error.flatten(),
+        ));
+      }
+      try {
+        const archived = await dependencies.rentalInventoryCommands.archiveRentalUnit({
+          correlationId: request.id,
+          expectedVersion: parsedInput.data.expectedVersion,
+          idempotencyKey: parsedInput.data.idempotencyKey,
+          organizationId: context.organizationId,
+          reason: parsedInput.data.reason,
+          source: "runtime_api",
+          subject: context.principal.subject,
+          unitId: parsedUnitId.data,
+        });
+        if (!archived) {
+          return reply.status(409).send(problem(
+            request.id, 409, "CONFLICT", "Conflict",
+            "The Unit cannot be archived in its current state.",
+          ));
+        }
+        return reply.send(
+          archiveRentalInventoryEnvelopeSchema.parse({
+            data: { archived: true },
+            meta: { requestId: request.id },
+          }),
+        );
+      } catch (error) {
+        return handleRentalInventoryError(error, request, reply);
+      }
+    },
+  );
+
+  app.delete<{ Params: { propertyId: string } }>(
+    "/api/v1/properties/:propertyId",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.rentalInventoryCommands) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "Property archive is temporarily unavailable.",
+        ));
+      }
+      const context = await authenticateOrganizationRequest(request, reply);
+      if (!context) return undefined;
+      const parsedPropertyId = propertyIdSchema.safeParse(request.params.propertyId);
+      const parsedInput = archiveRentalInventoryInputSchema.safeParse(request.body);
+      if (!parsedPropertyId.success || !parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The archive request is invalid.",
+          parsedInput.success ? undefined : parsedInput.error.flatten(),
+        ));
+      }
+      try {
+        const archived = await dependencies.rentalInventoryCommands.archiveRentalProperty({
+          correlationId: request.id,
+          expectedVersion: parsedInput.data.expectedVersion,
+          idempotencyKey: parsedInput.data.idempotencyKey,
+          organizationId: context.organizationId,
+          propertyId: parsedPropertyId.data,
+          reason: parsedInput.data.reason,
+          source: "runtime_api",
+          subject: context.principal.subject,
+        });
+        if (!archived) {
+          return reply.status(409).send(problem(
+            request.id, 409, "CONFLICT", "Conflict",
+            "The Property cannot be archived in its current state.",
+          ));
+        }
+        return reply.send(
+          archiveRentalInventoryEnvelopeSchema.parse({
+            data: { archived: true },
+            meta: { requestId: request.id },
+          }),
+        );
+      } catch (error) {
+        return handleRentalInventoryError(error, request, reply);
+      }
     },
   );
 

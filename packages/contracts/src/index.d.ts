@@ -53,6 +53,7 @@ export const organizationIdSchema: z.ZodString;
 export const publicListingIdSchema: z.ZodString;
 export const landlordOnboardingApplicationIdSchema: z.ZodString;
 export const propertyIdSchema: z.ZodString;
+export const unitIdSchema: z.ZodString;
 export const jurisdictionCodeSchema: z.ZodString;
 
 export const propertyTypes: readonly ["apartment_building", "single_family", "townhouse", "mixed_use", "other"];
@@ -88,6 +89,10 @@ export interface RentableUnitInput {
   furnishingStatus: typeof furnishingStatuses[number];
 }
 
+export interface AddRentalUnitInput extends RentableUnitInput {
+  idempotencyKey: string;
+}
+
 export interface CreateRentalPropertyInput {
   name: string;
   propertyType: typeof propertyTypes[number];
@@ -95,6 +100,7 @@ export interface CreateRentalPropertyInput {
   timeZone: string;
   jurisdictionCode?: string | null;
   firstUnit: RentableUnitInput;
+  idempotencyKey: string;
 }
 
 export interface UpdateRentalPropertyInput {
@@ -209,6 +215,7 @@ export interface InternalPublicListing {
 
 export const propertyAddressSchema: z.ZodType<PropertyAddress>;
 export const rentableUnitInputSchema: z.ZodType<RentableUnitInput>;
+export const addRentalUnitInputSchema: z.ZodType<AddRentalUnitInput>;
 export const createRentalPropertyInputSchema: z.ZodType<CreateRentalPropertyInput>;
 export const updateRentalPropertyInputSchema: z.ZodType<UpdateRentalPropertyInput>;
 export const rentalPropertySchema: z.ZodType<RentalProperty>;
@@ -217,6 +224,122 @@ export const pricingVersionSchema: z.ZodType<PricingVersion>;
 export const unitAvailabilityVersionSchema: z.ZodType<UnitAvailabilityVersion>;
 export const publicListingSnapshotSchema: z.ZodType<PublicListingSnapshot>;
 export const internalPublicListingSchema: z.ZodType<InternalPublicListing>;
+
+export interface RentalPropertyCreationResult {
+  propertyId: string;
+  propertyVersion: number;
+  unitId: string;
+  unitVersion: number;
+}
+
+export interface RentableUnitCreationResult {
+  unitId: string;
+  unitVersion: number;
+}
+
+export interface SetUnitPricingInput {
+  amountMinor: number;
+  currency: typeof supportedCurrencies[number];
+  effectiveFrom: string;
+  expectedVersion: number;
+  idempotencyKey: string;
+}
+
+export interface PricingVersionCreationResult {
+  pricingVersionId: string;
+  unitVersion: number;
+}
+
+export interface SetUnitAvailabilityInput {
+  status: "unavailable" | "available";
+  reasonCode?: string | null;
+  effectiveFrom: string;
+  expectedVersion: number;
+  idempotencyKey: string;
+}
+
+export interface AvailabilityVersionCreationResult {
+  availabilityVersionId: string;
+  unitVersion: number;
+}
+
+export interface ArchiveRentalInventoryInput {
+  reason: string;
+  expectedVersion: number;
+  idempotencyKey: string;
+}
+
+export interface ArchiveRentalInventoryResult {
+  archived: true;
+}
+
+export interface RentalUnitProjection {
+  id: string;
+  label: string;
+  unitType: typeof unitTypes[number];
+  bedrooms: number;
+  bathrooms: number;
+  areaSquareMeters: number | null;
+  floorLabel: string | null;
+  furnishingStatus: typeof furnishingStatuses[number];
+  availabilityStatus: typeof unitAvailabilityStatuses[number];
+  publicationStatus: typeof inventoryPublicationStatuses[number];
+  version: number;
+  archivedAt: string | null;
+}
+
+export interface RentalPropertyProjection {
+  id: string;
+  name: string;
+  propertyType: typeof propertyTypes[number];
+  address: PropertyAddress;
+  timeZone: string;
+  jurisdictionCode?: string | null;
+  verificationStatus: "not_started" | "pending" | "changes_requested" | "verified" | "rejected" | "expired" | "suspended";
+  publicationStatus: typeof propertyPublicationStatuses[number];
+  version: number;
+  archivedAt: string | null;
+  units: RentalUnitProjection[];
+}
+
+export const rentalPropertyCreationResultSchema: z.ZodType<RentalPropertyCreationResult>;
+export const rentalPropertyCreationEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: RentalPropertyCreationResult;
+  meta: Meta;
+}>;
+export const rentableUnitCreationResultSchema: z.ZodType<RentableUnitCreationResult>;
+export const rentableUnitCreationEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: RentableUnitCreationResult;
+  meta: Meta;
+}>;
+export const setUnitPricingInputSchema: z.ZodType<SetUnitPricingInput>;
+export const pricingVersionCreationResultSchema: z.ZodType<PricingVersionCreationResult>;
+export const pricingVersionCreationEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: PricingVersionCreationResult;
+  meta: Meta;
+}>;
+export const setUnitAvailabilityInputSchema: z.ZodType<SetUnitAvailabilityInput>;
+export const availabilityVersionCreationResultSchema: z.ZodType<AvailabilityVersionCreationResult>;
+export const availabilityVersionCreationEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: AvailabilityVersionCreationResult;
+  meta: Meta;
+}>;
+export const archiveRentalInventoryInputSchema: z.ZodType<ArchiveRentalInventoryInput>;
+export const archiveRentalInventoryResultSchema: z.ZodType<ArchiveRentalInventoryResult>;
+export const archiveRentalInventoryEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: ArchiveRentalInventoryResult;
+  meta: Meta;
+}>;
+export const rentalPropertyProjectionSchema: z.ZodType<RentalPropertyProjection>;
+export const rentalPropertyListEnvelopeSchema: z.ZodType<{
+  items: RentalPropertyProjection[];
+  meta: Meta;
+}>;
 
 export interface LandlordOnboardingApplicationInput {
   applicantName: string;

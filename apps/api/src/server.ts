@@ -13,6 +13,7 @@ import { createPostgresMembershipLookupGateway } from "./identity/membership-gat
 import { developmentPublicProperties } from "./properties/development-data.js";
 import { createMemoryPublicPropertyGateway } from "./properties/gateway.js";
 import { createPostgresInventoryGateway } from "./properties/inventory-gateway.js";
+import { createPostgresRentalInventoryCommandGateway } from "./properties/inventory-command-gateway.js";
 import { createPostgresPublicPropertyGateway } from "./properties/postgres-gateway.js";
 import { createPostgresPublicListingPublicationGateway } from "./properties/publication-gateway.js";
 import {
@@ -73,6 +74,9 @@ const landlordOnboarding = databaseClient
 const inventory = databaseClient
   ? createPostgresInventoryGateway(databaseClient)
   : undefined;
+const rentalInventoryCommands = databaseClient
+  ? createPostgresRentalInventoryCommandGateway(databaseClient)
+  : undefined;
 const membershipLookup = databaseClient
   ? createPostgresMembershipLookupGateway(databaseClient)
   : undefined;
@@ -96,6 +100,7 @@ try {
     ...(inventory ? { inventory } : {}),
     ...(membershipLookup ? { membershipLookup } : {}),
     ...(publicListingPublication ? { publicListingPublication } : {}),
+    ...(rentalInventoryCommands ? { rentalInventoryCommands } : {}),
     platformAdminObjectIds,
     publicProperties,
     publicViewingRequests,

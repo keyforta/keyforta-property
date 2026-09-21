@@ -2,6 +2,7 @@ import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { applyMigrations } from "../src/migrate.js";
+import { ensureTestRuntimeRole } from "./support/ensure-test-runtime-role.js";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 const describePostgres = testDatabaseUrl ? describe : describe.skip;
@@ -18,6 +19,13 @@ describePostgres("PostgreSQL actor membership resolution integration", () => {
     runtimeDatabaseUrl.password = "synthetic-test-runtime-password";
   }
   const runtimePool = new Pool({ connectionString: runtimeDatabaseUrl?.toString() });
+  // `drop database ... with (force)` in afterAll can terminate a backend a
+  // fraction of a second after `pool.end()`/`runtimePool.end()` already
+  // began closing it, otherwise surfacing as an unhandled client "error"
+  // event that crashes the whole test run instead of being scoped to this
+  // file's teardown.
+  pool.on("error", () => {});
+  runtimePool.on("error", () => {});
   let client: PoolClient;
   let runtimeClient: PoolClient;
 
@@ -25,18 +33,8 @@ describePostgres("PostgreSQL actor membership resolution integration", () => {
     await adminPool.query(`create database ${databaseName}`);
     client = await pool.connect();
     await applyMigrations(client);
+    await ensureTestRuntimeRole(client);
     await client.query(`
-      do $$
-      begin
-        if not exists (select 1 from pg_roles where rolname = 'keyforta_test_runtime') then
-          create role keyforta_test_runtime login password 'synthetic-test-runtime-password'
-            nosuperuser nocreatedb nocreaterole noinherit;
-        end if;
-      end
-      $$;
-      alter role keyforta_test_runtime login password 'synthetic-test-runtime-password' noinherit;
-      grant keyforta_runtime to keyforta_test_runtime;
-
       insert into app.organizations (id, name) values
         ('00000000-0000-4000-8000-000000000970', 'Synthetic membership org A'),
         ('00000000-0000-4000-8000-000000000971', 'Synthetic membership org B');

@@ -109,14 +109,19 @@ describe("KEYFORTA API runtime", () => {
       "/landlord-onboarding-applications",
       "/landlord-onboarding-applications/{applicationId}/decision",
       "/properties",
+      "/properties/mine",
       "/properties/{propertyId}",
+      "/properties/{propertyId}/units",
       "/properties/{propertyId}/verification-status",
       "/public-listings/{listingId}/publish",
       "/public-listings/{listingId}/withdraw",
       "/session/memberships",
+      "/units/{unitId}",
+      "/units/{unitId}/availability",
+      "/units/{unitId}/pricing",
       "/viewing-requests",
     ]);
-    expect(document.paths["/properties"].post).toBeUndefined();
+    expect(document.paths["/properties"].post).toBeDefined();
     expect(document.paths["/leases"]).toBeUndefined();
   });
 
