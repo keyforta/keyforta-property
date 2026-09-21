@@ -350,4 +350,60 @@ describe('PropertyManagementPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
     expect((await axe(container)).violations).toEqual([]);
   });
+
+  it('locks the availability command for an occupied unit instead of allowing it to be overridden (issue #116)', async () => {
+    const occupiedProperties = [{
+      ...properties[0],
+      units: [{ ...properties[0].units[0], availabilityStatus: 'occupied' }],
+    }];
+    renderPanel({ properties: occupiedProperties });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    expect(screen.queryByRole('form', { name: 'Availability' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Availability status')).not.toBeInTheDocument();
+    expect(screen.getByText(/occupied by an active lease/i)).toBeInTheDocument();
+  });
+
+  it('accepts a comma decimal separator matching the French validation copy (issue #116)', async () => {
+    i18n.changeLanguage('fr');
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Se connecter pour continuer' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'D\u00e9finir le prix et la disponibilit\u00e9' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'D\u00e9finir le prix et la disponibilit\u00e9' }));
+
+    fireEvent.change(screen.getByLabelText('Loyer mensuel*'), { target: { value: '400,50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'D\u00e9finir le prix' }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith(
+      `units/${properties[0].units[0].id}`,
+      'pricing',
+      expect.objectContaining({ amountMinor: 40050 }),
+    ));
+  });
+
+  it('disables the other command while one mutation is in flight, to avoid a racing stale version (issue #116)', async () => {
+    let resolvePricing;
+    update.mockReturnValueOnce(new Promise((resolve) => { resolvePricing = resolve; }));
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Monthly rent amount*'), { target: { value: '400.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Update availability' })).toBeDisabled());
+
+    resolvePricing({
+      data: { pricingVersionId: 'f1a2b3c4-5d6e-4f70-8a1b-2c3d4e5f6a71', unitVersion: 2 },
+      meta: { requestId: 'req-8' },
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Update availability' })).toBeEnabled());
+  });
 });
+

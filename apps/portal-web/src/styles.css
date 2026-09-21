@@ -384,8 +384,13 @@ button {
   grid-column: 1 / -1;
   padding-top: 8px;
 }
-.unit-pricing-availability h4 {
+.unit-pricing-availability h3 {
   margin: 0;
+}
+.unit-availability-occupied-note {
+  margin: 0;
+  color: var(--colorNeutralForeground3, #616161);
+  font-size: 0.9em;
 }
 .property-form,
 .unit-form {

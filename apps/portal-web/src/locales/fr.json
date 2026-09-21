@@ -154,6 +154,7 @@
     "set_availability_submit": "Mettre \u00e0 jour la disponibilit\u00e9",
     "set_availability_success": "Disponibilit\u00e9 mise \u00e0 jour avec succ\u00e8s.",
     "set_availability_failed": "La disponibilit\u00e9 n'a pas pu \u00eatre mise \u00e0 jour pour le moment.",
+    "availability_locked_occupied": "Ce logement est occup\u00e9 par un bail actif. La disponibilit\u00e9 est g\u00e9r\u00e9e automatiquement et ne peut pas \u00eatre modifi\u00e9e ici.",
     "reason_code_required": "Un motif est requis pour marquer une unit\u00e9 comme indisponible.",
     "cancel": "Annuler",
     "saving": "Enregistrement\u2026",

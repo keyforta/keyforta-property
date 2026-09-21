@@ -48,11 +48,12 @@ const emptyPricingForm = {
   currency: supportedCurrencies[0],
 };
 
-// Converts a decimal-string user input (e.g. "400" or "400.50") into an
-// integer minor-unit amount without floating-point arithmetic, per the
-// Money(amountMinor, currency) invariant (REQ-034 / domain DDD 301).
+// Converts a decimal-string user input (e.g. "400", "400.50", or the
+// French-locale "400,50") into an integer minor-unit amount without
+// floating-point arithmetic, per the Money(amountMinor, currency) invariant
+// (REQ-034 / domain DDD 301).
 function parseAmountMinor(amount) {
-  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(amount.trim());
+  const match = /^(\d+)(?:[.,](\d{1,2}))?$/.exec(amount.trim());
   if (!match) return null;
   const fraction = (match[2] ?? '').padEnd(2, '0');
   const minor = Number(`${match[1]}${fraction}`);
@@ -259,6 +260,15 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
   }, [unit.availabilityStatus, unit.version]);
   const setPricingField = (field) => (_event, data) => setPricingForm((current) => ({ ...current, [field]: data.value }));
   const setAvailabilityField = (field) => (_event, data) => setAvailabilityForm((current) => ({ ...current, [field]: data.value }));
+  // Occupancy is lease-derived and manual availability commands only accept
+  // 'available'/'unavailable' (never 'occupied'); submitting the default
+  // form for an occupied unit would incorrectly override its status, so the
+  // availability command is disabled entirely while a unit is occupied.
+  const isOccupied = unit.availabilityStatus === 'occupied';
+  // The two commands share the same optimistic-concurrency version, so only
+  // one may be in flight at a time or the second would race the first with
+  // a now-stale expectedVersion.
+  const anyBusy = pricingBusy || availabilityBusy;
 
   if (!open) {
     return (
@@ -290,6 +300,7 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
 
   const handleAvailabilitySubmit = async (event) => {
     event.preventDefault();
+    if (isOccupied) return;
     setAvailabilityValidationError('');
     if (availabilityForm.status === 'unavailable' && !availabilityForm.reasonCode.trim()) {
       setAvailabilityValidationError(t('property_management.reason_code_required'));
@@ -318,33 +329,37 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
       <h3>{t('property_management.manage_unit_title')}</h3>
       <form aria-label={t('property_management.pricing_form_label')} className='unit-form' noValidate onSubmit={handlePricingSubmit}>
         <Field label={t('property_management.field.monthly_rent_amount')} required validationMessage={pricingValidationError || undefined}>
-          <Input inputMode='decimal' required value={pricingForm.amount} onChange={setPricingField('amount')} />
+          <Input disabled={anyBusy} inputMode='decimal' required value={pricingForm.amount} onChange={setPricingField('amount')} />
         </Field>
         <Field label={t('property_management.field.currency')}>
-          <Select value={pricingForm.currency} onChange={setPricingField('currency')}>
+          <Select disabled={anyBusy} value={pricingForm.currency} onChange={setPricingField('currency')}>
             {supportedCurrencies.map((option) => <option key={option} value={option}>{option}</option>)}
           </Select>
         </Field>
-        <Button appearance='primary' disabled={pricingBusy} type='submit'>
+        <Button appearance='primary' disabled={anyBusy} type='submit'>
           {pricingBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_pricing_submit')}
         </Button>
       </form>
-      <form aria-label={t('property_management.availability_form_label')} className='unit-form' noValidate onSubmit={handleAvailabilitySubmit}>
-        <Field label={t('property_management.field.availability_status')}>
-          <Select value={availabilityForm.status} onChange={setAvailabilityField('status')}>
-            <option value='available'>{t('property_management.unit_availability_status.available')}</option>
-            <option value='unavailable'>{t('property_management.unit_availability_status.unavailable')}</option>
-          </Select>
-        </Field>
-        {availabilityForm.status === 'unavailable' ? (
-          <Field label={t('property_management.field.reason_code')} required validationMessage={availabilityValidationError || undefined}>
-            <Input required value={availabilityForm.reasonCode} onChange={setAvailabilityField('reasonCode')} />
+      {isOccupied ? (
+        <p className='unit-availability-occupied-note'>{t('property_management.availability_locked_occupied')}</p>
+      ) : (
+        <form aria-label={t('property_management.availability_form_label')} className='unit-form' noValidate onSubmit={handleAvailabilitySubmit}>
+          <Field label={t('property_management.field.availability_status')}>
+            <Select disabled={anyBusy} value={availabilityForm.status} onChange={setAvailabilityField('status')}>
+              <option value='available'>{t('property_management.unit_availability_status.available')}</option>
+              <option value='unavailable'>{t('property_management.unit_availability_status.unavailable')}</option>
+            </Select>
           </Field>
-        ) : null}
-        <Button appearance='primary' disabled={availabilityBusy} type='submit'>
-          {availabilityBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_availability_submit')}
-        </Button>
-      </form>
+          {availabilityForm.status === 'unavailable' ? (
+            <Field label={t('property_management.field.reason_code')} required validationMessage={availabilityValidationError || undefined}>
+              <Input disabled={anyBusy} required value={availabilityForm.reasonCode} onChange={setAvailabilityField('reasonCode')} />
+            </Field>
+          ) : null}
+          <Button appearance='primary' disabled={anyBusy} type='submit'>
+            {availabilityBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_availability_submit')}
+          </Button>
+        </form>
+      )}
       <Button appearance='subtle' onClick={() => setOpen(false)} type='button'>
         {t('property_management.cancel')}
       </Button>

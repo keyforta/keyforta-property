@@ -154,6 +154,7 @@
     "set_availability_submit": "Update availability",
     "set_availability_success": "Availability updated successfully.",
     "set_availability_failed": "The availability could not be updated right now.",
+    "availability_locked_occupied": "This unit is occupied by an active lease. Availability is managed automatically and cannot be changed here.",
     "reason_code_required": "A reason is required when marking a unit unavailable.",
     "cancel": "Cancel",
     "saving": "Saving\u2026",
