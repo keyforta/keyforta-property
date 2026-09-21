@@ -48,11 +48,6 @@ const emptyPricingForm = {
   currency: supportedCurrencies[0],
 };
 
-const emptyAvailabilityForm = {
-  status: 'available',
-  reasonCode: '',
-};
-
 // Converts a decimal-string user input (e.g. "400" or "400.50") into an
 // integer minor-unit amount without floating-point arithmetic, per the
 // Money(amountMinor, currency) invariant (REQ-034 / domain DDD 301).
@@ -238,13 +233,30 @@ function AddUnitForm({ disabled, onSubmit, propertyId, t }) {
   );
 }
 
+function initialAvailabilityForm(unit) {
+  return {
+    status: unit.availabilityStatus === 'unavailable' ? 'unavailable' : 'available',
+    reasonCode: '',
+  };
+}
+
 function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing, t, unit }) {
   const [open, setOpen] = useState(false);
   const [pricingForm, setPricingForm] = useState(emptyPricingForm);
-  const [availabilityForm, setAvailabilityForm] = useState(emptyAvailabilityForm);
+  const [availabilityForm, setAvailabilityForm] = useState(() => initialAvailabilityForm(unit));
   const [pricingBusy, setPricingBusy] = useState(false);
   const [availabilityBusy, setAvailabilityBusy] = useState(false);
+  const [pricingValidationError, setPricingValidationError] = useState('');
   const [availabilityValidationError, setAvailabilityValidationError] = useState('');
+  // Tracks the unit's version locally so a second command (pricing then
+  // availability, or vice versa) within the same panel session uses the
+  // version returned by the first mutation, instead of the stale prop value
+  // that only updates once the parent's feed refetch completes.
+  const [currentVersion, setCurrentVersion] = useState(unit.version);
+  useEffect(() => {
+    setCurrentVersion(unit.version);
+    setAvailabilityForm(initialAvailabilityForm(unit));
+  }, [unit.availabilityStatus, unit.version]);
   const setPricingField = (field) => (_event, data) => setPricingForm((current) => ({ ...current, [field]: data.value }));
   const setAvailabilityField = (field) => (_event, data) => setAvailabilityForm((current) => ({ ...current, [field]: data.value }));
 
@@ -258,12 +270,19 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
 
   const handlePricingSubmit = async (event) => {
     event.preventDefault();
+    setPricingValidationError('');
     const amountMinor = parseAmountMinor(pricingForm.amount);
-    if (amountMinor === null) return;
+    if (amountMinor === null) {
+      setPricingValidationError(t('property_management.amount_invalid'));
+      return;
+    }
     setPricingBusy(true);
     try {
-      const submitted = await onSetPricing(unit.id, unit.version, { amountMinor, currency: pricingForm.currency });
-      if (submitted) setPricingForm(emptyPricingForm);
+      const newVersion = await onSetPricing(unit.id, currentVersion, { amountMinor, currency: pricingForm.currency });
+      if (typeof newVersion === 'number') {
+        setCurrentVersion(newVersion);
+        setPricingForm(emptyPricingForm);
+      }
     } finally {
       setPricingBusy(false);
     }
@@ -278,11 +297,17 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
     }
     setAvailabilityBusy(true);
     try {
-      const submitted = await onSetAvailability(unit.id, unit.version, {
+      const newVersion = await onSetAvailability(unit.id, currentVersion, {
         status: availabilityForm.status,
         reasonCode: availabilityForm.status === 'unavailable' ? availabilityForm.reasonCode.trim() : null,
       });
-      if (submitted) setAvailabilityForm(emptyAvailabilityForm);
+      if (typeof newVersion === 'number') {
+        setCurrentVersion(newVersion);
+        // Preserve the submitted status; only the reason input is cleared,
+        // so a second click on "Update availability" does not silently flip
+        // the unit back to a different state than what was just saved.
+        setAvailabilityForm((current) => ({ ...current, reasonCode: '' }));
+      }
     } finally {
       setAvailabilityBusy(false);
     }
@@ -290,9 +315,9 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
 
   return (
     <div className='unit-pricing-availability'>
-      <h4>{t('property_management.manage_unit_title')}</h4>
-      <form aria-label={t('property_management.manage_unit_title')} className='unit-form' noValidate onSubmit={handlePricingSubmit}>
-        <Field label={t('property_management.field.monthly_rent_amount')} required>
+      <h3>{t('property_management.manage_unit_title')}</h3>
+      <form aria-label={t('property_management.pricing_form_label')} className='unit-form' noValidate onSubmit={handlePricingSubmit}>
+        <Field label={t('property_management.field.monthly_rent_amount')} required validationMessage={pricingValidationError || undefined}>
           <Input inputMode='decimal' required value={pricingForm.amount} onChange={setPricingField('amount')} />
         </Field>
         <Field label={t('property_management.field.currency')}>
@@ -304,7 +329,7 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
           {pricingBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_pricing_submit')}
         </Button>
       </form>
-      <form aria-label={t('property_management.manage_unit_title')} className='unit-form' noValidate onSubmit={handleAvailabilitySubmit}>
+      <form aria-label={t('property_management.availability_form_label')} className='unit-form' noValidate onSubmit={handleAvailabilitySubmit}>
         <Field label={t('property_management.field.availability_status')}>
           <Select value={availabilityForm.status} onChange={setAvailabilityField('status')}>
             <option value='available'>{t('property_management.unit_availability_status.available')}</option>
@@ -459,7 +484,7 @@ export function PropertyManagementPanel({
   };
 
   const submitSetPricing = async (unitId, expectedVersion, form) => {
-    if (disableActions) return false;
+    if (disableActions) return null;
     setMessage('');
     setMessageTone('');
     try {
@@ -472,20 +497,20 @@ export function PropertyManagementPanel({
         expectedVersion,
         idempotencyKey: generateIdempotencyKey(),
       });
-      pricingVersionCreationEnvelopeSchema.parse(payload);
+      const parsed = pricingVersionCreationEnvelopeSchema.parse(payload);
       setMessage(t('property_management.set_pricing_success'));
       setMessageTone('success');
       if (onRetryFeed) onRetryFeed();
-      return true;
+      return parsed.data.unitVersion;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t('property_management.set_pricing_failed'));
       setMessageTone('error');
-      return false;
+      return null;
     }
   };
 
   const submitSetAvailability = async (unitId, expectedVersion, form) => {
-    if (disableActions) return false;
+    if (disableActions) return null;
     setMessage('');
     setMessageTone('');
     try {
@@ -498,15 +523,15 @@ export function PropertyManagementPanel({
         expectedVersion,
         idempotencyKey: generateIdempotencyKey(),
       });
-      availabilityVersionCreationEnvelopeSchema.parse(payload);
+      const parsed = availabilityVersionCreationEnvelopeSchema.parse(payload);
       setMessage(t('property_management.set_availability_success'));
       setMessageTone('success');
       if (onRetryFeed) onRetryFeed();
-      return true;
+      return parsed.data.unitVersion;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t('property_management.set_availability_failed'));
       setMessageTone('error');
-      return false;
+      return null;
     }
   };
 

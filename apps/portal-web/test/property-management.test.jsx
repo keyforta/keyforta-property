@@ -255,9 +255,99 @@ describe('PropertyManagementPanel', () => {
     expect(onRetryFeed).toHaveBeenCalledTimes(1);
   });
 
+  it('initializes the availability selector from the unit\'s current status (issue #116)', async () => {
+    const unavailableProperties = [{
+      ...properties[0],
+      units: [{ ...properties[0].units[0], availabilityStatus: 'unavailable' }],
+    }];
+    renderPanel({ properties: unavailableProperties });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    expect(screen.getByLabelText('Availability status')).toHaveValue('unavailable');
+  });
+
+  it('shows a validation message and does not submit an invalid pricing amount (issue #116)', async () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Monthly rent amount*'), { target: { value: '400.999' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing' }));
+
+    expect(await screen.findByText(/Enter a whole or decimal amount/i)).toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('preserves the submitted availability status after a successful save (issue #116)', async () => {
+    update.mockResolvedValueOnce({
+      data: { availabilityVersionId: 'a9b8c7d6-5e4f-4a3b-9c2d-1e0f9a8b7c65', unitVersion: 2 },
+      meta: { requestId: 'req-5' },
+    });
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Availability status'), { target: { value: 'unavailable' } });
+    fireEvent.change(screen.getByLabelText('Reason*'), { target: { value: 'Undergoing renovation' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update availability' }));
+
+    await screen.findByText('Availability updated successfully.');
+    expect(screen.getByLabelText('Availability status')).toHaveValue('unavailable');
+  });
+
+  it('uses the version returned by the first mutation for a second command in the same session (issue #116)', async () => {
+    update
+      .mockResolvedValueOnce({ data: { pricingVersionId: 'f1a2b3c4-5d6e-4f70-8a1b-2c3d4e5f6a71', unitVersion: 2 }, meta: { requestId: 'req-6' } })
+      .mockResolvedValueOnce({ data: { availabilityVersionId: 'a9b8c7d6-5e4f-4a3b-9c2d-1e0f9a8b7c65', unitVersion: 3 }, meta: { requestId: 'req-7' } });
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Monthly rent amount*'), { target: { value: '400.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing' }));
+    await screen.findByText('Pricing updated successfully.');
+
+    fireEvent.change(screen.getByLabelText('Availability status'), { target: { value: 'available' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update availability' }));
+
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith(
+      `units/${properties[0].units[0].id}`,
+      'availability',
+      expect.objectContaining({ expectedVersion: 2 }),
+    ));
+  });
+
+  it('gives the pricing and availability forms distinct accessible names (issue #116)', async () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    expect(screen.getByRole('form', { name: 'Pricing' })).toBeInTheDocument();
+    expect(screen.getByRole('form', { name: 'Availability' })).toBeInTheDocument();
+  });
+
   it('has no critical accessibility violations', async () => {
     const { container } = renderPanel();
     expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
+    expect((await axe(container)).violations).toEqual([]);
+  });
+
+  it('has no critical accessibility violations with the pricing/availability panel expanded', async () => {
+    const { container } = renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
     expect((await axe(container)).violations).toEqual([]);
   });
 });
