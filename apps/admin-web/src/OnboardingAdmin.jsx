@@ -27,6 +27,20 @@ function formatDate(value) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
+// Migration 0030 does not retroactively rewrite pre-REQ-037 listing
+// snapshots, so a stored imageUrls entry may still be an arbitrary
+// relative/http(s) string from before the https-only input validator
+// existed. Resolving it against the current origin and only rendering
+// an anchor for the http/https schemes prevents a stored
+// `javascript:`/`data:` value from executing when a reviewer clicks it.
+function isSafeImageUrl(url) {
+  try {
+    return ['http:', 'https:'].includes(new URL(url, window.location.origin).protocol);
+  } catch {
+    return false;
+  }
+}
+
 function LoginGate({ auth }) {
   const { t } = useTranslation();
   return <div className="auth"><section className="card" aria-labelledby="admin-sign-in-title">
@@ -152,7 +166,9 @@ function MediaReviewCard({ decision, onDecision, review }) {
     </dl>
     {review.summary ? <p className="muted">{review.summary}</p> : null}
     {review.imageUrls.length > 0 ? <ul className="media-review-images">
-      {review.imageUrls.map((url) => <li key={url}><a href={url} rel="noreferrer" target="_blank">{url}</a></li>)}
+      {review.imageUrls.map((url) => <li key={url}>{isSafeImageUrl(url)
+        ? <a href={url} rel="noreferrer" target="_blank">{url}</a>
+        : <span>{url}</span>}</li>)}
     </ul> : <p className="muted">{t('media_review.no_images')}</p>}
     <form onSubmit={(event) => event.preventDefault()}>
       <Field label={t('media_review.notes_label')} hint={t('media_review.notes_hint')}>

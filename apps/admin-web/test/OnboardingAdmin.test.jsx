@@ -151,6 +151,23 @@ describe('OnboardingAdmin', () => {
       expect(screen.getByText('Unit 2A')).toBeInTheDocument();
     });
 
+    it('does not render a clickable link for a legacy imageUrls value using an unsafe URL scheme', async () => {
+      mocks.listMock.mockResolvedValue([]);
+      mocks.mediaReviewListMock.mockResolvedValue([{
+        ...pendingReview,
+        imageUrls: ['javascript:alert(1)', 'https://images.test/a.jpg'],
+      }]);
+      renderAdmin();
+      await screen.findByText('No onboarding applications are awaiting review.');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+
+      await screen.findByText('Riverside apartment — Unit 2A');
+      expect(screen.getByText('javascript:alert(1)')).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'javascript:alert(1)' })).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'https://images.test/a.jpg' })).toBeInTheDocument();
+    });
+
     it('renders the empty state when no listings are awaiting media review', async () => {
       mocks.listMock.mockResolvedValue([]);
       mocks.mediaReviewListMock.mockResolvedValue([]);
