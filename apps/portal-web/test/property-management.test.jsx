@@ -9,10 +9,11 @@ vi.mock('@keyforta/ui', () => ({
 }));
 
 const create = vi.hoisted(() => vi.fn());
+const update = vi.hoisted(() => vi.fn());
 const createApiClientOptions = vi.hoisted(() => []);
 const createApiClientMock = vi.hoisted(() => vi.fn((options) => {
   createApiClientOptions.push(options);
-  return { create };
+  return { create, update };
 }));
 vi.mock('@keyforta/api-client', () => ({
   createApiClient: createApiClientMock,
@@ -92,6 +93,7 @@ function fillCreatePropertyForm() {
 describe('PropertyManagementPanel', () => {
   beforeEach(() => {
     create.mockReset();
+    update.mockReset();
     createApiClientMock.mockClear();
     createApiClientOptions.length = 0;
     i18n.changeLanguage('en');
@@ -190,9 +192,218 @@ describe('PropertyManagementPanel', () => {
     expect(onRetryFeed).toHaveBeenCalledTimes(1);
   });
 
+  it('sets pricing for an existing unit once the actor signs in (issue #116)', async () => {
+    update.mockResolvedValueOnce({
+      data: { pricingVersionId: 'f1a2b3c4-5d6e-4f70-8a1b-2c3d4e5f6a71', unitVersion: 2 },
+      meta: { requestId: 'req-3' },
+    });
+    const onRetryFeed = vi.fn();
+    renderPanel({ onRetryFeed });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Monthly rent amount*'), { target: { value: '400.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing' }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith(
+      `units/${properties[0].units[0].id}`,
+      'pricing',
+      expect.objectContaining({ amountMinor: 40050, currency: 'CDF', expectedVersion: 1 }),
+    ));
+    expect(await screen.findByText('Pricing updated successfully.')).toBeInTheDocument();
+    expect(onRetryFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a reason code before marking a unit unavailable (issue #116)', async () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Availability status'), { target: { value: 'unavailable' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update availability' }));
+
+    expect(await screen.findByText('A reason is required when marking a unit unavailable.')).toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('sets availability for an existing unit once the actor signs in (issue #116)', async () => {
+    update.mockResolvedValueOnce({
+      data: { availabilityVersionId: 'a9b8c7d6-5e4f-4a3b-9c2d-1e0f9a8b7c65', unitVersion: 2 },
+      meta: { requestId: 'req-4' },
+    });
+    const onRetryFeed = vi.fn();
+    renderPanel({ onRetryFeed });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Availability status'), { target: { value: 'unavailable' } });
+    fireEvent.change(screen.getByLabelText('Reason*'), { target: { value: 'Undergoing renovation' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update availability' }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith(
+      `units/${properties[0].units[0].id}`,
+      'availability',
+      expect.objectContaining({ status: 'unavailable', reasonCode: 'Undergoing renovation', expectedVersion: 1 }),
+    ));
+    expect(await screen.findByText('Availability updated successfully.')).toBeInTheDocument();
+    expect(onRetryFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('initializes the availability selector from the unit\'s current status (issue #116)', async () => {
+    const unavailableProperties = [{
+      ...properties[0],
+      units: [{ ...properties[0].units[0], availabilityStatus: 'unavailable' }],
+    }];
+    renderPanel({ properties: unavailableProperties });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    expect(screen.getByLabelText('Availability status')).toHaveValue('unavailable');
+  });
+
+  it('shows a validation message and does not submit an invalid pricing amount (issue #116)', async () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Monthly rent amount*'), { target: { value: '400.999' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing' }));
+
+    expect(await screen.findByText(/Enter a whole or decimal amount/i)).toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('preserves the submitted availability status after a successful save (issue #116)', async () => {
+    update.mockResolvedValueOnce({
+      data: { availabilityVersionId: 'a9b8c7d6-5e4f-4a3b-9c2d-1e0f9a8b7c65', unitVersion: 2 },
+      meta: { requestId: 'req-5' },
+    });
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Availability status'), { target: { value: 'unavailable' } });
+    fireEvent.change(screen.getByLabelText('Reason*'), { target: { value: 'Undergoing renovation' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update availability' }));
+
+    await screen.findByText('Availability updated successfully.');
+    expect(screen.getByLabelText('Availability status')).toHaveValue('unavailable');
+  });
+
+  it('uses the version returned by the first mutation for a second command in the same session (issue #116)', async () => {
+    update
+      .mockResolvedValueOnce({ data: { pricingVersionId: 'f1a2b3c4-5d6e-4f70-8a1b-2c3d4e5f6a71', unitVersion: 2 }, meta: { requestId: 'req-6' } })
+      .mockResolvedValueOnce({ data: { availabilityVersionId: 'a9b8c7d6-5e4f-4a3b-9c2d-1e0f9a8b7c65', unitVersion: 3 }, meta: { requestId: 'req-7' } });
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Monthly rent amount*'), { target: { value: '400.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing' }));
+    await screen.findByText('Pricing updated successfully.');
+
+    fireEvent.change(screen.getByLabelText('Availability status'), { target: { value: 'available' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update availability' }));
+
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith(
+      `units/${properties[0].units[0].id}`,
+      'availability',
+      expect.objectContaining({ expectedVersion: 2 }),
+    ));
+  });
+
+  it('gives the pricing and availability forms distinct accessible names (issue #116)', async () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    expect(screen.getByRole('form', { name: 'Pricing' })).toBeInTheDocument();
+    expect(screen.getByRole('form', { name: 'Availability' })).toBeInTheDocument();
+  });
+
   it('has no critical accessibility violations', async () => {
     const { container } = renderPanel();
     expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
     expect((await axe(container)).violations).toEqual([]);
   });
+
+  it('has no critical accessibility violations with the pricing/availability panel expanded', async () => {
+    const { container } = renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+    expect((await axe(container)).violations).toEqual([]);
+  });
+
+  it('locks the availability command for an occupied unit instead of allowing it to be overridden (issue #116)', async () => {
+    const occupiedProperties = [{
+      ...properties[0],
+      units: [{ ...properties[0].units[0], availabilityStatus: 'occupied' }],
+    }];
+    renderPanel({ properties: occupiedProperties });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    expect(screen.queryByRole('form', { name: 'Availability' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Availability status')).not.toBeInTheDocument();
+    expect(screen.getByText(/occupied by an active lease/i)).toBeInTheDocument();
+  });
+
+  it('accepts a comma decimal separator matching the French validation copy (issue #116)', async () => {
+    i18n.changeLanguage('fr');
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Se connecter pour continuer' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'D\u00e9finir le prix et la disponibilit\u00e9' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'D\u00e9finir le prix et la disponibilit\u00e9' }));
+
+    fireEvent.change(screen.getByLabelText('Loyer mensuel*'), { target: { value: '400,50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'D\u00e9finir le prix' }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith(
+      `units/${properties[0].units[0].id}`,
+      'pricing',
+      expect.objectContaining({ amountMinor: 40050 }),
+    ));
+  });
+
+  it('disables the other command while one mutation is in flight, to avoid a racing stale version (issue #116)', async () => {
+    let resolvePricing;
+    update.mockReturnValueOnce(new Promise((resolve) => { resolvePricing = resolve; }));
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Set pricing & availability' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing & availability' }));
+
+    fireEvent.change(screen.getByLabelText('Monthly rent amount*'), { target: { value: '400.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set pricing' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Update availability' })).toBeDisabled());
+
+    resolvePricing({
+      data: { pricingVersionId: 'f1a2b3c4-5d6e-4f70-8a1b-2c3d4e5f6a71', unitVersion: 2 },
+      meta: { requestId: 'req-8' },
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Update availability' })).toBeEnabled());
+  });
 });
+

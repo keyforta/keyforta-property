@@ -143,6 +143,19 @@
     "add_unit_submit": "Create unit",
     "add_unit_success": "Unit created successfully.",
     "add_unit_failed": "The unit could not be created right now.",
+    "manage_unit_toggle": "Set pricing \u0026 availability",
+    "manage_unit_title": "Pricing \u0026 availability",
+    "pricing_form_label": "Pricing",
+    "availability_form_label": "Availability",
+    "set_pricing_submit": "Set pricing",
+    "set_pricing_success": "Pricing updated successfully.",
+    "set_pricing_failed": "The pricing could not be updated right now.",
+    "amount_invalid": "Enter a whole or decimal amount (up to 2 decimal places), for example 400 or 400.50.",
+    "set_availability_submit": "Update availability",
+    "set_availability_success": "Availability updated successfully.",
+    "set_availability_failed": "The availability could not be updated right now.",
+    "availability_locked_occupied": "This unit is occupied by an active lease. Availability is managed automatically and cannot be changed here.",
+    "reason_code_required": "A reason is required when marking a unit unavailable.",
     "cancel": "Cancel",
     "saving": "Saving\u2026",
     "field": {
@@ -163,7 +176,11 @@
       "unit_type": "Unit type",
       "bedrooms": "Bedrooms",
       "bathrooms": "Bathrooms",
-      "furnishing_status": "Furnishing status"
+      "furnishing_status": "Furnishing status",
+      "monthly_rent_amount": "Monthly rent amount",
+      "currency": "Currency",
+      "availability_status": "Availability status",
+      "reason_code": "Reason"
     },
     "property_type": {
       "apartment_building": "Apartment building",

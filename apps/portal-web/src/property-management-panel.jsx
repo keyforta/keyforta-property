@@ -4,10 +4,13 @@ import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
 import {
+  availabilityVersionCreationEnvelopeSchema,
   furnishingStatuses,
+  pricingVersionCreationEnvelopeSchema,
   propertyTypes,
   rentalPropertyCreationEnvelopeSchema,
   rentableUnitCreationEnvelopeSchema,
+  supportedCurrencies,
   unitTypes,
 } from '@keyforta/contracts';
 import { resolveApiBaseUrl } from './listing-publication-panel.jsx';
@@ -39,6 +42,23 @@ const emptyUnitForm = {
   bathrooms: '1',
   furnishingStatus: furnishingStatuses[0],
 };
+
+const emptyPricingForm = {
+  amount: '',
+  currency: supportedCurrencies[0],
+};
+
+// Converts a decimal-string user input (e.g. "400", "400.50", or the
+// French-locale "400,50") into an integer minor-unit amount without
+// floating-point arithmetic, per the Money(amountMinor, currency) invariant
+// (REQ-034 / domain DDD 301).
+function parseAmountMinor(amount) {
+  const match = /^(\d+)(?:[.,](\d{1,2}))?$/.exec(amount.trim());
+  if (!match) return null;
+  const fraction = (match[2] ?? '').padEnd(2, '0');
+  const minor = Number(`${match[1]}${fraction}`);
+  return Number.isSafeInteger(minor) && minor > 0 ? minor : null;
+}
 
 function generateIdempotencyKey() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -214,6 +234,139 @@ function AddUnitForm({ disabled, onSubmit, propertyId, t }) {
   );
 }
 
+function initialAvailabilityForm(unit) {
+  return {
+    status: unit.availabilityStatus === 'unavailable' ? 'unavailable' : 'available',
+    reasonCode: '',
+  };
+}
+
+function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing, t, unit }) {
+  const [open, setOpen] = useState(false);
+  const [pricingForm, setPricingForm] = useState(emptyPricingForm);
+  const [availabilityForm, setAvailabilityForm] = useState(() => initialAvailabilityForm(unit));
+  const [pricingBusy, setPricingBusy] = useState(false);
+  const [availabilityBusy, setAvailabilityBusy] = useState(false);
+  const [pricingValidationError, setPricingValidationError] = useState('');
+  const [availabilityValidationError, setAvailabilityValidationError] = useState('');
+  // Tracks the unit's version locally so a second command (pricing then
+  // availability, or vice versa) within the same panel session uses the
+  // version returned by the first mutation, instead of the stale prop value
+  // that only updates once the parent's feed refetch completes.
+  const [currentVersion, setCurrentVersion] = useState(unit.version);
+  useEffect(() => {
+    setCurrentVersion(unit.version);
+    setAvailabilityForm(initialAvailabilityForm(unit));
+  }, [unit.availabilityStatus, unit.version]);
+  const setPricingField = (field) => (_event, data) => setPricingForm((current) => ({ ...current, [field]: data.value }));
+  const setAvailabilityField = (field) => (_event, data) => setAvailabilityForm((current) => ({ ...current, [field]: data.value }));
+  // Occupancy is lease-derived and manual availability commands only accept
+  // 'available'/'unavailable' (never 'occupied'); submitting the default
+  // form for an occupied unit would incorrectly override its status, so the
+  // availability command is disabled entirely while a unit is occupied.
+  const isOccupied = unit.availabilityStatus === 'occupied';
+  // The two commands share the same optimistic-concurrency version, so only
+  // one may be in flight at a time or the second would race the first with
+  // a now-stale expectedVersion.
+  const anyBusy = pricingBusy || availabilityBusy;
+
+  if (!open) {
+    return (
+      <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
+        {t('property_management.manage_unit_toggle')}
+      </Button>
+    );
+  }
+
+  const handlePricingSubmit = async (event) => {
+    event.preventDefault();
+    setPricingValidationError('');
+    const amountMinor = parseAmountMinor(pricingForm.amount);
+    if (amountMinor === null) {
+      setPricingValidationError(t('property_management.amount_invalid'));
+      return;
+    }
+    setPricingBusy(true);
+    try {
+      const newVersion = await onSetPricing(unit.id, currentVersion, { amountMinor, currency: pricingForm.currency });
+      if (typeof newVersion === 'number') {
+        setCurrentVersion(newVersion);
+        setPricingForm(emptyPricingForm);
+      }
+    } finally {
+      setPricingBusy(false);
+    }
+  };
+
+  const handleAvailabilitySubmit = async (event) => {
+    event.preventDefault();
+    if (isOccupied) return;
+    setAvailabilityValidationError('');
+    if (availabilityForm.status === 'unavailable' && !availabilityForm.reasonCode.trim()) {
+      setAvailabilityValidationError(t('property_management.reason_code_required'));
+      return;
+    }
+    setAvailabilityBusy(true);
+    try {
+      const newVersion = await onSetAvailability(unit.id, currentVersion, {
+        status: availabilityForm.status,
+        reasonCode: availabilityForm.status === 'unavailable' ? availabilityForm.reasonCode.trim() : null,
+      });
+      if (typeof newVersion === 'number') {
+        setCurrentVersion(newVersion);
+        // Preserve the submitted status; only the reason input is cleared,
+        // so a second click on "Update availability" does not silently flip
+        // the unit back to a different state than what was just saved.
+        setAvailabilityForm((current) => ({ ...current, reasonCode: '' }));
+      }
+    } finally {
+      setAvailabilityBusy(false);
+    }
+  };
+
+  return (
+    <div className='unit-pricing-availability'>
+      <h3>{t('property_management.manage_unit_title')}</h3>
+      <form aria-label={t('property_management.pricing_form_label')} className='unit-form' noValidate onSubmit={handlePricingSubmit}>
+        <Field label={t('property_management.field.monthly_rent_amount')} required validationMessage={pricingValidationError || undefined}>
+          <Input disabled={anyBusy} inputMode='decimal' required value={pricingForm.amount} onChange={setPricingField('amount')} />
+        </Field>
+        <Field label={t('property_management.field.currency')}>
+          <Select disabled={anyBusy} value={pricingForm.currency} onChange={setPricingField('currency')}>
+            {supportedCurrencies.map((option) => <option key={option} value={option}>{option}</option>)}
+          </Select>
+        </Field>
+        <Button appearance='primary' disabled={anyBusy} type='submit'>
+          {pricingBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_pricing_submit')}
+        </Button>
+      </form>
+      {isOccupied ? (
+        <p className='unit-availability-occupied-note'>{t('property_management.availability_locked_occupied')}</p>
+      ) : (
+        <form aria-label={t('property_management.availability_form_label')} className='unit-form' noValidate onSubmit={handleAvailabilitySubmit}>
+          <Field label={t('property_management.field.availability_status')}>
+            <Select disabled={anyBusy} value={availabilityForm.status} onChange={setAvailabilityField('status')}>
+              <option value='available'>{t('property_management.unit_availability_status.available')}</option>
+              <option value='unavailable'>{t('property_management.unit_availability_status.unavailable')}</option>
+            </Select>
+          </Field>
+          {availabilityForm.status === 'unavailable' ? (
+            <Field label={t('property_management.field.reason_code')} required validationMessage={availabilityValidationError || undefined}>
+              <Input disabled={anyBusy} required value={availabilityForm.reasonCode} onChange={setAvailabilityField('reasonCode')} />
+            </Field>
+          ) : null}
+          <Button appearance='primary' disabled={anyBusy} type='submit'>
+            {availabilityBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_availability_submit')}
+          </Button>
+        </form>
+      )}
+      <Button appearance='subtle' onClick={() => setOpen(false)} type='button'>
+        {t('property_management.cancel')}
+      </Button>
+    </div>
+  );
+}
+
 export function PropertyManagementPanel({
   feedError,
   feedLoading,
@@ -345,6 +498,58 @@ export function PropertyManagementPanel({
     }
   };
 
+  const submitSetPricing = async (unitId, expectedVersion, form) => {
+    if (disableActions) return null;
+    setMessage('');
+    setMessageTone('');
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.update(`units/${unitId}`, 'pricing', {
+        amountMinor: form.amountMinor,
+        currency: form.currency,
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion,
+        idempotencyKey: generateIdempotencyKey(),
+      });
+      const parsed = pricingVersionCreationEnvelopeSchema.parse(payload);
+      setMessage(t('property_management.set_pricing_success'));
+      setMessageTone('success');
+      if (onRetryFeed) onRetryFeed();
+      return parsed.data.unitVersion;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t('property_management.set_pricing_failed'));
+      setMessageTone('error');
+      return null;
+    }
+  };
+
+  const submitSetAvailability = async (unitId, expectedVersion, form) => {
+    if (disableActions) return null;
+    setMessage('');
+    setMessageTone('');
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.update(`units/${unitId}`, 'availability', {
+        status: form.status,
+        reasonCode: form.reasonCode,
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion,
+        idempotencyKey: generateIdempotencyKey(),
+      });
+      const parsed = availabilityVersionCreationEnvelopeSchema.parse(payload);
+      setMessage(t('property_management.set_availability_success'));
+      setMessageTone('success');
+      if (onRetryFeed) onRetryFeed();
+      return parsed.data.unitVersion;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t('property_management.set_availability_failed'));
+      setMessageTone('error');
+      return null;
+    }
+  };
+
   return (
     <section aria-labelledby='property-management-title' className='panel property-panel'>
       <div className='panel-head'>
@@ -400,6 +605,13 @@ export function PropertyManagementPanel({
                     <span>{unit.label}</span>
                     <span className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</span>
                     <span className='status'>{t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}</span>
+                    <UnitPricingAvailabilityForm
+                      disabled={disableActions}
+                      onSetAvailability={submitSetAvailability}
+                      onSetPricing={submitSetPricing}
+                      t={t}
+                      unit={unit}
+                    />
                   </div>
                 ))}
               </div>
