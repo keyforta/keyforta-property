@@ -116,5 +116,79 @@
         "detail": "Listing is hidden from the public marketplace."
       }
     }
+  },
+  "property_management": {
+    "kicker": "Property portfolio",
+    "title": "Create and manage your properties and units",
+    "rejected_base_url": "Property management ignored an invalid or insecure API base URL and fell back to the approved relative API path.",
+    "resolving_token": "Resolving your portal access token\u2026",
+    "demo_session": "Demo portal sessions cannot create or manage properties. Sign in with Microsoft Entra before adding a property or unit.",
+    "organization_unavailable": "Property management is unavailable until an organization context is selected for this portal session.",
+    "sign_in_required": "Sign in with Microsoft Entra to enable property and unit creation for this session.",
+    "sign_in_to_continue": "Sign in to continue",
+    "unavailable": "Property management is unavailable until Microsoft Entra access is connected for this portal session.",
+    "sign_in_error": "Sign in with Microsoft Entra to continue.",
+    "sign_in_first": "Sign in before continuing.",
+    "feed_loading": "Loading your properties\u2026",
+    "feed_error": "We couldn't load your properties. This does not mean you have none — try again.",
+    "feed_retry": "Try again",
+    "portfolio": "Your properties",
+    "empty_state": "You have not created any properties yet. Use the form below to add your first property.",
+    "create_property_title": "Add a property",
+    "create_property_submit": "Create property",
+    "create_property_success": "Property created successfully.",
+    "create_property_failed": "The property could not be created right now.",
+    "add_unit_toggle": "Add a unit",
+    "add_unit_title": "Add a unit",
+    "add_unit_submit": "Create unit",
+    "add_unit_success": "Unit created successfully.",
+    "add_unit_failed": "The unit could not be created right now.",
+    "cancel": "Cancel",
+    "saving": "Saving\u2026",
+    "field": {
+      "name": "Property name",
+      "property_type": "Property type",
+      "avenue_or_street": "Avenue or street",
+      "number": "Number",
+      "quartier": "Quartier",
+      "commune": "Commune",
+      "city": "City",
+      "province": "Province",
+      "country_code": "Country code (ISO 3166-1 alpha-2)",
+      "postal_code_optional": "Postal code (optional)",
+      "time_zone": "Time zone (IANA identifier)",
+      "jurisdiction_code_optional": "Jurisdiction code (optional)",
+      "first_unit_label": "First unit label",
+      "unit_label": "Unit label",
+      "unit_type": "Unit type",
+      "bedrooms": "Bedrooms",
+      "bathrooms": "Bathrooms",
+      "furnishing_status": "Furnishing status"
+    },
+    "property_type": {
+      "apartment_building": "Apartment building",
+      "single_family": "Single family",
+      "townhouse": "Townhouse",
+      "mixed_use": "Mixed use",
+      "other": "Other"
+    },
+    "unit_type": {
+      "studio": "Studio",
+      "apartment": "Apartment",
+      "house": "House",
+      "townhouse": "Townhouse",
+      "commercial": "Commercial",
+      "other": "Other"
+    },
+    "furnishing_status": {
+      "unfurnished": "Unfurnished",
+      "part_furnished": "Part furnished",
+      "furnished": "Furnished"
+    },
+    "unit_availability_status": {
+      "unavailable": "Unavailable",
+      "available": "Available",
+      "occupied": "Occupied"
+    }
   }
 }
