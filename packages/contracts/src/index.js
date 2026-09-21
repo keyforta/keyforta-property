@@ -105,6 +105,11 @@ export const supportedCurrencies = Object.freeze(['CDF', 'USD']);
 export { unitLabelUnicodeVersion };
 
 const boundedTextSchema = (maximum) => z.string().trim().min(1).max(maximum);
+// PublicListing media images must be externally hosted over https:// only,
+// mirroring the database check in migration 0030
+// (app.validate_public_listing_media_payload); an http:// URL must fail
+// here with a 400 validation error rather than reach the SQL layer.
+const httpsImageUrlSchema = z.url({ protocol: /^https$/ }).max(2048);
 const timestampSchema = z.iso.datetime();
 const positiveVersionSchema = z.number().int().positive();
 const actorIdSchema = z.uuid();
@@ -588,7 +593,7 @@ export const publicListingPublicationEnvelopeSchema = envelopeSchema(z.object({
 // platform administrator records a review decision (REQ-037).
 export const publicListingSummarySchema = z.object({
 	id: publicListingIdSchema,
-	imageUrls: z.array(z.url().max(2048)),
+	imageUrls: z.array(httpsImageUrlSchema),
 	mediaReviewNotes: boundedTextSchema(2000).nullable(),
 	mediaReviewStatus: z.enum(publicListingMediaReviewStatuses),
 	note: boundedTextSchema(322),
@@ -606,7 +611,7 @@ export const publicListingListEnvelopeSchema = z.object({
 
 export const createPublicListingInputSchema = z.object({
 	idempotencyKey: boundedTextSchema(128),
-	imageUrls: z.array(z.url().max(2048)).min(1).max(10),
+	imageUrls: z.array(httpsImageUrlSchema).min(1).max(10),
 	summary: boundedTextSchema(4000),
 	title: boundedTextSchema(140),
 }).strict();
@@ -622,7 +627,7 @@ export const createPublicListingEnvelopeSchema = envelopeSchema(createPublicList
 
 export const updatePublicListingDraftInputSchema = z.object({
 	expectedVersion: positiveVersionSchema,
-	imageUrls: z.array(z.url().max(2048)).min(1).max(10),
+	imageUrls: z.array(httpsImageUrlSchema).min(1).max(10),
 	summary: boundedTextSchema(4000),
 	title: boundedTextSchema(140),
 }).strict();
@@ -654,7 +659,7 @@ export const publicListingMediaReviewEnvelopeSchema = envelopeSchema(publicListi
 // organizationName/propertyName <=160, unitLabel <=80, title <=140,
 // summary <=4000, up to 10 image URLs of at most 2048 characters each.
 export const pendingPublicListingMediaReviewSchema = z.object({
-	imageUrls: z.array(z.url().max(2048)).max(10),
+	imageUrls: z.array(httpsImageUrlSchema).max(10),
 	listingId: publicListingIdSchema,
 	organizationId: organizationIdSchema,
 	organizationName: boundedTextSchema(160),

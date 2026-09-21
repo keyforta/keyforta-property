@@ -25,7 +25,21 @@ alter table app.public_listings
   add column media_review_notes text
     check (media_review_notes is null or char_length(btrim(media_review_notes)) between 1 and 2000),
   add constraint public_listings_title_check
-    check (title is null or char_length(btrim(title)) between 3 and 140),
+    check (title is null or char_length(btrim(title)) between 3 and 140);
+
+-- Backfill legacy rows before the media-approval constraint is added: any
+-- listing already `published` by migrations 0023/0029 predates this
+-- media-review workflow entirely, so it is grandfathered in as `approved`
+-- (with a synthetic decision record) rather than being retroactively
+-- blocked from remaining published.
+update app.public_listings
+set media_review_status = 'approved',
+    media_reviewed_at = transaction_timestamp(),
+    media_reviewer_subject = 'system:migration-0030-backfill',
+    media_reviewer_object_id = '00000000-0000-0000-0000-000000000000'
+where status = 'published' and media_review_status = 'pending';
+
+alter table app.public_listings
   add constraint public_listings_published_requires_media_approval
     check (status <> 'published' or media_review_status = 'approved'),
   add constraint public_listings_reviewed_at_requires_decision
@@ -83,6 +97,24 @@ create policy public_listing_media_review_events_isolation
   on app.public_listing_media_review_events
   using (organization_id = app.current_organization_id())
   with check (organization_id = app.current_organization_id());
+
+-- The platform-admin media-review console (mirroring the cross-organization
+-- landlord-onboarding allowlist, REQ-028-031) must read and decide on
+-- listings across every organization, not just the caller's own. Rather
+-- than trusting a client-supplied organization id, `review_public_listing_media`
+-- and `list_public_listings_pending_media_review` set this session-local,
+-- transaction-scoped flag themselves (never client-controlled) immediately
+-- before, and clear it immediately after, the exact statements that require
+-- cross-organization visibility; every other code path leaves it unset, so
+-- FORCE ROW LEVEL SECURITY still applies everywhere else.
+create policy public_listings_platform_admin_media_review on app.public_listings
+  using (current_setting('app.platform_admin_media_review', true) = 'true')
+  with check (current_setting('app.platform_admin_media_review', true) = 'true');
+
+create policy public_listing_media_review_events_platform_admin_media_review
+  on app.public_listing_media_review_events
+  using (current_setting('app.platform_admin_media_review', true) = 'true')
+  with check (current_setting('app.platform_admin_media_review', true) = 'true');
 
 revoke all on app.public_listing_media_review_events from keyforta_runtime;
 grant select, insert on app.public_listing_media_review_events to keyforta_runtime;
@@ -182,18 +214,6 @@ begin
     raise exception 'an archived Unit cannot receive a PublicListing' using errcode = '23514';
   end if;
 
-  if exists (
-    select 1 from app.public_listings as existing_listing
-    where existing_listing.organization_id = organization
-      and existing_listing.unit_id = requested_unit_id
-  ) then
-    raise exception 'a PublicListing already exists for this Unit' using errcode = '23505';
-  end if;
-
-  perform app.validate_public_listing_media_payload(
-    requested_title, requested_summary, requested_image_urls
-  );
-
   payload := jsonb_build_object(
     'unitId', requested_unit_id, 'title', requested_title,
     'summary', requested_summary, 'imageUrls', requested_image_urls
@@ -211,6 +231,28 @@ begin
     return next;
     return;
   end if;
+
+  if exists (
+    select 1 from app.public_listings as existing_listing
+    where existing_listing.organization_id = organization
+      and existing_listing.unit_id = requested_unit_id
+  ) then
+    raise exception 'a PublicListing already exists for this Unit' using errcode = '23505';
+  end if;
+
+  -- actor_can_manage_property authorizes an active landlord even without an
+  -- explicit manager_property_assignments row (unlike a manager, who must
+  -- already hold one to pass that check). Without also recording an
+  -- assignment here, app.list_public_listings_for_actor (which, like the
+  -- rest of the portfolio feed, is deliberately scoped to explicit
+  -- assignments per issue #114) would never surface the listing back to
+  -- that landlord. Self-assigning is a no-op (and harmless) when the actor
+  -- is a manager who is already assigned, or already self-assigned.
+  perform app.set_manager_property_assignment(unit_record.property_id, actor, true);
+
+  perform app.validate_public_listing_media_payload(
+    requested_title, requested_summary, requested_image_urls
+  );
 
   insert into app.public_listings (
     organization_id, property_id, unit_id, status, title, snapshot
@@ -331,7 +373,11 @@ $$;
 -- app.decide_landlord_onboarding_application). No organization/actor
 -- context is required here because platform administrators are
 -- cross-organization identities that do not carry an organization-scoped
--- session; the API route is the only gate.
+-- session; the API route is the only gate. `app.public_listings` and
+-- `app.public_listing_media_review_events` are FORCE ROW LEVEL SECURITY, so
+-- the trusted, transaction-scoped `app.platform_admin_media_review` flag is
+-- set immediately before, and cleared immediately after, the exact
+-- statements that require cross-organization visibility.
 create function app.review_public_listing_media(
   requested_listing_id uuid,
   requested_decision text,
@@ -360,12 +406,15 @@ begin
     raise exception 'rejecting a listing requires reviewer notes' using errcode = '23514';
   end if;
 
+  perform set_config('app.platform_admin_media_review', 'true', true);
+
   select * into listing
   from app.public_listings
   where id = requested_listing_id
   for update;
 
   if not found or listing.status <> 'draft' or listing.media_review_status <> 'pending' then
+    perform set_config('app.platform_admin_media_review', '', true);
     return;
   end if;
 
@@ -389,6 +438,8 @@ begin
     requested_source
   );
 
+  perform set_config('app.platform_admin_media_review', '', true);
+
   media_review_status := requested_decision;
   return next;
 end
@@ -396,10 +447,10 @@ $$;
 
 -- Read-only queue for the admin media-review console: every listing in
 -- `draft` status still awaiting a decision (`media_review_status =
--- 'pending'`), across every organization. Mirrors
--- app.list_landlord_onboarding_applications (0018): a plain security
--- definer function with no organization/actor context, gated entirely by
--- the API-layer platform-admin check.
+-- 'pending'`), across every organization. `app.public_listings` is FORCE
+-- ROW LEVEL SECURITY, so this function briefly sets the same trusted,
+-- transaction-scoped cross-organization flag as
+-- app.review_public_listing_media around the single query that needs it.
 create function app.list_public_listings_pending_media_review()
 returns table (
   listing_id uuid,
@@ -413,21 +464,28 @@ returns table (
   image_urls jsonb,
   submitted_at timestamptz
 )
-language sql
+language plpgsql
 security definer
 stable
 set search_path = pg_catalog, app
 as $$
-  select l.id, l.organization_id, o.name, l.unit_id, p.name, u.label,
-    l.title, l.snapshot -> 'projection' ->> 'summary',
-    coalesce(l.snapshot -> 'projection' -> 'imageUrls', '[]'::jsonb),
-    l.created_at
-  from app.public_listings l
-  join app.organizations o on o.id = l.organization_id
-  join app.properties p on p.organization_id = l.organization_id and p.id = l.property_id
-  join app.units u on u.organization_id = l.organization_id and u.id = l.unit_id
-  where l.status = 'draft' and l.media_review_status = 'pending'
-  order by l.created_at, l.id
+begin
+  perform set_config('app.platform_admin_media_review', 'true', true);
+
+  return query
+    select l.id, l.organization_id, o.name, l.unit_id, p.name, u.label,
+      l.title, l.snapshot -> 'projection' ->> 'summary',
+      coalesce(l.snapshot -> 'projection' -> 'imageUrls', '[]'::jsonb),
+      l.created_at
+    from app.public_listings l
+    join app.organizations o on o.id = l.organization_id
+    join app.properties p on p.organization_id = l.organization_id and p.id = l.property_id
+    join app.units u on u.organization_id = l.organization_id and u.id = l.unit_id
+    where l.status = 'draft' and l.media_review_status = 'pending'
+    order by l.created_at, l.id;
+
+  perform set_config('app.platform_admin_media_review', '', true);
+end
 $$;
 
 -- Extends the read-only portfolio feed (0029) with the fields the portal UI
