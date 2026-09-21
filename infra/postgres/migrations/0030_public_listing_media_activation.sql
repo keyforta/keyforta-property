@@ -24,6 +24,7 @@ alter table app.public_listings
   add column media_reviewer_object_id uuid,
   add column media_review_notes text
     check (media_review_notes is null or char_length(btrim(media_review_notes)) between 1 and 2000),
+  add column attestation_accepted_at timestamptz not null default transaction_timestamp(),
   add constraint public_listings_title_check
     check (title is null or char_length(btrim(title)) between 3 and 140);
 
@@ -31,7 +32,8 @@ alter table app.public_listings
 -- listing already `published` by migrations 0023/0029 predates this
 -- media-review workflow entirely, so it is grandfathered in as `approved`
 -- (with a synthetic decision record) rather than being retroactively
--- blocked from remaining published.
+-- blocked from remaining published. (The new attestation_accepted_at
+-- column already backfilled itself via its column default above.)
 update app.public_listings
 set media_review_status = 'approved',
     media_reviewed_at = transaction_timestamp(),
@@ -198,6 +200,7 @@ create function app.create_public_listing(
   requested_title text,
   requested_summary text,
   requested_image_urls jsonb,
+  requested_attestation_accepted boolean,
   requested_idempotency_key text,
   requested_correlation_id text,
   requested_source text
@@ -224,6 +227,11 @@ begin
     raise exception 'trusted request context is required';
   end if;
 
+  if requested_attestation_accepted is not true then
+    raise exception
+      'the image-rights and consent attestation must be affirmatively accepted' using errcode = '23514';
+  end if;
+
   select * into unit_record
   from app.units
   where organization_id = organization
@@ -245,7 +253,8 @@ begin
 
   payload := jsonb_build_object(
     'unitId', requested_unit_id, 'title', requested_title,
-    'summary', requested_summary, 'imageUrls', requested_image_urls
+    'summary', requested_summary, 'imageUrls', requested_image_urls,
+    'attestationAccepted', requested_attestation_accepted
   );
 
   select * into replay from app.resolve_rental_inventory_creation_replay(
@@ -274,12 +283,13 @@ begin
   );
 
   insert into app.public_listings (
-    organization_id, property_id, unit_id, status, title, snapshot
+    organization_id, property_id, unit_id, status, title, snapshot, attestation_accepted_at
   ) values (
     organization, unit_record.property_id, requested_unit_id, 'draft', requested_title,
     jsonb_build_object('projection', jsonb_build_object(
       'title', requested_title, 'summary', requested_summary, 'imageUrls', requested_image_urls
-    ))
+    )),
+    transaction_timestamp()
   ) returning * into created_listing;
 
   update app.units
@@ -556,7 +566,7 @@ begin
             'availabilityVersionId', current_availability.id,
             'projection', jsonb_build_object(
               'id', listing.id::text,
-              'name', property_record.name || ' — ' || unit_record.label,
+              'name', coalesce(listing.title, property_record.name || ' — ' || unit_record.label),
               'summary', coalesce(listing.snapshot -> 'projection' ->> 'summary', property_record.name || ' listing'),
               'city', property_record.address ->> 'city',
               'district', property_record.address ->> 'quartier',
@@ -914,8 +924,8 @@ begin
 end
 $$;
 
-revoke all on function app.create_public_listing(uuid, text, text, jsonb, text, text, text) from public;
-grant execute on function app.create_public_listing(uuid, text, text, jsonb, text, text, text) to keyforta_runtime;
+revoke all on function app.create_public_listing(uuid, text, text, jsonb, boolean, text, text, text) from public;
+grant execute on function app.create_public_listing(uuid, text, text, jsonb, boolean, text, text, text) to keyforta_runtime;
 revoke all on function app.update_public_listing_draft(uuid, text, text, jsonb, integer, text, text) from public;
 grant execute on function app.update_public_listing_draft(uuid, text, text, jsonb, integer, text, text) to keyforta_runtime;
 revoke all on function app.review_public_listing_media(uuid, text, text, uuid, text, text, text) from public;

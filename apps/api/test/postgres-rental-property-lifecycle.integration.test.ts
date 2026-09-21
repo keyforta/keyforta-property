@@ -1044,6 +1044,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     expect(noAssignmentRow.rows[0].count).toBe(0);
 
     const listing = await gateway().createPublicListing({
+      attestationAccepted: true,
       correlationId: "corr-listing-feed-unassigned-listing",
       idempotencyKey: "idem-listing-feed-unassigned-listing",
       imageUrls: ["https://images.test/unassigned.jpg"],
@@ -1482,6 +1483,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       const created = await createUnitForMediaReview("media-a");
 
       const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
         correlationId: "corr-listing-create",
         idempotencyKey: "idem-listing-create",
         imageUrls: ["https://images.test/a.jpg", "https://images.test/b.jpg"],
@@ -1509,6 +1511,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       expect(listingRow.rows[0].media_review_status).toBe("pending");
 
       await expect(gateway().createPublicListing({
+        attestationAccepted: true,
         correlationId: "corr-listing-create-duplicate",
         idempotencyKey: "idem-listing-create-duplicate",
         imageUrls: ["https://images.test/c.jpg"],
@@ -1525,6 +1528,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       const created = await createUnitForMediaReview("media-cross-org");
 
       await expect(gateway().createPublicListing({
+        attestationAccepted: true,
         correlationId: "corr-listing-create-cross-org",
         idempotencyKey: "idem-listing-create-cross-org",
         imageUrls: ["https://images.test/a.jpg"],
@@ -1541,6 +1545,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       const created = await createUnitForMediaReview("media-invalid-url");
 
       await expect(gateway().createPublicListing({
+        attestationAccepted: true,
         correlationId: "corr-listing-create-invalid-url",
         idempotencyKey: "idem-listing-create-invalid-url",
         imageUrls: ["not-a-url"],
@@ -1553,9 +1558,39 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       })).rejects.toThrow(RentalInventoryConflictError);
     });
 
+    it("rejects PublicListing creation (REQ-037/PROP-025) when the landlord has not accepted the image-rights attestation", async () => {
+      const created = await createUnitForMediaReview("media-no-attestation");
+
+      await expect(gateway().createPublicListing({
+        attestationAccepted: false,
+        correlationId: "corr-listing-create-no-attestation",
+        idempotencyKey: "idem-listing-create-no-attestation",
+        imageUrls: ["https://images.test/a.jpg"],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Unattested creation attempt",
+        unitId: created.unitId,
+      })).rejects.toThrow(RentalInventoryConflictError);
+
+      const unitRow = await client.query(
+        "select publication_status from app.units where id = $1",
+        [created.unitId],
+      );
+      expect(unitRow.rows[0].publication_status).not.toBe("published");
+
+      const listingRow = await client.query(
+        "select count(*)::int as count from app.public_listings where unit_id = $1",
+        [created.unitId],
+      );
+      expect(listingRow.rows[0].count).toBe(0);
+    });
+
     it("edits a draft PublicListing, resets it to pending review, and rejects a stale version", async () => {
       const created = await createUnitForMediaReview("media-edit");
       const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
         correlationId: "corr-listing-edit-create",
         idempotencyKey: "idem-listing-edit-create",
         imageUrls: ["https://images.test/a.jpg"],
@@ -1596,6 +1631,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     it("blocks publication until a platform administrator approves media review, and surfaces the listing in the pending-review queue", async () => {
       const created = await createUnitForMediaReview("media-approve");
       const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
         correlationId: "corr-listing-approve-create",
         idempotencyKey: "idem-listing-approve-create",
         imageUrls: ["https://images.test/a.jpg"],
@@ -1712,6 +1748,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     it("rejects a media-review decision without notes, and records rejection notes when provided", async () => {
       const created = await createUnitForMediaReview("media-reject");
       const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
         correlationId: "corr-listing-reject-create",
         idempotencyKey: "idem-listing-reject-create",
         imageUrls: ["https://images.test/a.jpg"],

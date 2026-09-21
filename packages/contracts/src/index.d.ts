@@ -512,6 +512,7 @@ export const publicListingListEnvelopeSchema: z.ZodType<{
   meta: Meta;
 }>;
 export interface CreatePublicListingInput {
+  attestationAccepted: true;
   idempotencyKey: string;
   imageUrls: readonly string[];
   summary: string;

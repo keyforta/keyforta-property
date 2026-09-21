@@ -90,6 +90,7 @@ export interface ArchiveRentalUnitCommand {
 }
 
 export interface CreatePublicListingCommand {
+  attestationAccepted: boolean;
   correlationId: string;
   idempotencyKey: string;
   imageUrls: readonly string[];
@@ -477,12 +478,13 @@ export function createPostgresRentalInventoryCommandGateway(
         ]);
         try {
           const result = await session.query(
-            `select * from app.create_public_listing($1, $2, $3, $4::jsonb, $5, $6, $7)`,
+            `select * from app.create_public_listing($1, $2, $3, $4::jsonb, $5, $6, $7, $8)`,
             [
               command.unitId,
               command.title,
               command.summary,
               JSON.stringify(command.imageUrls),
+              command.attestationAccepted,
               command.idempotencyKey,
               command.correlationId,
               command.source,

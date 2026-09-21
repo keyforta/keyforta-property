@@ -168,6 +168,8 @@
     "edit_listing_failed": "The draft listing could not be updated right now.",
     "listing_image_urls_required": "Provide at least one image URL, one per line.",
     "listing_image_urls_hint": "Enter one image URL per line (up to 10).",
+    "listing_attestation_label": "I confirm that I own each linked image or hold the rights to display it, that no tenant or other identifiable person appears in any image without their consent, and that KEYFORTA may display these externally hosted image links on the public site until I withdraw this listing.",
+    "listing_attestation_required": "You must confirm the image-rights attestation before creating a listing.",
     "cancel": "Cancel",
     "saving": "Saving\u2026",
     "field": {

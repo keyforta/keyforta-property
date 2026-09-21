@@ -13,6 +13,7 @@ const validImageUrl = "https://cdn.keyforta.test/listing-1/photo-1.jpg";
 
 test("REQ-037 createPublicListingInputSchema requires https-only image URLs", () => {
   const base = {
+    attestationAccepted: true,
     idempotencyKey: "create-listing-1",
     imageUrls: [validImageUrl],
     summary: "A bright two-bedroom unit close to transit and shops.",
@@ -25,6 +26,27 @@ test("REQ-037 createPublicListingInputSchema requires https-only image URLs", ()
       ...base,
       imageUrls: ["http://cdn.keyforta.test/listing-1/photo-1.jpg"],
     }).success,
+    false,
+  );
+});
+
+test("REQ-037/PROP-025 createPublicListingInputSchema rejects a missing or false image-rights attestation", () => {
+  const base = {
+    attestationAccepted: true,
+    idempotencyKey: "create-listing-1",
+    imageUrls: [validImageUrl],
+    summary: "A bright two-bedroom unit close to transit and shops.",
+    title: "Riverside apartment — Unit 2A",
+  };
+
+  assert.equal(createPublicListingInputSchema.safeParse(base).success, true);
+  assert.equal(
+    createPublicListingInputSchema.safeParse({ ...base, attestationAccepted: false }).success,
+    false,
+  );
+  const { attestationAccepted: _omitted, ...withoutAttestation } = base;
+  assert.equal(
+    createPublicListingInputSchema.safeParse(withoutAttestation).success,
     false,
   );
 });
@@ -86,6 +108,7 @@ test("REQ-037 publicListingSummarySchema and pendingPublicListingMediaReviewSche
 
 test("REQ-037 createPublicListingInputSchema and updatePublicListingDraftInputSchema require the same title/summary bounds as the database validator (3-140, 10-4000)", () => {
   const createBase = {
+    attestationAccepted: true,
     idempotencyKey: "create-listing-1",
     imageUrls: [validImageUrl],
     summary: "A bright two-bedroom unit close to transit and shops.",

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Field, Input, Select, Spinner, Textarea } from '@fluentui/react-components';
+import { Button, Checkbox, Field, Input, Select, Spinner, Textarea } from '@fluentui/react-components';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
@@ -54,6 +54,7 @@ const emptyListingForm = {
   title: '',
   summary: '',
   imageUrls: '',
+  attestationAccepted: false,
 };
 
 function parseImageUrls(rawText) {
@@ -68,6 +69,7 @@ function listingFormFromSummary(listing) {
     title: listing.title,
     summary: listing.summary || '',
     imageUrls: (listing.imageUrls || []).join('\n'),
+    attestationAccepted: true,
   };
 }
 
@@ -402,6 +404,7 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, t, unit
   const [form, setForm] = useState(() => (listing ? listingFormFromSummary(listing) : emptyListingForm));
   const [busy, setBusy] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const [attestationError, setAttestationError] = useState('');
   useEffect(() => {
     setForm(listing ? listingFormFromSummary(listing) : emptyListingForm);
   }, [listing]);
@@ -441,16 +444,21 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, t, unit
   const handleSubmit = async (event) => {
     event.preventDefault();
     setValidationError('');
+    setAttestationError('');
     const imageUrls = parseImageUrls(form.imageUrls);
     if (imageUrls.length === 0) {
       setValidationError(t('property_management.listing_image_urls_required'));
+      return;
+    }
+    if (!hasListing && !form.attestationAccepted) {
+      setAttestationError(t('property_management.listing_attestation_required'));
       return;
     }
     setBusy(true);
     try {
       const submitted = hasListing
         ? await onUpdateDraft(listing.id, listing.version, { title: form.title, summary: form.summary, imageUrls })
-        : await onCreate(unitId, { title: form.title, summary: form.summary, imageUrls });
+        : await onCreate(unitId, { title: form.title, summary: form.summary, imageUrls, attestationAccepted: form.attestationAccepted });
       if (submitted) setOpen(false);
     } finally {
       setBusy(false);
@@ -473,6 +481,17 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, t, unit
       >
         <Textarea disabled={busy} required resize='vertical' value={form.imageUrls} onChange={set('imageUrls')} />
       </Field>
+      {!hasListing && (
+        <Field validationMessage={attestationError || undefined}>
+          <Checkbox
+            disabled={busy}
+            checked={form.attestationAccepted}
+            label={t('property_management.listing_attestation_label')}
+            onChange={(_event, data) => setForm((current) => ({ ...current, attestationAccepted: Boolean(data.checked) }))}
+            required
+          />
+        </Field>
+      )}
       <div className='unit-form-actions'>
         <Button appearance='primary' disabled={disabled || busy} type='submit'>
           {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t(hasListing ? 'property_management.edit_listing_submit' : 'property_management.create_listing_submit')}
@@ -681,6 +700,7 @@ export function PropertyManagementPanel({
         title: form.title,
         summary: form.summary,
         imageUrls: form.imageUrls,
+        attestationAccepted: form.attestationAccepted,
         idempotencyKey: generateIdempotencyKey(),
       });
       createPublicListingEnvelopeSchema.parse(payload);

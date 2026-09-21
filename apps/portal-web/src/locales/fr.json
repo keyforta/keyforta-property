@@ -168,6 +168,8 @@
     "edit_listing_failed": "Le brouillon d'annonce n'a pas pu \u00eatre mis \u00e0 jour pour le moment.",
     "listing_image_urls_required": "Fournissez au moins une URL d'image, une par ligne.",
     "listing_image_urls_hint": "Saisissez une URL d'image par ligne (jusqu'\u00e0 10).",
+    "listing_attestation_label": "Je confirme que je poss\u00e8de chaque image li\u00e9e ou que je d\u00e9tiens les droits pour l'afficher, qu'aucun locataire ni autre personne identifiable n'appara\u00eet dans une image sans son consentement, et que KEYFORTA peut afficher ces liens d'images h\u00e9berg\u00e9es en externe sur le site public jusqu'\u00e0 ce que je retire cette annonce.",
+    "listing_attestation_required": "Vous devez confirmer l'attestation relative aux droits sur les images avant de cr\u00e9er une annonce.",
     "cancel": "Annuler",
     "saving": "Enregistrement\u2026",
     "field": {

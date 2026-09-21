@@ -947,6 +947,7 @@ export async function buildApp(
       }
       try {
         const created = await dependencies.rentalInventoryCommands.createPublicListing({
+          attestationAccepted: parsedInput.data.attestationAccepted,
           correlationId: request.id,
           idempotencyKey: parsedInput.data.idempotencyKey,
           imageUrls: parsedInput.data.imageUrls,

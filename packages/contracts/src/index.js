@@ -623,6 +623,7 @@ export const publicListingListEnvelopeSchema = z.object({
 }).strict();
 
 export const createPublicListingInputSchema = z.object({
+	attestationAccepted: z.literal(true),
 	idempotencyKey: boundedTextSchema(128),
 	imageUrls: z.array(httpsImageUrlSchema).min(1).max(10),
 	summary: publicListingSummaryInputSchema,

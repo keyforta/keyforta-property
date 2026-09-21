@@ -427,6 +427,7 @@ describe('PropertyManagementPanel', () => {
       fireEvent.change(screen.getByLabelText('Listing title*'), { target: { value: 'Riverside apartment — Unit 2A' } });
       fireEvent.change(screen.getByLabelText('Listing summary*'), { target: { value: 'A bright two-bedroom unit close to transit.' } });
       fireEvent.change(screen.getByLabelText('Image URLs*'), { target: { value: 'https://images.test/a.jpg' } });
+      fireEvent.click(screen.getByRole('checkbox', { name: /I confirm that I own each linked image/ }));
       fireEvent.click(screen.getByRole('button', { name: 'Create listing' }));
 
       await waitFor(() => expect(create).toHaveBeenCalledWith(
@@ -435,6 +436,7 @@ describe('PropertyManagementPanel', () => {
           title: 'Riverside apartment — Unit 2A',
           summary: 'A bright two-bedroom unit close to transit.',
           imageUrls: ['https://images.test/a.jpg'],
+          attestationAccepted: true,
         }),
       ));
       expect(await screen.findByText('Public listing created successfully.')).toBeInTheDocument();
@@ -455,6 +457,23 @@ describe('PropertyManagementPanel', () => {
       expect(await screen.findByText('Provide at least one image URL, one per line.')).toBeInTheDocument();
       expect(create).not.toHaveBeenCalled();
     });
+
+    it('requires the image-rights attestation to be checked before creating a public listing (REQ-037/PROP-025)', async () => {
+      renderPanel();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Create public listing' })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: 'Create public listing' }));
+
+      fireEvent.change(screen.getByLabelText('Listing title*'), { target: { value: 'Riverside apartment — Unit 2A' } });
+      fireEvent.change(screen.getByLabelText('Listing summary*'), { target: { value: 'A bright two-bedroom unit close to transit.' } });
+      fireEvent.change(screen.getByLabelText('Image URLs*'), { target: { value: 'https://images.test/a.jpg' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Create listing' }));
+
+      expect(await screen.findByText('You must confirm the image-rights attestation before creating a listing.')).toBeInTheDocument();
+      expect(create).not.toHaveBeenCalled();
+    });
+
 
     it('shows a draft listing status with an edit affordance instead of a create form', async () => {
       const draftListing = {

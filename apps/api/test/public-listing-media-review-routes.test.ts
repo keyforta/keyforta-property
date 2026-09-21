@@ -131,6 +131,7 @@ describe("PublicListing creation and draft-edit routes (REQ-037)", () => {
       payload: {
         idempotencyKey: "idem-listing-create-01",
         imageUrls: ["https://images.test/a.jpg"],
+        attestationAccepted: true,
         summary: "A bright two-bedroom unit close to transit.",
         title: "Riverside apartment — Unit 2A",
       },
@@ -140,6 +141,7 @@ describe("PublicListing creation and draft-edit routes (REQ-037)", () => {
     expect(response.statusCode).toBe(201);
     createPublicListingEnvelopeSchema.parse(response.json());
     expect(configured.createCommands).toEqual([{
+      attestationAccepted: true,
       correlationId: "listing-create-01",
       idempotencyKey: "idem-listing-create-01",
       imageUrls: ["https://images.test/a.jpg"],
@@ -163,12 +165,54 @@ describe("PublicListing creation and draft-edit routes (REQ-037)", () => {
         "x-organization-id": organizationId,
       },
       method: "POST",
-      payload: { imageUrls: [], summary: "Too short image list", title: "Ok" },
+      payload: { imageUrls: [], attestationAccepted: true, summary: "Too short image list", title: "Ok" },
       url: `/api/v1/units/${unitId}/public-listing`,
     });
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(configured.createCommands).toEqual([]);
+  });
+
+  it("rejects a PublicListing creation payload (REQ-037/PROP-025) when the image-rights attestation is missing or false", async () => {
+    const configured = dependencies();
+    const app = await buildApp(configured);
+    apps.push(app);
+
+    const missingAttestation = await app.inject({
+      headers: {
+        authorization: LANDLORD_AUTH,
+        "x-organization-id": organizationId,
+      },
+      method: "POST",
+      payload: {
+        idempotencyKey: "idem-listing-create-no-attestation",
+        imageUrls: ["https://images.test/a.jpg"],
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Riverside apartment — Unit 2A",
+      },
+      url: `/api/v1/units/${unitId}/public-listing`,
+    });
+    const falseAttestation = await app.inject({
+      headers: {
+        authorization: LANDLORD_AUTH,
+        "x-organization-id": organizationId,
+      },
+      method: "POST",
+      payload: {
+        attestationAccepted: false,
+        idempotencyKey: "idem-listing-create-false-attestation",
+        imageUrls: ["https://images.test/a.jpg"],
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Riverside apartment — Unit 2A",
+      },
+      url: `/api/v1/units/${unitId}/public-listing`,
+    });
+
+    expect(missingAttestation.statusCode).toBe(400);
+    expect(missingAttestation.json().error.code).toBe("VALIDATION_ERROR");
+    expect(falseAttestation.statusCode).toBe(400);
+    expect(falseAttestation.json().error.code).toBe("VALIDATION_ERROR");
     expect(configured.createCommands).toEqual([]);
   });
 
@@ -184,6 +228,7 @@ describe("PublicListing creation and draft-edit routes (REQ-037)", () => {
       },
       method: "POST",
       payload: {
+        attestationAccepted: true,
         idempotencyKey: "idem-listing-create-02",
         imageUrls: ["https://images.test/a.jpg"],
         summary: "A bright two-bedroom unit close to transit.",
@@ -241,6 +286,7 @@ describe("PublicListing creation and draft-edit routes (REQ-037)", () => {
       headers: { "x-organization-id": organizationId },
       method: "POST",
       payload: {
+        attestationAccepted: true,
         idempotencyKey: "idem-listing-create-03",
         imageUrls: ["https://images.test/a.jpg"],
         summary: "A bright two-bedroom unit close to transit.",
