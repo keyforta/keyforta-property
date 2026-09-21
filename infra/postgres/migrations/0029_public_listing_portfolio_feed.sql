@@ -8,10 +8,17 @@ begin;
 --
 -- This does NOT implement REQ-035 (PublicListing creation, publication, and
 -- media): it only reads existing app.public_listings rows (pre-launch
--- synthetic fixtures today) using the same actor_is_active_landlord /
--- manager_property_assignments authorization already enforced by
--- app.set_public_listing_publication (migration 0023). No new listing rows
--- are created and no publication authority changes.
+-- synthetic fixtures today). Authorization mirrors
+-- app.set_public_listing_publication (migration 0023) exactly: an active
+-- manager_property_assignment_events "assigned" event, correlated to a
+-- still-active manager_property_assignments row and an active
+-- landlord/manager membership, is required for every actor including
+-- landlords — org-ownership alone does not grant listing-publication
+-- authority (unlike app.list_rental_properties_for_actor in migration 0028,
+-- which governs Property/Unit inventory ownership, a different authority
+-- domain). A feed that showed listings the actor cannot actually
+-- publish/withdraw would let the UI offer an action that the command then
+-- silently rejects as not-found.
 
 create function app.list_public_listings_for_actor()
 returns jsonb
@@ -23,14 +30,11 @@ as $$
 declare
   organization uuid := app.current_organization_id();
   actor uuid := nullif(current_setting('app.actor_id', true), '')::uuid;
-  is_landlord boolean;
   result jsonb;
 begin
   if organization is null or actor is null then
     raise exception 'trusted request context is required';
   end if;
-
-  is_landlord := app.actor_is_active_landlord(organization, actor);
 
   select coalesce(jsonb_agg(listing_row order by listing_row ->> 'title'), '[]'::jsonb)
   into result
@@ -47,23 +51,28 @@ begin
     join app.units u
       on u.organization_id = l.organization_id and u.id = l.unit_id
     where l.organization_id = organization
-      and (
-        is_landlord
-        or exists (
-          select 1
-          from app.manager_property_assignments a
-          join app.memberships m
-            on m.organization_id = a.organization_id
-            and m.user_id = a.manager_user_id
-          where a.organization_id = organization
-            and a.property_id = l.property_id
-            and a.manager_user_id = actor
-            and a.revoked_at is null
-            and m.role in ('landlord', 'manager')
-            and m.active
-            and m.effective_from <= transaction_timestamp()
-            and (m.effective_to is null or transaction_timestamp() < m.effective_to)
-        )
+      and exists (
+        select 1
+        from app.manager_property_assignment_events as event
+        join app.memberships as membership
+          on membership.organization_id = event.organization_id
+         and membership.user_id = event.manager_user_id
+        join app.manager_property_assignments as assignment
+          on assignment.organization_id = event.organization_id
+         and assignment.property_id = event.property_id
+         and assignment.manager_user_id = event.manager_user_id
+         and assignment.assigned_at = event.occurred_at
+         and assignment.revoked_at is null
+        where event.organization_id = organization
+          and event.property_id = l.property_id
+          and event.manager_user_id = actor
+          and event.action = 'assigned'
+          and membership.role in ('landlord', 'manager')
+          and membership.active
+          and membership.effective_from <= transaction_timestamp()
+          and (membership.effective_to is null or transaction_timestamp() < membership.effective_to)
+        order by event.occurred_at desc, event.id desc
+        limit 1
       )
   ) listings;
 

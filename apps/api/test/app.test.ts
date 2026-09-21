@@ -4,6 +4,7 @@ import {
   jurisdictionPolicyActivationEnvelopeSchema,
   propertyVerificationStatusEnvelopeSchema,
   problemSchema,
+  publicListingListEnvelopeSchema,
   publicListingPublicationEnvelopeSchema,
   publicPropertyEnvelopeSchema,
   publicPropertyListEnvelopeSchema,
@@ -15,7 +16,10 @@ import type { MembershipLookupGateway } from "../src/identity/membership-gateway
 import { createMemoryPublicPropertyGateway } from "../src/properties/gateway.js";
 import type { InventoryGateway } from "../src/properties/inventory-gateway.js";
 import { createMemoryPublicViewingRequestGateway } from "../src/properties/viewing-gateway.js";
-import type { PublicListingPublicationGateway } from "../src/properties/publication-gateway.js";
+import type {
+  PublicListingPublicationGateway,
+  PublicListingSummary,
+} from "../src/properties/publication-gateway.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -553,7 +557,7 @@ describe("protected public listing publication", () => {
       },
       commands,
       publicListingPublication: {
-        async listForActor() { return []; },
+        async listForActor(_command: Parameters<PublicListingPublicationGateway["listForActor"]>[0]): Promise<PublicListingSummary[]> { return []; },
         async setPublication(command: Parameters<PublicListingPublicationGateway["setPublication"]>[0]) {
           commands.push(command);
           return changed;
@@ -661,6 +665,60 @@ describe("protected public listing publication", () => {
     expect(response.json().error.code).toBe("NOT_FOUND");
     expect(response.body).not.toContain("organization");
     expect(response.body).not.toContain("authorization");
+  });
+
+  it("authenticates and returns the actor's own listing portfolio feed (issue #114)", async () => {
+    const dependencies = createDependencies();
+    const listings = [{ id: listingId, note: "Ready to publish.", status: "withdrawn" as const, title: "Riverside apartment · Unit 2A" }];
+    dependencies.publicListingPublication.listForActor = async (command: Parameters<PublicListingPublicationGateway["listForActor"]>[0]) => {
+      expect(command).toEqual({
+        correlationId: "listing-feed",
+        organizationId,
+        subject: "synthetic-landlord-a",
+      });
+      return listings;
+    };
+    const app = await buildApp(dependencies);
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: {
+        authorization: "Bearer synthetic-token",
+        "x-organization-id": organizationId,
+        "x-request-id": "listing-feed",
+      },
+      method: "GET",
+      url: "/api/v1/public-listings/mine",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    publicListingListEnvelopeSchema.parse(body);
+    expect(body).toEqual({ items: listings, meta: { requestId: "listing-feed" } });
+  });
+
+  it("requires a configured authenticator and bearer credential for the listing feed", async () => {
+    const withoutVerifier = await buildApp({
+      publicListingPublication: createDependencies().publicListingPublication,
+    });
+    const withVerifier = await buildApp(createDependencies());
+    apps.push(withoutVerifier, withVerifier);
+
+    const unavailable = await withoutVerifier.inject({
+      headers: { "x-organization-id": organizationId },
+      method: "GET",
+      url: "/api/v1/public-listings/mine",
+    });
+    const unauthenticated = await withVerifier.inject({
+      headers: { "x-organization-id": organizationId },
+      method: "GET",
+      url: "/api/v1/public-listings/mine",
+    });
+
+    expect(unavailable.statusCode).toBe(503);
+    expect(unavailable.json().error.code).toBe("DEPENDENCY_UNAVAILABLE");
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(unauthenticated.json().error.code).toBe("UNAUTHENTICATED");
   });
 });
 

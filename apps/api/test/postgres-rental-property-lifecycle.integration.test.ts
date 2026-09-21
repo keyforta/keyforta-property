@@ -890,62 +890,123 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
   });
 
   it("scopes the public-listing portfolio feed to the actor's own manageable listings (issue #114)", async () => {
-    const created = await gateway().createRentalProperty({
+    const landlordManaged = await gateway().createRentalProperty({
       address,
-      correlationId: "corr-listing-feed-create",
-      firstUnit: { ...firstUnit, label: "Listing Feed Unit" },
-      idempotencyKey: "idem-listing-feed-create",
-      name: "Synthetic Listing Feed Property",
+      correlationId: "corr-listing-feed-create-landlord",
+      firstUnit: { ...firstUnit, label: "Landlord-Managed Unit" },
+      idempotencyKey: "idem-listing-feed-create-landlord",
+      name: "Synthetic Landlord-Managed Listing Feed Property",
       organizationId: organizationA,
       propertyType: "single_family",
       source: "test",
       subject: landlordSubject,
       timeZone: "Africa/Kinshasa",
     });
-    expect(created?.propertyId).toBeTruthy();
-    expect(created?.unitId).toBeTruthy();
+    const managerManaged = await gateway().createRentalProperty({
+      address,
+      correlationId: "corr-listing-feed-create-manager",
+      firstUnit: { ...firstUnit, label: "Manager-Managed Unit" },
+      idempotencyKey: "idem-listing-feed-create-manager",
+      name: "Synthetic Manager-Managed Listing Feed Property",
+      organizationId: organizationA,
+      propertyType: "single_family",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    expect(landlordManaged?.propertyId).toBeTruthy();
+    expect(managerManaged?.propertyId).toBeTruthy();
 
     // No `create public listing` command exists yet (REQ-035/PROP-019 gate
-    // new listing creation until media activation is approved); this is a
-    // pre-launch synthetic fixture row, the same kind #114 describes as the
+    // new listing creation until media activation is approved); these are
+    // pre-launch synthetic fixture rows, the same kind #114 describes as the
     // only listings that exist today.
-    const listing = await client.query(
+    const landlordListing = await client.query(
       `insert into app.public_listings (organization_id, property_id, unit_id, status)
        values ($1, $2, $3, 'draft')
        returning id`,
-      [organizationA, created!.propertyId, created!.unitId],
+      [organizationA, landlordManaged!.propertyId, landlordManaged!.unitId],
     );
-    const listingId = listing.rows[0].id as string;
+    const landlordListingId = landlordListing.rows[0].id as string;
+    const managerListing = await client.query(
+      `insert into app.public_listings (organization_id, property_id, unit_id, status)
+       values ($1, $2, $3, 'draft')
+       returning id`,
+      [organizationA, managerManaged!.propertyId, managerManaged!.unitId],
+    );
+    const managerListingId = managerListing.rows[0].id as string;
 
-    await client.query(
-      `insert into app.manager_property_assignments (
-        organization_id, property_id, manager_user_id, assigned_by_user_id
-      ) select $1, $2, u.id, l.id
-        from app.users u, app.users l
-        where u.external_subject = $3 and l.external_subject = $4`,
-      [organizationA, created!.propertyId, assignedManagerSubject, landlordSubject],
-    );
+    // Use the real assignment command (not a raw insert) so it also writes
+    // the matching manager_property_assignment_events "assigned" event that
+    // app.set_public_listing_publication (and now this feed) require. Each
+    // property has exactly one active assignment at a time (assigning a new
+    // manager auto-revokes the previous one), so the landlord self-assigns
+    // to one property and a distinct manager is assigned to the other.
+    const assignmentSession = await pool.connect();
+    try {
+      await assignmentSession.query("begin");
+      await assignmentSession.query("select * from app.resolve_actor($1, $2)", [
+        landlordSubject,
+        organizationA,
+      ]);
+      await assignmentSession.query(
+        "select set_config('app.correlation_id', $1, true)",
+        ["corr-listing-feed-assign"],
+      );
+      const landlord = await assignmentSession.query(
+        "select id from app.users where external_subject = $1",
+        [landlordSubject],
+      );
+      const landlordAssigned = await assignmentSession.query<{ changed: boolean }>(
+        "select app.set_manager_property_assignment($1, $2, true) as changed",
+        [landlordManaged!.propertyId, landlord.rows[0].id],
+      );
+      expect(landlordAssigned.rows[0]?.changed).toBe(true);
+
+      const manager = await assignmentSession.query(
+        "select id from app.users where external_subject = $1",
+        [assignedManagerSubject],
+      );
+      const managerAssigned = await assignmentSession.query<{ changed: boolean }>(
+        "select app.set_manager_property_assignment($1, $2, true) as changed",
+        [managerManaged!.propertyId, manager.rows[0].id],
+      );
+      expect(managerAssigned.rows[0]?.changed).toBe(true);
+      await assignmentSession.query("commit");
+    } finally {
+      assignmentSession.release();
+    }
 
     const landlordFeed = await publicationGateway().listForActor({
       correlationId: "corr-listing-feed-landlord",
       organizationId: organizationA,
       subject: landlordSubject,
     });
-    expect(landlordFeed.map((item) => item.id)).toContain(listingId);
+    const landlordFeedIds = landlordFeed.map((item) => item.id);
+    expect(landlordFeedIds).toContain(landlordListingId);
+    // Org ownership alone does not grant listing-publication authority
+    // (matching app.set_public_listing_publication in migration 0023): the
+    // landlord is not assigned to the manager-managed property, so it must
+    // not appear in their feed even though they own the organization.
+    expect(landlordFeedIds).not.toContain(managerListingId);
 
     const assignedManagerFeed = await publicationGateway().listForActor({
       correlationId: "corr-listing-feed-assigned-manager",
       organizationId: organizationA,
       subject: assignedManagerSubject,
     });
-    expect(assignedManagerFeed.map((item) => item.id)).toContain(listingId);
+    const assignedManagerFeedIds = assignedManagerFeed.map((item) => item.id);
+    expect(assignedManagerFeedIds).toContain(managerListingId);
+    expect(assignedManagerFeedIds).not.toContain(landlordListingId);
 
     const unassignedManagerFeed = await publicationGateway().listForActor({
       correlationId: "corr-listing-feed-unassigned-manager",
       organizationId: organizationA,
       subject: unassignedManagerSubject,
     });
-    expect(unassignedManagerFeed.map((item) => item.id)).not.toContain(listingId);
+    const unassignedManagerFeedIds = unassignedManagerFeed.map((item) => item.id);
+    expect(unassignedManagerFeedIds).not.toContain(landlordListingId);
+    expect(unassignedManagerFeedIds).not.toContain(managerListingId);
 
     await expect(publicationGateway().listForActor({
       correlationId: "corr-listing-feed-cross-org",
