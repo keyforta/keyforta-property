@@ -4,6 +4,11 @@
     "sign_out": "Se d\u00e9connecter",
     "refresh": "Actualiser"
   },
+  "nav": {
+    "sections_label": "Sections de la console d'administration",
+    "onboarding": "Accueil",
+    "media_review": "Examen des m\u00e9dias"
+  },
   "auth": {
     "restricted_console": "Console restreinte",
     "sign_in_title": "Examen des dossiers d'accueil des propri\u00e9taires",
@@ -41,5 +46,28 @@
     "empty_state": "Aucune demande d'accueil n'est en attente d'examen.",
     "access_denied": "Acc\u00e8s refus\u00e9",
     "applications_list_label": "Demandes d'accueil des propri\u00e9taires"
+  },
+  "media_review": {
+    "untitled_listing": "Annonce sans titre",
+    "status": {
+      "pending": "En attente"
+    },
+    "property": "Propri\u00e9t\u00e9",
+    "unit": "Unit\u00e9",
+    "submitted": "Soumis",
+    "no_images": "Aucune image n'a \u00e9t\u00e9 soumise pour cette annonce.",
+    "notes_label": "Notes de l'examinateur",
+    "notes_hint": "Requis en cas de rejet des m\u00e9dias d'une annonce.",
+    "approve": "Approuver",
+    "reject": "Rejeter",
+    "not_authorized_review": "Cette identit\u00e9 n'est pas autoris\u00e9e \u00e0 examiner les m\u00e9dias des annonces publiques.",
+    "queue_load_failed": "La file d'examen des m\u00e9dias n'a pas pu \u00eatre charg\u00e9e.",
+    "not_authorized_decide": "Cette identit\u00e9 n'est pas autoris\u00e9e \u00e0 d\u00e9cider des examens de m\u00e9dias des annonces publiques.",
+    "decision_failed": "La d\u00e9cision n'a pas pu \u00eatre finalis\u00e9e. Actualisez la file et r\u00e9essayez.",
+    "page_title": "Examen des m\u00e9dias des annonces publiques",
+    "page_subtitle": "Approuvez ou rejetez les photos et la description soumises pour une annonce publique avant sa publication.",
+    "loading_reviews": "Chargement des examens de m\u00e9dias...",
+    "empty_state": "Aucune annonce publique n'est en attente d'examen des m\u00e9dias.",
+    "list_label": "Annonces publiques en attente d'examen des m\u00e9dias"
   }
 }

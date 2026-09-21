@@ -15,7 +15,8 @@ export const landlordCapabilities = Object.freeze([
 ]);
 
 export const platformAdminCapabilities = Object.freeze([
-  'review_onboarding_applications', 'decide_onboarding_applications', 'platform_operations_with_audit'
+  'review_onboarding_applications', 'decide_onboarding_applications', 'platform_operations_with_audit',
+  'review_public_listing_media'
 ]);
 
 export const propertyManagerCapabilities = Object.freeze(['manage_assigned_portfolio_records']);

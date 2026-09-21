@@ -89,6 +89,42 @@ export interface ArchiveRentalUnitCommand {
   unitId: string;
 }
 
+export interface CreatePublicListingCommand {
+  correlationId: string;
+  idempotencyKey: string;
+  imageUrls: readonly string[];
+  organizationId: string;
+  source: string;
+  subject: string;
+  summary: string;
+  title: string;
+  unitId: string;
+}
+
+export interface CreatePublicListingResult {
+  listingId: string;
+  listingVersion: number;
+  unitId: string;
+  unitVersion: number;
+}
+
+export interface UpdatePublicListingDraftCommand {
+  correlationId: string;
+  expectedVersion: number;
+  imageUrls: readonly string[];
+  listingId: string;
+  organizationId: string;
+  source: string;
+  subject: string;
+  summary: string;
+  title: string;
+}
+
+export interface UpdatePublicListingDraftResult {
+  listingId: string;
+  listingVersion: number;
+}
+
 export interface ArchiveRentalPropertyCommand {
   correlationId: string;
   expectedVersion: number;
@@ -144,6 +180,9 @@ export interface RentalInventoryCommandGateway {
   createRentalProperty(
     command: CreateRentalPropertyCommand,
   ): Promise<RentalPropertyCreationResult | undefined>;
+  createPublicListing(
+    command: CreatePublicListingCommand,
+  ): Promise<CreatePublicListingResult | undefined>;
   listRentalProperties(
     command: ListRentalPropertiesCommand,
   ): Promise<readonly RentalPropertyProjection[]>;
@@ -153,6 +192,9 @@ export interface RentalInventoryCommandGateway {
   setUnitPricing(
     command: SetUnitPricingCommand,
   ): Promise<{ pricingVersionId: string; unitVersion: number } | undefined>;
+  updatePublicListingDraft(
+    command: UpdatePublicListingDraftCommand,
+  ): Promise<UpdatePublicListingDraftResult | undefined>;
 }
 
 export class RentalInventoryAuthorizationError extends Error {
@@ -421,6 +463,83 @@ export function createPostgresRentalInventoryCommandGateway(
             availabilityVersionId: row.availability_version_id,
             unitVersion: row.unit_version,
           };
+        } catch (error) {
+          translateWriteError(error);
+        }
+      });
+    },
+
+    async createPublicListing(command) {
+      return client.transaction(async (session) => {
+        await resolveActor(session, command.subject, command.organizationId);
+        await session.query("select set_config('app.correlation_id', $1, true)", [
+          command.correlationId,
+        ]);
+        try {
+          const result = await session.query(
+            `select * from app.create_public_listing($1, $2, $3, $4::jsonb, $5, $6, $7)`,
+            [
+              command.unitId,
+              command.title,
+              command.summary,
+              JSON.stringify(command.imageUrls),
+              command.idempotencyKey,
+              command.correlationId,
+              command.source,
+            ],
+          );
+          const row = result.rows[0] as
+            | {
+                listing_id?: string;
+                listing_version?: number;
+                unit_id?: string;
+                unit_version?: number;
+              }
+            | undefined;
+          if (
+            !row?.listing_id ||
+            row.listing_version === undefined ||
+            !row.unit_id ||
+            row.unit_version === undefined
+          ) {
+            return undefined;
+          }
+          return {
+            listingId: row.listing_id,
+            listingVersion: row.listing_version,
+            unitId: row.unit_id,
+            unitVersion: row.unit_version,
+          };
+        } catch (error) {
+          translateWriteError(error);
+        }
+      });
+    },
+
+    async updatePublicListingDraft(command) {
+      return client.transaction(async (session) => {
+        await resolveActor(session, command.subject, command.organizationId);
+        await session.query("select set_config('app.correlation_id', $1, true)", [
+          command.correlationId,
+        ]);
+        try {
+          const result = await session.query(
+            `select * from app.update_public_listing_draft($1, $2, $3, $4::jsonb, $5, $6, $7)`,
+            [
+              command.listingId,
+              command.title,
+              command.summary,
+              JSON.stringify(command.imageUrls),
+              command.expectedVersion,
+              command.correlationId,
+              command.source,
+            ],
+          );
+          const row = result.rows[0] as
+            | { listing_id?: string; listing_version?: number }
+            | undefined;
+          if (!row?.listing_id || row.listing_version === undefined) return undefined;
+          return { listingId: row.listing_id, listingVersion: row.listing_version };
         } catch (error) {
           translateWriteError(error);
         }

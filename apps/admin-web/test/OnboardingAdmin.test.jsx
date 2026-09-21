@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   authState: { current: { status: 'signed-out' } },
   listMock: vi.fn(),
   decideMock: vi.fn(),
+  mediaReviewListMock: vi.fn(),
+  mediaReviewDecideMock: vi.fn(),
   signInMock: vi.fn(),
   signOutMock: vi.fn(),
   initializeMock: vi.fn(),
@@ -28,6 +30,14 @@ vi.mock('../src/onboarding-api.js', () => ({
     list: mocks.listMock,
     decide: mocks.decideMock,
   }),
+  resolveAdminApiBaseUrl: () => 'https://admin-api.test',
+}));
+
+vi.mock('../src/media-review-api.js', () => ({
+  createMediaReviewApi: () => ({
+    list: mocks.mediaReviewListMock,
+    decide: mocks.mediaReviewDecideMock,
+  }),
 }));
 
 import { OnboardingAdmin } from '../src/OnboardingAdmin.jsx';
@@ -46,6 +56,8 @@ describe('OnboardingAdmin', () => {
     mocks.authState.current = { status: 'signed-in', account: { name: 'Admin User', username: 'admin@test.keyforta.com' } };
     mocks.listMock.mockReset();
     mocks.decideMock.mockReset();
+    mocks.mediaReviewListMock.mockReset();
+    mocks.mediaReviewDecideMock.mockReset();
     mocks.signInMock.mockReset();
     mocks.signOutMock.mockReset();
     mocks.initializeMock.mockReset();
@@ -110,5 +122,114 @@ describe('OnboardingAdmin', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Switch to French' }));
     expect(await screen.findByText('En attente')).toBeInTheDocument();
     expect(screen.queryByText('pending')).not.toBeInTheDocument();
+  });
+
+  describe('media-review section (REQ-037)', () => {
+    const pendingReview = {
+      listingId: 'listing-1',
+      organizationId: 'org-1',
+      organizationName: 'Riverside Homes',
+      unitId: 'unit-1',
+      unitLabel: 'Unit 2A',
+      propertyName: 'Riverside Apartments',
+      title: 'Riverside apartment — Unit 2A',
+      summary: 'A bright two-bedroom unit close to transit.',
+      imageUrls: ['https://images.test/a.jpg'],
+      submittedAt: '2026-09-01T10:00:00.000Z',
+    };
+
+    it('switches to the media-review queue and loads pending reviews', async () => {
+      mocks.listMock.mockResolvedValue([]);
+      mocks.mediaReviewListMock.mockResolvedValue([pendingReview]);
+      renderAdmin();
+      await screen.findByText('No onboarding applications are awaiting review.');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+
+      expect(await screen.findByText('Riverside apartment — Unit 2A')).toBeInTheDocument();
+      expect(screen.getByText('Riverside Apartments')).toBeInTheDocument();
+      expect(screen.getByText('Unit 2A')).toBeInTheDocument();
+    });
+
+    it('renders the empty state when no listings are awaiting media review', async () => {
+      mocks.listMock.mockResolvedValue([]);
+      mocks.mediaReviewListMock.mockResolvedValue([]);
+      renderAdmin();
+      fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+      expect(await screen.findByText('No public listings are awaiting media review.')).toBeInTheDocument();
+    });
+
+    it('renders an access-denied state for a non-allowlisted identity', async () => {
+      mocks.listMock.mockResolvedValue([]);
+      mocks.mediaReviewListMock.mockRejectedValue({ status: 404 });
+      renderAdmin();
+      fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+      expect(await screen.findByRole('heading', { name: 'Access denied' })).toBeInTheDocument();
+      expect(screen.getByText('This identity is not authorized to review public-listing media.')).toBeInTheDocument();
+    });
+
+    it('approves a listing and removes it from the queue', async () => {
+      mocks.listMock.mockResolvedValue([]);
+      mocks.mediaReviewListMock.mockResolvedValue([pendingReview]);
+      mocks.mediaReviewDecideMock.mockResolvedValue({ listingId: 'listing-1', mediaReviewStatus: 'approved' });
+      renderAdmin();
+      fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+      await screen.findByText('Riverside apartment — Unit 2A');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+
+      await waitFor(() => expect(mocks.mediaReviewDecideMock).toHaveBeenCalledWith('listing-1', { decision: 'approved', notes: undefined }));
+      expect(screen.queryByText('Riverside apartment — Unit 2A')).not.toBeInTheDocument();
+      expect(await screen.findByText('No public listings are awaiting media review.')).toBeInTheDocument();
+    });
+
+    it('requires notes before rejecting a listing', async () => {
+      mocks.listMock.mockResolvedValue([]);
+      mocks.mediaReviewListMock.mockResolvedValue([pendingReview]);
+      renderAdmin();
+      fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+      await screen.findByText('Riverside apartment — Unit 2A');
+
+      expect(screen.getByRole('button', { name: 'Reject' })).toBeDisabled();
+      fireEvent.change(screen.getByRole('textbox', { name: 'Reviewer notes' }), { target: { value: 'Photos are too dark to evaluate.' } });
+      expect(screen.getByRole('button', { name: 'Reject' })).toBeEnabled();
+    });
+
+    it('rejects a listing with reviewer notes and removes it from the queue', async () => {
+      mocks.listMock.mockResolvedValue([]);
+      mocks.mediaReviewListMock.mockResolvedValue([pendingReview]);
+      mocks.mediaReviewDecideMock.mockResolvedValue({ listingId: 'listing-1', mediaReviewStatus: 'rejected' });
+      renderAdmin();
+      fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+      await screen.findByText('Riverside apartment — Unit 2A');
+
+      fireEvent.change(screen.getByRole('textbox', { name: 'Reviewer notes' }), { target: { value: 'Photos are too dark to evaluate.' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+
+      await waitFor(() => expect(mocks.mediaReviewDecideMock).toHaveBeenCalledWith('listing-1', { decision: 'rejected', notes: 'Photos are too dark to evaluate.' }));
+      expect(await screen.findByText('No public listings are awaiting media review.')).toBeInTheDocument();
+    });
+
+    it('returns to the onboarding queue when its tab is reselected', async () => {
+      mocks.listMock.mockResolvedValue([application]);
+      mocks.mediaReviewListMock.mockResolvedValue([]);
+      renderAdmin();
+      await screen.findByText('Amina K.');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+      await screen.findByText('No public listings are awaiting media review.');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Onboarding' }));
+      expect(await screen.findByText('Amina K.')).toBeInTheDocument();
+    });
+
+    it('has no critical accessibility violations on the media-review queue', async () => {
+      mocks.listMock.mockResolvedValue([]);
+      mocks.mediaReviewListMock.mockResolvedValue([pendingReview]);
+      const { container } = renderAdmin();
+      fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+      await screen.findByText('Riverside apartment — Unit 2A');
+      expect((await axe(container)).violations).toEqual([]);
+    });
   });
 });

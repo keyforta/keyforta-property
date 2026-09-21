@@ -4,6 +4,11 @@
     "sign_out": "Sign out",
     "refresh": "Refresh"
   },
+  "nav": {
+    "sections_label": "Admin console sections",
+    "onboarding": "Onboarding",
+    "media_review": "Media review"
+  },
   "auth": {
     "restricted_console": "Restricted console",
     "sign_in_title": "Landlord onboarding review",
@@ -41,5 +46,28 @@
     "empty_state": "No onboarding applications are awaiting review.",
     "access_denied": "Access denied",
     "applications_list_label": "Landlord onboarding applications"
+  },
+  "media_review": {
+    "untitled_listing": "Untitled listing",
+    "status": {
+      "pending": "Pending"
+    },
+    "property": "Property",
+    "unit": "Unit",
+    "submitted": "Submitted",
+    "no_images": "No images were submitted for this listing.",
+    "notes_label": "Reviewer notes",
+    "notes_hint": "Required when rejecting a listing's media.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "not_authorized_review": "This identity is not authorized to review public-listing media.",
+    "queue_load_failed": "The media-review queue could not be loaded.",
+    "not_authorized_decide": "This identity is not authorized to decide public-listing media reviews.",
+    "decision_failed": "The decision could not be completed. Refresh the queue and try again.",
+    "page_title": "Public-listing media review",
+    "page_subtitle": "Approve or reject the photos and description submitted for a public listing before it can be published.",
+    "loading_reviews": "Loading media reviews...",
+    "empty_state": "No public listings are awaiting media review.",
+    "list_label": "Public listings awaiting media review"
   }
 }

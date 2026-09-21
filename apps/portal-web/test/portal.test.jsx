@@ -169,7 +169,18 @@ describe('Portal', () => {
       meta: { requestId: 'req-manager-membership' },
     });
     publicListingGetMock.mockResolvedValue({
-      items: [{ id: '6d5f0d4f-e7ca-4c96-b67b-513f871f3f1a', title: 'Riverside apartment · Unit 2A', status: 'withdrawn', note: 'Ready to publish.' }],
+      items: [{
+        id: '6d5f0d4f-e7ca-4c96-b67b-513f871f3f1a',
+        imageUrls: [],
+        mediaReviewNotes: null,
+        mediaReviewStatus: 'pending',
+        note: 'Ready to publish.',
+        status: 'withdrawn',
+        summary: null,
+        title: 'Riverside apartment · Unit 2A',
+        unitId: '9d5f0d4f-e7ca-4c96-b67b-513f871f3f1b',
+        version: 1,
+      }],
       meta: { requestId: 'req-listings-2' },
     });
 

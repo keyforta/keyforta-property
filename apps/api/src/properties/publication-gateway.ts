@@ -17,15 +17,53 @@ export interface ListPublicListingsForActorCommand {
 
 export interface PublicListingSummary {
   id: string;
+  imageUrls: string[];
+  mediaReviewNotes: string | null;
+  mediaReviewStatus: string;
   note: string;
   status: string;
+  summary: string | null;
   title: string;
+  unitId: string;
+  version: number;
+}
+
+export interface ReviewPublicListingMediaCommand {
+  correlationId: string;
+  decision: "approved" | "rejected";
+  listingId: string;
+  notes?: string | null;
+  reviewerObjectId: string;
+  reviewerSubject: string;
+  source: string;
+}
+
+export interface ReviewPublicListingMediaResult {
+  listingId: string;
+  mediaReviewStatus: string;
+}
+
+export interface PendingPublicListingMediaReview {
+  imageUrls: string[];
+  listingId: string;
+  organizationId: string;
+  organizationName: string;
+  propertyName: string;
+  submittedAt: string;
+  summary: string | null;
+  title: string | null;
+  unitId: string;
+  unitLabel: string;
 }
 
 export interface PublicListingPublicationGateway {
   listForActor(
     command: ListPublicListingsForActorCommand,
   ): Promise<PublicListingSummary[]>;
+  listPendingMediaReview(): Promise<PendingPublicListingMediaReview[]>;
+  reviewPublicListingMedia(
+    command: ReviewPublicListingMediaCommand,
+  ): Promise<ReviewPublicListingMediaResult | undefined>;
   setPublication(command: SetPublicListingPublicationCommand): Promise<boolean>;
 }
 
@@ -56,6 +94,60 @@ export function createPostgresPublicListingPublicationGateway(
         const row = result.rows[0] as { listings?: PublicListingSummary[] } | undefined;
         return row?.listings ?? [];
       });
+    },
+
+    async listPendingMediaReview() {
+      const result = await client.query(
+        "select * from app.list_public_listings_pending_media_review()",
+      );
+      return result.rows.map((row) => {
+        const typed = row as {
+          listing_id: string;
+          organization_id: string;
+          organization_name: string;
+          unit_id: string;
+          property_name: string;
+          unit_label: string;
+          title: string | null;
+          summary: string | null;
+          image_urls: string[];
+          submitted_at: Date | string;
+        };
+        return {
+          imageUrls: typed.image_urls ?? [],
+          listingId: typed.listing_id,
+          organizationId: typed.organization_id,
+          organizationName: typed.organization_name,
+          propertyName: typed.property_name,
+          submittedAt: typed.submitted_at instanceof Date
+            ? typed.submitted_at.toISOString()
+            : new Date(typed.submitted_at).toISOString(),
+          summary: typed.summary,
+          title: typed.title,
+          unitId: typed.unit_id,
+          unitLabel: typed.unit_label,
+        };
+      });
+    },
+
+    async reviewPublicListingMedia(command) {
+      const result = await client.query(
+        "select * from app.review_public_listing_media($1, $2, $3, $4, $5, $6, $7)",
+        [
+          command.listingId,
+          command.decision,
+          command.reviewerSubject,
+          command.reviewerObjectId,
+          command.notes ?? null,
+          command.correlationId,
+          command.source,
+        ],
+      );
+      const row = result.rows[0] as
+        | { listing_id?: string; media_review_status?: string }
+        | undefined;
+      if (!row?.listing_id || !row.media_review_status) return undefined;
+      return { listingId: row.listing_id, mediaReviewStatus: row.media_review_status };
     },
 
     async setPublication(command) {

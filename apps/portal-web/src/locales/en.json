@@ -156,6 +156,18 @@
     "set_availability_failed": "The availability could not be updated right now.",
     "availability_locked_occupied": "This unit is occupied by an active lease. Availability is managed automatically and cannot be changed here.",
     "reason_code_required": "A reason is required when marking a unit unavailable.",
+    "create_listing_toggle": "Create public listing",
+    "edit_listing_toggle": "Edit draft listing",
+    "create_listing_form_label": "Create public listing",
+    "edit_listing_form_label": "Edit draft listing",
+    "create_listing_submit": "Create listing",
+    "edit_listing_submit": "Save draft",
+    "create_listing_success": "Public listing created successfully.",
+    "create_listing_failed": "The public listing could not be created right now.",
+    "edit_listing_success": "Draft listing updated successfully.",
+    "edit_listing_failed": "The draft listing could not be updated right now.",
+    "listing_image_urls_required": "Provide at least one image URL, one per line.",
+    "listing_image_urls_hint": "Enter one image URL per line (up to 10).",
     "cancel": "Cancel",
     "saving": "Saving\u2026",
     "field": {
@@ -180,7 +192,10 @@
       "monthly_rent_amount": "Monthly rent amount",
       "currency": "Currency",
       "availability_status": "Availability status",
-      "reason_code": "Reason"
+      "reason_code": "Reason",
+      "listing_title": "Listing title",
+      "listing_summary": "Listing summary",
+      "listing_image_urls": "Image URLs"
     },
     "property_type": {
       "apartment_building": "Apartment building",
@@ -206,6 +221,16 @@
       "unavailable": "Unavailable",
       "available": "Available",
       "occupied": "Occupied"
+    },
+    "listing_status": {
+      "draft": "Draft",
+      "published": "Published",
+      "withdrawn": "Withdrawn"
+    },
+    "media_review_status": {
+      "pending": "Awaiting media review",
+      "approved": "Media approved",
+      "rejected": "Media rejected"
     }
   }
 }

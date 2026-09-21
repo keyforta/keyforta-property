@@ -64,7 +64,8 @@ describePostgres("PostgreSQL public discovery integration", () => {
         '00000000-0000-4000-8000-000000000950'
       );
       insert into app.public_listings (
-        id, organization_id, property_id, unit_id, status, snapshot, published_at, created_at
+        id, organization_id, property_id, unit_id, status, snapshot, published_at, created_at,
+        media_review_status, media_reviewed_at, media_reviewer_subject, media_reviewer_object_id
       ) values
         (
           '00000000-0000-4000-8000-000000000930',
@@ -74,7 +75,11 @@ describePostgres("PostgreSQL public discovery integration", () => {
           'published',
           '{"propertyId":"00000000-0000-4000-8000-000000000910","propertyVersion":1,"unitId":"00000000-0000-4000-8000-000000000920","unitVersion":1,"pricingVersionId":"00000000-0000-4000-8000-000000000a30","availabilityVersionId":"00000000-0000-4000-8000-000000000a40","projection":{"id":"published-org-a","name":"Published organization A","summary":"Synthetic published listing for organization A.","city":"Kinshasa","district":"Gombe","bedrooms":2,"bathrooms":1,"monthlyRentMinor":"40000","currency":"USD","availableFrom":"2026-10-01","amenities":[],"imageUrls":["/a.jpg"]}}',
           '2026-09-02T00:00:00Z',
-          '2026-08-01T00:00:00Z'
+          '2026-08-01T00:00:00Z',
+          'approved',
+          '2026-08-01T00:00:00Z',
+          'synthetic-platform-admin',
+          '00000000-0000-4000-8000-000000000960'
         ),
         (
           '00000000-0000-4000-8000-000000000931',
@@ -84,7 +89,11 @@ describePostgres("PostgreSQL public discovery integration", () => {
           'draft',
           '{"propertyId":"00000000-0000-4000-8000-000000000910","propertyVersion":1,"unitId":"00000000-0000-4000-8000-000000000921","unitVersion":1,"pricingVersionId":"00000000-0000-4000-8000-000000000a31","availabilityVersionId":"00000000-0000-4000-8000-000000000a41","projection":{"id":"draft-org-a","name":"Draft organization A","summary":"Synthetic draft listing that must remain private.","city":"Kinshasa","district":"Gombe","bedrooms":2,"bathrooms":1,"monthlyRentMinor":"30000","currency":"USD","availableFrom":"2026-10-01","amenities":[],"imageUrls":["/draft.jpg"]}}',
           null,
-          '2026-08-03T00:00:00Z'
+          '2026-08-03T00:00:00Z',
+          'pending',
+          null,
+          null,
+          null
         ),
         (
           '00000000-0000-4000-8000-000000000932',
@@ -94,7 +103,11 @@ describePostgres("PostgreSQL public discovery integration", () => {
           'published',
           '{"propertyId":"00000000-0000-4000-8000-000000000911","propertyVersion":1,"unitId":"00000000-0000-4000-8000-000000000922","unitVersion":1,"pricingVersionId":"00000000-0000-4000-8000-000000000a32","availabilityVersionId":"00000000-0000-4000-8000-000000000a42","projection":{"id":"published-org-b","name":"Published organization B","summary":"Synthetic published listing for organization B.","city":"Kinshasa","district":"Limete","bedrooms":3,"bathrooms":2,"monthlyRentMinor":"60000","currency":"USD","availableFrom":"2026-10-01","amenities":[],"imageUrls":["/b.jpg"]}}',
           '2026-09-01T00:00:00Z',
-          '2026-08-02T00:00:00Z'
+          '2026-08-02T00:00:00Z',
+          'approved',
+          '2026-08-02T00:00:00Z',
+          'synthetic-platform-admin',
+          '00000000-0000-4000-8000-000000000961'
         );
       insert into app.unit_pricing_versions (
         id, organization_id, unit_id, amount_minor, currency, billing_period, effective_from, created_by, correlation_id, source
@@ -130,7 +143,7 @@ describePostgres("PostgreSQL public discovery integration", () => {
     const result = await client.query<{ count: string }>(
       "select count(*)::text as count from app.schema_migrations",
     );
-    expect(result.rows[0]?.count).toBe("29");
+    expect(result.rows[0]?.count).toBe("30");
   });
 
   it("accepts same-organization and rejects cross-organization parent references", async () => {

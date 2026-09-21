@@ -405,5 +405,136 @@ describe('PropertyManagementPanel', () => {
     });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Update availability' })).toBeEnabled());
   });
+
+  describe('public listing creation and draft editing (REQ-037)', () => {
+    it('creates a public listing for a unit once the actor signs in', async () => {
+      create.mockResolvedValueOnce({
+        data: {
+          listingId: '11111111-1111-4111-8111-111111111111',
+          listingVersion: 1,
+          unitId: properties[0].units[0].id,
+          unitVersion: 2,
+        },
+        meta: { requestId: 'req-listing-1' },
+      });
+      const onRetryListingsFeed = vi.fn();
+      renderPanel({ onRetryListingsFeed });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Create public listing' })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: 'Create public listing' }));
+
+      fireEvent.change(screen.getByLabelText('Listing title*'), { target: { value: 'Riverside apartment — Unit 2A' } });
+      fireEvent.change(screen.getByLabelText('Listing summary*'), { target: { value: 'A bright two-bedroom unit close to transit.' } });
+      fireEvent.change(screen.getByLabelText('Image URLs*'), { target: { value: 'https://images.test/a.jpg' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Create listing' }));
+
+      await waitFor(() => expect(create).toHaveBeenCalledWith(
+        `units/${properties[0].units[0].id}/public-listing`,
+        expect.objectContaining({
+          title: 'Riverside apartment — Unit 2A',
+          summary: 'A bright two-bedroom unit close to transit.',
+          imageUrls: ['https://images.test/a.jpg'],
+        }),
+      ));
+      expect(await screen.findByText('Public listing created successfully.')).toBeInTheDocument();
+      expect(onRetryListingsFeed).toHaveBeenCalledTimes(1);
+    });
+
+    it('requires at least one image URL before creating a public listing', async () => {
+      renderPanel();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Create public listing' })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: 'Create public listing' }));
+
+      fireEvent.change(screen.getByLabelText('Listing title*'), { target: { value: 'Riverside apartment — Unit 2A' } });
+      fireEvent.change(screen.getByLabelText('Listing summary*'), { target: { value: 'A bright two-bedroom unit close to transit.' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Create listing' }));
+
+      expect(await screen.findByText('Provide at least one image URL, one per line.')).toBeInTheDocument();
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('shows a draft listing status with an edit affordance instead of a create form', async () => {
+      const draftListing = {
+        id: '22222222-2222-4222-8222-222222222222',
+        imageUrls: ['https://images.test/a.jpg'],
+        mediaReviewNotes: null,
+        mediaReviewStatus: 'pending',
+        note: '',
+        status: 'draft',
+        summary: 'A bright two-bedroom unit close to transit.',
+        title: 'Riverside apartment — Unit 2A',
+        unitId: properties[0].units[0].id,
+        version: 1,
+      };
+      renderPanel({ listings: [draftListing] });
+
+      expect(screen.getByText('Draft')).toBeInTheDocument();
+      expect(screen.getByText('Awaiting media review')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Edit draft listing' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Create public listing' })).not.toBeInTheDocument();
+    });
+
+    it('edits a draft listing, sending the expected version for optimistic concurrency', async () => {
+      const draftListing = {
+        id: '22222222-2222-4222-8222-222222222222',
+        imageUrls: ['https://images.test/a.jpg'],
+        mediaReviewNotes: null,
+        mediaReviewStatus: 'pending',
+        note: '',
+        status: 'draft',
+        summary: 'A bright two-bedroom unit close to transit.',
+        title: 'Riverside apartment — Unit 2A',
+        unitId: properties[0].units[0].id,
+        version: 1,
+      };
+      update.mockResolvedValueOnce({
+        data: { listingId: draftListing.id, listingVersion: 2 },
+        meta: { requestId: 'req-listing-2' },
+      });
+      const onRetryListingsFeed = vi.fn();
+      renderPanel({ listings: [draftListing], onRetryListingsFeed });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Edit draft listing' })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: 'Edit draft listing' }));
+
+      expect(screen.getByLabelText('Listing title*')).toHaveValue('Riverside apartment — Unit 2A');
+      fireEvent.change(screen.getByLabelText('Listing title*'), { target: { value: 'Riverside apartment — Unit 2A (updated)' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+      await waitFor(() => expect(update).toHaveBeenCalledWith(
+        'public-listings',
+        `${draftListing.id}/draft`,
+        expect.objectContaining({ title: 'Riverside apartment — Unit 2A (updated)', expectedVersion: 1 }),
+      ));
+      expect(await screen.findByText('Draft listing updated successfully.')).toBeInTheDocument();
+      expect(onRetryListingsFeed).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows a read-only status for a published listing instead of an editable form', () => {
+      const publishedListing = {
+        id: '33333333-3333-4333-8333-333333333333',
+        imageUrls: ['https://images.test/a.jpg'],
+        mediaReviewNotes: null,
+        mediaReviewStatus: 'approved',
+        note: '',
+        status: 'published',
+        summary: 'A bright two-bedroom unit close to transit.',
+        title: 'Riverside apartment — Unit 2A',
+        unitId: properties[0].units[0].id,
+        version: 3,
+      };
+      renderPanel({ listings: [publishedListing] });
+
+      expect(screen.getByText('Published')).toBeInTheDocument();
+      expect(screen.getByText('Media approved')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Edit draft listing' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Create public listing' })).not.toBeInTheDocument();
+    });
+  });
 });
+
 

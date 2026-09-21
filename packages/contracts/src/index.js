@@ -65,6 +65,10 @@ export const runtimeHttpOperations = Object.freeze({
 	submitLandlordOnboardingApplication: { method: 'POST', path: '/landlord-onboarding-applications', authentication: 'required' },
 	listLandlordOnboardingApplications: { method: 'GET', path: '/landlord-onboarding-applications', authentication: 'required' },
 	decideLandlordOnboardingApplication: { method: 'POST', path: '/landlord-onboarding-applications/{applicationId}/decision', authentication: 'required' },
+	createPublicListing: { method: 'POST', path: '/units/{unitId}/public-listing', authentication: 'required' },
+	updatePublicListingDraft: { method: 'PATCH', path: '/public-listings/{listingId}/draft', authentication: 'required' },
+	listPendingPublicListingMediaReview: { method: 'GET', path: '/admin/public-listings/pending-review', authentication: 'required' },
+	reviewPublicListingMedia: { method: 'POST', path: '/admin/public-listings/{listingId}/media-review', authentication: 'required' },
 	requestViewing: { method: 'POST', path: '/viewing-requests', authentication: 'anonymous' },
 });
 
@@ -96,6 +100,7 @@ export const propertyPublicationStatuses = Object.freeze(['draft', 'pending_revi
 export const inventoryPublicationStatuses = Object.freeze(['draft', 'pending_review', 'published', 'paused', 'archived']);
 export const unitAvailabilityStatuses = Object.freeze(['unavailable', 'available', 'occupied']);
 export const publicListingStatuses = Object.freeze(['draft', 'published', 'withdrawn']);
+export const publicListingMediaReviewStatuses = Object.freeze(['pending', 'approved', 'rejected']);
 export const supportedCurrencies = Object.freeze(['CDF', 'USD']);
 export { unitLabelUnicodeVersion };
 
@@ -573,21 +578,99 @@ export const publicListingPublicationEnvelopeSchema = envelopeSchema(z.object({
 }).strict());
 
 // Bounds mirror the SQL projection in app.list_public_listings_for_actor
-// (migration 0029): title = properties.name (<=160) + " — " (3) +
-// units.label (<=80) = 243 max; note = address.commune (<=160) + ", " (2) +
+// (migration 0030): title = properties.name (<=160) + " — " (3) +
+// units.label (<=80) = 243 max (or the landlord-authored title, bounded to
+// 140 chars, once set); note = address.commune (<=160) + ", " (2) +
 // address.city (<=160) = 322 max. A property/unit pair at the true maximum
 // lengths must round-trip through this schema without a parse failure.
+// `summary`/`imageUrls` are null/empty for a listing with no draft snapshot
+// yet (a legacy pre-REQ-037 fixture); `mediaReviewNotes` is null until a
+// platform administrator records a review decision (REQ-037).
 export const publicListingSummarySchema = z.object({
 	id: publicListingIdSchema,
+	imageUrls: z.array(z.url().max(2048)),
+	mediaReviewNotes: boundedTextSchema(2000).nullable(),
+	mediaReviewStatus: z.enum(publicListingMediaReviewStatuses),
 	note: boundedTextSchema(322),
 	status: z.enum(publicListingStatuses),
+	summary: boundedTextSchema(4000).nullable(),
 	title: boundedTextSchema(243),
+	unitId: unitIdSchema,
+	version: positiveVersionSchema,
 }).strict();
 
 export const publicListingListEnvelopeSchema = z.object({
 	items: z.array(publicListingSummarySchema),
 	meta: metaSchema,
 }).strict();
+
+export const createPublicListingInputSchema = z.object({
+	idempotencyKey: boundedTextSchema(128),
+	imageUrls: z.array(z.url().max(2048)).min(1).max(10),
+	summary: boundedTextSchema(4000),
+	title: boundedTextSchema(140),
+}).strict();
+
+export const createPublicListingResultSchema = z.object({
+	listingId: publicListingIdSchema,
+	listingVersion: positiveVersionSchema,
+	unitId: unitIdSchema,
+	unitVersion: positiveVersionSchema,
+}).strict();
+
+export const createPublicListingEnvelopeSchema = envelopeSchema(createPublicListingResultSchema);
+
+export const updatePublicListingDraftInputSchema = z.object({
+	expectedVersion: positiveVersionSchema,
+	imageUrls: z.array(z.url().max(2048)).min(1).max(10),
+	summary: boundedTextSchema(4000),
+	title: boundedTextSchema(140),
+}).strict();
+
+export const updatePublicListingDraftResultSchema = z.object({
+	listingId: publicListingIdSchema,
+	listingVersion: positiveVersionSchema,
+}).strict();
+
+export const updatePublicListingDraftEnvelopeSchema = envelopeSchema(updatePublicListingDraftResultSchema);
+
+export const publicListingMediaReviewInputSchema = z.object({
+	decision: z.enum(['approved', 'rejected']),
+	notes: boundedTextSchema(2000).optional(),
+}).strict()
+	.refine(
+		(value) => value.decision !== 'rejected' || Boolean(value.notes?.trim()),
+		{ message: 'Rejecting a listing requires reviewer notes.', path: ['notes'] },
+	);
+
+export const publicListingMediaReviewResultSchema = z.object({
+	listingId: publicListingIdSchema,
+	mediaReviewStatus: z.enum(publicListingMediaReviewStatuses),
+}).strict();
+
+export const publicListingMediaReviewEnvelopeSchema = envelopeSchema(publicListingMediaReviewResultSchema);
+
+// Bounds mirror app.list_public_listings_pending_media_review (0030):
+// organizationName/propertyName <=160, unitLabel <=80, title <=140,
+// summary <=4000, up to 10 image URLs of at most 2048 characters each.
+export const pendingPublicListingMediaReviewSchema = z.object({
+	imageUrls: z.array(z.url().max(2048)).max(10),
+	listingId: publicListingIdSchema,
+	organizationId: organizationIdSchema,
+	organizationName: boundedTextSchema(160),
+	propertyName: boundedTextSchema(160),
+	submittedAt: timestampSchema,
+	summary: boundedTextSchema(4000).nullable(),
+	title: boundedTextSchema(140).nullable(),
+	unitId: unitIdSchema,
+	unitLabel: boundedTextSchema(80),
+}).strict();
+
+export const pendingPublicListingMediaReviewListEnvelopeSchema = z.object({
+	items: z.array(pendingPublicListingMediaReviewSchema),
+	meta: metaSchema,
+}).strict();
+
 
 export const jurisdictionPolicyActivationEnvelopeSchema = envelopeSchema(jurisdictionPolicyActivationResultSchema);
 
