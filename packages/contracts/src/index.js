@@ -108,8 +108,13 @@ const boundedTextSchema = (maximum) => z.string().trim().min(1).max(maximum);
 // PublicListing media images must be externally hosted over https:// only,
 // mirroring the database check in migration 0030
 // (app.validate_public_listing_media_payload); an http:// URL must fail
-// here with a 400 validation error rather than reach the SQL layer.
+// here with a 400 validation error rather than reach the SQL layer. This
+// applies only to create/update-draft *input*: migration 0030 does not
+// retroactively rewrite pre-existing snapshots, so a pre-REQ-037 listing's
+// stored imageUrls may still be a relative path or http:// URL and must
+// keep round-tripping through the read/response schemas below.
 const httpsImageUrlSchema = z.url({ protocol: /^https$/ }).max(2048);
+const publicListingImageUrlOutputSchema = z.string().min(1).max(2048);
 // PublicListing title/summary input must mirror the database check in
 // migration 0030 (app.validate_public_listing_media_payload), which
 // requires a title of 3-140 characters and a summary of 10-4000
@@ -601,7 +606,7 @@ export const publicListingPublicationEnvelopeSchema = envelopeSchema(z.object({
 // platform administrator records a review decision (REQ-037).
 export const publicListingSummarySchema = z.object({
 	id: publicListingIdSchema,
-	imageUrls: z.array(httpsImageUrlSchema),
+	imageUrls: z.array(publicListingImageUrlOutputSchema),
 	mediaReviewNotes: boundedTextSchema(2000).nullable(),
 	mediaReviewStatus: z.enum(publicListingMediaReviewStatuses),
 	note: boundedTextSchema(322),
@@ -665,9 +670,13 @@ export const publicListingMediaReviewEnvelopeSchema = envelopeSchema(publicListi
 
 // Bounds mirror app.list_public_listings_pending_media_review (0030):
 // organizationName/propertyName <=160, unitLabel <=80, title <=140,
-// summary <=4000, up to 10 image URLs of at most 2048 characters each.
+// summary <=4000, up to 10 image URLs of at most 2048 characters each. A
+// pre-REQ-037 draft fixture with a legacy relative-path/http imageUrls
+// value can still appear here (its media_review_status predates the
+// https-only input validator), so this uses the same backward-compatible
+// output schema as publicListingSummarySchema rather than httpsImageUrlSchema.
 export const pendingPublicListingMediaReviewSchema = z.object({
-	imageUrls: z.array(httpsImageUrlSchema).max(10),
+	imageUrls: z.array(publicListingImageUrlOutputSchema).max(10),
 	listingId: publicListingIdSchema,
 	organizationId: organizationIdSchema,
 	organizationName: boundedTextSchema(160),

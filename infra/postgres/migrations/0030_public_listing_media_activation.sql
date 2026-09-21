@@ -100,21 +100,45 @@ create policy public_listing_media_review_events_isolation
 
 -- The platform-admin media-review console (mirroring the cross-organization
 -- landlord-onboarding allowlist, REQ-028-031) must read and decide on
--- listings across every organization, not just the caller's own. Rather
--- than trusting a client-supplied organization id, `review_public_listing_media`
--- and `list_public_listings_pending_media_review` set this session-local,
--- transaction-scoped flag themselves (never client-controlled) immediately
--- before, and clear it immediately after, the exact statements that require
--- cross-organization visibility; every other code path leaves it unset, so
--- FORCE ROW LEVEL SECURITY still applies everywhere else.
-create policy public_listings_platform_admin_media_review on app.public_listings
-  using (current_setting('app.platform_admin_media_review', true) = 'true')
-  with check (current_setting('app.platform_admin_media_review', true) = 'true');
+-- listings across every organization, not just the caller's own, across
+-- app.public_listings, app.public_listing_media_review_events, and the
+-- app.properties/app.units it joins for display -- all of which are FORCE
+-- ROW LEVEL SECURITY. A session-local GUC checked by an RLS policy would be
+-- settable by any keyforta_runtime session directly (not just through the
+-- two functions below), widening the blast radius of a compromised
+-- connection. Instead, `app.review_public_listing_media` and
+-- `app.list_public_listings_pending_media_review` are owned by a distinct,
+-- narrowly scoped, non-login role with BYPASSRLS -- the same mechanism
+-- Postgres reserves for superusers -- so RLS (even FORCE) is bypassed for
+-- every statement inside these two functions specifically, with no
+-- client-settable flag anywhere. keyforta_runtime is granted EXECUTE only
+-- on these two functions, never direct table access or role membership, so
+-- normal (non-admin-route) queries remain fully subject to RLS.
+-- Roles are cluster-wide, not per-database: parallel test suites each
+-- create their own transient database against the same Postgres cluster and
+-- may race to create this role for the first time concurrently, so a
+-- plain "if not exists" check is not enough (classic check-then-act race).
+-- Catch duplicate_object instead of relying solely on the existence check.
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'keyforta_media_review_admin') then
+    create role keyforta_media_review_admin nologin nosuperuser nocreatedb nocreaterole
+      noinherit bypassrls;
+  end if;
+exception
+  when duplicate_object or unique_violation then
+    null;
+end
+$$;
 
-create policy public_listing_media_review_events_platform_admin_media_review
-  on app.public_listing_media_review_events
-  using (current_setting('app.platform_admin_media_review', true) = 'true')
-  with check (current_setting('app.platform_admin_media_review', true) = 'true');
+grant usage on schema app to keyforta_media_review_admin;
+-- bypassrls only bypasses row level security policies; standard GRANT-based
+-- table privileges are still enforced independently, so the admin role also
+-- needs explicit privileges on every table its two functions touch.
+grant select, update on app.public_listings to keyforta_media_review_admin;
+grant select, insert on app.public_listing_media_review_events to keyforta_media_review_admin;
+grant select on app.properties, app.units to keyforta_media_review_admin;
+grant select on app.organizations to keyforta_media_review_admin;
 
 revoke all on app.public_listing_media_review_events from keyforta_runtime;
 grant select, insert on app.public_listing_media_review_events to keyforta_runtime;
@@ -365,9 +389,9 @@ $$;
 -- cross-organization identities that do not carry an organization-scoped
 -- session; the API route is the only gate. `app.public_listings` and
 -- `app.public_listing_media_review_events` are FORCE ROW LEVEL SECURITY, so
--- the trusted, transaction-scoped `app.platform_admin_media_review` flag is
--- set immediately before, and cleared immediately after, the exact
--- statements that require cross-organization visibility.
+-- this function is owned by keyforta_media_review_admin (BYPASSRLS) rather
+-- than relying on any client-settable session flag; see the role
+-- definition above for why.
 create function app.review_public_listing_media(
   requested_listing_id uuid,
   requested_decision text,
@@ -396,15 +420,12 @@ begin
     raise exception 'rejecting a listing requires reviewer notes' using errcode = '23514';
   end if;
 
-  perform set_config('app.platform_admin_media_review', 'true', true);
-
   select * into listing
   from app.public_listings
   where id = requested_listing_id
   for update;
 
   if not found or listing.status <> 'draft' or listing.media_review_status <> 'pending' then
-    perform set_config('app.platform_admin_media_review', '', true);
     return;
   end if;
 
@@ -428,19 +449,20 @@ begin
     requested_source
   );
 
-  perform set_config('app.platform_admin_media_review', '', true);
-
   media_review_status := requested_decision;
   return next;
 end
 $$;
 
+alter function app.review_public_listing_media(uuid, text, text, uuid, text, text, text)
+  owner to keyforta_media_review_admin;
+
 -- Read-only queue for the admin media-review console: every listing in
 -- `draft` status still awaiting a decision (`media_review_status =
--- 'pending'`), across every organization. `app.public_listings` is FORCE
--- ROW LEVEL SECURITY, so this function briefly sets the same trusted,
--- transaction-scoped cross-organization flag as
--- app.review_public_listing_media around the single query that needs it.
+-- 'pending'`), across every organization. `app.public_listings` (and the
+-- `app.properties`/`app.units` it joins) are FORCE ROW LEVEL SECURITY, so
+-- this function is owned by keyforta_media_review_admin (BYPASSRLS), same
+-- as app.review_public_listing_media above.
 create function app.list_public_listings_pending_media_review()
 returns table (
   listing_id uuid,
@@ -454,15 +476,11 @@ returns table (
   image_urls jsonb,
   submitted_at timestamptz
 )
-language plpgsql
+language sql
 security definer
 stable
 set search_path = pg_catalog, app
 as $$
-begin
-  perform set_config('app.platform_admin_media_review', 'true', true);
-
-  return query
     select l.id, l.organization_id, o.name, l.unit_id, p.name, u.label,
       l.title, l.snapshot -> 'projection' ->> 'summary',
       coalesce(l.snapshot -> 'projection' -> 'imageUrls', '[]'::jsonb),
@@ -473,10 +491,10 @@ begin
     join app.units u on u.organization_id = l.organization_id and u.id = l.unit_id
     where l.status = 'draft' and l.media_review_status = 'pending'
     order by l.created_at, l.id;
-
-  perform set_config('app.platform_admin_media_review', '', true);
-end
 $$;
+
+alter function app.list_public_listings_pending_media_review() owner to keyforta_media_review_admin;
+
 
 -- Extends the read-only portfolio feed (0029) with the fields the portal UI
 -- needs to show creation/review state: unitId (so the UI knows which Unit a

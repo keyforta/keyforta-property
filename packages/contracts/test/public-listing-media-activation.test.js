@@ -47,10 +47,16 @@ test("REQ-037 updatePublicListingDraftInputSchema requires https-only image URLs
   );
 });
 
-test("REQ-037 publicListingSummarySchema and pendingPublicListingMediaReviewSchema reject http image URLs", () => {
+test("REQ-037 publicListingSummarySchema and pendingPublicListingMediaReviewSchema remain backward compatible with pre-REQ-037 relative-path/http image URLs", () => {
+  // Migration 0030 does not retroactively rewrite listing snapshots created
+  // before the https-only input validator existed, so the read/response
+  // schemas must keep accepting whatever was already stored (a relative
+  // path like "/a.jpg", per the fixtures in
+  // apps/api/test/postgres.integration.test.ts) instead of throwing on an
+  // existing organization's portfolio feed or pending-review queue.
   const summary = {
     id: "9f6c6f2e-6c7a-4b5b-8b3a-1f2e3d4c5b6a",
-    imageUrls: [validImageUrl],
+    imageUrls: ["/a.jpg", "http://cdn.keyforta.test/legacy.jpg", validImageUrl],
     mediaReviewNotes: null,
     mediaReviewStatus: "pending",
     note: "Gombe, Kinshasa",
@@ -61,16 +67,9 @@ test("REQ-037 publicListingSummarySchema and pendingPublicListingMediaReviewSche
     version: 1,
   };
   assert.equal(publicListingSummarySchema.safeParse(summary).success, true);
-  assert.equal(
-    publicListingSummarySchema.safeParse({
-      ...summary,
-      imageUrls: ["http://cdn.keyforta.test/listing-1/photo-1.jpg"],
-    }).success,
-    false,
-  );
 
   const pendingReview = {
-    imageUrls: [validImageUrl],
+    imageUrls: ["/draft.jpg", "http://cdn.keyforta.test/legacy.jpg", validImageUrl],
     listingId: "9f6c6f2e-6c7a-4b5b-8b3a-1f2e3d4c5b6a",
     organizationId: "2b3c4d5e-6f70-4890-9abc-def012345678",
     organizationName: "Riverside Homes",
@@ -82,14 +81,8 @@ test("REQ-037 publicListingSummarySchema and pendingPublicListingMediaReviewSche
     unitLabel: "Unit 2A",
   };
   assert.equal(pendingPublicListingMediaReviewSchema.safeParse(pendingReview).success, true);
-  assert.equal(
-    pendingPublicListingMediaReviewSchema.safeParse({
-      ...pendingReview,
-      imageUrls: ["http://cdn.keyforta.test/listing-1/photo-1.jpg"],
-    }).success,
-    false,
-  );
 });
+
 
 test("REQ-037 createPublicListingInputSchema and updatePublicListingDraftInputSchema require the same title/summary bounds as the database validator (3-140, 10-4000)", () => {
   const createBase = {
