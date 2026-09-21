@@ -1,5 +1,6 @@
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { publicListingListEnvelopeSchema } from "@keyforta/contracts";
 
 import { applyMigrations } from "../src/migrate.js";
 import { createRuntimeDatabaseClient } from "../src/database.js";
@@ -1013,6 +1014,78 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       organizationId: organizationA,
       subject: crossOrgSubject,
     })).rejects.toThrow(RentalInventoryAuthorizationError);
+  });
+
+  it("keeps the portfolio feed within the wire-contract length bounds for maximum-length property/unit/address fields (issue #114)", async () => {
+    // properties.name <= 160, units.label <= 80, address.commune/city <= 160
+    // (migration 0022 check constraints). title = name + " — " (3) + label;
+    // note = commune + ", " (2) + city. Both must fit publicListingSummarySchema
+    // (packages/contracts/src/index.js) at the true maximum, or the feed
+    // response fails to parse (500) for otherwise-valid data.
+    const maxName = "N".repeat(160);
+    const maxLabel = "U".repeat(80);
+    const maxCommune = "C".repeat(160);
+    const maxCity = "K".repeat(160);
+    const maxAddress = { ...address, city: maxCity, commune: maxCommune };
+
+    const maxLengthProperty = await gateway().createRentalProperty({
+      address: maxAddress,
+      correlationId: "corr-listing-feed-max-length-create",
+      firstUnit: { ...firstUnit, label: maxLabel },
+      idempotencyKey: "idem-listing-feed-max-length-create",
+      name: maxName,
+      organizationId: organizationA,
+      propertyType: "single_family",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    expect(maxLengthProperty?.propertyId).toBeTruthy();
+
+    await client.query(
+      `insert into app.public_listings (organization_id, property_id, unit_id, status)
+       values ($1, $2, $3, 'draft')`,
+      [organizationA, maxLengthProperty!.propertyId, maxLengthProperty!.unitId],
+    );
+
+    const assignmentSession = await pool.connect();
+    try {
+      await assignmentSession.query("begin");
+      await assignmentSession.query("select * from app.resolve_actor($1, $2)", [
+        landlordSubject,
+        organizationA,
+      ]);
+      await assignmentSession.query(
+        "select set_config('app.correlation_id', $1, true)",
+        ["corr-listing-feed-max-length-assign"],
+      );
+      const landlord = await assignmentSession.query(
+        "select id from app.users where external_subject = $1",
+        [landlordSubject],
+      );
+      const assigned = await assignmentSession.query<{ changed: boolean }>(
+        "select app.set_manager_property_assignment($1, $2, true) as changed",
+        [maxLengthProperty!.propertyId, landlord.rows[0].id],
+      );
+      expect(assigned.rows[0]?.changed).toBe(true);
+      await assignmentSession.query("commit");
+    } finally {
+      assignmentSession.release();
+    }
+
+    const feed = await publicationGateway().listForActor({
+      correlationId: "corr-listing-feed-max-length",
+      organizationId: organizationA,
+      subject: landlordSubject,
+    });
+    const summary = feed.find((item) => item.title.startsWith(maxName));
+    expect(summary).toBeTruthy();
+    expect(summary!.title.length).toBeLessThanOrEqual(243);
+    expect(summary!.note.length).toBeLessThanOrEqual(322);
+    expect(() => publicListingListEnvelopeSchema.parse({
+      items: feed,
+      meta: { requestId: "corr-listing-feed-max-length" },
+    })).not.toThrow();
   });
 
   it("never leaves zero active Units when two sibling Units are archived concurrently", async () => {

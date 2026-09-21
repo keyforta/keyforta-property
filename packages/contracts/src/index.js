@@ -572,11 +572,16 @@ export const publicListingPublicationEnvelopeSchema = envelopeSchema(z.object({
 	status: z.enum(['published', 'withdrawn']),
 }).strict());
 
+// Bounds mirror the SQL projection in app.list_public_listings_for_actor
+// (migration 0029): title = properties.name (<=160) + " — " (3) +
+// units.label (<=80) = 243 max; note = address.commune (<=160) + ", " (2) +
+// address.city (<=160) = 322 max. A property/unit pair at the true maximum
+// lengths must round-trip through this schema without a parse failure.
 export const publicListingSummarySchema = z.object({
 	id: publicListingIdSchema,
-	note: boundedTextSchema(320),
+	note: boundedTextSchema(322),
 	status: z.enum(publicListingStatuses),
-	title: boundedTextSchema(320),
+	title: boundedTextSchema(243),
 }).strict();
 
 export const publicListingListEnvelopeSchema = z.object({
