@@ -29,18 +29,27 @@ export interface DatabaseClient extends DatabaseSession {
 export async function assertRuntimeDatabaseReady(
   database: DatabaseSession,
 ): Promise<void> {
-  const result = await database.query(
-    "select app.runtime_schema_v0028_ready() as ready",
-  );
-  if ((result.rows[0] as { ready?: unknown } | undefined)?.ready !== true) {
+  let ready = false;
+  try {
+    const result = await database.query(
+      "select app.runtime_schema_v0028_ready() as ready",
+    );
+    ready = (result.rows[0] as { ready?: unknown } | undefined)?.ready === true;
+  } catch {
+    // On a partially upgraded database the readiness marker function itself
+    // may not exist yet (PostgreSQL raises undefined_function), which would
+    // otherwise prevent this call from ever reaching the fallback check
+    // below. Treat any marker-query failure as "not ready yet" and fall
+    // through to the direct command-function existence check.
+    ready = false;
+  }
+  if (!ready) {
     const fallback = await database.query(
       "select to_regprocedure('app.create_rental_property(text,text,jsonb,text,text,text,text,text,smallint,smallint,integer,text,text,text,text,text)') is not null as ready",
     );
-    if ((fallback.rows[0] as { ready?: unknown } | undefined)?.ready === true) {
-      return;
-    }
+    ready = (fallback.rows[0] as { ready?: unknown } | undefined)?.ready === true;
   }
-  if ((result.rows[0] as { ready?: unknown } | undefined)?.ready !== true) {
+  if (!ready) {
     throw new Error("The runtime database schema is not ready.");
   }
 }

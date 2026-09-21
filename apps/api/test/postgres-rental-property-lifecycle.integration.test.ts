@@ -947,6 +947,64 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     expect(activeUnitCount.rows[0].count).toBe(1);
   });
 
+  it("does not deadlock when a Unit archive races a Property archive on the same Property", async () => {
+    // Regression test: archive_rental_unit previously locked the Unit row
+    // before the parent Property, while archive_rental_property locked the
+    // Property before its Units. Two concurrent calls taking opposite lock
+    // orders on the same rows can deadlock instead of serializing, which
+    // PostgreSQL reports as a 40P01 error. Note that archiving a Property
+    // cascades to archive all of its Units, so a legitimate outcome here is
+    // for the Unit-side call to lose the race and be rejected with a
+    // business "not found" error (the Unit really was already archived by
+    // the Property archive) -- that is expected serialization, not a bug.
+    // What must never happen is either side raising a raw 40P01 deadlock.
+    const created = await gateway().createRentalProperty({
+      address,
+      correlationId: "corr-deadlock-order-create",
+      firstUnit,
+      idempotencyKey: "idem-deadlock-order-create",
+      name: "Synthetic Deadlock Order Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    const propertyId = created?.propertyId;
+    if (!propertyId) throw new Error("expected a created Property");
+
+    const results = await Promise.allSettled([
+      gateway().archiveRentalUnit({
+        correlationId: "corr-deadlock-order-unit",
+        idempotencyKey: "idem-deadlock-order-unit",
+        expectedVersion: created!.unitVersion,
+        organizationId: organizationA,
+        reason: "deadlock order regression: unit side",
+        source: "test",
+        subject: landlordSubject,
+        unitId: created!.unitId,
+      }),
+      gateway().archiveRentalProperty({
+        correlationId: "corr-deadlock-order-property",
+        idempotencyKey: "idem-deadlock-order-property",
+        expectedVersion: created!.propertyVersion,
+        organizationId: organizationA,
+        propertyId,
+        reason: "deadlock order regression: property side",
+        source: "test",
+        subject: landlordSubject,
+      }),
+    ]);
+
+    for (const result of results) {
+      if (result.status === "rejected" && !(result.reason instanceof RentalInventoryNotFoundError)) {
+        throw new Error(
+          `expected no deadlock (and no error other than a legitimate not-found race), but got: ${String(result.reason)}`,
+        );
+      }
+    }
+  });
+
   it("never leaves an archived Unit with a non-archived lease when archive races a concurrent lease draft", async () => {
     const tenantSubject = "synthetic-rental-tenant-archive-race";
     await client.query(

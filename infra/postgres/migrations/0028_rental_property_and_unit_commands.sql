@@ -636,6 +636,7 @@ declare
   organization uuid := app.current_organization_id();
   actor uuid := nullif(current_setting('app.actor_id', true), '')::uuid;
   correlation text := coalesce(requested_correlation_id, nullif(current_setting('app.correlation_id', true), ''));
+  target_property_id uuid;
   unit_record app.units%rowtype;
   active_unit_count integer;
   blocking_lease_count integer;
@@ -646,6 +647,25 @@ begin
   if organization is null or actor is null or correlation is null then
     raise exception 'trusted request context is required';
   end if;
+
+  -- A Unit's property_id is immutable once created (no migration ever
+  -- updates it), so this unlocked lookup is safe to use only to determine
+  -- which Property to lock first.
+  select property_id into target_property_id
+  from app.units
+  where organization_id = organization and id = requested_unit_id;
+
+  if not found then
+    raise exception 'the requested Unit was not found' using errcode = 'P0002';
+  end if;
+
+  -- Lock the parent Property before the Unit so this command's lock order
+  -- matches archive_rental_property (Property before Unit). Without this,
+  -- a concurrent Unit archive and Property archive on the same Property
+  -- could lock in opposite orders and deadlock instead of serializing.
+  perform 1 from app.properties
+  where organization_id = organization and id = target_property_id
+  for update;
 
   -- Look up the Unit regardless of archived state (archived rows are not
   -- deleted) so both the not-found check and the authorization check below
@@ -690,14 +710,10 @@ begin
     raise exception 'the supplied version is stale' using errcode = '40001';
   end if;
 
-  -- Lock the parent Property so a concurrent archive of a sibling Unit on
-  -- the same Property cannot also observe (and act on) the pre-archive
-  -- active-Unit count: whichever transaction locks the Property first
-  -- serializes against the other, which then re-counts after the first
-  -- commits.
-  perform 1 from app.properties
-  where organization_id = organization and id = unit_record.property_id
-  for update;
+  -- The parent Property is already locked above (before the Unit), which
+  -- also serializes concurrent archives of sibling Units on this Property:
+  -- whichever transaction locks the Property first proceeds, and the other
+  -- re-counts active Units after the first commits.
 
   select count(*) into active_unit_count
   from app.units
