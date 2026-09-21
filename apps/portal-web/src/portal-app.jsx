@@ -123,7 +123,12 @@ export function Portal() {
   const auth = useSyncExternalStore(portalAuth.subscribe, portalAuth.getSnapshot, portalAuth.getSnapshot);
   useEffect(() => { portalAuth.initialize(); }, []);
   const membership = useMembership(auth, portalAuth);
-  const { listings: managerListings } = useManagerListings(session);
+  const {
+    listings: managerListings,
+    loading: managerListingsLoading,
+    error: managerListingsError,
+    retry: retryManagerListings,
+  } = useManagerListings(session);
 
   // Once a real Entra sign-in resolves to at least one active membership,
   // build a real (non-demo) session for the first matching organization.
@@ -218,7 +223,16 @@ export function Portal() {
           <p className='muted stats-empty-state' data-testid='stats-empty-state'>{role.statsEmptyState}</p>
         </section>
         <section className='content-grid'>
-          {showListingPublication ? <ListingPublicationPanel emptyState={listingPublicationEmptyState} listings={managerListings} session={session} /> : null}
+          {showListingPublication ? (
+            <ListingPublicationPanel
+              emptyState={listingPublicationEmptyState}
+              feedError={managerListingsError}
+              feedLoading={managerListingsLoading}
+              listings={managerListings}
+              onRetryFeed={retryManagerListings}
+              session={session}
+            />
+          ) : null}
           <article className='panel table-panel'>
             <div className='panel-head'>
               <div><p className='kicker'>{t('workspace.activity')}</p><h2>{t('workspace.needs_attention')}</h2></div>

@@ -737,9 +737,11 @@ export async function buildApp(
   });
 
   // REQ-035 / issue #114: read-only feed of the actor's own manageable
-  // PublicListings (landlord: all in the organization; manager: only
-  // assigned Properties), so the portal can offer a picker instead of a
-  // manual listing-ID text field. This does not create or mutate listings.
+  // PublicListings — assignment-scoped for every actor, including landlords,
+  // matching app.set_public_listing_publication (0023)'s authorization model
+  // exactly (organization ownership alone does not grant listing-publication
+  // authority). This lets the portal offer a picker instead of a manual
+  // listing-ID text field. This does not create or mutate listings.
   app.get("/api/v1/public-listings/mine", async (request, reply) => {
     if (!dependencies.authenticator || !dependencies.publicListingPublication) {
       return reply.status(503).send(problem(

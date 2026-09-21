@@ -174,6 +174,21 @@ describe('Portal', () => {
     expect(screen.queryByText(/No assigned listings are loaded in this prototype yet/i)).not.toBeInTheDocument();
   });
 
+  it('surfaces an explicit error state (not an empty portfolio) when the listing feed request fails (issue #114)', async () => {
+    mocks.authState.current = { status: 'signed-in', account: { name: 'Priya S.', username: 'priya@example.com', email: 'priya@example.com' } };
+    membershipListMock.mockResolvedValue({
+      data: [{ organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', role: 'manager' }],
+      meta: { requestId: 'req-manager-membership' },
+    });
+    publicListingGetMock.mockRejectedValue(new Error('feed unavailable'));
+
+    renderPortal();
+
+    await waitFor(() => expect(publicListingGetMock).toHaveBeenCalledWith('public-listings', 'mine'));
+    expect(await screen.findByText(/couldn't load your assigned listings/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Assigned listings will appear here after the portfolio feed is available/i)).not.toBeInTheDocument();
+  });
+
   it('does not fetch the listing portfolio feed for a demo session', () => {
     window.history.replaceState({}, '', '/?role=manager&email=manager@example.com');
     renderPortal();

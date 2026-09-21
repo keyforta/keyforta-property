@@ -64,7 +64,10 @@ async function resolveCommandAccessToken(session) {
 
 export function ListingPublicationPanel({
   emptyState,
+  feedError,
+  feedLoading,
   listings,
+  onRetryFeed,
   session,
 }) {
   const { t } = useTranslation();
@@ -236,9 +239,19 @@ export function ListingPublicationPanel({
           {t('listing_publication.unavailable')}
         </p>
       ) : null}
-      {items.length === 0 ? (
+      {feedLoading ? (
+        <p className='publication-feedback' data-tone='success' role='status'>{t('listing_publication.feed_loading')}</p>
+      ) : null}
+      {feedError ? (
+        <div className='publication-feedback' data-tone='error' role='alert'>
+          <p>{t('listing_publication.feed_error')}</p>
+          {onRetryFeed ? <Button appearance='secondary' onClick={onRetryFeed}>{t('listing_publication.feed_retry')}</Button> : null}
+        </div>
+      ) : null}
+      {!feedLoading && !feedError && items.length === 0 ? (
         <p className='publication-empty'>{resolvedEmptyState}</p>
-      ) : (
+      ) : null}
+      {!feedLoading && !feedError && items.length > 0 ? (
         <div className='rows' role='list' aria-label={t('listing_publication.assigned_listings')}>
           {items.map((listing) => {
             const copy = statusCopy(listing.status, t);
@@ -263,7 +276,7 @@ export function ListingPublicationPanel({
             );
           })}
         </div>
-      )}
+      ) : null}
       <div className='manual-listing-form'>
         <label htmlFor='manual-listing-id'>{t('listing_publication.listing_id_label')}</label>
         <Input

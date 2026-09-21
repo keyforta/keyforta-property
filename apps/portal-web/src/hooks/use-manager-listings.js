@@ -8,9 +8,13 @@ import { resolveApiBaseUrl } from '../listing-publication-panel.jsx';
 // the manual listing-ID entry point that previously required the manager to
 // already know a listing's id (issue #114). Demo sessions and sessions
 // without an organization context or access-token getter never call the
-// live API and simply resolve to an empty portfolio.
+// live API and simply resolve to an empty portfolio. Callers must surface
+// `error`/`loading` explicitly (not just `listings`): a fetch failure still
+// resolves `listings` to `[]`, which would otherwise be indistinguishable
+// from a manager who genuinely has no assigned listings yet.
 export function useManagerListings(session) {
   const [state, setState] = useState({ loading: false, listings: [], error: null });
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (
@@ -41,7 +45,7 @@ export function useManagerListings(session) {
     return () => {
       active = false;
     };
-  }, [session]);
+  }, [session, retryCount]);
 
-  return state;
+  return { ...state, retry: () => setRetryCount((count) => count + 1) };
 }
