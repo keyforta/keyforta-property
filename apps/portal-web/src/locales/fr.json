@@ -156,6 +156,20 @@
     "set_availability_failed": "La disponibilit\u00e9 n'a pas pu \u00eatre mise \u00e0 jour pour le moment.",
     "availability_locked_occupied": "Ce logement est occup\u00e9 par un bail actif. La disponibilit\u00e9 est g\u00e9r\u00e9e automatiquement et ne peut pas \u00eatre modifi\u00e9e ici.",
     "reason_code_required": "Un motif est requis pour marquer une unit\u00e9 comme indisponible.",
+    "create_listing_toggle": "Cr\u00e9er une annonce publique",
+    "edit_listing_toggle": "Modifier le brouillon de l'annonce",
+    "create_listing_form_label": "Cr\u00e9er une annonce publique",
+    "edit_listing_form_label": "Modifier le brouillon de l'annonce",
+    "create_listing_submit": "Cr\u00e9er l'annonce",
+    "edit_listing_submit": "Enregistrer le brouillon",
+    "create_listing_success": "Annonce publique cr\u00e9\u00e9e avec succ\u00e8s.",
+    "create_listing_failed": "L'annonce publique n'a pas pu \u00eatre cr\u00e9\u00e9e pour le moment.",
+    "edit_listing_success": "Brouillon d'annonce mis \u00e0 jour avec succ\u00e8s.",
+    "edit_listing_failed": "Le brouillon d'annonce n'a pas pu \u00eatre mis \u00e0 jour pour le moment.",
+    "listing_image_urls_required": "Fournissez au moins une URL d'image, une par ligne.",
+    "listing_image_urls_hint": "Saisissez une URL d'image par ligne (jusqu'\u00e0 10).",
+    "listing_attestation_label": "Je confirme que je poss\u00e8de chaque image li\u00e9e ou que je d\u00e9tiens les droits pour l'afficher, qu'aucun locataire ni autre personne identifiable n'appara\u00eet dans une image sans son consentement, et que KEYFORTA peut afficher ces liens d'images h\u00e9berg\u00e9es en externe sur le site public jusqu'\u00e0 ce que je retire cette annonce.",
+    "listing_attestation_required": "Vous devez confirmer l'attestation relative aux droits sur les images avant de cr\u00e9er une annonce.",
     "cancel": "Annuler",
     "saving": "Enregistrement\u2026",
     "field": {
@@ -180,7 +194,10 @@
       "monthly_rent_amount": "Loyer mensuel",
       "currency": "Devise",
       "availability_status": "Statut de disponibilit\u00e9",
-      "reason_code": "Motif"
+      "reason_code": "Motif",
+      "listing_title": "Titre de l'annonce",
+      "listing_summary": "R\u00e9sum\u00e9 de l'annonce",
+      "listing_image_urls": "URLs des images"
     },
     "property_type": {
       "apartment_building": "Immeuble d'appartements",
@@ -206,6 +223,16 @@
       "unavailable": "Indisponible",
       "available": "Disponible",
       "occupied": "Occup\u00e9e"
+    },
+    "listing_status": {
+      "draft": "Brouillon",
+      "published": "Publi\u00e9e",
+      "withdrawn": "Retir\u00e9e"
+    },
+    "media_review_status": {
+      "pending": "En attente d'examen des m\u00e9dias",
+      "approved": "M\u00e9dias approuv\u00e9s",
+      "rejected": "M\u00e9dias rejet\u00e9s"
     }
   }
 }

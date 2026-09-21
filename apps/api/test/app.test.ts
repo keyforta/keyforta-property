@@ -110,6 +110,8 @@ describe("KEYFORTA API runtime", () => {
     expect(document.servers).toEqual([{ url: "/api/v1" }]);
     expect(Object.keys(document.paths).sort()).toEqual([
       "/admin/jurisdiction-policies/activate",
+      "/admin/public-listings/pending-review",
+      "/admin/public-listings/{listingId}/media-review",
       "/landlord-onboarding-applications",
       "/landlord-onboarding-applications/{applicationId}/decision",
       "/properties",
@@ -118,12 +120,14 @@ describe("KEYFORTA API runtime", () => {
       "/properties/{propertyId}/units",
       "/properties/{propertyId}/verification-status",
       "/public-listings/mine",
+      "/public-listings/{listingId}/draft",
       "/public-listings/{listingId}/publish",
       "/public-listings/{listingId}/withdraw",
       "/session/memberships",
       "/units/{unitId}",
       "/units/{unitId}/availability",
       "/units/{unitId}/pricing",
+      "/units/{unitId}/public-listing",
       "/viewing-requests",
     ]);
     expect(document.paths["/properties"].post).toBeDefined();
@@ -558,6 +562,8 @@ describe("protected public listing publication", () => {
       commands,
       publicListingPublication: {
         async listForActor(_command: Parameters<PublicListingPublicationGateway["listForActor"]>[0]): Promise<PublicListingSummary[]> { return []; },
+        async listPendingMediaReview() { return []; },
+        async reviewPublicListingMedia() { return undefined; },
         async setPublication(command: Parameters<PublicListingPublicationGateway["setPublication"]>[0]) {
           commands.push(command);
           return changed;
@@ -669,7 +675,18 @@ describe("protected public listing publication", () => {
 
   it("authenticates and returns the actor's own listing portfolio feed (issue #114)", async () => {
     const dependencies = createDependencies();
-    const listings = [{ id: listingId, note: "Ready to publish.", status: "withdrawn" as const, title: "Riverside apartment · Unit 2A" }];
+    const listings = [{
+      id: listingId,
+      imageUrls: ["https://example.test/a.jpg"],
+      mediaReviewNotes: null,
+      mediaReviewStatus: "approved" as const,
+      note: "Ready to publish.",
+      status: "withdrawn" as const,
+      summary: "A bright two-bedroom unit close to transit.",
+      title: "Riverside apartment · Unit 2A",
+      unitId: "00000000-0000-4000-8000-000000000920",
+      version: 1,
+    }];
     dependencies.publicListingPublication.listForActor = async (command: Parameters<PublicListingPublicationGateway["listForActor"]>[0]) => {
       expect(command).toEqual({
         correlationId: "listing-feed",

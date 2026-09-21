@@ -10,6 +10,8 @@ import {
   archiveRentalInventoryInputSchema,
   availabilityVersionCreationEnvelopeSchema,
   createRentalPropertyInputSchema,
+  createPublicListingEnvelopeSchema,
+  createPublicListingInputSchema,
   jurisdictionPolicyActivationEnvelopeSchema,
   jurisdictionPolicyActivationInputSchema,
   landlordOnboardingApplicationIdSchema,
@@ -18,12 +20,15 @@ import {
   landlordOnboardingApplicationSchema,
   landlordOnboardingDecisionInputSchema,
   organizationIdSchema,
+  pendingPublicListingMediaReviewListEnvelopeSchema,
   pricingVersionCreationEnvelopeSchema,
   propertyIdSchema,
   propertyVerificationStatusEnvelopeSchema,
   propertyVerificationStatusInputSchema,
   publicListingIdSchema,
   publicListingListEnvelopeSchema,
+  publicListingMediaReviewEnvelopeSchema,
+  publicListingMediaReviewInputSchema,
   publicPropertyIdSchema,
   publicPropertyListQuerySchema,
   publicPropertyListResultSchema,
@@ -36,6 +41,8 @@ import {
   setUnitAvailabilityInputSchema,
   setUnitPricingInputSchema,
   unitIdSchema,
+  updatePublicListingDraftEnvelopeSchema,
+  updatePublicListingDraftInputSchema,
 } from "@keyforta/contracts";
 import { canAccess } from "@keyforta/authorization";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
@@ -606,10 +613,9 @@ export async function buildApp(
   );
 
   // Rental Property and Unit lifecycle (REQ-032, REQ-033, REQ-034, REQ-036).
-  // REQ-035 (PublicListing creation, publication, and media) is intentionally
-  // not exposed here: PROP-019 requires new listing creation, publication,
-  // republication, and image mutation to stay rejected until a separately
-  // approved media-activation requirement is implemented.
+  // PublicListing creation, editing, and media review (REQ-037) are
+  // registered further below, alongside the existing publish/withdraw and
+  // portfolio-feed routes.
   const authenticateOrganizationRequest = async (
     request: FastifyRequest,
     reply: FastifyReply,
@@ -919,6 +925,107 @@ export async function buildApp(
     },
   );
 
+  app.post<{ Params: { unitId: string } }>(
+    "/api/v1/units/:unitId/public-listing",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.rentalInventoryCommands) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "PublicListing creation is temporarily unavailable.",
+        ));
+      }
+      const context = await authenticateOrganizationRequest(request, reply);
+      if (!context) return undefined;
+      const parsedUnitId = unitIdSchema.safeParse(request.params.unitId);
+      const parsedInput = createPublicListingInputSchema.safeParse(request.body);
+      if (!parsedUnitId.success || !parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The PublicListing is invalid.",
+          parsedInput.success ? undefined : parsedInput.error.flatten(),
+        ));
+      }
+      try {
+        const created = await dependencies.rentalInventoryCommands.createPublicListing({
+          attestationAccepted: parsedInput.data.attestationAccepted,
+          correlationId: request.id,
+          idempotencyKey: parsedInput.data.idempotencyKey,
+          imageUrls: parsedInput.data.imageUrls,
+          organizationId: context.organizationId,
+          source: "runtime_api",
+          subject: context.principal.subject,
+          summary: parsedInput.data.summary,
+          title: parsedInput.data.title,
+          unitId: parsedUnitId.data,
+        });
+        if (!created) {
+          return reply.status(404).send(problem(
+            request.id, 404, "NOT_FOUND", "Not Found",
+            "The requested resource was not found.",
+          ));
+        }
+        return reply.status(201).send(
+          createPublicListingEnvelopeSchema.parse({
+            data: created,
+            meta: { requestId: request.id },
+          }),
+        );
+      } catch (error) {
+        return handleRentalInventoryError(error, request, reply);
+      }
+    },
+  );
+
+  app.patch<{ Params: { listingId: string } }>(
+    "/api/v1/public-listings/:listingId/draft",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.rentalInventoryCommands) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "PublicListing editing is temporarily unavailable.",
+        ));
+      }
+      const context = await authenticateOrganizationRequest(request, reply);
+      if (!context) return undefined;
+      const parsedListingId = publicListingIdSchema.safeParse(request.params.listingId);
+      const parsedInput = updatePublicListingDraftInputSchema.safeParse(request.body);
+      if (!parsedListingId.success || !parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The PublicListing draft update is invalid.",
+          parsedInput.success ? undefined : parsedInput.error.flatten(),
+        ));
+      }
+      try {
+        const updated = await dependencies.rentalInventoryCommands.updatePublicListingDraft({
+          correlationId: request.id,
+          expectedVersion: parsedInput.data.expectedVersion,
+          imageUrls: parsedInput.data.imageUrls,
+          listingId: parsedListingId.data,
+          organizationId: context.organizationId,
+          source: "runtime_api",
+          subject: context.principal.subject,
+          summary: parsedInput.data.summary,
+          title: parsedInput.data.title,
+        });
+        if (!updated) {
+          return reply.status(404).send(problem(
+            request.id, 404, "NOT_FOUND", "Not Found",
+            "The requested resource was not found.",
+          ));
+        }
+        return reply.status(200).send(
+          updatePublicListingDraftEnvelopeSchema.parse({
+            data: updated,
+            meta: { requestId: request.id },
+          }),
+        );
+      } catch (error) {
+        return handleRentalInventoryError(error, request, reply);
+      }
+    },
+  );
+
   app.delete<{ Params: { unitId: string } }>(
     "/api/v1/units/:unitId",
     async (request, reply) => {
@@ -1182,6 +1289,96 @@ export async function buildApp(
         data: landlordOnboardingApplicationSchema.parse(application),
         meta: { requestId: request.id },
       });
+    },
+  );
+
+  app.get("/api/v1/admin/public-listings/pending-review", async (request, reply) => {
+    if (!dependencies.authenticator || !dependencies.publicListingPublication) {
+      return reply.status(503).send(problem(
+        request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+        "Public-listing media review is temporarily unavailable.",
+      ));
+    }
+    const principal = await authenticate(
+      request.headers.authorization,
+      dependencies.authenticator,
+    );
+    if (!principal) {
+      return reply.status(401).send(problem(
+        request.id, 401, "UNAUTHENTICATED", "Unauthorized",
+        "A valid bearer credential is required.",
+      ));
+    }
+    if (!isAuthorizedPlatformAdminAction(principal, "review_public_listing_media", dependencies)) {
+      return reply.status(404).send(problem(
+        request.id, 404, "NOT_FOUND", "Not Found",
+        "The requested resource was not found.",
+      ));
+    }
+    const items = await dependencies.publicListingPublication.listPendingMediaReview();
+    return reply.send(
+      pendingPublicListingMediaReviewListEnvelopeSchema.parse({
+        items,
+        meta: { requestId: request.id },
+      }),
+    );
+  });
+
+  app.post<{ Params: { listingId: string } }>(
+    "/api/v1/admin/public-listings/:listingId/media-review",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.publicListingPublication) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "Public-listing media review is temporarily unavailable.",
+        ));
+      }
+      const principal = await authenticate(
+        request.headers.authorization,
+        dependencies.authenticator,
+      );
+      if (!principal) {
+        return reply.status(401).send(problem(
+          request.id, 401, "UNAUTHENTICATED", "Unauthorized",
+          "A valid bearer credential is required.",
+        ));
+      }
+      if (!isAuthorizedPlatformAdminAction(principal, "review_public_listing_media", dependencies)) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      const parsedListingId = publicListingIdSchema.safeParse(request.params.listingId);
+      const parsedInput = publicListingMediaReviewInputSchema.safeParse(request.body);
+      if (!parsedListingId.success || !parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The media review decision is invalid.",
+          parsedInput.success ? undefined : parsedInput.error.flatten(),
+        ));
+      }
+      const reviewed = await dependencies.publicListingPublication.reviewPublicListingMedia({
+        correlationId: request.id,
+        decision: parsedInput.data.decision,
+        listingId: parsedListingId.data,
+        notes: parsedInput.data.notes ?? null,
+        reviewerObjectId: principal.objectId,
+        reviewerSubject: principal.subject,
+        source: "runtime_api",
+      });
+      if (!reviewed) {
+        return reply.status(409).send(problem(
+          request.id, 409, "LISTING_NOT_PENDING", "Conflict",
+          "The PublicListing is not awaiting media review.",
+        ));
+      }
+      return reply.send(
+        publicListingMediaReviewEnvelopeSchema.parse({
+          data: reviewed,
+          meta: { requestId: request.id },
+        }),
+      );
     },
   );
 

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Field, Input, Select, Spinner } from '@fluentui/react-components';
+import { Button, Checkbox, Field, Input, Select, Spinner, Textarea } from '@fluentui/react-components';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
 import {
   availabilityVersionCreationEnvelopeSchema,
+  createPublicListingEnvelopeSchema,
   furnishingStatuses,
   pricingVersionCreationEnvelopeSchema,
   propertyTypes,
@@ -12,6 +13,7 @@ import {
   rentableUnitCreationEnvelopeSchema,
   supportedCurrencies,
   unitTypes,
+  updatePublicListingDraftEnvelopeSchema,
 } from '@keyforta/contracts';
 import { resolveApiBaseUrl } from './listing-publication-panel.jsx';
 
@@ -47,6 +49,29 @@ const emptyPricingForm = {
   amount: '',
   currency: supportedCurrencies[0],
 };
+
+const emptyListingForm = {
+  title: '',
+  summary: '',
+  imageUrls: '',
+  attestationAccepted: false,
+};
+
+function parseImageUrls(rawText) {
+  return rawText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function listingFormFromSummary(listing) {
+  return {
+    title: listing.title,
+    summary: listing.summary || '',
+    imageUrls: (listing.imageUrls || []).join('\n'),
+    attestationAccepted: true,
+  };
+}
 
 // Converts a decimal-string user input (e.g. "400", "400.50", or the
 // French-locale "400,50") into an integer minor-unit amount without
@@ -367,10 +392,124 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
   );
 }
 
+// Builds/edits the PublicListing draft (REQ-037 / issue #116's final slice):
+// a unit without any listing gets a create form; a unit whose listing is
+// still `draft` gets an edit form pre-filled from the current draft;
+// `published`/`withdrawn` listings show read-only status only, since
+// content changes to a published listing must go through withdraw first
+// (ListingPublicationPanel), matching app.update_public_listing_draft's
+// draft-only precondition (migration 0030).
+function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, t, unitId }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(() => (listing ? listingFormFromSummary(listing) : emptyListingForm));
+  const [busy, setBusy] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  const [attestationError, setAttestationError] = useState('');
+  useEffect(() => {
+    setForm(listing ? listingFormFromSummary(listing) : emptyListingForm);
+  }, [listing]);
+  const set = (field) => (_event, data) => setForm((current) => ({ ...current, [field]: data.value }));
+  const isDraft = listing?.status === 'draft';
+  const hasListing = Boolean(listing);
+
+  if (!open && !hasListing) {
+    return (
+      <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
+        {t('property_management.create_listing_toggle')}
+      </Button>
+    );
+  }
+
+  if (hasListing && !isDraft) {
+    return (
+      <div className='public-listing-status'>
+        <span className='status'>{t(`property_management.listing_status.${listing.status}`)}</span>
+        <span className='listing-meta'>{t(`property_management.media_review_status.${listing.mediaReviewStatus}`)}</span>
+      </div>
+    );
+  }
+
+  if (hasListing && !open) {
+    return (
+      <div className='public-listing-status'>
+        <span className='status'>{t('property_management.listing_status.draft')}</span>
+        <span className='listing-meta'>{t(`property_management.media_review_status.${listing.mediaReviewStatus}`)}</span>
+        <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
+          {t('property_management.edit_listing_toggle')}
+        </Button>
+      </div>
+    );
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setValidationError('');
+    setAttestationError('');
+    const imageUrls = parseImageUrls(form.imageUrls);
+    if (imageUrls.length === 0) {
+      setValidationError(t('property_management.listing_image_urls_required'));
+      return;
+    }
+    if (!hasListing && !form.attestationAccepted) {
+      setAttestationError(t('property_management.listing_attestation_required'));
+      return;
+    }
+    setBusy(true);
+    try {
+      const submitted = hasListing
+        ? await onUpdateDraft(listing.id, listing.version, { title: form.title, summary: form.summary, imageUrls })
+        : await onCreate(unitId, { title: form.title, summary: form.summary, imageUrls, attestationAccepted: form.attestationAccepted });
+      if (submitted) setOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form aria-label={t(hasListing ? 'property_management.edit_listing_form_label' : 'property_management.create_listing_form_label')} className='unit-form' noValidate onSubmit={handleSubmit}>
+      <Field label={t('property_management.field.listing_title')} required>
+        <Input disabled={busy} maxLength={140} required value={form.title} onChange={set('title')} />
+      </Field>
+      <Field label={t('property_management.field.listing_summary')} required>
+        <Textarea disabled={busy} maxLength={4000} required resize='vertical' value={form.summary} onChange={set('summary')} />
+      </Field>
+      <Field
+        hint={t('property_management.listing_image_urls_hint')}
+        label={t('property_management.field.listing_image_urls')}
+        required
+        validationMessage={validationError || undefined}
+      >
+        <Textarea disabled={busy} required resize='vertical' value={form.imageUrls} onChange={set('imageUrls')} />
+      </Field>
+      {!hasListing && (
+        <Field validationMessage={attestationError || undefined}>
+          <Checkbox
+            disabled={busy}
+            checked={form.attestationAccepted}
+            label={t('property_management.listing_attestation_label')}
+            onChange={(_event, data) => setForm((current) => ({ ...current, attestationAccepted: Boolean(data.checked) }))}
+            required
+          />
+        </Field>
+      )}
+      <div className='unit-form-actions'>
+        <Button appearance='primary' disabled={disabled || busy} type='submit'>
+          {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t(hasListing ? 'property_management.edit_listing_submit' : 'property_management.create_listing_submit')}
+        </Button>
+        <Button appearance='subtle' disabled={busy} onClick={() => setOpen(false)} type='button'>
+          {t('property_management.cancel')}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export function PropertyManagementPanel({
   feedError,
   feedLoading,
+  listings,
   onRetryFeed,
+  onRetryListingsFeed,
   properties,
   session,
 }) {
@@ -550,6 +689,57 @@ export function PropertyManagementPanel({
     }
   };
 
+  const submitCreateListing = async (unitId, form) => {
+    if (disableActions) return false;
+    setMessage('');
+    setMessageTone('');
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.create(`units/${unitId}/public-listing`, {
+        title: form.title,
+        summary: form.summary,
+        imageUrls: form.imageUrls,
+        attestationAccepted: form.attestationAccepted,
+        idempotencyKey: generateIdempotencyKey(),
+      });
+      createPublicListingEnvelopeSchema.parse(payload);
+      setMessage(t('property_management.create_listing_success'));
+      setMessageTone('success');
+      if (onRetryListingsFeed) onRetryListingsFeed();
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t('property_management.create_listing_failed'));
+      setMessageTone('error');
+      return false;
+    }
+  };
+
+  const submitUpdateListingDraft = async (listingId, expectedVersion, form) => {
+    if (disableActions) return false;
+    setMessage('');
+    setMessageTone('');
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.update('public-listings', `${listingId}/draft`, {
+        title: form.title,
+        summary: form.summary,
+        imageUrls: form.imageUrls,
+        expectedVersion,
+      });
+      updatePublicListingDraftEnvelopeSchema.parse(payload);
+      setMessage(t('property_management.edit_listing_success'));
+      setMessageTone('success');
+      if (onRetryListingsFeed) onRetryListingsFeed();
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t('property_management.edit_listing_failed'));
+      setMessageTone('error');
+      return false;
+    }
+  };
+
   return (
     <section aria-labelledby='property-management-title' className='panel property-panel'>
       <div className='panel-head'>
@@ -600,20 +790,31 @@ export function PropertyManagementPanel({
               <strong>{property.name}</strong>
               <span className='listing-meta'>{t(`property_management.property_type.${property.propertyType}`)}</span>
               <div className='unit-rows'>
-                {property.units.map((unit) => (
-                  <div className='unit-row' key={unit.id}>
-                    <span>{unit.label}</span>
-                    <span className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</span>
-                    <span className='status'>{t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}</span>
-                    <UnitPricingAvailabilityForm
-                      disabled={disableActions}
-                      onSetAvailability={submitSetAvailability}
-                      onSetPricing={submitSetPricing}
-                      t={t}
-                      unit={unit}
-                    />
-                  </div>
-                ))}
+                {property.units.map((unit) => {
+                  const unitListing = (listings || []).find((listing) => listing.unitId === unit.id);
+                  return (
+                    <div className='unit-row' key={unit.id}>
+                      <span>{unit.label}</span>
+                      <span className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</span>
+                      <span className='status'>{t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}</span>
+                      <UnitPricingAvailabilityForm
+                        disabled={disableActions}
+                        onSetAvailability={submitSetAvailability}
+                        onSetPricing={submitSetPricing}
+                        t={t}
+                        unit={unit}
+                      />
+                      <PublicListingForm
+                        disabled={disableActions}
+                        listing={unitListing}
+                        onCreate={submitCreateListing}
+                        onUpdateDraft={submitUpdateListingDraft}
+                        t={t}
+                        unitId={unit.id}
+                      />
+                    </div>
+                  );
+                })}
               </div>
               <AddUnitForm disabled={disableActions} onSubmit={submitAddUnit} propertyId={property.id} t={t} />
             </div>

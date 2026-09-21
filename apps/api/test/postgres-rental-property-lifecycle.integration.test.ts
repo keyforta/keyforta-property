@@ -1016,6 +1016,69 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     })).rejects.toThrow(RentalInventoryAuthorizationError);
   });
 
+  it("surfaces a landlord's own listing in the portfolio feed even with no explicit manager_property_assignments row, without disturbing an unrelated assigned manager's feed", async () => {
+    // create_public_listing authorizes an active landlord unconditionally
+    // (app.actor_can_manage_property), unlike a manager who must already
+    // hold a manager_property_assignments row. Regression coverage for the
+    // Copilot review finding: the landlord must still see this listing in
+    // their own feed afterward, without list_public_listings_for_actor
+    // requiring (or create_public_listing silently creating) an assignment.
+    const unassignedProperty = await gateway().createRentalProperty({
+      address,
+      correlationId: "corr-listing-feed-unassigned-create",
+      firstUnit: { ...firstUnit, label: "Unassigned-Property Unit" },
+      idempotencyKey: "idem-listing-feed-unassigned-create",
+      name: "Synthetic Unassigned Listing Feed Property",
+      organizationId: organizationA,
+      propertyType: "single_family",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    expect(unassignedProperty?.propertyId).toBeTruthy();
+
+    const noAssignmentRow = await client.query(
+      "select count(*)::int as count from app.manager_property_assignments where organization_id = $1 and property_id = $2 and revoked_at is null",
+      [organizationA, unassignedProperty!.propertyId],
+    );
+    expect(noAssignmentRow.rows[0].count).toBe(0);
+
+    const listing = await gateway().createPublicListing({
+      attestationAccepted: true,
+      correlationId: "corr-listing-feed-unassigned-listing",
+      idempotencyKey: "idem-listing-feed-unassigned-listing",
+      imageUrls: ["https://images.test/unassigned.jpg"],
+      organizationId: organizationA,
+      source: "test",
+      subject: landlordSubject,
+      summary: "A quiet unit awaiting its first manager assignment.",
+      title: "Unassigned-property listing",
+      unitId: unassignedProperty!.unitId,
+    });
+    expect(listing?.listingId).toBeTruthy();
+
+    // create_public_listing must not have created a side-effect assignment.
+    const stillNoAssignmentRow = await client.query(
+      "select count(*)::int as count from app.manager_property_assignments where organization_id = $1 and property_id = $2 and revoked_at is null",
+      [organizationA, unassignedProperty!.propertyId],
+    );
+    expect(stillNoAssignmentRow.rows[0].count).toBe(0);
+
+    const landlordFeed = await publicationGateway().listForActor({
+      correlationId: "corr-listing-feed-unassigned-landlord",
+      organizationId: organizationA,
+      subject: landlordSubject,
+    });
+    expect(landlordFeed.map((item) => item.id)).toContain(listing!.listingId);
+
+    const unassignedManagerFeed = await publicationGateway().listForActor({
+      correlationId: "corr-listing-feed-unassigned-manager-check",
+      organizationId: organizationA,
+      subject: unassignedManagerSubject,
+    });
+    expect(unassignedManagerFeed.map((item) => item.id)).not.toContain(listing!.listingId);
+  });
+
   it("keeps the portfolio feed within the wire-contract length bounds for maximum-length property/unit/address fields (issue #114)", async () => {
     // properties.name <= 160, units.label <= 80, address.commune/city <= 160
     // (migration 0022 check constraints). title = name + " — " (3) + label;
@@ -1396,5 +1459,336 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       [organizationA, propertyId],
     );
     expect(invariantViolation.rows[0].count).toBe(0);
+  });
+
+  describe("PublicListing creation and media review (REQ-037)", () => {
+    const createUnitForMediaReview = async (label: string) => {
+      const created = await gateway().createRentalProperty({
+        address,
+        correlationId: `corr-media-review-create-${label}`,
+        firstUnit: { ...firstUnit, label },
+        idempotencyKey: `idem-media-review-create-${label}`,
+        name: `Synthetic Media Review Property ${label}`,
+        organizationId: organizationA,
+        propertyType: "single_family",
+        source: "test",
+        subject: landlordSubject,
+        timeZone: "Africa/Kinshasa",
+      });
+      expect(created?.propertyId).toBeTruthy();
+      return created!;
+    };
+
+    it("lets an active landlord create a PublicListing, flips the Unit to published, and rejects a duplicate", async () => {
+      const created = await createUnitForMediaReview("media-a");
+
+      const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: "corr-listing-create",
+        idempotencyKey: "idem-listing-create",
+        imageUrls: ["https://images.test/a.jpg", "https://images.test/b.jpg"],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Riverside apartment — Unit media-a",
+        unitId: created.unitId,
+      });
+      expect(listing?.listingId).toBeTruthy();
+      expect(listing?.unitId).toBe(created.unitId);
+
+      const unitRow = await client.query(
+        "select publication_status from app.units where id = $1",
+        [created.unitId],
+      );
+      expect(unitRow.rows[0].publication_status).toBe("published");
+
+      const listingRow = await client.query(
+        "select status, media_review_status from app.public_listings where id = $1",
+        [listing!.listingId],
+      );
+      expect(listingRow.rows[0].status).toBe("draft");
+      expect(listingRow.rows[0].media_review_status).toBe("pending");
+
+      await expect(gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: "corr-listing-create-duplicate",
+        idempotencyKey: "idem-listing-create-duplicate",
+        imageUrls: ["https://images.test/c.jpg"],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A second attempt at the same unit.",
+        title: "Duplicate listing attempt",
+        unitId: created.unitId,
+      })).rejects.toThrow(RentalInventoryConflictError);
+    });
+
+    it("rejects PublicListing creation from an actor without manage authority over the Property", async () => {
+      const created = await createUnitForMediaReview("media-cross-org");
+
+      await expect(gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: "corr-listing-create-cross-org",
+        idempotencyKey: "idem-listing-create-cross-org",
+        imageUrls: ["https://images.test/a.jpg"],
+        organizationId: organizationA,
+        source: "test",
+        subject: unassignedManagerSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Cross-org creation attempt",
+        unitId: created.unitId,
+      })).rejects.toThrow(RentalInventoryAuthorizationError);
+    });
+
+    it("rejects a PublicListing payload with an invalid image URL", async () => {
+      const created = await createUnitForMediaReview("media-invalid-url");
+
+      await expect(gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: "corr-listing-create-invalid-url",
+        idempotencyKey: "idem-listing-create-invalid-url",
+        imageUrls: ["not-a-url"],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Invalid image URL attempt",
+        unitId: created.unitId,
+      })).rejects.toThrow(RentalInventoryConflictError);
+    });
+
+    it("rejects PublicListing creation (REQ-037/PROP-025) when the landlord has not accepted the image-rights attestation", async () => {
+      const created = await createUnitForMediaReview("media-no-attestation");
+
+      await expect(gateway().createPublicListing({
+        attestationAccepted: false,
+        correlationId: "corr-listing-create-no-attestation",
+        idempotencyKey: "idem-listing-create-no-attestation",
+        imageUrls: ["https://images.test/a.jpg"],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Unattested creation attempt",
+        unitId: created.unitId,
+      })).rejects.toThrow(RentalInventoryConflictError);
+
+      const unitRow = await client.query(
+        "select publication_status from app.units where id = $1",
+        [created.unitId],
+      );
+      expect(unitRow.rows[0].publication_status).not.toBe("published");
+
+      const listingRow = await client.query(
+        "select count(*)::int as count from app.public_listings where unit_id = $1",
+        [created.unitId],
+      );
+      expect(listingRow.rows[0].count).toBe(0);
+    });
+
+    it("edits a draft PublicListing, resets it to pending review, and rejects a stale version", async () => {
+      const created = await createUnitForMediaReview("media-edit");
+      const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: "corr-listing-edit-create",
+        idempotencyKey: "idem-listing-edit-create",
+        imageUrls: ["https://images.test/a.jpg"],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Riverside apartment — Unit media-edit",
+        unitId: created.unitId,
+      });
+
+      const edited = await gateway().updatePublicListingDraft({
+        correlationId: "corr-listing-edit",
+        expectedVersion: listing!.listingVersion,
+        imageUrls: ["https://images.test/a.jpg", "https://images.test/b.jpg"],
+        listingId: listing!.listingId,
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "An updated summary describing the unit in more detail.",
+        title: "Riverside apartment — Unit media-edit (updated)",
+      });
+      expect(edited?.listingVersion).toBe(listing!.listingVersion + 1);
+
+      await expect(gateway().updatePublicListingDraft({
+        correlationId: "corr-listing-edit-stale",
+        expectedVersion: listing!.listingVersion,
+        imageUrls: ["https://images.test/a.jpg"],
+        listingId: listing!.listingId,
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A stale-version edit attempt that must be rejected.",
+        title: "Stale edit attempt",
+      })).rejects.toThrow(RentalInventoryConflictError);
+    });
+
+    it("blocks publication until a platform administrator approves media review, and surfaces the listing in the pending-review queue", async () => {
+      const created = await createUnitForMediaReview("media-approve");
+      const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: "corr-listing-approve-create",
+        idempotencyKey: "idem-listing-approve-create",
+        imageUrls: ["https://images.test/a.jpg"],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Riverside apartment — Unit media-approve",
+        unitId: created.unitId,
+      });
+
+      // Publication additionally requires an active manager-property
+      // assignment (recorded via app.set_manager_property_assignment, not a
+      // raw insert) plus current pricing and availability, mirroring
+      // app.set_public_listing_publication's existing (unchanged) gates.
+      const assignmentSession = await pool.connect();
+      try {
+        await assignmentSession.query("begin");
+        await assignmentSession.query("select * from app.resolve_actor($1, $2)", [
+          landlordSubject,
+          organizationA,
+        ]);
+        await assignmentSession.query(
+          "select set_config('app.correlation_id', $1, true)",
+          ["corr-listing-approve-assign"],
+        );
+        const landlord = await assignmentSession.query(
+          "select id from app.users where external_subject = $1",
+          [landlordSubject],
+        );
+        await assignmentSession.query(
+          "select app.set_manager_property_assignment($1, $2, true) as changed",
+          [created.propertyId, landlord.rows[0].id],
+        );
+        await assignmentSession.query("commit");
+      } finally {
+        assignmentSession.release();
+      }
+
+      const pricing = await gateway().setUnitPricing({
+        amountMinor: 150_000,
+        correlationId: "corr-listing-approve-pricing",
+        idempotencyKey: "idem-listing-approve-pricing",
+        currency: "USD",
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion: listing!.unitVersion,
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        unitId: created.unitId,
+      });
+      const availability = await gateway().setUnitAvailability({
+        correlationId: "corr-listing-approve-availability",
+        idempotencyKey: "idem-listing-approve-availability",
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion: pricing!.unitVersion,
+        organizationId: organizationA,
+        source: "test",
+        status: "available",
+        subject: landlordSubject,
+        unitId: created.unitId,
+      });
+      expect(availability?.availabilityVersionId).toBeTruthy();
+
+      const pendingQueue = await publicationGateway().listPendingMediaReview();
+      expect(pendingQueue.map((item) => item.listingId)).toContain(listing!.listingId);
+
+      const blockedPublish = await publicationGateway().setPublication({
+        correlationId: "corr-listing-approve-publish-blocked",
+        listingId: listing!.listingId,
+        organizationId: organizationA,
+        published: true,
+        subject: landlordSubject,
+      });
+      expect(blockedPublish).toBe(false);
+
+      const decision = await publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-listing-approve-decision",
+        decision: "approved",
+        listingId: listing!.listingId,
+        reviewerObjectId: "00000000-0000-4000-8000-000000000970",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      });
+      expect(decision?.mediaReviewStatus).toBe("approved");
+
+      // REQ-037's user outcome requires the listing to publish
+      // automatically once approved -- no separate manual publish command
+      // is needed, and reissuing one is now a no-op (already published).
+      const landlordFeedAfterApproval = await publicationGateway().listForActor({
+        correlationId: "corr-listing-approve-feed",
+        organizationId: organizationA,
+        subject: landlordSubject,
+      });
+      const publishedListing = landlordFeedAfterApproval.find(
+        (item) => item.id === listing!.listingId,
+      );
+      expect(publishedListing?.status).toBe("published");
+      expect(publishedListing?.mediaReviewStatus).toBe("approved");
+
+      const republish = await publicationGateway().setPublication({
+        correlationId: "corr-listing-approve-publish-already",
+        listingId: listing!.listingId,
+        organizationId: organizationA,
+        published: true,
+        subject: landlordSubject,
+      });
+      expect(republish).toBe(false);
+
+      const afterApproval = await publicationGateway().listPendingMediaReview();
+      expect(afterApproval.map((item) => item.listingId)).not.toContain(listing!.listingId);
+    });
+
+    it("rejects a media-review decision without notes, and records rejection notes when provided", async () => {
+      const created = await createUnitForMediaReview("media-reject");
+      const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: "corr-listing-reject-create",
+        idempotencyKey: "idem-listing-reject-create",
+        imageUrls: ["https://images.test/a.jpg"],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Riverside apartment — Unit media-reject",
+        unitId: created.unitId,
+      });
+
+      await expect(publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-listing-reject-no-notes",
+        decision: "rejected",
+        listingId: listing!.listingId,
+        reviewerObjectId: "00000000-0000-4000-8000-000000000971",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      })).rejects.toThrow();
+
+      const decision = await publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-listing-reject-with-notes",
+        decision: "rejected",
+        listingId: listing!.listingId,
+        notes: "The exterior photo does not match the listed address.",
+        reviewerObjectId: "00000000-0000-4000-8000-000000000971",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      });
+      expect(decision?.mediaReviewStatus).toBe("rejected");
+
+      const listingRow = await client.query(
+        "select status, media_review_status, media_review_notes from app.public_listings where id = $1",
+        [listing!.listingId],
+      );
+      expect(listingRow.rows[0].status).toBe("draft");
+      expect(listingRow.rows[0].media_review_status).toBe("rejected");
+      expect(listingRow.rows[0].media_review_notes).toBe(
+        "The exterior photo does not match the listed address.",
+      );
+    });
   });
 });

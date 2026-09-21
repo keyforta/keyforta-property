@@ -249,7 +249,9 @@ export function Portal() {
             <PropertyManagementPanel
               feedError={rentalPropertiesError}
               feedLoading={rentalPropertiesLoading}
+              listings={managerListings}
               onRetryFeed={retryRentalProperties}
+              onRetryListingsFeed={retryManagerListings}
               properties={rentalProperties}
               session={session}
             />

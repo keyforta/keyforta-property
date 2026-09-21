@@ -63,6 +63,7 @@ export const propertyPublicationStatuses: readonly ["draft", "pending_review", "
 export const inventoryPublicationStatuses: readonly ["draft", "pending_review", "published", "paused", "archived"];
 export const unitAvailabilityStatuses: readonly ["unavailable", "available", "occupied"];
 export const publicListingStatuses: readonly ["draft", "published", "withdrawn"];
+export const publicListingMediaReviewStatuses: readonly ["pending", "approved", "rejected"];
 export const supportedCurrencies: readonly ["CDF", "USD"];
 export const unitLabelUnicodeVersion: "16.0.0";
 export function normalizeUnitLabel(label: string): string;
@@ -495,13 +496,85 @@ export const publicListingPublicationEnvelopeSchema: z.ZodType<{
 }>;
 export interface PublicListingSummary {
   id: string;
+  imageUrls: readonly string[];
+  mediaReviewNotes: string | null;
+  mediaReviewStatus: typeof publicListingMediaReviewStatuses[number];
   note: string;
   status: "draft" | "published" | "withdrawn";
+  summary: string | null;
   title: string;
+  unitId: string;
+  version: number;
 }
 export const publicListingSummarySchema: z.ZodType<PublicListingSummary>;
 export const publicListingListEnvelopeSchema: z.ZodType<{
   items: PublicListingSummary[];
+  meta: Meta;
+}>;
+export interface CreatePublicListingInput {
+  attestationAccepted: true;
+  idempotencyKey: string;
+  imageUrls: readonly string[];
+  summary: string;
+  title: string;
+}
+export interface CreatePublicListingResult {
+  listingId: string;
+  listingVersion: number;
+  unitId: string;
+  unitVersion: number;
+}
+export const createPublicListingInputSchema: z.ZodType<CreatePublicListingInput>;
+export const createPublicListingEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: CreatePublicListingResult;
+  meta: Meta;
+}>;
+export interface UpdatePublicListingDraftInput {
+  expectedVersion: number;
+  imageUrls: readonly string[];
+  summary: string;
+  title: string;
+}
+export interface UpdatePublicListingDraftResult {
+  listingId: string;
+  listingVersion: number;
+}
+export const updatePublicListingDraftInputSchema: z.ZodType<UpdatePublicListingDraftInput>;
+export const updatePublicListingDraftEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: UpdatePublicListingDraftResult;
+  meta: Meta;
+}>;
+export interface PublicListingMediaReviewInput {
+  decision: "approved" | "rejected";
+  notes?: string;
+}
+export interface PublicListingMediaReviewResult {
+  listingId: string;
+  mediaReviewStatus: typeof publicListingMediaReviewStatuses[number];
+}
+export const publicListingMediaReviewInputSchema: z.ZodType<PublicListingMediaReviewInput>;
+export const publicListingMediaReviewEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: PublicListingMediaReviewResult;
+  meta: Meta;
+}>;
+export interface PendingPublicListingMediaReview {
+  imageUrls: readonly string[];
+  listingId: string;
+  organizationId: string;
+  organizationName: string;
+  propertyName: string;
+  submittedAt: string;
+  summary: string | null;
+  title: string | null;
+  unitId: string;
+  unitLabel: string;
+}
+export const pendingPublicListingMediaReviewSchema: z.ZodType<PendingPublicListingMediaReview>;
+export const pendingPublicListingMediaReviewListEnvelopeSchema: z.ZodType<{
+  items: PendingPublicListingMediaReview[];
   meta: Meta;
 }>;
 export const jurisdictionPolicyActivationEnvelopeSchema: z.ZodType<{
