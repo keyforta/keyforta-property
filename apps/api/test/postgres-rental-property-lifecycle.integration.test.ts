@@ -1682,14 +1682,28 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       });
       expect(decision?.mediaReviewStatus).toBe("approved");
 
-      const published = await publicationGateway().setPublication({
-        correlationId: "corr-listing-approve-publish",
+      // REQ-037's user outcome requires the listing to publish
+      // automatically once approved -- no separate manual publish command
+      // is needed, and reissuing one is now a no-op (already published).
+      const landlordFeedAfterApproval = await publicationGateway().listForActor({
+        correlationId: "corr-listing-approve-feed",
+        organizationId: organizationA,
+        subject: landlordSubject,
+      });
+      const publishedListing = landlordFeedAfterApproval.find(
+        (item) => item.id === listing!.listingId,
+      );
+      expect(publishedListing?.status).toBe("published");
+      expect(publishedListing?.mediaReviewStatus).toBe("approved");
+
+      const republish = await publicationGateway().setPublication({
+        correlationId: "corr-listing-approve-publish-already",
         listingId: listing!.listingId,
         organizationId: organizationA,
         published: true,
         subject: landlordSubject,
       });
-      expect(published).toBe(true);
+      expect(republish).toBe(false);
 
       const afterApproval = await publicationGateway().listPendingMediaReview();
       expect(afterApproval.map((item) => item.listingId)).not.toContain(listing!.listingId);

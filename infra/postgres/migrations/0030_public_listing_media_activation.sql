@@ -139,9 +139,14 @@ grant select, update on app.public_listings to keyforta_media_review_admin;
 grant select, insert on app.public_listing_media_review_events to keyforta_media_review_admin;
 grant select on app.properties, app.units to keyforta_media_review_admin;
 grant select on app.organizations to keyforta_media_review_admin;
-
-revoke all on app.public_listing_media_review_events from keyforta_runtime;
-grant select, insert on app.public_listing_media_review_events to keyforta_runtime;
+-- Needed by the approval-triggered auto-publish transition (REQ-037's
+-- "publish automatically once approved" outcome), which mirrors
+-- app.set_public_listing_publication's eligibility checks and snapshot.
+grant select on app.manager_property_assignments to keyforta_media_review_admin;
+grant select on app.manager_property_assignment_events to keyforta_media_review_admin;
+grant select on app.memberships to keyforta_media_review_admin;
+grant select on app.unit_pricing_versions, app.unit_availability_versions to keyforta_media_review_admin;
+grant select, insert on app.public_listing_publication_events to keyforta_media_review_admin;
 
 -- Validates the shared title/summary/image-URL payload rules for both
 -- create and update-draft commands: 1-10 unique https:// URLs, each within
@@ -392,6 +397,22 @@ $$;
 -- this function is owned by keyforta_media_review_admin (BYPASSRLS) rather
 -- than relying on any client-settable session flag; see the role
 -- definition above for why.
+--
+-- REQ-037's user outcome requires the listing to "publish automatically
+-- once approved" -- an approval decision therefore also attempts the same
+-- publish transition and PROP-012/PROP-026 eligibility guards as
+-- app.set_public_listing_publication(id, true), inlined here because that
+-- function requires an organization-scoped session (app.current_organization_id/
+-- app.actor_id), which a cross-organization platform-admin session does not
+-- carry. The actor recorded for the publish is the property's current
+-- active listing-manager assignment (there is at most one at a time),
+-- satisfying PROP-012's "actor is the active listing manager" eligibility
+-- condition without requiring the reviewing admin to hold that assignment.
+-- If the listing is not yet eligible (for example pricing/availability
+-- lapsed since creation), the decision is still recorded but the listing
+-- remains unpublished until it becomes eligible, exactly as PROP-026
+-- requires ("a listing never appears in any public projection before"
+-- eligibility is met).
 create function app.review_public_listing_media(
   requested_listing_id uuid,
   requested_decision text,
@@ -411,6 +432,13 @@ as $$
 declare
   listing app.public_listings%rowtype;
   updated_version integer;
+  assignment_manager_id uuid;
+  assignment_event_id uuid;
+  property_record app.properties%rowtype;
+  unit_record app.units%rowtype;
+  current_pricing record;
+  current_availability record;
+  listing_snapshot jsonb;
 begin
   if requested_decision not in ('approved', 'rejected') then
     raise exception 'invalid media review decision';
@@ -448,6 +476,126 @@ begin
     requested_reviewer_object_id, requested_decision, requested_notes, requested_correlation_id,
     requested_source
   );
+
+  if requested_decision = 'approved' then
+    select assignment.manager_user_id into assignment_manager_id
+    from app.manager_property_assignments as assignment
+    join app.memberships as membership
+      on membership.organization_id = assignment.organization_id
+     and membership.user_id = assignment.manager_user_id
+    where assignment.organization_id = listing.organization_id
+      and assignment.property_id = listing.property_id
+      and assignment.revoked_at is null
+      and membership.role in ('landlord', 'manager')
+      and membership.active
+      and membership.effective_from <= transaction_timestamp()
+      and (
+        membership.effective_to is null
+        or transaction_timestamp() < membership.effective_to
+      )
+    limit 1;
+
+    if assignment_manager_id is not null then
+      select event.id into assignment_event_id
+      from app.manager_property_assignment_events as event
+      where event.organization_id = listing.organization_id
+        and event.property_id = listing.property_id
+        and event.manager_user_id = assignment_manager_id
+        and event.action = 'assigned'
+      order by event.occurred_at desc, event.id desc
+      limit 1;
+    end if;
+
+    if assignment_manager_id is not null and assignment_event_id is not null then
+      select * into property_record
+      from app.properties
+      where organization_id = listing.organization_id
+        and id = listing.property_id;
+      select * into unit_record
+      from app.units
+      where organization_id = listing.organization_id
+        and id = listing.unit_id
+        and property_id = listing.property_id;
+
+      if found
+        and property_record.archived_at is null
+        and property_record.verification_status not in ('rejected', 'expired', 'suspended')
+        and property_record.publication_status in ('draft', 'pending_review', 'paused')
+        and unit_record.archived_at is null
+        and unit_record.publication_status = 'published' then
+
+        select pricing.id, pricing.amount_minor, pricing.currency into current_pricing
+        from app.unit_pricing_versions as pricing
+        where pricing.organization_id = listing.organization_id
+          and pricing.unit_id = listing.unit_id
+          and pricing.effective_from <= transaction_timestamp()
+          and (pricing.effective_to is null or transaction_timestamp() < pricing.effective_to)
+        order by pricing.effective_from desc, pricing.id desc
+        limit 1;
+
+        select availability.id, availability.status, availability.effective_from
+          into current_availability
+        from app.unit_availability_versions as availability
+        where availability.organization_id = listing.organization_id
+          and availability.unit_id = listing.unit_id
+          and availability.effective_from <= transaction_timestamp()
+          and (availability.effective_to is null or transaction_timestamp() < availability.effective_to)
+        order by availability.effective_from desc, availability.id desc
+        limit 1;
+
+        if current_pricing.id is not null
+          and current_availability.id is not null
+          and current_availability.status = 'available' then
+
+          listing_snapshot := jsonb_build_object(
+            'propertyId', listing.property_id,
+            'propertyVersion', property_record.version,
+            'unitId', listing.unit_id,
+            'unitVersion', unit_record.version,
+            'pricingVersionId', current_pricing.id,
+            'availabilityVersionId', current_availability.id,
+            'projection', jsonb_build_object(
+              'id', listing.id::text,
+              'name', property_record.name || ' — ' || unit_record.label,
+              'summary', coalesce(listing.snapshot -> 'projection' ->> 'summary', property_record.name || ' listing'),
+              'city', property_record.address ->> 'city',
+              'district', property_record.address ->> 'quartier',
+              'bedrooms', unit_record.bedrooms,
+              'bathrooms', unit_record.bathrooms,
+              'monthlyRentMinor', current_pricing.amount_minor::text,
+              'currency', current_pricing.currency,
+              'availableFrom', (current_availability.effective_from at time zone 'UTC')::date,
+              'amenities', coalesce(listing.snapshot -> 'projection' -> 'amenities', '[]'::jsonb),
+              'imageUrls', coalesce(listing.snapshot -> 'projection' -> 'imageUrls', '[]'::jsonb),
+              'areaSquareMeters', unit_record.area_square_meters
+            )
+          );
+
+          if jsonb_array_length(coalesce(listing_snapshot -> 'projection' -> 'imageUrls', '[]'::jsonb)) >= 1 then
+            update app.public_listings
+            set status = 'published',
+                snapshot = listing_snapshot,
+                version = version + 1,
+                published_at = transaction_timestamp(),
+                withdrawn_at = null,
+                updated_at = transaction_timestamp()
+            where id = listing.id
+            returning version into updated_version;
+
+            insert into app.public_listing_publication_events (
+              organization_id, listing_id, property_id, unit_id, actor_id,
+              manager_assignment_event_id, manager_assignment_action, listing_version,
+              correlation_id, action, source, occurred_at
+            ) values (
+              listing.organization_id, listing.id, listing.property_id, listing.unit_id,
+              assignment_manager_id, assignment_event_id, 'assigned', updated_version,
+              requested_correlation_id, 'published', requested_source, transaction_timestamp()
+            );
+          end if;
+        end if;
+      end if;
+    end if;
+  end if;
 
   media_review_status := requested_decision;
   return next;
