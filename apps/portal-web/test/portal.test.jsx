@@ -56,7 +56,8 @@ describe('Portal', () => {
     mocks.signOutMock.mockClear();
     mocks.initializeMock.mockClear();
     mocks.getAccessTokenMock.mockClear();
-    mocks.getAccessTokenSilentMock.mockClear();
+    mocks.getAccessTokenSilentMock.mockReset();
+    mocks.getAccessTokenSilentMock.mockResolvedValue(null);
     membershipListMock.mockReset();
     membershipListMock.mockResolvedValue({ data: [], meta: { requestId: 'req-1' } });
     publicListingGetMock.mockReset();
@@ -243,6 +244,24 @@ describe('Portal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
     await waitFor(() => {
       expect(mocks.getAccessTokenMock).toHaveBeenCalled();
+    });
+  });
+
+  it('enables write access for a real signed-in membership without a click when getAccessTokenSilent resolves a token (issue #123)', async () => {
+    mocks.getAccessTokenSilentMock.mockResolvedValue('silent-entra-access-token');
+    mocks.authState.current = { status: 'signed-in', account: { name: 'Marie L.', username: 'marie@example.com', email: 'marie@example.com' } };
+    membershipListMock.mockResolvedValue({
+      data: [{ organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', role: 'manager' }],
+      meta: { requestId: 'req-2' },
+    });
+    renderPortal();
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Coordinate the work behind every home.' })).toBeInTheDocument();
+    });
+    expect(mocks.getAccessTokenSilentMock).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Sign in to continue' })).not.toBeInTheDocument();
     });
   });
 
