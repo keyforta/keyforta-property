@@ -282,6 +282,57 @@ describe('ListingPublicationPanel', () => {
     expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
   });
 
+  it('silently re-arms write access on mount when getAccessTokenSilent resolves a token, without a manual click (issue #123)', async () => {
+    const getAccessTokenSilent = vi.fn().mockResolvedValue('silent-token');
+    renderPanel({ session: { ...baseSession, getAccessTokenSilent } });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
+    expect(screen.queryByRole('button', { name: 'Sign in to continue' })).not.toBeInTheDocument();
+    expect(getAccessTokenSilent).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the manual sign-in affordance when getAccessTokenSilent resolves without a token', async () => {
+    const getAccessTokenSilent = vi.fn().mockResolvedValue(null);
+    renderPanel({ session: { ...baseSession, getAccessTokenSilent } });
+
+    await waitFor(() => expect(getAccessTokenSilent).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
+  });
+
+  it('keeps the manual sign-in affordance when getAccessTokenSilent rejects', async () => {
+    const getAccessTokenSilent = vi.fn().mockRejectedValue(new Error('Interaction required.'));
+    renderPanel({ session: { ...baseSession, getAccessTokenSilent } });
+
+    await waitFor(() => expect(getAccessTokenSilent).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
+  });
+
+  it('does not re-arm-check or drop an already-armed session when only the portfolio feed refreshes', async () => {
+    const getAccessTokenSilent = vi.fn().mockResolvedValue('silent-token');
+    const session = { ...baseSession, getAccessTokenSilent };
+    const { rerender } = render(
+      <FluentProvider theme={webLightTheme}>
+        <ListingPublicationPanel session={session} listings={listings} />
+      </FluentProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
+    expect(getAccessTokenSilent).toHaveBeenCalledTimes(1);
+
+    const refreshedListings = listings.map((listing) => ({ ...listing }));
+    rerender(
+      <FluentProvider theme={webLightTheme}>
+        <ListingPublicationPanel session={session} listings={refreshedListings} />
+      </FluentProvider>,
+    );
+
+    expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Sign in to continue' })).not.toBeInTheDocument();
+    expect(getAccessTokenSilent).toHaveBeenCalledTimes(1);
+  });
+
   it('has no critical accessibility violations', async () => {
     const { container } = renderPanel();
     expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();

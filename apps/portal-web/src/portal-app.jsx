@@ -154,6 +154,7 @@ export function Portal() {
       organizationId: resolved.organizationId,
       issuedAt: new Date().toISOString(),
       getAccessToken: () => portalAuth.getAccessToken(),
+      getAccessTokenSilent: () => portalAuth.getAccessTokenSilent(),
       signIn: () => portalAuth.signIn(),
     });
   }, [auth.account, auth.status, membership.memberships, session]);

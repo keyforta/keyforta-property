@@ -132,6 +132,22 @@ export function createBrowserEntraAuth(configuration) {
         throw error;
       }
     },
+    // Silent-only counterpart to getAccessToken(): never opens a popup, so it
+    // is safe to call automatically (e.g. on mount) without a user gesture.
+    // Resolves to null instead of throwing whenever interaction would be
+    // required, so callers can fall back to their existing manual sign-in
+    // affordance rather than a browser popup blocker silently swallowing an
+    // unrequested acquireTokenPopup call.
+    async getAccessTokenSilent() {
+      if (!client || !config) return null;
+      const account = client.getActiveAccount();
+      if (!account) return null;
+      try {
+        return (await client.acquireTokenSilent({ account, scopes: [config.apiScope] })).accessToken;
+      } catch {
+        return null;
+      }
+    },
     async signOut() {
       if (!client) return;
       const account = client.getActiveAccount();

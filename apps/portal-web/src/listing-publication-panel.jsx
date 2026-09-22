@@ -78,8 +78,11 @@ export function ListingPublicationPanel({
   const apiConfig = useMemo(() => resolveApiBaseUrl(), []);
 
   useEffect(() => {
-    let active = true;
     setItems(listings);
+  }, [listings]);
+
+  useEffect(() => {
+    let active = true;
     if (session?.sessionMode === 'demo') {
       setTokenStatus('demo');
       return () => {
@@ -99,10 +102,22 @@ export function ListingPublicationPanel({
       };
     }
     setTokenStatus('sign-in-required');
+    // Attempt silent (no-popup) token acquisition in the background so an
+    // already-authenticated user does not have to click "Sign in to
+    // continue" on every mount. If silent acquisition genuinely fails (no
+    // getAccessTokenSilent, or it resolves without a token), the manual
+    // sign-in affordance above remains the fallback (issue #123). Keyed
+    // only by `session` (not `listings`) so a portfolio-feed refresh does
+    // not reset an already-armed session back to sign-in-required.
+    if (typeof session.getAccessTokenSilent === 'function') {
+      session.getAccessTokenSilent().then((token) => {
+        if (active && token) setTokenStatus('ready');
+      }).catch(() => {});
+    }
     return () => {
       active = false;
     };
-  }, [listings, session]);
+  }, [session]);
 
   const enableLiveCommands = async () => {
     if (!session?.getAccessToken || !session?.organizationId) return;

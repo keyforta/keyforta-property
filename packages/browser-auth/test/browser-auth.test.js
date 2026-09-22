@@ -18,6 +18,22 @@ test('browser auth keeps tokens in MSAL memory cache', async () => {
   assert.match(source, /broadcastResponseToMainFrame\(\)/);
 });
 
+test('browser auth exposes a silent-only, non-throwing token method that never opens a popup', async () => {
+  const source = await readFile(new URL('../src/index.js', import.meta.url), 'utf8');
+  assert.match(source, /async getAccessTokenSilent\(\)/);
+  // The silent-only method must not call any interactive popup API; only
+  // getAccessToken()'s InteractionRequiredAuthError fallback may do so.
+  const [, silentBody] = source.split('async getAccessTokenSilent()');
+  const methodBody = silentBody.split(/\n {4}\},/)[0];
+  assert.doesNotMatch(methodBody, /Popup|Redirect/);
+
+  // Without configuration (no client ever constructed), it resolves to null
+  // rather than throwing, unlike getAccessToken().
+  const auth = createBrowserEntraAuth({});
+  await assert.doesNotReject(() => auth.getAccessTokenSilent());
+  assert.equal(await auth.getAccessTokenSilent(), null);
+});
+
 test('browser auth re-establishes a still-valid session on reload via ssoSilent, not client-side persistence', async () => {
   const source = await readFile(new URL('../src/index.js', import.meta.url), 'utf8');
   // MemoryStorage empties the account cache on every page reload; ssoSilent()
