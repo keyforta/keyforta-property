@@ -105,6 +105,40 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     quartier: "Gombe",
   };
 
+  // Each Property has exactly one active manager_property_assignments row at
+  // a time (a partial unique index enforces this): app.create_rental_property
+  // now auto-assigns the creating landlord (closing the REQ-037 auto-publish
+  // gap), so re-assigning a different manager afterward must go through the
+  // real command (which revokes the prior assignment) rather than a raw
+  // insert, or it collides with that unique constraint.
+  const assignManager = async (
+    propertyId: string,
+    managerSubject: string,
+    actingLandlordSubject: string,
+    correlationId: string,
+  ) => {
+    const session = await pool.connect();
+    try {
+      await session.query("begin");
+      await session.query("select * from app.resolve_actor($1, $2)", [
+        actingLandlordSubject,
+        organizationA,
+      ]);
+      await session.query("select set_config('app.correlation_id', $1, true)", [correlationId]);
+      const manager = await session.query(
+        "select id from app.users where external_subject = $1",
+        [managerSubject],
+      );
+      await session.query(
+        "select app.set_manager_property_assignment($1, $2, true)",
+        [propertyId, manager.rows[0].id],
+      );
+      await session.query("commit");
+    } finally {
+      session.release();
+    }
+  };
+
   it("lets an active landlord create a Property with its first Unit", async () => {
     const created = await gateway().createRentalProperty({
       address,
@@ -123,6 +157,52 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     expect(created?.unitId).toBeTruthy();
     expect(created?.propertyVersion).toBe(1);
     expect(created?.unitVersion).toBe(1);
+  });
+
+  it("auto-assigns the creating landlord to their new Property, closing the REQ-037 auto-publish gap", async () => {
+    const created = await gateway().createRentalProperty({
+      address,
+      correlationId: "corr-create-self-assign",
+      firstUnit,
+      idempotencyKey: "idem-create-self-assign",
+      name: "Synthetic Self-Assigned Property",
+      organizationId: organizationA,
+      propertyType: "apartment_building",
+      source: "test",
+      subject: landlordSubject,
+      timeZone: "Africa/Kinshasa",
+    });
+    expect(created?.propertyId).toBeTruthy();
+
+    // No manual `insert into app.manager_property_assignments` here, unlike
+    // the other tests in this file: the assignment (and its matching
+    // "assigned" event row) must now be created automatically by
+    // app.create_rental_property itself.
+    const assignment = await client.query<{
+      revoked_at: string | null;
+    }>(
+      `select manager_property_assignments.revoked_at
+        from app.manager_property_assignments
+        join app.users on users.id = manager_property_assignments.manager_user_id
+        where manager_property_assignments.organization_id = $1
+          and manager_property_assignments.property_id = $2
+          and users.external_subject = $3`,
+      [organizationA, created!.propertyId, landlordSubject],
+    );
+    expect(assignment.rows).toHaveLength(1);
+    expect(assignment.rows[0]?.revoked_at).toBeNull();
+
+    const assignmentEvent = await client.query<{ action: string }>(
+      `select manager_property_assignment_events.action
+        from app.manager_property_assignment_events
+        join app.users on users.id = manager_property_assignment_events.manager_user_id
+        where manager_property_assignment_events.organization_id = $1
+          and manager_property_assignment_events.property_id = $2
+          and users.external_subject = $3`,
+      [organizationA, created!.propertyId, landlordSubject],
+    );
+    expect(assignmentEvent.rows).toHaveLength(1);
+    expect(assignmentEvent.rows[0]?.action).toBe("assigned");
   });
 
   it("rejects Property creation from an actor who is not an active landlord", async () => {
@@ -251,14 +331,8 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     if (!propertyId) throw new Error("expected a created Property");
 
     // Assign the manager to the Property so per-property authorization can be exercised.
-    await client.query(
-      `insert into app.manager_property_assignments (
-        organization_id, property_id, manager_user_id, assigned_by_user_id
-      ) select $1, $2, u.id, l.id
-        from app.users u, app.users l
-        where u.external_subject = $3 and l.external_subject = $4`,
-      [organizationA, propertyId, assignedManagerSubject, landlordSubject],
-    );
+    await assignManager(propertyId, assignedManagerSubject, landlordSubject, "corr-lifecycle-assign");
+
 
     // Unassigned manager cannot add a Unit to this Property.
     await expect(gateway().addRentalUnit({
@@ -413,14 +487,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     expect(propertyId).toBeTruthy();
     if (!propertyId) throw new Error("expected a created Property");
 
-    await client.query(
-      `insert into app.manager_property_assignments (
-        organization_id, property_id, manager_user_id, assigned_by_user_id
-      ) select $1, $2, u.id, l.id
-        from app.users u, app.users l
-        where u.external_subject = $3 and l.external_subject = $4`,
-      [organizationA, propertyId, assignedManagerSubject, landlordSubject],
-    );
+    await assignManager(propertyId, assignedManagerSubject, landlordSubject, "corr-deactivated-manager-assign");
 
     // Deactivate the manager's membership while the assignment row remains.
     await client.query(
@@ -470,14 +537,7 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     expect(propertyId).toBeTruthy();
     if (!propertyId) throw new Error("expected a created Property");
 
-    await client.query(
-      `insert into app.manager_property_assignments (
-        organization_id, property_id, manager_user_id, assigned_by_user_id
-      ) select $1, $2, u.id, l.id
-        from app.users u, app.users l
-        where u.external_subject = $3 and l.external_subject = $4`,
-      [organizationA, propertyId, assignedManagerSubject, landlordSubject],
-    );
+    await assignManager(propertyId, assignedManagerSubject, landlordSubject, "corr-revoked-replay-assign");
 
     const pricingCommand = {
       amountMinor: 210_000,
@@ -853,13 +913,11 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     expect(landlordOnly?.propertyId).toBeTruthy();
     expect(managerAssigned?.propertyId).toBeTruthy();
 
-    await client.query(
-      `insert into app.manager_property_assignments (
-        organization_id, property_id, manager_user_id, assigned_by_user_id
-      ) select $1, $2, u.id, l.id
-        from app.users u, app.users l
-        where u.external_subject = $3 and l.external_subject = $4`,
-      [organizationA, managerAssigned!.propertyId, assignedManagerSubject, landlordSubject],
+    await assignManager(
+      managerAssigned!.propertyId,
+      assignedManagerSubject,
+      landlordSubject,
+      "corr-visibility-assign",
     );
 
     const landlordView = await gateway().listRentalProperties({
@@ -937,12 +995,15 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     );
     const managerListingId = managerListing.rows[0].id as string;
 
-    // Use the real assignment command (not a raw insert) so it also writes
-    // the matching manager_property_assignment_events "assigned" event that
+    // app.create_rental_property now auto-assigns the creating landlord to
+    // `landlordManaged` (closing the REQ-037 auto-publish gap), so only the
+    // manager needs an explicit assignment here, via the real command (not a
+    // raw insert) so it also writes the matching
+    // manager_property_assignment_events "assigned" event that
     // app.set_public_listing_publication (and now this feed) require. Each
-    // property has exactly one active assignment at a time (assigning a new
-    // manager auto-revokes the previous one), so the landlord self-assigns
-    // to one property and a distinct manager is assigned to the other.
+    // property has exactly one active assignment at a time (assigning the
+    // manager to `managerManaged` does not disturb the landlord's own
+    // assignment to `landlordManaged`, a different property).
     const assignmentSession = await pool.connect();
     try {
       await assignmentSession.query("begin");
@@ -954,16 +1015,6 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
         "select set_config('app.correlation_id', $1, true)",
         ["corr-listing-feed-assign"],
       );
-      const landlord = await assignmentSession.query(
-        "select id from app.users where external_subject = $1",
-        [landlordSubject],
-      );
-      const landlordAssigned = await assignmentSession.query<{ changed: boolean }>(
-        "select app.set_manager_property_assignment($1, $2, true) as changed",
-        [landlordManaged!.propertyId, landlord.rows[0].id],
-      );
-      expect(landlordAssigned.rows[0]?.changed).toBe(true);
-
       const manager = await assignmentSession.query(
         "select id from app.users where external_subject = $1",
         [assignedManagerSubject],
@@ -1016,13 +1067,16 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     })).rejects.toThrow(RentalInventoryAuthorizationError);
   });
 
-  it("surfaces a landlord's own listing in the portfolio feed even with no explicit manager_property_assignments row, without disturbing an unrelated assigned manager's feed", async () => {
+  it("surfaces a landlord's own listing in the portfolio feed via their auto-created assignment, without disturbing an unrelated assigned manager's feed", async () => {
     // create_public_listing authorizes an active landlord unconditionally
     // (app.actor_can_manage_property), unlike a manager who must already
     // hold a manager_property_assignments row. Regression coverage for the
-    // Copilot review finding: the landlord must still see this listing in
-    // their own feed afterward, without list_public_listings_for_actor
-    // requiring (or create_public_listing silently creating) an assignment.
+    // original Copilot review finding (the landlord must see their own
+    // listing in the feed) plus the REQ-037 auto-publish gap fix: property
+    // creation itself now auto-assigns the creating landlord (so the row
+    // this test now expects wasn't there before that fix), and
+    // create_public_listing must still not create a second, redundant
+    // assignment on top of it.
     const unassignedProperty = await gateway().createRentalProperty({
       address,
       correlationId: "corr-listing-feed-unassigned-create",
@@ -1037,11 +1091,12 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     });
     expect(unassignedProperty?.propertyId).toBeTruthy();
 
-    const noAssignmentRow = await client.query(
+    const autoAssignmentRow = await client.query(
       "select count(*)::int as count from app.manager_property_assignments where organization_id = $1 and property_id = $2 and revoked_at is null",
       [organizationA, unassignedProperty!.propertyId],
     );
-    expect(noAssignmentRow.rows[0].count).toBe(0);
+    expect(autoAssignmentRow.rows[0].count).toBe(1);
+
 
     const listing = await gateway().createPublicListing({
       attestationAccepted: true,
@@ -1057,12 +1112,13 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
     });
     expect(listing?.listingId).toBeTruthy();
 
-    // create_public_listing must not have created a side-effect assignment.
-    const stillNoAssignmentRow = await client.query(
+    // create_public_listing must not create a second, redundant assignment
+    // on top of the one already created by property creation.
+    const stillOneAssignmentRow = await client.query(
       "select count(*)::int as count from app.manager_property_assignments where organization_id = $1 and property_id = $2 and revoked_at is null",
       [organizationA, unassignedProperty!.propertyId],
     );
-    expect(stillNoAssignmentRow.rows[0].count).toBe(0);
+    expect(stillOneAssignmentRow.rows[0].count).toBe(1);
 
     const landlordFeed = await publicationGateway().listForActor({
       correlationId: "corr-listing-feed-unassigned-landlord",
@@ -1111,30 +1167,9 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       [organizationA, maxLengthProperty!.propertyId, maxLengthProperty!.unitId],
     );
 
-    const assignmentSession = await pool.connect();
-    try {
-      await assignmentSession.query("begin");
-      await assignmentSession.query("select * from app.resolve_actor($1, $2)", [
-        landlordSubject,
-        organizationA,
-      ]);
-      await assignmentSession.query(
-        "select set_config('app.correlation_id', $1, true)",
-        ["corr-listing-feed-max-length-assign"],
-      );
-      const landlord = await assignmentSession.query(
-        "select id from app.users where external_subject = $1",
-        [landlordSubject],
-      );
-      const assigned = await assignmentSession.query<{ changed: boolean }>(
-        "select app.set_manager_property_assignment($1, $2, true) as changed",
-        [maxLengthProperty!.propertyId, landlord.rows[0].id],
-      );
-      expect(assigned.rows[0]?.changed).toBe(true);
-      await assignmentSession.query("commit");
-    } finally {
-      assignmentSession.release();
-    }
+    // app.create_rental_property already auto-assigned the creating
+    // landlord to this Property (closing the REQ-037 auto-publish gap), so
+    // no explicit assignment step is needed here anymore.
 
     const feed = await publicationGateway().listForActor({
       correlationId: "corr-listing-feed-max-length",
