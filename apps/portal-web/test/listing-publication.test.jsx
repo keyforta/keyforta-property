@@ -309,6 +309,30 @@ describe('ListingPublicationPanel', () => {
     expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeDisabled();
   });
 
+  it('does not re-arm-check or drop an already-armed session when only the portfolio feed refreshes', async () => {
+    const getAccessTokenSilent = vi.fn().mockResolvedValue('silent-token');
+    const session = { ...baseSession, getAccessTokenSilent };
+    const { rerender } = render(
+      <FluentProvider theme={webLightTheme}>
+        <ListingPublicationPanel session={session} listings={listings} />
+      </FluentProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled());
+    expect(getAccessTokenSilent).toHaveBeenCalledTimes(1);
+
+    const refreshedListings = listings.map((listing) => ({ ...listing }));
+    rerender(
+      <FluentProvider theme={webLightTheme}>
+        <ListingPublicationPanel session={session} listings={refreshedListings} />
+      </FluentProvider>,
+    );
+
+    expect(screen.getByRole('button', { name: /Publish Riverside apartment/i })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Sign in to continue' })).not.toBeInTheDocument();
+    expect(getAccessTokenSilent).toHaveBeenCalledTimes(1);
+  });
+
   it('has no critical accessibility violations', async () => {
     const { container } = renderPanel();
     expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();

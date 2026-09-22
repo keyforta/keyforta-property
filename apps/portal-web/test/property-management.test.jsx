@@ -202,6 +202,15 @@ describe('PropertyManagementPanel', () => {
     expect(screen.getByRole('button', { name: 'Create property' })).toBeDisabled();
   });
 
+  it('keeps the manual sign-in affordance when getAccessTokenSilent rejects', async () => {
+    const getAccessTokenSilent = vi.fn().mockRejectedValue(new Error('Interaction required.'));
+    renderPanel({ session: { ...baseSession, getAccessTokenSilent } });
+
+    await waitFor(() => expect(getAccessTokenSilent).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Create property' })).toBeDisabled();
+  });
+
   it('surfaces an explicit feed error state with a retry affordance', () => {
     const onRetryFeed = vi.fn();
     renderPanel({ feedError: new Error('boom'), onRetryFeed });
