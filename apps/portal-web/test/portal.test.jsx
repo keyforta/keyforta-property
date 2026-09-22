@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   signOutMock: vi.fn(),
   initializeMock: vi.fn(),
   getAccessTokenMock: vi.fn(async () => 'entra-access-token'),
+  getAccessTokenSilentMock: vi.fn(async () => null),
 }));
 
 vi.mock('@keyforta/browser-auth', () => ({
@@ -24,6 +25,7 @@ vi.mock('@keyforta/browser-auth', () => ({
     signIn: mocks.signInMock,
     signOut: mocks.signOutMock,
     getAccessToken: mocks.getAccessTokenMock,
+    getAccessTokenSilent: mocks.getAccessTokenSilentMock,
   }),
 }));
 
@@ -54,6 +56,7 @@ describe('Portal', () => {
     mocks.signOutMock.mockClear();
     mocks.initializeMock.mockClear();
     mocks.getAccessTokenMock.mockClear();
+    mocks.getAccessTokenSilentMock.mockClear();
     membershipListMock.mockReset();
     membershipListMock.mockResolvedValue({ data: [], meta: { requestId: 'req-1' } });
     publicListingGetMock.mockReset();

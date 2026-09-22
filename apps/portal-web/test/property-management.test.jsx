@@ -184,6 +184,24 @@ describe('PropertyManagementPanel', () => {
     expect(screen.getByRole('button', { name: 'Create property' })).toBeDisabled();
   });
 
+  it('silently re-arms write access on mount when getAccessTokenSilent resolves a token, without a manual click (issue #123)', async () => {
+    const getAccessTokenSilent = vi.fn().mockResolvedValue('silent-token');
+    renderPanel({ session: { ...baseSession, getAccessTokenSilent } });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create property' })).toBeEnabled());
+    expect(screen.queryByRole('button', { name: 'Sign in to continue' })).not.toBeInTheDocument();
+    expect(getAccessTokenSilent).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the manual sign-in affordance when getAccessTokenSilent resolves without a token', async () => {
+    const getAccessTokenSilent = vi.fn().mockResolvedValue(null);
+    renderPanel({ session: { ...baseSession, getAccessTokenSilent } });
+
+    await waitFor(() => expect(getAccessTokenSilent).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'Sign in to continue' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Create property' })).toBeDisabled();
+  });
+
   it('surfaces an explicit feed error state with a retry affordance', () => {
     const onRetryFeed = vi.fn();
     renderPanel({ feedError: new Error('boom'), onRetryFeed });

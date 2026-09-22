@@ -99,6 +99,16 @@ export function ListingPublicationPanel({
       };
     }
     setTokenStatus('sign-in-required');
+    // Attempt silent (no-popup) token acquisition in the background so an
+    // already-authenticated user does not have to click "Sign in to
+    // continue" on every mount. If silent acquisition genuinely fails (no
+    // getAccessTokenSilent, or it resolves without a token), the manual
+    // sign-in affordance above remains the fallback (issue #123).
+    if (typeof session.getAccessTokenSilent === 'function') {
+      session.getAccessTokenSilent().then((token) => {
+        if (active && token) setTokenStatus('ready');
+      }).catch(() => {});
+    }
     return () => {
       active = false;
     };
