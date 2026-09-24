@@ -9,7 +9,7 @@ import { computeNextBestActionChecklist } from '../checklist.js';
 // new fetch, no invented aggregate/percentage. Clicking an unchecked row
 // scrolls to the relevant already-rendered panel (pure client-side
 // orchestration of existing controls, per §10.2's explicit constraint).
-export function NextBestActionChecklist({ listings, onNavigateToProperties, properties }) {
+export function NextBestActionChecklist({ listings, onRowAction, properties }) {
   const { t } = useTranslation();
   const rows = computeNextBestActionChecklist({ listings, properties });
   const anyPublished = rows.some((row) => row.key === 'publishListing' && row.status === 'done');
@@ -66,11 +66,19 @@ export function NextBestActionChecklist({ listings, onNavigateToProperties, prop
           const clickable = row.status !== 'done';
           return (
             <li className={`kf-checklist-row kf-checklist-row-${row.status}`} key={row.key}>
+              {/* Copilot PR #134 review, cycle-3/4 finding #2: this is a
+                  navigation-triggering row (it scrolls to / opens an
+                  existing control below), never a persistent on/off
+                  toggle — `aria-pressed` communicates the latter and was
+                  never accurate here (a "done" row isn't "pressed", it's
+                  simply no longer actionable, which `disabled` already
+                  conveys). Removed rather than "corrected" to some other
+                  pressed value, since no toggle semantics apply to this
+                  control at all. */}
               <button
-                aria-pressed={row.status === 'done'}
                 className='kf-checklist-row-button'
                 disabled={!clickable}
-                onClick={clickable ? onNavigateToProperties : undefined}
+                onClick={clickable ? () => onRowAction(row.key) : undefined}
                 type='button'
               >
                 <span aria-hidden='true' className='kf-checklist-icon'>

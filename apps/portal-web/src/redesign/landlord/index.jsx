@@ -5,7 +5,8 @@ import { landlordRedesignTheme } from './theme.js';
 
 // Default export so `React.lazy(() => import('./redesign/landlord/index.jsx'))`
 // in portal-app.jsx code-splits this entire module (component + theme +
-// redesign.css) into its own chunk: when `VITE_REDESIGN_ENABLED` is off,
+// redesign.css + LandlordShell.jsx's own locale-registration side effect,
+// see that file) into its own chunk: when `VITE_REDESIGN_ENABLED` is off,
 // the browser never requests this chunk at all (verifiable via network
 // inspection, per REQUIREMENTS_GAPS.md acceptance criterion 1).
 //

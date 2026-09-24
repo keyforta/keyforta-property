@@ -75,6 +75,18 @@ describe('unit-status vs listing-status caption distinction (PO regression fix)'
     expect(unitLabel).not.toBe(listingLabel);
   });
 
+  // Copilot PR #134 review, cycle-3/4 finding #5: the Pricing/Availability
+  // sub-form captions must also be JS-translated CSS custom properties
+  // (reusing the existing `property_management.pricing_form_label`/
+  // `availability_form_label` keys), never a hardcoded English `content:`
+  // string in redesign.css.
+  it('exposes translated CSS custom properties for the pricing/availability sub-form captions, reusing the existing property_management i18n keys', () => {
+    const { container } = renderShell();
+    const anchor = container.querySelector('#kf-property-management-anchor');
+    expect(anchor.style.getPropertyValue('--kf-pricing-form-label')).toBe('"Pricing"');
+    expect(anchor.style.getPropertyValue('--kf-availability-form-label')).toBe('"Availability"');
+  });
+
   it('renders the fixture\'s exact PO-reported combination — unit "Available" alongside listing "Withdrawn"/"Media approved" — so the distinguishing captions have something real to disambiguate', () => {
     const { container } = renderShell();
     const unitStatus = container.querySelector('.unit-row > .status');
@@ -90,6 +102,32 @@ describe('unit-status vs listing-status caption distinction (PO regression fix)'
     const anchor = container.querySelector('#kf-property-management-anchor');
     expect(anchor.style.getPropertyValue('--kf-unit-status-label')).toBe('"Statut de l\'unité"');
     expect(anchor.style.getPropertyValue('--kf-listing-status-label')).toBe('"Statut de l\'annonce"');
+  });
+
+  // Copilot PR #134 review, cycle-3/4 finding #6: the CSS `::before`
+  // captions above are real but not reliably exposed to assistive
+  // technology — screen readers must get the same "Unit status" /
+  // "Listing status" distinction via real DOM/ARIA, not CSS-only content.
+  it('exposes an accessible "Unit status: <value>" name on the unit\'s own status badge', () => {
+    const { container } = renderShell();
+    const unitStatus = container.querySelector('.unit-row > .status');
+    expect(unitStatus.getAttribute('aria-label')).toBe('Unit status: Available');
+  });
+
+  it('exposes the listing-status group as an accessible group named "Listing status"', () => {
+    const { container } = renderShell();
+    const listingStatusGroup = container.querySelector('.public-listing-status');
+    expect(listingStatusGroup.getAttribute('role')).toBe('group');
+    expect(listingStatusGroup.getAttribute('aria-label')).toBe('Listing status');
+  });
+
+  it('re-translates the accessible labels when the language changes', async () => {
+    await i18n.changeLanguage('fr');
+    const { container } = renderShell();
+    const unitStatus = container.querySelector('.unit-row > .status');
+    const listingStatusGroup = container.querySelector('.public-listing-status');
+    expect(unitStatus.getAttribute('aria-label')).toBe('Statut de l\'unité: Disponible');
+    expect(listingStatusGroup.getAttribute('aria-label')).toBe('Statut de l\'annonce');
   });
 
   // Copilot PR #134 review finding #2: the withdrawn listing's `.status`

@@ -261,38 +261,5 @@
       "dining": "Salle \u00e0 manger",
       "other": "Autre"
     }
-  },
-  "landlord_redesign": {
-    "checklist": {
-      "title_before_published": "Publiez votre premi\u00e8re annonce",
-      "title_after_published": "Gardez vos annonces \u00e0 jour",
-      "add_property": {
-        "label": "Ajouter une propri\u00e9t\u00e9",
-        "done_detail": "Votre portefeuille compte au moins une propri\u00e9t\u00e9.",
-        "todo_detail": "Commencez par le formulaire ci-dessous."
-      },
-      "set_pricing": {
-        "label": "D\u00e9finir le prix et la disponibilit\u00e9",
-        "unknown_detail": "Ouvrez une unit\u00e9 ci-dessous pour v\u00e9rifier son prix et sa disponibilit\u00e9."
-      },
-      "add_photos": {
-        "label": "Ajouter des photos \u00e0 l'annonce",
-        "done_detail": "Au moins une annonce a des photos.",
-        "todo_detail": "Les annonces avec photos attirent davantage l'attention.",
-        "unknown_detail": "Ouvrez le gestionnaire de photos d'une annonce ci-dessous pour v\u00e9rifier ses photos."
-      },
-      "publish_listing": {
-        "label": "Publier l'annonce",
-        "done_detail": "Au moins une annonce est publi\u00e9e.",
-        "todo_detail": "Publiez une fois le prix, la disponibilit\u00e9 et les photos pr\u00eats."
-      },
-      "status_unknown": "Statut inconnu",
-      "status_done": "Fait",
-      "status_todo": "Pas encore"
-    },
-    "status_labels": {
-      "unit_status": "Statut de l'unité",
-      "listing_status": "Statut de l'annonce"
-    }
   }
 }

@@ -261,38 +261,5 @@
       "dining": "Dining room",
       "other": "Other"
     }
-  },
-  "landlord_redesign": {
-    "checklist": {
-      "title_before_published": "Get your first listing live",
-      "title_after_published": "Keep your listings up to date",
-      "add_property": {
-        "label": "Add a property",
-        "done_detail": "Your portfolio has at least one property.",
-        "todo_detail": "Start with the form below."
-      },
-      "set_pricing": {
-        "label": "Set pricing & availability",
-        "unknown_detail": "Open a unit below to check its pricing and availability."
-      },
-      "add_photos": {
-        "label": "Add listing photos",
-        "done_detail": "At least one listing has photos.",
-        "todo_detail": "Listings with photos get more attention.",
-        "unknown_detail": "Open a listing's photo manager below to check its photos."
-      },
-      "publish_listing": {
-        "label": "Publish the listing",
-        "done_detail": "At least one listing is published.",
-        "todo_detail": "Publish once pricing, availability, and photos are ready."
-      },
-      "status_unknown": "Status unknown",
-      "status_done": "Done",
-      "status_todo": "Not yet"
-    },
-    "status_labels": {
-      "unit_status": "Unit status",
-      "listing_status": "Listing status"
-    }
   }
 }

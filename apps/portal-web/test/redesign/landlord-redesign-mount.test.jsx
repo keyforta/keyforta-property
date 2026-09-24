@@ -113,6 +113,26 @@ describe('Landlord redesign flag gating (single mount point in portal-app.jsx)',
     expect(within(checklist).getAllByText('Status unknown').length).toBeGreaterThan(0);
   });
 
+  // Copilot PR #134 review, cycle-3/4 finding #2: the checklist row button
+  // triggers navigation to an existing control, never a persistent toggle
+  // state — `aria-pressed` must not be present.
+  it('does not expose aria-pressed on checklist row buttons (they are navigation rows, not toggles)', async () => {
+    vi.stubEnv('VITE_REDESIGN_ENABLED', 'true');
+    seedLandlordSession();
+    renderPortal();
+    const checklist = await screen.findByTestId('next-best-action-checklist');
+    const rowButtons = within(checklist).getAllByRole('button');
+    expect(rowButtons.length).toBeGreaterThan(0);
+    rowButtons.forEach((button) => expect(button).not.toHaveAttribute('aria-pressed'));
+  });
+
+  // Copilot PR #134 review, cycle-3/4 finding #3: spec §10.2's "opens the
+  // sole unit's Manage this unit control" behavior is covered by
+  // test/redesign/checklist-unit-management.test.jsx (rendering
+  // `LandlordShell` directly with a deterministic single-property/single-
+  // unit fixture, since this file's `useRentalProperties` mock always
+  // resolves to `[]` for demo sessions without a real access-token getter).
+
   it('clicking an unchecked checklist row scrolls to the existing property-management panel (§10.2, no new fetch)', async () => {
     vi.stubEnv('VITE_REDESIGN_ENABLED', 'true');
     seedLandlordSession();

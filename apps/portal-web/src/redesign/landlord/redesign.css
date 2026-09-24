@@ -128,9 +128,23 @@
 .kf-landlord-redesign .kf-topbar > * { position: relative; z-index: 1; }
 
 /* §11.3.6 kicker pills — every kicker (card eyebrow labels) gets a soft
-   tinted pill background derived from whatever text color is already set
-   on that instance via `currentColor`, so copper/teal/aubergine kickers
-   each automatically get a matching tint without a new class per card. */
+   tinted pill background, so copper/teal/aubergine-tinted kickers each
+   get a matching tint.
+   Copilot PR #134 review, cycle-3/4 finding #4: `color: currentColor`-
+   derived kickers previously used `--kf-burnished-copper` as the 12px
+   TEXT color — per the spec's own §3.1.1 contrast table, copper text on
+   a white/near-white surface is only ~3.37:1 (white | burnishedCopper),
+   which fails WCAG AA for text under 14px (needs >= 4.5:1); the spec's
+   binding rule 3 explicitly says copper is "never a text color on
+   softBone" and lists its only small-text-adjacent approved use as "(c) a
+   badge/chip background with aubergine text (5.07:1, passes)". Fixed by
+   using `--kf-aubergine` (14.8–17.1:1 against softBone/white, comfortably
+   >= 4.5:1) as the kicker text color, while keeping the pill's
+   copper-tinted background (a fixed, named-token tint rather than a
+   `currentColor`-derived one, since the text color driving that tint is
+   no longer copper) so the "copper accent" identity these eyebrow labels
+   had is preserved visually — matching approved usage (a) "thin accent
+   borders/underlines"/(b) "icon fill"-adjacent tinting, not small text. */
 .kf-landlord-redesign .kf-kicker {
   display: inline-flex;
   align-items: center;
@@ -139,8 +153,8 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--kf-burnished-copper);
-  background: color-mix(in srgb, currentColor 12%, white);
+  color: var(--kf-aubergine);
+  background: color-mix(in srgb, var(--kf-burnished-copper) 12%, white);
   padding: var(--kf-space-1) var(--kf-space-3);
   border-radius: var(--kf-radius-pill);
   width: fit-content;
@@ -150,7 +164,7 @@
    pill from the H1 without adding vertical whitespace the PO called out
    as excessive in the first review. */
 .kf-landlord-redesign .kf-topbar-kicker {
-  color: var(--kf-burnished-copper);
+  color: var(--kf-aubergine);
   margin-bottom: 0;
 }
 .kf-landlord-redesign .kf-topbar-kicker::after {
@@ -545,15 +559,15 @@
   margin-top: var(--kf-space-3);
   border: 1px solid var(--kf-aubergine-12);
 }
-.kf-landlord-redesign .unit-pricing-availability::before {
-  content: 'Manage this unit';
-  display: block;
-  font-weight: 700;
-  color: var(--kf-aubergine);
-  margin-bottom: var(--kf-space-2);
-}
+/* Copilot PR #134 review, cycle-3/4 finding #5: no `::before` caption
+   here — property-management-panel.jsx (protected, unmodified) already
+   renders its own localized, visible `<h3>{t('manage_unit_title')}</h3>`
+   heading inside this exact element once its `open` state is true.
+   Duplicating it here with a hardcoded, mistranslated ("Manage this
+   unit" vs. the real heading's "Pricing & availability") English literal
+   was pure redundant/incorrect decoration, not a real caption need. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form:nth-of-type(1)::before {
-  content: 'Pricing';
+  content: var(--kf-pricing-form-label);
   display: block;
   font-size: 0.75rem;
   font-weight: 600;
@@ -563,7 +577,7 @@
   margin-bottom: var(--kf-space-1);
 }
 .kf-landlord-redesign .unit-pricing-availability form.unit-form:nth-of-type(2)::before {
-  content: 'Availability';
+  content: var(--kf-availability-form-label);
   display: block;
   font-size: 0.75rem;
   font-weight: 600;
@@ -581,16 +595,11 @@
   margin-top: var(--kf-space-3);
   border: 1px solid var(--kf-aubergine-12);
 }
-.kf-landlord-redesign .listing-image-manager::before {
-  content: 'Photos';
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--kf-burnished-copper);
-  margin-bottom: var(--kf-space-2);
-}
+/* Copilot PR #134 review, cycle-3/4 finding #5: no `::before` caption
+   here either, for the same reason as `.unit-pricing-availability`
+   above — ListingImageManager (protected, unmodified) already renders
+   its own localized, visible `<h3>{t('listing_images_title')}</h3>`
+   heading ("Listing photos") inside this exact element. */
 .kf-landlord-redesign .public-listing-status {
   display: flex;
   gap: var(--kf-space-2);

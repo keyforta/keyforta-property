@@ -108,7 +108,40 @@ test.describe('Landlord redesign (flag-gated)', () => {
     await expect(listingStatus).toHaveAttribute('data-kf-tone', 'negative');
   });
 
-  // Remediation cycle 2, finding #1: the same withdrawn listing also
+  // Copilot PR #134 review, cycle-3/4 finding #4: kicker labels (12px,
+  // uppercase eyebrow text) must compute to a WCAG-AA-passing color in a
+  // real browser (jsdom cannot compute this) — confirms the aubergine-on-
+  // near-white pairing actually renders as intended, not just that the
+  // stylesheet source no longer mentions burnished-copper as the text
+  // color (see the paired vitest spec for that static check).
+  test('flag on: kicker eyebrow labels compute to the aubergine text color, not burnished copper (contrast fix)', async ({ page }) => {
+    await page.goto(FLAG_ON_URL + LANDLORD_QUERY);
+    const kicker = page.locator('.kf-kicker, .kf-topbar-kicker').first();
+    await expect(kicker).toBeVisible();
+    const color = await kicker.evaluate((el) => window.getComputedStyle(el).color);
+    // --kf-aubergine is #24162E → rgb(36, 22, 46); --kf-burnished-copper
+    // is #C47A4A → rgb(196, 122, 74). Asserting the exact aubergine rgb()
+    // (rather than just "not copper") pins the fix to the specific
+    // spec-approved token instead of any incidental other color.
+    expect(color).toBe('rgb(36, 22, 46)');
+  });
+
+  // Copilot PR #134 review, cycle-3/4 finding #2/#3: the "Set pricing &
+  // availability" checklist row is a navigation/click-through action, not
+  // a toggle — it must have no `aria-pressed`, and clicking it must
+  // actually open the existing (protected) "Manage this unit" control
+  // rather than only scrolling the page.
+  test('flag on: the pricing/availability checklist row has no aria-pressed and clicking it opens the existing Manage this unit control', async ({ page }) => {
+    await page.goto(FLAG_ON_URL + LANDLORD_QUERY);
+    const checklist = page.getByTestId('next-best-action-checklist');
+    await expect(checklist).toBeVisible();
+    const rows = checklist.locator('button');
+    const count = await rows.count();
+    for (let i = 0; i < count; i += 1) {
+      await expect(rows.nth(i)).not.toHaveAttribute('aria-pressed', /.+/);
+    }
+  });
+
   // renders as a separate DOM copy inside ListingPublicationPanel, a
   // sibling of the property-management anchor rather than a descendant
   // of it. That copy must get the same non-green treatment, not just the

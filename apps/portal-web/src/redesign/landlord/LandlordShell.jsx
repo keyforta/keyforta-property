@@ -1,11 +1,33 @@
 import { useEffect, useRef } from 'react';
 import { Avatar, Button } from '@fluentui/react-components';
 import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n.js';
 import { ListingPublicationPanel } from '../../listing-publication-panel.jsx';
 import { PropertyManagementPanel } from '../../property-management-panel.jsx';
 import { LandlordBrandHeader } from './components/BrandHeader.jsx';
 import { NextBestActionChecklist } from './components/NextBestActionChecklist.jsx';
-import { annotateStatusTone } from './statusTone.js';
+import landlordRedesignCopyEn from './locales/en.json';
+import landlordRedesignCopyFr from './locales/fr.json';
+import { annotateAccessibleStatusLabels, annotateStatusTone } from './statusTone.js';
+import { openSoleUnitManagementControl } from './unitManagement.js';
+
+// Copilot PR #134 review, cycle-3/4 finding #1: this redesign's own
+// translated copy (`landlord_redesign.*`) must not live in the always-
+// eagerly-loaded `src/locales/{en,fr}.json` (imported unconditionally by
+// `src/i18n.js`, which every session loads regardless of role or flag
+// state) — that would ship redesign copy to every user even when
+// `VITE_REDESIGN_ENABLED` is off, undermining the "brand assets in lazy
+// chunk" acceptance criterion (zero bytes of redesign-specific content
+// when the flag is off). Registering it here, as a side effect of this
+// module's own evaluation, means it is only ever added to the shared
+// i18n instance once this module is actually imported — which, in
+// production, only happens via the lazy `./index.jsx` chunk (this file
+// is not imported from anywhere outside `./redesign/landlord/`). `true,
+// true` = deep-merge, overwrite-on-reload so repeated evaluation in dev/
+// HMR (or across test files) stays idempotent rather than erroring on a
+// duplicate key.
+i18n.addResourceBundle('en', 'translation', landlordRedesignCopyEn, true, true);
+i18n.addResourceBundle('fr', 'translation', landlordRedesignCopyFr, true, true);
 
 // DOM anchor ids this shell controls itself (not inside the reused
 // black-box panels) so the checklist card (§10.2) can scroll to the
@@ -99,11 +121,41 @@ export function LandlordShell({
       t('property_management.listing_status.withdrawn'),
       t('listing_publication.status.withdrawn.badge'),
     ]);
+    // Copilot PR #134 review, cycle-3/4 finding #6: the same observer
+    // that annotates tone also annotates the accessible unit-status/
+    // listing-status distinction (see statusTone.js) so a screen reader
+    // gets the same grouping distinction the CSS `::before` captions give
+    // sighted users, kept in sync across the same re-renders (this
+    // shell's own props changing, or either reused panel's internal
+    // state changing after a successful command).
+    const accessibleLabels = {
+      unitStatusLabel: t('landlord_redesign.status_labels.unit_status'),
+      listingStatusLabel: t('landlord_redesign.status_labels.listing_status'),
+    };
     annotateStatusTone(container, negativeTexts);
-    const observer = new MutationObserver(() => annotateStatusTone(container, negativeTexts));
+    annotateAccessibleStatusLabels(container, accessibleLabels);
+    const observer = new MutationObserver(() => {
+      annotateStatusTone(container, negativeTexts);
+      annotateAccessibleStatusLabels(container, accessibleLabels);
+    });
     observer.observe(container, { characterData: true, childList: true, subtree: true });
     return () => observer.disconnect();
   }, [t, showListingPublication, showPropertyManagement, managerListings, rentalProperties]);
+
+  // Copilot PR #134 review, cycle-3/4 finding #3: spec §10.2 requires
+  // that clicking the "Set pricing & availability" checklist row not just
+  // scroll but, when exactly one property/unit exists, also open that
+  // unit's existing "Manage this unit" toggle
+  // (property-management-panel.jsx's own `UnitPricingAvailabilityForm`,
+  // unmodified) — every other row keeps the existing scroll-only
+  // behavior (§10.2's "opens the relevant existing control" language
+  // applies specifically to this row's own control).
+  const handleChecklistRowAction = (key) => {
+    scrollToPropertyManagement();
+    if (key === 'setPricing' && rootRef.current) {
+      openSoleUnitManagementControl(rootRef.current, rentalProperties, t('property_management.manage_unit_toggle'));
+    }
+  };
 
   return (
     <div className='kf-landlord-redesign app-shell' ref={rootRef}>
@@ -152,7 +204,7 @@ export function LandlordShell({
           {active === 'overview' ? (
             <NextBestActionChecklist
               listings={managerListings}
-              onNavigateToProperties={scrollToPropertyManagement}
+              onRowAction={handleChecklistRowAction}
               properties={rentalProperties}
             />
           ) : null}
@@ -173,6 +225,16 @@ export function LandlordShell({
               style={{
                 '--kf-unit-status-label': cssQuotedString(t('landlord_redesign.status_labels.unit_status')),
                 '--kf-listing-status-label': cssQuotedString(t('landlord_redesign.status_labels.listing_status')),
+                // Copilot PR #134 review, cycle-3/4 finding #5: these two
+                // sub-form captions reuse the SAME existing i18n keys
+                // property-management-panel.jsx (protected, unmodified)
+                // already uses for these forms' own (screen-reader-only)
+                // `aria-label`s — not new redesign-only copy — via the
+                // same JS-translated-CSS-custom-property mechanism as the
+                // unit/listing status labels above, instead of a
+                // hardcoded English `content:` string in redesign.css.
+                '--kf-pricing-form-label': cssQuotedString(t('property_management.pricing_form_label')),
+                '--kf-availability-form-label': cssQuotedString(t('property_management.availability_form_label')),
               }}
             >
               <PropertyManagementPanel
