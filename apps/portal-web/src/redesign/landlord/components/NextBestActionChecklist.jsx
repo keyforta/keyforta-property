@@ -1,3 +1,4 @@
+import { Button } from '@fluentui/react-components';
 import { useTranslation } from 'react-i18next';
 import { computeNextBestActionChecklist } from '../checklist.js';
 
@@ -74,8 +75,20 @@ export function NextBestActionChecklist({ listings, onRowAction, properties }) {
                   simply no longer actionable, which `disabled` already
                   conveys). Removed rather than "corrected" to some other
                   pressed value, since no toggle semantics apply to this
-                  control at all. */}
-              <button
+                  control at all.
+                  Follow-up guidance (same cycle): prefer a Fluent UI
+                  component with correct built-in semantics over a
+                  hand-rolled <button> — Fluent's `Button` renders a plain
+                  native <button> with no toggle/pressed state by default
+                  (unlike `ToggleButton`/`MenuItem`, which would reintroduce
+                  the exact wrong semantics this finding removed), so it is
+                  a drop-in, semantically-correct replacement here.
+                  `appearance='transparent'` keeps Fluent's own chrome
+                  minimal so the existing, already-reviewed
+                  `.kf-checklist-row-button` visual styling in
+                  redesign.css continues to fully own this row's look. */}
+              <Button
+                appearance='transparent'
                 className='kf-checklist-row-button'
                 disabled={!clickable}
                 onClick={clickable ? () => onRowAction(row.key) : undefined}
@@ -89,7 +102,7 @@ export function NextBestActionChecklist({ listings, onRowAction, properties }) {
                   <span className='kf-checklist-detail kf-small'>{detail}</span>
                 </span>
                 <span className='kf-checklist-status-badge' data-status={row.status}>{statusLabel[row.status]}</span>
-              </button>
+              </Button>
             </li>
           );
         })}

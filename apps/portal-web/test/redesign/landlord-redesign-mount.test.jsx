@@ -126,6 +126,23 @@ describe('Landlord redesign flag gating (single mount point in portal-app.jsx)',
     rowButtons.forEach((button) => expect(button).not.toHaveAttribute('aria-pressed'));
   });
 
+  // Follow-up guidance (same review cycle): prefer Fluent UI components
+  // with correct built-in semantics over hand-rolled ones where practical.
+  // The checklist row is a navigation-triggering control, which is exactly
+  // what Fluent's `Button` already models correctly (a native <button>,
+  // no toggle semantics) — this asserts each row is actually rendered via
+  // Fluent's `Button` component (marked by its `fui-Button` class), not a
+  // bare hand-rolled <button>.
+  it('renders each checklist row as a Fluent UI Button component, not a hand-rolled <button>', async () => {
+    vi.stubEnv('VITE_REDESIGN_ENABLED', 'true');
+    seedLandlordSession();
+    renderPortal();
+    const checklist = await screen.findByTestId('next-best-action-checklist');
+    const rowButtons = within(checklist).getAllByRole('button');
+    expect(rowButtons.length).toBeGreaterThan(0);
+    rowButtons.forEach((button) => expect(button.className).toMatch(/\bfui-Button\b/));
+  });
+
   // Copilot PR #134 review, cycle-3/4 finding #3: spec §10.2's "opens the
   // sole unit's Manage this unit control" behavior is covered by
   // test/redesign/checklist-unit-management.test.jsx (rendering
