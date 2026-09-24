@@ -222,7 +222,7 @@ export class RentalInventoryConflictError extends Error {
 const authorizationErrorCode = "42501";
 const notFoundErrorCode = "P0002";
 
-async function resolveActor(
+export async function resolveActor(
   session: {
     query(text: string, parameters?: readonly unknown[]): Promise<{ rows: readonly unknown[] }>;
   },
@@ -244,7 +244,7 @@ function isPostgresError(
   return typeof error === "object" && error !== null && "code" in error;
 }
 
-function translateWriteError(error: unknown): never {
+export function translateWriteError(error: unknown): never {
   if (isPostgresError(error)) {
     if (error.code === authorizationErrorCode) {
       throw new RentalInventoryAuthorizationError();

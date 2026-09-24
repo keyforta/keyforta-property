@@ -43,6 +43,13 @@ export interface ReviewPublicListingMediaResult {
   mediaReviewStatus: string;
 }
 
+export interface PendingPublicListingMediaReviewImage {
+  imageId: string;
+  mediaType: string;
+  position: number;
+  room: string;
+}
+
 export interface PendingPublicListingMediaReview {
   imageUrls: string[];
   listingId: string;
@@ -52,6 +59,7 @@ export interface PendingPublicListingMediaReview {
   submittedAt: string;
   summary: string | null;
   title: string | null;
+  uploadedImages: PendingPublicListingMediaReviewImage[];
   unitId: string;
   unitLabel: string;
 }
@@ -111,6 +119,12 @@ export function createPostgresPublicListingPublicationGateway(
           title: string | null;
           summary: string | null;
           image_urls: string[];
+          uploaded_images: Array<{
+            imageId: string;
+            room: string;
+            mediaType: string;
+            position: number;
+          }>;
           submitted_at: Date | string;
         };
         return {
@@ -126,6 +140,12 @@ export function createPostgresPublicListingPublicationGateway(
           title: typed.title,
           unitId: typed.unit_id,
           unitLabel: typed.unit_label,
+          uploadedImages: (typed.uploaded_images ?? []).map((image) => ({
+            imageId: image.imageId,
+            mediaType: image.mediaType,
+            position: image.position,
+            room: image.room,
+          })),
         };
       });
     },

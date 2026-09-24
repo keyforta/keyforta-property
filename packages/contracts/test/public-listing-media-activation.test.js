@@ -101,6 +101,7 @@ test("REQ-037 publicListingSummarySchema and pendingPublicListingMediaReviewSche
     title: "Riverside apartment — Unit 2A",
     unitId: "1a2b3c4d-5e6f-4789-9abc-def012345678",
     unitLabel: "Unit 2A",
+    uploadedImages: [],
   };
   assert.equal(pendingPublicListingMediaReviewSchema.safeParse(pendingReview).success, true);
 });

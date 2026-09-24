@@ -166,10 +166,27 @@
     "create_listing_failed": "L'annonce publique n'a pas pu \u00eatre cr\u00e9\u00e9e pour le moment.",
     "edit_listing_success": "Brouillon d'annonce mis \u00e0 jour avec succ\u00e8s.",
     "edit_listing_failed": "Le brouillon d'annonce n'a pas pu \u00eatre mis \u00e0 jour pour le moment.",
-    "listing_image_urls_required": "Fournissez au moins une URL d'image, une par ligne.",
-    "listing_image_urls_hint": "Saisissez une URL d'image par ligne (jusqu'\u00e0 10).",
-    "listing_attestation_label": "Je confirme que je poss\u00e8de chaque image li\u00e9e ou que je d\u00e9tiens les droits pour l'afficher, qu'aucun locataire ni autre personne identifiable n'appara\u00eet dans une image sans son consentement, et que KEYFORTA peut afficher ces liens d'images h\u00e9berg\u00e9es en externe sur le site public jusqu'\u00e0 ce que je retire cette annonce.",
+    "listing_attestation_label": "Je confirme poss\u00e9der ou d\u00e9tenir les droits d'affichage de chaque image t\u00e9l\u00e9vers\u00e9e, et qu'aucun locataire ni autre personne identifiable n'appara\u00eet dans une image sans son consentement.",
     "listing_attestation_required": "Vous devez confirmer l'attestation relative aux droits sur les images avant de cr\u00e9er une annonce.",
+    "listing_images_title": "Photos de l'annonce",
+    "listing_images_empty": "Aucune photo t\u00e9l\u00e9vers\u00e9e pour le moment.",
+    "listing_image_delete": "Supprimer",
+    "listing_image_deleting": "Suppression\u2026",
+    "listing_image_upload_submit": "T\u00e9l\u00e9verser la photo",
+    "listing_image_uploading": "T\u00e9l\u00e9versement\u2026",
+    "listing_image_room_placeholder": "Choisissez une pi\u00e8ce",
+    "listing_image_room_required": "Choisissez une pi\u00e8ce avant de t\u00e9l\u00e9verser.",
+    "listing_image_file_required": "Choisissez un fichier image \u00e0 t\u00e9l\u00e9verser.",
+    "listing_image_type_invalid": "Seules les images JPEG ou PNG peuvent \u00eatre t\u00e9l\u00e9vers\u00e9es.",
+    "listing_image_too_large": "Les images doivent faire 10 Mo ou moins.",
+    "listing_image_cap_reached": "Cette annonce a d\u00e9j\u00e0 atteint le maximum de 10 photos autoris\u00e9es.",
+    "listing_image_scan_rejected": "Cette image a \u00e9chou\u00e9 \u00e0 notre contr\u00f4le de s\u00e9curit\u00e9 du contenu et n'a pas \u00e9t\u00e9 t\u00e9l\u00e9vers\u00e9e.",
+    "listing_image_invalid": "V\u00e9rifiez la pi\u00e8ce, le type de fichier (JPEG ou PNG) et la taille du fichier (10 Mo maximum), puis r\u00e9essayez.",
+    "listing_image_not_found": "Vous n'avez pas acc\u00e8s \u00e0 la gestion des photos de cette annonce.",
+    "listing_image_unavailable": "Le t\u00e9l\u00e9versement de photos est temporairement indisponible. R\u00e9essayez sous peu.",
+    "listing_image_generic_error": "La photo n'a pas pu \u00eatre t\u00e9l\u00e9vers\u00e9e pour le moment.",
+    "listing_image_attestation_label": "Je confirme poss\u00e9der ou d\u00e9tenir les droits d'affichage de cette image, et qu'aucun locataire ni autre personne identifiable n'y appara\u00eet sans son consentement.",
+    "listing_image_attestation_required": "Vous devez confirmer l'attestation relative aux droits sur l'image avant de t\u00e9l\u00e9verser cette photo.",
     "cancel": "Annuler",
     "saving": "Enregistrement\u2026",
     "field": {
@@ -197,7 +214,8 @@
       "reason_code": "Motif",
       "listing_title": "Titre de l'annonce",
       "listing_summary": "R\u00e9sum\u00e9 de l'annonce",
-      "listing_image_urls": "URLs des images"
+      "listing_image_room": "Pi\u00e8ce",
+      "listing_image_file": "Fichier photo"
     },
     "property_type": {
       "apartment_building": "Immeuble d'appartements",
@@ -233,6 +251,15 @@
       "pending": "En attente d'examen des m\u00e9dias",
       "approved": "M\u00e9dias approuv\u00e9s",
       "rejected": "M\u00e9dias rejet\u00e9s"
+    },
+    "room": {
+      "exterior": "Ext\u00e9rieur",
+      "living": "Salon",
+      "kitchen": "Cuisine",
+      "bathroom": "Salle de bain",
+      "bedroom": "Chambre",
+      "dining": "Salle \u00e0 manger",
+      "other": "Autre"
     }
   }
 }

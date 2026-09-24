@@ -166,10 +166,27 @@
     "create_listing_failed": "The public listing could not be created right now.",
     "edit_listing_success": "Draft listing updated successfully.",
     "edit_listing_failed": "The draft listing could not be updated right now.",
-    "listing_image_urls_required": "Provide at least one image URL, one per line.",
-    "listing_image_urls_hint": "Enter one image URL per line (up to 10).",
-    "listing_attestation_label": "I confirm that I own each linked image or hold the rights to display it, that no tenant or other identifiable person appears in any image without their consent, and that KEYFORTA may display these externally hosted image links on the public site until I withdraw this listing.",
+    "listing_attestation_label": "I confirm I own or hold the rights to display each uploaded image, and that no tenant or other identifiable person appears in any image without consent.",
     "listing_attestation_required": "You must confirm the image-rights attestation before creating a listing.",
+    "listing_images_title": "Listing photos",
+    "listing_images_empty": "No photos uploaded yet.",
+    "listing_image_delete": "Delete",
+    "listing_image_deleting": "Deleting\u2026",
+    "listing_image_upload_submit": "Upload photo",
+    "listing_image_uploading": "Uploading\u2026",
+    "listing_image_room_placeholder": "Choose a room",
+    "listing_image_room_required": "Choose a room before uploading.",
+    "listing_image_file_required": "Choose an image file to upload.",
+    "listing_image_type_invalid": "Only JPEG or PNG images can be uploaded.",
+    "listing_image_too_large": "Images must be 10 MB or smaller.",
+    "listing_image_cap_reached": "This listing already has the maximum of 10 photos allowed.",
+    "listing_image_scan_rejected": "This image failed our content safety check and was not uploaded.",
+    "listing_image_invalid": "Check the room, file type (JPEG or PNG), and file size (10 MB max), then try again.",
+    "listing_image_not_found": "You do not have access to manage photos for this listing.",
+    "listing_image_unavailable": "Photo upload is temporarily unavailable. Try again shortly.",
+    "listing_image_generic_error": "The photo could not be uploaded right now.",
+    "listing_image_attestation_label": "I confirm I own or hold the rights to display this image, and that no tenant or other identifiable person appears in it without consent.",
+    "listing_image_attestation_required": "You must confirm the image-rights attestation before uploading this photo.",
     "cancel": "Cancel",
     "saving": "Saving\u2026",
     "field": {
@@ -197,7 +214,8 @@
       "reason_code": "Reason",
       "listing_title": "Listing title",
       "listing_summary": "Listing summary",
-      "listing_image_urls": "Image URLs"
+      "listing_image_room": "Room",
+      "listing_image_file": "Photo file"
     },
     "property_type": {
       "apartment_building": "Apartment building",
@@ -233,6 +251,15 @@
       "pending": "Awaiting media review",
       "approved": "Media approved",
       "rejected": "Media rejected"
+    },
+    "room": {
+      "exterior": "Exterior",
+      "living": "Living room",
+      "kitchen": "Kitchen",
+      "bathroom": "Bathroom",
+      "bedroom": "Bedroom",
+      "dining": "Dining room",
+      "other": "Other"
     }
   }
 }

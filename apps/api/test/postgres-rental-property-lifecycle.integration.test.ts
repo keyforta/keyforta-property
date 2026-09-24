@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { publicListingListEnvelopeSchema } from "@keyforta/contracts";
@@ -11,6 +13,7 @@ import {
   RentalInventoryNotFoundError,
 } from "../src/properties/inventory-command-gateway.js";
 import { createPostgresPublicListingPublicationGateway } from "../src/properties/publication-gateway.js";
+import { createPostgresPublicListingMediaGateway } from "../src/properties/media-gateway.js";
 import { ensureTestRuntimeRole } from "./support/ensure-test-runtime-role.js";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -92,6 +95,10 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
   );
 
   const publicationGateway = () => createPostgresPublicListingPublicationGateway(
+    createRuntimeDatabaseClient(runtimePool),
+  );
+
+  const mediaGateway = () => createPostgresPublicListingMediaGateway(
     createRuntimeDatabaseClient(runtimePool),
   );
 
@@ -1824,6 +1831,353 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       expect(listingRow.rows[0].media_review_notes).toBe(
         "The exterior photo does not match the listed address.",
       );
+    });
+  });
+
+  describe("PublicListing uploaded media (REQ-038)", () => {
+    const createUnitForUpload = async (label: string) => {
+      const created = await gateway().createRentalProperty({
+        address,
+        correlationId: `corr-media-upload-create-${label}`,
+        firstUnit: { ...firstUnit, label },
+        idempotencyKey: `idem-media-upload-create-${label}`,
+        name: `Synthetic Media Upload Property ${label}`,
+        organizationId: organizationA,
+        propertyType: "single_family",
+        source: "test",
+        subject: landlordSubject,
+        timeZone: "Africa/Kinshasa",
+      });
+      expect(created?.propertyId).toBeTruthy();
+      return created!;
+    };
+
+    const createDraftListing = async (label: string) => {
+      const created = await createUnitForUpload(label);
+      const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: `corr-media-upload-listing-create-${label}`,
+        idempotencyKey: `idem-media-upload-listing-create-${label}`,
+        imageUrls: [],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: `Riverside apartment — Unit ${label}`,
+        unitId: created.unitId,
+      });
+      expect(listing?.listingId).toBeTruthy();
+      return { property: created, listing: listing! };
+    };
+
+    const jpegBytes = (sizeBytes: number) => Buffer.alloc(sizeBytes, 7);
+    const contentHashOf = (content: Buffer) => createHash("sha256").update(content).digest("hex");
+
+    const uploadImage = (
+      listingId: string,
+      subject: string,
+      overrides: Partial<{ room: string; mediaType: string; sizeBytes: number; content: Buffer }> = {},
+    ) => {
+      const content = overrides.content ?? jpegBytes(overrides.sizeBytes ?? 1024);
+      return mediaGateway().uploadImage({
+        content,
+        contentHash: contentHashOf(content),
+        correlationId: `corr-media-upload-${listingId}-${subject}-${Math.random()}`,
+        listingId,
+        mediaType: overrides.mediaType ?? "image/jpeg",
+        organizationId: organizationA,
+        room: overrides.room ?? "kitchen",
+        sizeBytes: overrides.content ? overrides.content.length : (overrides.sizeBytes ?? 1024),
+        source: "test",
+        subject,
+      });
+    };
+
+    it("uploads an image onto a draft listing, resets an approved review to pending, and repeats on delete (PROP-029/PROP-030)", async () => {
+      const { listing } = await createDraftListing("upload-reset");
+
+      const approved = await publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-media-upload-reset-approve-1",
+        decision: "approved",
+        listingId: listing.listingId,
+        reviewerObjectId: "00000000-0000-4000-8000-000000000972",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      });
+      expect(approved?.mediaReviewStatus).toBe("approved");
+
+      const uploaded = await uploadImage(listing.listingId, landlordSubject, { room: "kitchen" });
+      expect(uploaded?.imageId).toBeTruthy();
+      expect(uploaded?.listingVersion).toBeGreaterThan(listing.listingVersion);
+
+      const afterUpload = await client.query(
+        "select media_review_status from app.public_listings where id = $1",
+        [listing.listingId],
+      );
+      expect(afterUpload.rows[0].media_review_status).toBe("pending");
+
+      // Each image row carries exactly one room tag from the closed list
+      // (PROP-030); confirm it round-trips through the metadata-only list.
+      const images = await mediaGateway().listImages({
+        listingId: listing.listingId,
+        organizationId: organizationA,
+        subject: landlordSubject,
+      });
+      expect(images).toHaveLength(1);
+      expect(images[0]?.room).toBe("kitchen");
+
+      const reapproved = await publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-media-upload-reset-approve-2",
+        decision: "approved",
+        listingId: listing.listingId,
+        reviewerObjectId: "00000000-0000-4000-8000-000000000972",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      });
+      expect(reapproved?.mediaReviewStatus).toBe("approved");
+
+      // Deleting (and, per the documented model, re-uploading with a new
+      // room tag) is the supported path for "changing" an image's room
+      // (PROP-030); the delete alone must reset review to pending, exactly
+      // like the legacy imageUrls edit path (PROP-029).
+      const deleted = await mediaGateway().deleteImage({
+        correlationId: "corr-media-upload-reset-delete",
+        imageId: uploaded!.imageId,
+        listingId: listing.listingId,
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+      });
+      expect(deleted?.listingId).toBe(listing.listingId);
+
+      const afterDelete = await client.query(
+        "select media_review_status from app.public_listings where id = $1",
+        [listing.listingId],
+      );
+      expect(afterDelete.rows[0].media_review_status).toBe("pending");
+    });
+
+    it("denies (nondisclosing) upload/delete/list attempts from an actor without an active listing-manager assignment (PROP-027)", async () => {
+      const { listing } = await createDraftListing("cross-org-upload");
+      const uploaded = await uploadImage(listing.listingId, landlordSubject);
+      expect(uploaded?.imageId).toBeTruthy();
+
+      await expect(uploadImage(listing.listingId, unassignedManagerSubject))
+        .rejects.toThrow(RentalInventoryAuthorizationError);
+      await expect(uploadImage(listing.listingId, crossOrgSubject))
+        .rejects.toThrow(RentalInventoryAuthorizationError);
+
+      await expect(mediaGateway().deleteImage({
+        correlationId: "corr-media-upload-cross-org-delete-unassigned",
+        imageId: uploaded!.imageId,
+        listingId: listing.listingId,
+        organizationId: organizationA,
+        source: "test",
+        subject: unassignedManagerSubject,
+      })).rejects.toThrow(RentalInventoryAuthorizationError);
+      await expect(mediaGateway().deleteImage({
+        correlationId: "corr-media-upload-cross-org-delete-crossorg",
+        imageId: uploaded!.imageId,
+        listingId: listing.listingId,
+        organizationId: organizationA,
+        source: "test",
+        subject: crossOrgSubject,
+      })).rejects.toThrow(RentalInventoryAuthorizationError);
+
+      await expect(mediaGateway().listImages({
+        listingId: listing.listingId,
+        organizationId: organizationA,
+        subject: unassignedManagerSubject,
+      })).rejects.toThrow(RentalInventoryAuthorizationError);
+
+      // No partial state: the image the assigned landlord uploaded must
+      // still be exactly the only row, untouched by the denied attempts.
+      const remaining = await client.query(
+        "select count(*)::int as count from app.public_listing_images where public_listing_id = $1",
+        [listing.listingId],
+      );
+      expect(remaining.rows[0].count).toBe(1);
+    });
+
+    it("rejects an oversized upload with no partial state (PROP-028)", async () => {
+      const { listing } = await createDraftListing("oversized");
+
+      await expect(uploadImage(listing.listingId, landlordSubject, { sizeBytes: 10_485_761 }))
+        .rejects.toThrow(RentalInventoryConflictError);
+
+      const rows = await client.query(
+        "select count(*)::int as count from app.public_listing_images where public_listing_id = $1",
+        [listing.listingId],
+      );
+      expect(rows.rows[0].count).toBe(0);
+      const listingRow = await client.query(
+        "select version from app.public_listings where id = $1",
+        [listing.listingId],
+      );
+      expect(listingRow.rows[0].version).toBe(listing.listingVersion);
+    });
+
+    it("rejects an upload with an unsupported media type with no partial state (PROP-028)", async () => {
+      const { listing } = await createDraftListing("wrong-media-type");
+
+      await expect(uploadImage(listing.listingId, landlordSubject, { mediaType: "image/gif" }))
+        .rejects.toThrow(RentalInventoryConflictError);
+
+      const rows = await client.query(
+        "select count(*)::int as count from app.public_listing_images where public_listing_id = $1",
+        [listing.listingId],
+      );
+      expect(rows.rows[0].count).toBe(0);
+    });
+
+    it("rejects an upload missing a valid room tag with no partial state (PROP-028/PROP-030)", async () => {
+      const { listing } = await createDraftListing("no-room");
+
+      await expect(uploadImage(listing.listingId, landlordSubject, { room: "office" }))
+        .rejects.toThrow(RentalInventoryConflictError);
+
+      const rows = await client.query(
+        "select count(*)::int as count from app.public_listing_images where public_listing_id = $1",
+        [listing.listingId],
+      );
+      expect(rows.rows[0].count).toBe(0);
+    });
+
+    it("rejects an upload once the combined 1-10 image cap is reached, with no partial state (PROP-028)", async () => {
+      const { listing } = await createDraftListing("cap");
+
+      for (let index = 0; index < 10; index += 1) {
+        const uploaded = await uploadImage(listing.listingId, landlordSubject, { room: "other" });
+        expect(uploaded?.imageId).toBeTruthy();
+      }
+
+      await expect(uploadImage(listing.listingId, landlordSubject, { room: "other" }))
+        .rejects.toThrow(RentalInventoryConflictError);
+
+      const rows = await client.query(
+        "select count(*)::int as count from app.public_listing_images where public_listing_id = $1",
+        [listing.listingId],
+      );
+      expect(rows.rows[0].count).toBe(10);
+    });
+
+    it("groups a published listing's images by room, omitting empty rooms, and serves scan-gated content only for eligible listings (PROP-031)", async () => {
+      const { property, listing } = await createDraftListing("gallery");
+
+      const kitchenOne = await uploadImage(listing.listingId, landlordSubject, { room: "kitchen" });
+      const kitchenTwo = await uploadImage(listing.listingId, landlordSubject, { room: "kitchen" });
+      const exterior = await uploadImage(listing.listingId, landlordSubject, { room: "exterior" });
+
+      // Not yet published: the public, anonymous read path must return
+      // nothing, and the raw bytes must not be servable either.
+      await expect(mediaGateway().listPublicImagesByRoom(listing.listingId)).resolves.toEqual([]);
+      await expect(
+        mediaGateway().getPublicImageContent(listing.listingId, kitchenOne!.imageId),
+      ).resolves.toBeUndefined();
+
+      await assignManager(property.propertyId, assignedManagerSubject, landlordSubject, "corr-media-gallery-assign");
+      const pricing = await gateway().setUnitPricing({
+        amountMinor: 175_000,
+        correlationId: "corr-media-gallery-pricing",
+        idempotencyKey: "idem-media-gallery-pricing",
+        currency: "USD",
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion: listing.unitVersion,
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        unitId: property.unitId,
+      });
+      await gateway().setUnitAvailability({
+        correlationId: "corr-media-gallery-availability",
+        idempotencyKey: "idem-media-gallery-availability",
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion: pricing!.unitVersion,
+        organizationId: organizationA,
+        source: "test",
+        status: "available",
+        subject: landlordSubject,
+        unitId: property.unitId,
+      });
+
+      const approved = await publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-media-gallery-approve",
+        decision: "approved",
+        listingId: listing.listingId,
+        reviewerObjectId: "00000000-0000-4000-8000-000000000973",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      });
+      expect(approved?.mediaReviewStatus).toBe("approved");
+
+      const publishedRow = await client.query(
+        "select status from app.public_listings where id = $1",
+        [listing.listingId],
+      );
+      expect(publishedRow.rows[0].status).toBe("published");
+
+      const byRoom = await mediaGateway().listPublicImagesByRoom(listing.listingId);
+      const rooms = new Set(byRoom.map((image) => image.room));
+      expect(rooms).toEqual(new Set(["kitchen", "exterior"]));
+      expect(byRoom.filter((image) => image.room === "kitchen")).toHaveLength(2);
+      expect(byRoom.filter((image) => image.room === "exterior")).toHaveLength(1);
+      // Rooms with zero images (e.g. "bathroom") never appear.
+      expect(rooms.has("bathroom")).toBe(false);
+
+      const content = await mediaGateway().getPublicImageContent(listing.listingId, exterior!.imageId);
+      expect(content?.mediaType).toBe("image/jpeg");
+      expect(content?.content.equals(jpegBytes(1024))).toBe(true);
+
+      await expect(
+        mediaGateway().getPublicImageContent(listing.listingId, "00000000-0000-4000-8000-00000000abcd"),
+      ).resolves.toBeUndefined();
+    });
+
+    // Migration 0033 fix: before this, an uploaded image was reachable by
+    // neither the public route (requires published) nor any admin route
+    // (none existed), so a platform administrator reviewing a REQ-038
+    // upload-based listing could never actually see the image they were
+    // approving/rejecting.
+    it("surfaces uploaded images to the media-review queue and serves their bytes only while pending (fixes the REQ-038 review-visibility gap)", async () => {
+      const { listing } = await createDraftListing("review-visibility");
+      const uploaded = await uploadImage(listing.listingId, landlordSubject, { room: "living" });
+      expect(uploaded?.imageId).toBeTruthy();
+
+      const pending = await publicationGateway().listPendingMediaReview();
+      const found = pending.find((review) => review.listingId === listing.listingId);
+      expect(found?.uploadedImages).toEqual([
+        { imageId: uploaded!.imageId, mediaType: "image/jpeg", position: 0, room: "living" },
+      ]);
+
+      const reviewContent = await mediaGateway().getReviewImageContent(listing.listingId, uploaded!.imageId);
+      expect(reviewContent?.mediaType).toBe("image/jpeg");
+      expect(reviewContent?.content.equals(jpegBytes(1024))).toBe(true);
+
+      // The public route must still 404 pre-publish: this route is a
+      // narrower, review-only addition, not a second public path.
+      await expect(
+        mediaGateway().getPublicImageContent(listing.listingId, uploaded!.imageId),
+      ).resolves.toBeUndefined();
+
+      const approved = await publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-media-review-visibility-approve",
+        decision: "approved",
+        listingId: listing.listingId,
+        reviewerObjectId: "00000000-0000-4000-8000-000000000974",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      });
+      expect(approved?.mediaReviewStatus).toBe("approved");
+
+      // Once approved (and therefore published, and no longer pending),
+      // the review-only route must stop serving it -- it is not a
+      // permanent second public image-serving path.
+      await expect(
+        mediaGateway().getReviewImageContent(listing.listingId, uploaded!.imageId),
+      ).resolves.toBeUndefined();
+
+      const noLongerPending = await publicationGateway().listPendingMediaReview();
+      expect(noLongerPending.some((review) => review.listingId === listing.listingId)).toBe(false);
     });
   });
 });

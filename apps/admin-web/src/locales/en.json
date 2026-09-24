@@ -56,6 +56,16 @@
     "unit": "Unit",
     "submitted": "Submitted",
     "no_images": "No images were submitted for this listing.",
+    "image_load_failed": "Image could not be loaded.",
+    "room": {
+      "exterior": "Exterior",
+      "living": "Living room",
+      "kitchen": "Kitchen",
+      "bathroom": "Bathroom",
+      "bedroom": "Bedroom",
+      "dining": "Dining room",
+      "other": "Other"
+    },
     "notes_label": "Reviewer notes",
     "notes_hint": "Required when rejecting a listing's media.",
     "approve": "Approve",

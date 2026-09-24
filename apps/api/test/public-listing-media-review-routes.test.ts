@@ -39,6 +39,7 @@ const pendingListing: PendingPublicListingMediaReview = {
   title: "Riverside apartment",
   unitId,
   unitLabel: "Unit A",
+  uploadedImages: [],
 };
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];

@@ -14,6 +14,7 @@ import { developmentPublicProperties } from "./properties/development-data.js";
 import { createMemoryPublicPropertyGateway } from "./properties/gateway.js";
 import { createPostgresInventoryGateway } from "./properties/inventory-gateway.js";
 import { createPostgresRentalInventoryCommandGateway } from "./properties/inventory-command-gateway.js";
+import { createPostgresPublicListingMediaGateway } from "./properties/media-gateway.js";
 import { createPostgresPublicPropertyGateway } from "./properties/postgres-gateway.js";
 import { createPostgresPublicListingPublicationGateway } from "./properties/publication-gateway.js";
 import {
@@ -80,6 +81,9 @@ const rentalInventoryCommands = databaseClient
 const membershipLookup = databaseClient
   ? createPostgresMembershipLookupGateway(databaseClient)
   : undefined;
+const publicListingMedia = databaseClient
+  ? createPostgresPublicListingMediaGateway(databaseClient)
+  : undefined;
 const platformAdminObjectIds = parsePlatformAdminObjectIds(
   process.env.PLATFORM_ADMIN_OBJECT_IDS,
 );
@@ -99,6 +103,7 @@ try {
     ...(landlordOnboarding ? { landlordOnboarding } : {}),
     ...(inventory ? { inventory } : {}),
     ...(membershipLookup ? { membershipLookup } : {}),
+    ...(publicListingMedia ? { publicListingMedia } : {}),
     ...(publicListingPublication ? { publicListingPublication } : {}),
     ...(rentalInventoryCommands ? { rentalInventoryCommands } : {}),
     platformAdminObjectIds,

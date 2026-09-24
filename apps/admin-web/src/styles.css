@@ -316,6 +316,11 @@ button {
 .decision-actions button { min-width: 110px; min-height: 44px; }
 .decision-evidence { padding-top: 18px; border-top: 1px solid #e4ebe7; }
 .decision-evidence p { margin-bottom: 0; line-height: 1.5; color: #526159; }
+.media-review-uploaded-images { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 16px; padding: 0; list-style: none; }
+.media-review-uploaded-images li { display: grid; gap: 6px; width: 140px; }
+.media-review-image { width: 140px; height: 105px; object-fit: cover; border-radius: 6px; border: 1px solid #dce7df; background: #edf5f0; }
+.media-review-image.loading, .media-review-image.error { display: flex; align-items: center; justify-content: center; font-size: 0.78rem; color: #68776f; text-align: center; padding: 8px; }
+.media-review-image-room { font-size: 0.78rem; color: #68776f; text-align: center; }
 .state-message, .denied-state { display: flex; align-items: center; gap: 10px; padding: 18px; border: 1px solid #cfded5; border-radius: 6px; background: #edf5f0; color: #285b47; }
 .state-message.error, .denied-state { border-color: #e2c9c4; background: #fff0ed; color: #842f26; }
 .denied-state { display: block; }

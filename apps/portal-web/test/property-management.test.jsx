@@ -10,10 +10,12 @@ vi.mock('@keyforta/ui', () => ({
 
 const create = vi.hoisted(() => vi.fn());
 const update = vi.hoisted(() => vi.fn());
+const list = vi.hoisted(() => vi.fn());
+const remove = vi.hoisted(() => vi.fn());
 const createApiClientOptions = vi.hoisted(() => []);
 const createApiClientMock = vi.hoisted(() => vi.fn((options) => {
   createApiClientOptions.push(options);
-  return { create, update };
+  return { create, update, list, remove };
 }));
 vi.mock('@keyforta/api-client', () => ({
   createApiClient: createApiClientMock,
@@ -94,6 +96,9 @@ describe('PropertyManagementPanel', () => {
   beforeEach(() => {
     create.mockReset();
     update.mockReset();
+    list.mockReset();
+    remove.mockReset();
+    list.mockResolvedValue({ items: [], meta: { requestId: 'req-images-default' } });
     createApiClientMock.mockClear();
     createApiClientOptions.length = 0;
     i18n.changeLanguage('en');
@@ -378,6 +383,24 @@ describe('PropertyManagementPanel', () => {
     expect((await axe(container)).violations).toEqual([]);
   });
 
+  it('has no critical accessibility violations with a draft listing image manager rendered (REQ-038)', async () => {
+    const draftListing = {
+      id: '44444444-4444-4444-8444-444444444444',
+      imageUrls: [],
+      mediaReviewNotes: null,
+      mediaReviewStatus: 'pending',
+      note: '',
+      status: 'draft',
+      summary: 'A bright two-bedroom unit close to transit.',
+      title: 'Riverside apartment — Unit 2A',
+      unitId: properties[0].units[0].id,
+      version: 1,
+    };
+    const { container } = renderPanel({ listings: [draftListing] });
+    await waitFor(() => expect(list).toHaveBeenCalled());
+    expect((await axe(container)).violations).toEqual([]);
+  });
+
   it('locks the availability command for an occupied unit instead of allowing it to be overridden (issue #116)', async () => {
     const occupiedProperties = [{
       ...properties[0],
@@ -433,7 +456,7 @@ describe('PropertyManagementPanel', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Update availability' })).toBeEnabled());
   });
 
-  describe('public listing creation and draft editing (REQ-037)', () => {
+  describe('public listing creation and draft editing (REQ-037/REQ-038)', () => {
     it('creates a public listing for a unit once the actor signs in', async () => {
       create.mockResolvedValueOnce({
         data: {
@@ -453,8 +476,7 @@ describe('PropertyManagementPanel', () => {
 
       fireEvent.change(screen.getByLabelText('Listing title*'), { target: { value: 'Riverside apartment — Unit 2A' } });
       fireEvent.change(screen.getByLabelText('Listing summary*'), { target: { value: 'A bright two-bedroom unit close to transit.' } });
-      fireEvent.change(screen.getByLabelText('Image URLs*'), { target: { value: 'https://images.test/a.jpg' } });
-      fireEvent.click(screen.getByRole('checkbox', { name: /I confirm that I own each linked image/ }));
+      fireEvent.click(screen.getByRole('checkbox', { name: /I confirm I own or hold the rights/ }));
       fireEvent.click(screen.getByRole('button', { name: 'Create listing' }));
 
       await waitFor(() => expect(create).toHaveBeenCalledWith(
@@ -462,27 +484,14 @@ describe('PropertyManagementPanel', () => {
         expect.objectContaining({
           title: 'Riverside apartment — Unit 2A',
           summary: 'A bright two-bedroom unit close to transit.',
-          imageUrls: ['https://images.test/a.jpg'],
           attestationAccepted: true,
         }),
       ));
+      // REQ-038 decision 1: the imageUrls textarea is removed; creation no
+      // longer sends (or requires) any image URLs.
+      expect(create.mock.calls[0][1].imageUrls).toBeUndefined();
       expect(await screen.findByText('Public listing created successfully.')).toBeInTheDocument();
       expect(onRetryListingsFeed).toHaveBeenCalledTimes(1);
-    });
-
-    it('requires at least one image URL before creating a public listing', async () => {
-      renderPanel();
-
-      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Create public listing' })).toBeEnabled());
-      fireEvent.click(screen.getByRole('button', { name: 'Create public listing' }));
-
-      fireEvent.change(screen.getByLabelText('Listing title*'), { target: { value: 'Riverside apartment — Unit 2A' } });
-      fireEvent.change(screen.getByLabelText('Listing summary*'), { target: { value: 'A bright two-bedroom unit close to transit.' } });
-      fireEvent.click(screen.getByRole('button', { name: 'Create listing' }));
-
-      expect(await screen.findByText('Provide at least one image URL, one per line.')).toBeInTheDocument();
-      expect(create).not.toHaveBeenCalled();
     });
 
     it('requires the image-rights attestation to be checked before creating a public listing (REQ-037/PROP-025)', async () => {
@@ -494,18 +503,16 @@ describe('PropertyManagementPanel', () => {
 
       fireEvent.change(screen.getByLabelText('Listing title*'), { target: { value: 'Riverside apartment — Unit 2A' } });
       fireEvent.change(screen.getByLabelText('Listing summary*'), { target: { value: 'A bright two-bedroom unit close to transit.' } });
-      fireEvent.change(screen.getByLabelText('Image URLs*'), { target: { value: 'https://images.test/a.jpg' } });
       fireEvent.click(screen.getByRole('button', { name: 'Create listing' }));
 
       expect(await screen.findByText('You must confirm the image-rights attestation before creating a listing.')).toBeInTheDocument();
       expect(create).not.toHaveBeenCalled();
     });
 
-
     it('shows a draft listing status with an edit affordance instead of a create form', async () => {
       const draftListing = {
         id: '22222222-2222-4222-8222-222222222222',
-        imageUrls: ['https://images.test/a.jpg'],
+        imageUrls: [],
         mediaReviewNotes: null,
         mediaReviewStatus: 'pending',
         note: '',
@@ -521,12 +528,13 @@ describe('PropertyManagementPanel', () => {
       expect(screen.getByText('Awaiting media review')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Edit draft listing' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Create public listing' })).not.toBeInTheDocument();
+      await waitFor(() => expect(list).toHaveBeenCalledWith(`public-listings/${draftListing.id}/images`));
     });
 
     it('edits a draft listing, sending the expected version for optimistic concurrency', async () => {
       const draftListing = {
         id: '22222222-2222-4222-8222-222222222222',
-        imageUrls: ['https://images.test/a.jpg'],
+        imageUrls: [],
         mediaReviewNotes: null,
         mediaReviewStatus: 'pending',
         note: '',
@@ -556,6 +564,7 @@ describe('PropertyManagementPanel', () => {
         `${draftListing.id}/draft`,
         expect.objectContaining({ title: 'Riverside apartment — Unit 2A (updated)', expectedVersion: 1 }),
       ));
+      expect(update.mock.calls[0][2].imageUrls).toBeUndefined();
       expect(await screen.findByText('Draft listing updated successfully.')).toBeInTheDocument();
       expect(onRetryListingsFeed).toHaveBeenCalledTimes(1);
     });
@@ -579,6 +588,182 @@ describe('PropertyManagementPanel', () => {
       expect(screen.getByText('Media approved')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Edit draft listing' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Create public listing' })).not.toBeInTheDocument();
+      // A published listing cannot receive/remove images (draft-only
+      // invariant, migration 0032), so no image manager is rendered for it.
+      expect(screen.queryByText('Listing photos')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('listing image upload (REQ-038)', () => {
+    const draftListing = {
+      id: '22222222-2222-4222-8222-222222222222',
+      imageUrls: [],
+      mediaReviewNotes: null,
+      mediaReviewStatus: 'pending',
+      note: '',
+      status: 'draft',
+      summary: 'A bright two-bedroom unit close to transit.',
+      title: 'Riverside apartment — Unit 2A',
+      unitId: properties[0].units[0].id,
+      version: 1,
+    };
+
+    function jpegFile(name = 'kitchen.jpg', content = 'abc') {
+      return new File([content], name, { type: 'image/jpeg' });
+    }
+
+    it('uploads an image with a room tag and the accepted attestation', async () => {
+      create.mockResolvedValueOnce({
+        data: { imageId: 'aaaaaaaa-1111-4111-8111-111111111111', listingId: draftListing.id, listingVersion: 2, position: 0 },
+        meta: { requestId: 'req-image-1' },
+      });
+      renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(list).toHaveBeenCalled());
+
+      fireEvent.change(screen.getByLabelText('Room*'), { target: { value: 'kitchen' } });
+      fireEvent.change(screen.getByLabelText('Photo file*'), { target: { files: [jpegFile()] } });
+      fireEvent.click(screen.getByRole('checkbox', { name: /I confirm I own or hold the rights to display this image/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Upload photo' }));
+
+      await waitFor(() => expect(create).toHaveBeenCalledWith(
+        `public-listings/${draftListing.id}/images`,
+        { room: 'kitchen', mediaType: 'image/jpeg', contentBase64: 'YWJj', attestationAccepted: true },
+      ));
+      // After a successful upload the image list is refetched to reflect it.
+      await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+      // The attestation checkbox resets after a successful upload, matching
+      // the existing room/file-input reset convention on this form.
+      expect(screen.getByRole('checkbox', { name: /I confirm I own or hold the rights to display this image/ })).not.toBeChecked();
+    });
+
+    it('rejects submitting an upload with no room selected', async () => {
+      renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(list).toHaveBeenCalled());
+
+      fireEvent.change(screen.getByLabelText('Photo file*'), { target: { files: [jpegFile()] } });
+      fireEvent.click(screen.getByRole('checkbox', { name: /I confirm I own or hold the rights to display this image/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Upload photo' }));
+
+      expect(await screen.findByText('Choose a room before uploading.')).toBeInTheDocument();
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('disables the upload submit button until the image-rights attestation is checked', async () => {
+      renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(list).toHaveBeenCalled());
+
+      expect(screen.getByRole('button', { name: 'Upload photo' })).toBeDisabled();
+
+      fireEvent.change(screen.getByLabelText('Room*'), { target: { value: 'kitchen' } });
+      fireEvent.change(screen.getByLabelText('Photo file*'), { target: { files: [jpegFile()] } });
+      expect(screen.getByRole('button', { name: 'Upload photo' })).toBeDisabled();
+
+      fireEvent.click(screen.getByRole('checkbox', { name: /I confirm I own or hold the rights to display this image/ }));
+      expect(screen.getByRole('button', { name: 'Upload photo' })).not.toBeDisabled();
+
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('rejects submitting an upload without checking the image-rights attestation', async () => {
+      renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(list).toHaveBeenCalled());
+
+      fireEvent.change(screen.getByLabelText('Room*'), { target: { value: 'kitchen' } });
+      fireEvent.change(screen.getByLabelText('Photo file*'), { target: { files: [jpegFile()] } });
+      // The submit button is disabled until attestation is checked, so use
+      // the form's submit event directly to prove the guard also holds if
+      // the disabled state is ever bypassed (e.g. programmatic submit).
+      fireEvent.submit(screen.getByRole('button', { name: 'Upload photo' }).closest('form'));
+
+      expect(await screen.findByText(
+        'You must confirm the image-rights attestation before uploading this photo.',
+      )).toBeInTheDocument();
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an oversized file before calling the API', async () => {
+      renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(list).toHaveBeenCalled());
+
+      const oversized = new File([new Uint8Array(11 * 1024 * 1024)], 'big.jpg', { type: 'image/jpeg' });
+      fireEvent.change(screen.getByLabelText('Room*'), { target: { value: 'kitchen' } });
+      fireEvent.change(screen.getByLabelText('Photo file*'), { target: { files: [oversized] } });
+      fireEvent.click(screen.getByRole('checkbox', { name: /I confirm I own or hold the rights to display this image/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Upload photo' }));
+
+      expect(await screen.findByText('Images must be 10 MB or smaller.')).toBeInTheDocument();
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-JPEG/PNG file before calling the API', async () => {
+      renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(list).toHaveBeenCalled());
+
+      const invalid = new File(['abc'], 'photo.gif', { type: 'image/gif' });
+      fireEvent.change(screen.getByLabelText('Room*'), { target: { value: 'kitchen' } });
+      fireEvent.change(screen.getByLabelText('Photo file*'), { target: { files: [invalid] } });
+      fireEvent.click(screen.getByRole('checkbox', { name: /I confirm I own or hold the rights to display this image/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Upload photo' }));
+
+      expect(await screen.findByText('Only JPEG or PNG images can be uploaded.')).toBeInTheDocument();
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('deletes an uploaded image and refreshes the list', async () => {
+      list.mockReset();
+      list
+        .mockResolvedValueOnce({
+          items: [{ imageId: 'bbbbbbbb-2222-4222-8222-222222222222', room: 'kitchen', mediaType: 'image/jpeg', sizeBytes: 3, position: 0, createdAt: '2026-09-22T00:00:00.000Z' }],
+          meta: { requestId: 'req-image-list-1' },
+        })
+        .mockResolvedValueOnce({ items: [], meta: { requestId: 'req-image-list-2' } });
+      remove.mockResolvedValueOnce({
+        data: { listingId: draftListing.id, listingVersion: 2 },
+        meta: { requestId: 'req-image-delete-1' },
+      });
+      renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      expect(await screen.findByRole('button', { name: 'Delete' })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+      await waitFor(() => expect(remove).toHaveBeenCalledWith(
+        `public-listings/${draftListing.id}/images`,
+        'bbbbbbbb-2222-4222-8222-222222222222',
+      ));
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument());
+      expect(await screen.findByText('No photos uploaded yet.')).toBeInTheDocument();
+    });
+
+    it('disables uploads once the listing has 10 images (REQ-037 cap)', async () => {
+      list.mockReset();
+      const items = Array.from({ length: 10 }, (_, index) => ({
+        imageId: `cccccccc-0000-4000-8000-00000000000${index}`,
+        room: 'other',
+        mediaType: 'image/jpeg',
+        sizeBytes: 3,
+        position: index,
+        createdAt: '2026-09-22T00:00:00.000Z',
+      }));
+      list.mockResolvedValue({ items, meta: { requestId: 'req-image-cap' } });
+      renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Upload photo' })).toBeDisabled());
+      expect(screen.getByText('This listing already has the maximum of 10 photos allowed.')).toBeInTheDocument();
     });
   });
 });

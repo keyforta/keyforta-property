@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getPublicProperty, listPublicProperties } from '../services/public-properties.js';
+import { getPublicListingPhotos, getPublicProperty, listPublicProperties } from '../services/public-properties.js';
 
 function useRequest(load, dependencies) {
   const [state, setState] = useState({ data: null, error: null, loading: true, retryKey: 0 });
@@ -72,4 +72,15 @@ export function usePublicProperties(query = {}) {
 
 export function usePublicProperty(propertyId) {
   return useRequest(() => getPublicProperty(propertyId), [propertyId]);
+}
+
+// PROP-031: the public listing photo gallery (REQ-038), grouped by room tab
+// plus an "All photos" view. `listingId` is the same identifier as
+// `property.id` from usePublicProperty (both resolve to the underlying
+// PublicListing row; see apps/api/src/properties/postgres-gateway.ts). A
+// listing with no uploaded images yet (legacy imageUrls-only listings, or a
+// listing not yet eligible/published) resolves to `null` data so callers can
+// fall back to the legacy single-image display.
+export function usePublicListingPhotos(listingId) {
+  return useRequest(() => (listingId ? getPublicListingPhotos(listingId) : Promise.resolve(null)), [listingId]);
 }

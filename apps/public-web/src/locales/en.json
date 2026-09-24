@@ -373,6 +373,18 @@
     "mock_figures": "Confirm final terms in the rental agreement.",
     "living_room": "living room",
     "kitchen": "kitchen",
+    "gallery_tabs_label": "Listing photo categories",
+    "gallery_all_photos": "All photos",
+    "gallery_empty": "No photos are available for this category yet.",
+    "gallery_room": {
+      "exterior": "Exterior",
+      "living": "Living room",
+      "kitchen": "Kitchen",
+      "bathroom": "Bathroom",
+      "bedroom": "Bedroom",
+      "dining": "Dining room",
+      "other": "Other"
+    },
     "request_viewing": "Request a viewing",
     "viewing_eyebrow": "Property viewing",
     "viewing_title": "View {{title}}.",
