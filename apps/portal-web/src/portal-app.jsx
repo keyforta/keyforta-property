@@ -160,8 +160,14 @@ export function Portal() {
   }, [auth.account, auth.status, membership.memberships, session]);
 
   const roleKey = session && roleKeys.includes(session.role) ? session.role : 'tenant';
-  const showListingPublication = roleKey === 'manager' && (active === 'portfolio' || active === 'overview');
-  const listingPublicationEmptyState = active === 'portfolio'
+  // A landlord who directly owns a property (no delegated manager) is
+  // already auto-assigned as its manager (migration 0031), and
+  // app.set_public_listing_publication authorizes withdraw/publish by that
+  // assignment, not by the 'manager' role string, so landlords need this
+  // panel too (see docs/engineering/REQUIREMENTS_GAPS.md).
+  const showListingPublication = (roleKey === 'manager' && (active === 'portfolio' || active === 'overview'))
+    || (roleKey === 'landlord' && (active === 'properties' || active === 'overview'));
+  const listingPublicationEmptyState = active === 'portfolio' || active === 'properties'
     ? t('listing_publication.empty_state_portfolio')
     : t('listing_publication.empty_state');
   // Landlords are the only actors authorized to create a Property
