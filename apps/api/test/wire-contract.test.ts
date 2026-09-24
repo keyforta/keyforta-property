@@ -35,6 +35,7 @@ describe("OpenAPI runtime wire contract", () => {
         async lookupMemberships() { return []; },
       },
       publicListingMedia: {
+        async canActorUploadImage() { return true; },
         async deleteImage() { return undefined; },
         async getPublicImageContent() {
           return { content: Buffer.from("stub"), mediaType: "image/jpeg" };

@@ -89,6 +89,61 @@ describe("PostgreSQL public listing media gateway", () => {
     expect(queries[0]).toContain("app.resolve_actor");
   });
 
+  it("resolves the actor and checks upload authorization in one transaction", async () => {
+    const queries: Array<{ parameters: readonly unknown[]; text: string }> = [];
+    const session: DatabaseSession = {
+      async query(text, parameters = []) {
+        queries.push({ parameters, text });
+        if (text.includes("resolve_actor")) {
+          return { rows: [{ actor_id: "00000000-0000-4000-8000-000000000940" }] };
+        }
+        if (text.includes("actor_can_upload_public_listing_image")) {
+          return { rows: [{ allowed: true }] };
+        }
+        return { rows: [] };
+      },
+    };
+    let transactions = 0;
+    const client: DatabaseClient = {
+      query: session.query,
+      async transaction(operation) {
+        transactions += 1;
+        return operation(session);
+      },
+    };
+    const gateway = createPostgresPublicListingMediaGateway(client);
+
+    await expect(gateway.canActorUploadImage({
+      listingId: "00000000-0000-4000-8000-000000000930",
+      organizationId: "00000000-0000-4000-8000-000000000900",
+      subject: "synthetic-landlord-a",
+    })).resolves.toBe(true);
+
+    expect(transactions).toBe(1);
+    expect(queries[0]).toMatchObject({ text: expect.stringContaining("app.resolve_actor") });
+    expect(
+      queries.some((q) => q.text.includes("app.actor_can_upload_public_listing_image")),
+    ).toBe(true);
+  });
+
+  it("resolves false, not an authorization error, for an actor with no active organization membership", async () => {
+    const session: DatabaseSession = {
+      async query() {
+        return { rows: [] };
+      },
+    };
+    const gateway = createPostgresPublicListingMediaGateway({
+      query: session.query,
+      transaction: (operation) => operation(session),
+    });
+
+    await expect(gateway.canActorUploadImage({
+      listingId: "00000000-0000-4000-8000-000000000930",
+      organizationId: "00000000-0000-4000-8000-000000000901",
+      subject: "synthetic-outsider",
+    })).resolves.toBe(false);
+  });
+
   it("resolves the actor and deletes an image in one transaction", async () => {
     const queries: Array<{ parameters: readonly unknown[]; text: string }> = [];
     const session: DatabaseSession = {

@@ -246,6 +246,42 @@ begin
 end
 $$;
 
+-- Cheap existence+authorization precheck the runtime API calls before
+-- decoding base64 content or invoking the malware scanner (Copilot review
+-- finding on PR #131: without this, an authenticated actor who is not an
+-- active listing-manager for the listing could repeatedly trigger the
+-- expensive decode+scan path before being rejected, a resource-exhaustion
+-- risk). Mirrors the same existence/authorization checks as the top of
+-- app.upload_public_listing_image, but performs no writes; the full upload
+-- function still re-checks authorization itself as defense in depth.
+create function app.actor_can_upload_public_listing_image(
+  requested_listing_id uuid
+) returns boolean
+language plpgsql
+security definer
+set search_path = pg_catalog, app
+as $$
+declare
+  organization uuid := app.current_organization_id();
+  actor uuid := nullif(current_setting('app.actor_id', true), '')::uuid;
+  listing app.public_listings%rowtype;
+begin
+  if organization is null or actor is null then
+    raise exception 'trusted request context is required';
+  end if;
+
+  select * into listing
+  from app.public_listings
+  where organization_id = organization and id = requested_listing_id;
+
+  if not found then
+    return false;
+  end if;
+
+  return app.actor_can_manage_property(organization, listing.property_id, actor);
+end
+$$;
+
 -- Deletes one uploaded image from a draft PublicListing. Same
 -- authorization/draft-only/review-reset rules as upload above (PROP-030:
 -- deleting and re-uploading with a new room tag is the supported path for
@@ -870,6 +906,7 @@ grant execute on function app.count_public_listing_images(uuid, uuid) to keyfort
 revoke all on function app.validate_public_listing_image_upload(text, text, integer) from public;
 revoke all on function app.count_public_listing_images(uuid, uuid) from public;
 revoke all on function app.upload_public_listing_image(uuid, text, text, integer, bytea, text, text, text) from public;
+revoke all on function app.actor_can_upload_public_listing_image(uuid) from public;
 revoke all on function app.delete_public_listing_image(uuid, uuid, text, text) from public;
 revoke all on function app.list_public_listing_images_for_actor(uuid) from public;
 revoke all on function app.list_public_listing_images_by_room(uuid) from public;
@@ -878,6 +915,7 @@ revoke all on function app.get_public_listing_image_content(uuid, uuid) from pub
 grant execute on function app.validate_public_listing_image_upload(text, text, integer) to keyforta_runtime;
 grant execute on function app.count_public_listing_images(uuid, uuid) to keyforta_runtime;
 grant execute on function app.upload_public_listing_image(uuid, text, text, integer, bytea, text, text, text) to keyforta_runtime;
+grant execute on function app.actor_can_upload_public_listing_image(uuid) to keyforta_runtime;
 grant execute on function app.delete_public_listing_image(uuid, uuid, text, text) to keyforta_runtime;
 grant execute on function app.list_public_listing_images_for_actor(uuid) to keyforta_runtime;
 grant execute on function app.list_public_listing_images_by_room(uuid) to keyforta_runtime;

@@ -19,7 +19,8 @@ function apiBaseUrl() {
   }
 }
 
-export async function proxyPublicApi(request, path, init = {}) {
+export async function proxyPublicApi(request, path, init = {}, options = {}) {
+  const maxResponseBytes = options.maxResponseBytes ?? maximumResponseBytes;
   const baseUrl = apiBaseUrl();
   if (!baseUrl) {
     return NextResponse.json(
@@ -50,14 +51,14 @@ export async function proxyPublicApi(request, path, init = {}) {
     );
   }
   const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > maximumResponseBytes) {
+  if (Number.isFinite(declaredLength) && declaredLength > maxResponseBytes) {
     return NextResponse.json(
       { error: { code: 'BAD_GATEWAY', message: 'The property service returned an invalid response.' } },
       { status: 502 },
     );
   }
   const body = await response.arrayBuffer();
-  if (body.byteLength > maximumResponseBytes) {
+  if (body.byteLength > maxResponseBytes) {
     return NextResponse.json(
       { error: { code: 'BAD_GATEWAY', message: 'The property service returned an invalid response.' } },
       { status: 502 },
@@ -67,7 +68,7 @@ export async function proxyPublicApi(request, path, init = {}) {
   return new NextResponse(body, {
     status: response.status,
     headers: {
-      'content-type': response.headers.get('content-type') || 'application/json; charset=utf-8',
+      'content-type': response.headers.get('content-type') || options.defaultContentType || 'application/json; charset=utf-8',
       'x-request-id': response.headers.get('x-request-id') || '',
     },
   });

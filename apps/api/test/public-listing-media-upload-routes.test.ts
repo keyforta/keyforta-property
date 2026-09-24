@@ -40,6 +40,7 @@ function dependencies(
     scanner?: MediaScanner;
     rejectUpload?: boolean;
     rejectDelete?: boolean;
+    rejectAuthorization?: boolean;
     images?: readonly PublicListingImageSummary[];
     photosByRoom?: readonly PublicListingImageByRoom[];
     imageContent?: PublicListingImageContent;
@@ -49,6 +50,9 @@ function dependencies(
   const uploadCommands: UploadPublicListingImageCommand[] = [];
   const deleteCommands: DeletePublicListingImageCommand[] = [];
   const publicListingMedia: PublicListingMediaGateway = {
+    async canActorUploadImage() {
+      return !options.rejectAuthorization;
+    },
     async deleteImage(command) {
       deleteCommands.push(command);
       if (options.rejectDelete) return undefined;
@@ -302,6 +306,40 @@ describe("PublicListing image upload/list/delete routes (REQ-038)", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(scanCalls).toEqual([]);
+    expect(configured.uploadCommands).toEqual([]);
+  });
+
+  // Copilot review finding on PR #131: authorization must be checked before
+  // the expensive base64-decode/malware-scan path, not only inside the
+  // upload gateway call afterward, so an authenticated-but-unauthorized
+  // actor cannot repeatedly burn scanner resources before being rejected.
+  it("rejects an upload from an actor who cannot manage the listing without invoking the scanner or the upload gateway call", async () => {
+    const scanCalls: unknown[] = [];
+    const scanner: MediaScanner = {
+      async scanUpload() {
+        scanCalls.push(true);
+        return { clean: true };
+      },
+    };
+    const configured = dependencies({ rejectAuthorization: true, scanner });
+    const app = await buildApp(configured);
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: LANDLORD_AUTH, "x-organization-id": organizationId },
+      method: "POST",
+      payload: {
+        attestationAccepted: true,
+        contentBase64: tinyJpegBase64,
+        mediaType: "image/jpeg",
+        room: "kitchen",
+      },
+      url: `/api/v1/public-listings/${listingId}/images`,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error.code).toBe("NOT_FOUND");
     expect(scanCalls).toEqual([]);
     expect(configured.uploadCommands).toEqual([]);
   });

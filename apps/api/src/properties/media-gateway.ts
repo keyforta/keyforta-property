@@ -1,5 +1,6 @@
 import type { DatabaseClient } from "../database.js";
 import {
+  RentalInventoryAuthorizationError,
   resolveActor,
   translateWriteError,
 } from "./inventory-command-gateway.js";
@@ -76,7 +77,16 @@ export interface PublicListingImageContent {
   mediaType: string;
 }
 
+export interface CanActorUploadPublicListingImageCommand {
+  listingId: string;
+  organizationId: string;
+  subject: string;
+}
+
 export interface PublicListingMediaGateway {
+  canActorUploadImage(
+    command: CanActorUploadPublicListingImageCommand,
+  ): Promise<boolean>;
   deleteImage(
     command: DeletePublicListingImageCommand,
   ): Promise<DeletePublicListingImageResult | undefined>;
@@ -103,6 +113,26 @@ export function createPostgresPublicListingMediaGateway(
   client: DatabaseClient,
 ): PublicListingMediaGateway {
   return {
+    // Cheap existence+authorization precheck the runtime API calls before
+    // decoding base64 content or invoking the malware scanner, so an
+    // authenticated-but-unauthorized actor cannot repeatedly burn scan
+    // resources before being rejected (Copilot review finding on PR #131).
+    async canActorUploadImage(command) {
+      try {
+        return await client.transaction(async (session) => {
+          await resolveActor(session, command.subject, command.organizationId);
+          const result = await session.query(
+            `select app.actor_can_upload_public_listing_image($1) as allowed`,
+            [command.listingId],
+          );
+          const row = result.rows[0] as { allowed?: boolean } | undefined;
+          return row?.allowed === true;
+        });
+      } catch (error) {
+        if (error instanceof RentalInventoryAuthorizationError) return false;
+        throw error;
+      }
+    },
     async uploadImage(command) {
       return client.transaction(async (session) => {
         await resolveActor(session, command.subject, command.organizationId);

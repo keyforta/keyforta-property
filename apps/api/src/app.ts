@@ -1080,6 +1080,21 @@ export async function buildApp(
           "The image content is not valid base64.",
         ));
       }
+      // Authorization precheck before the expensive decode/scan below
+      // (Copilot review finding on PR #131: without this, an
+      // authenticated-but-unauthorized actor could repeatedly trigger the
+      // malware scan just to be rejected afterward by the upload function).
+      const canUpload = await dependencies.publicListingMedia.canActorUploadImage({
+        listingId: parsedListingId.data,
+        organizationId: context.organizationId,
+        subject: context.principal.subject,
+      });
+      if (!canUpload) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
       const content = Buffer.from(parsedInput.data.contentBase64, "base64");
       if (content.length < 1 || content.length > 10_485_760) {
         return reply.status(400).send(problem(
