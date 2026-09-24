@@ -75,9 +75,9 @@ export function usePublicProperty(propertyId) {
 }
 
 // PROP-031: the public listing photo gallery (REQ-038), grouped by room tab
-// plus an "All photos" view. `listingId` is the same identifier as
-// `property.id` from usePublicProperty (both resolve to the underlying
-// PublicListing row; see apps/api/src/properties/postgres-gateway.ts). A
+// plus an "All photos" view. `listingId` is the PublicListing's own UUID
+// (distinct from `property.id`, the public-facing slug used by
+// usePublicProperty; see apps/api/src/properties/postgres-gateway.ts). A
 // listing with no uploaded images yet (legacy imageUrls-only listings, or a
 // listing not yet eligible/published) resolves to `null` data so callers can
 // fall back to the legacy single-image display.
