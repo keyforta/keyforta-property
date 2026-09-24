@@ -21,7 +21,14 @@ import { useRentalProperties } from './hooks/use-rental-properties.js';
 // on (see docs/engineering/REQUIREMENTS_GAPS.md, "Redesigned per-role
 // UI/UX with KEYFORTA branding"). This is the only mount point touched in
 // this existing file — everything else lives under ./redesign/landlord/.
-import { isLandlordRedesignEnabled } from './redesign/landlord/flags.js';
+//
+// Copilot PR #134 review, cycle-4 finding #1 (comment 4099022183): the
+// flag predicate itself is deliberately NOT imported from
+// ./redesign/landlord/ (it lives in the non-redesign ./feature-flags.js
+// module instead), so this file's only module-graph edge into the
+// redesign directory is the lazy() dynamic import directly below — the
+// redesign directory stays entirely behind that lazy import boundary.
+import { isLandlordRedesignEnabled } from './feature-flags.js';
 
 const LandlordRedesign = lazy(() => import('./redesign/landlord/index.jsx'));
 

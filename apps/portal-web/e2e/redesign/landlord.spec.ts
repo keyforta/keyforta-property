@@ -131,7 +131,15 @@ test.describe('Landlord redesign (flag-gated)', () => {
   // a toggle — it must have no `aria-pressed`, and clicking it must
   // actually open the existing (protected) "Manage this unit" control
   // rather than only scrolling the page.
-  test('flag on: the pricing/availability checklist row has no aria-pressed and clicking it opens the existing Manage this unit control', async ({ page }) => {
+  //
+  // Copilot PR #134 review, comment 4099299613: this test was previously
+  // titled as verifying that clicking the pricing row opens the existing
+  // Manage-this-unit control, but only checked the absence of
+  // `aria-pressed` and never clicked the row or asserted the form opened
+  // — a regression in the browser wiring could pass it. Renamed to match
+  // exactly what it verifies; the actual open-behavior assertion now
+  // lives in the dedicated test below.
+  test('flag on: the pricing/availability checklist row has no aria-pressed attribute on any checklist button', async ({ page }) => {
     await page.goto(FLAG_ON_URL + LANDLORD_QUERY);
     const checklist = page.getByTestId('next-best-action-checklist');
     await expect(checklist).toBeVisible();
@@ -140,6 +148,54 @@ test.describe('Landlord redesign (flag-gated)', () => {
     for (let i = 0; i < count; i += 1) {
       await expect(rows.nth(i)).not.toHaveAttribute('aria-pressed', /.+/);
     }
+  });
+
+  // Copilot PR #134 review, cycle-4 finding #2/#4 (comments 4099022268,
+  // 4099299613): a real, end-to-end behavioral assertion — click the
+  // "Set pricing & availability" checklist row and assert the existing
+  // (protected) "Manage this unit" control genuinely opens, rather than
+  // only checking an absent attribute. This uses the dev-only
+  // checklist-open preview fixture (never part of the production entry
+  // point/build — see src/landlord-redesign-checklist-preview.html and
+  // src/redesign/landlord/__fixtures__/checklistOpenFixture.js), which
+  // supplies exactly one property/unit (the §10.2 "exactly one" condition)
+  // and a non-demo, token-ready session, so
+  // `property-management-panel.jsx`'s own (protected, unmodified)
+  // token-resolution effect reaches `tokenStatus === 'ready'` and its real
+  // "Manage this unit" toggle is genuinely enabled/clickable — a demo
+  // session (as used by the rest of this file's `?role=landlord` tests)
+  // can never reach that state, so this exercise is not possible against
+  // those routes. The fixture's token resolution is deliberately delayed
+  // (see checklistOpenFixture.js), so this test clicks the checklist row
+  // immediately (the toggle is still `disabled` at click time) and then
+  // waits for the control to open — genuinely exercising
+  // `openSoleUnitManagementControl`'s enable-then-click scheduling, not
+  // just its already-enabled fast path.
+  test('flag on: clicking the pricing/availability checklist row genuinely opens the existing Manage this unit control', async ({ page }) => {
+    await page.goto(`${FLAG_ON_URL}/landlord-redesign-checklist-preview.html`);
+    const checklist = page.getByTestId('next-best-action-checklist');
+    await expect(checklist).toBeVisible();
+
+    const manageUnitForm = page.getByRole('heading', { name: 'Pricing & availability' });
+    await expect(manageUnitForm).not.toBeVisible();
+
+    // Clicked while the real toggle button is still disabled (the
+    // fixture's silent token acquisition has not resolved yet) —
+    // deliberately not waiting for it to become enabled first.
+    const toggleButton = page.getByRole('button', { name: 'Set pricing & availability' }).last();
+    await expect(toggleButton).toBeDisabled();
+
+    const checklistRow = checklist.getByRole('button', { name: /Set pricing & availability/ });
+    await expect(checklistRow).toBeVisible();
+    await checklistRow.click();
+
+    // Playwright's `expect(...).toBeVisible()` polls/retries, so this
+    // genuinely waits for the control to open once the fixture's delayed
+    // token resolves and `openSoleUnitManagementControl`'s scheduled click
+    // fires — it does not just check an already-open control.
+    await expect(manageUnitForm).toBeVisible();
+    await expect(page.getByRole('form', { name: 'Pricing' })).toBeVisible();
+    await expect(page.getByRole('form', { name: 'Availability' })).toBeVisible();
   });
 
   // renders as a separate DOM copy inside ListingPublicationPanel, a

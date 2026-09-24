@@ -50,3 +50,46 @@ describe('landlord-redesign translation copy stays inside the lazy chunk boundar
     expect(i18n.t('landlord_redesign.checklist.title_before_published')).toBe('Get your first listing live');
   });
 });
+
+// Copilot PR #134 review, cycle-4 finding #1 (comment 4099022183): "this
+// static import pulls `src/redesign/landlord/flags.js` into and evaluates
+// it as part of the main portal bundle on every flag-off load [...] Move
+// the flag predicate to a non-redesign feature-flags module or inline it
+// in `portal-app.jsx` so the redesign directory remains entirely behind
+// the lazy import." The i18n-namespace fix above did not address this: the
+// flag predicate itself still lived at
+// `src/redesign/landlord/flags.js` and was reached via a top-level, static
+// `import { isLandlordRedesignEnabled } from './redesign/landlord/flags.js'`
+// in `portal-app.jsx` — a real ES module graph edge from the always-loaded
+// entry file into the redesign directory, independent of whatever a given
+// bundler's minifier/tree-shaker happens to fold away in one particular
+// build. This test asserts that edge does not exist at the source level,
+// so the guarantee holds regardless of build tooling/config.
+describe('portal-app.jsx has no static (eager) import into the redesign directory', () => {
+  const portalAppSource = fs.readFileSync(path.resolve(__dirname, '../../src/portal-app.jsx'), 'utf8');
+
+  // Matches only genuine static `import ... from '...'` declarations (which
+  // are hoisted and evaluated eagerly by the module system), not the
+  // `import('./redesign/landlord/index.jsx')` dynamic-import call used by
+  // `lazy(...)`, which is intentionally the sole entry point into the
+  // redesign directory.
+  const staticImportSpecifiers = [...portalAppSource.matchAll(/^import\s[^;]*?\sfrom\s+['"]([^'"]+)['"]/gm)]
+    .map((match) => match[1]);
+
+  it('collects at least one static import specifier (sanity check the regex above still matches this file)', () => {
+    expect(staticImportSpecifiers.length).toBeGreaterThan(0);
+  });
+
+  it('has no static import specifier that resolves into ./redesign/landlord', () => {
+    const redesignStaticImports = staticImportSpecifiers.filter((specifier) => specifier.includes('redesign/landlord'));
+    expect(redesignStaticImports).toEqual([]);
+  });
+
+  it('still reaches the redesign directory exactly once, via the lazy() dynamic import', () => {
+    expect(portalAppSource).toMatch(/lazy\(\(\)\s*=>\s*import\(['"]\.\/redesign\/landlord\/index\.jsx['"]\)\)/);
+  });
+
+  it('does not import src/redesign/landlord/flags.js from anywhere outside the redesign directory', () => {
+    expect(fs.existsSync(path.resolve(__dirname, '../../src/redesign/landlord/flags.js'))).toBe(false);
+  });
+});

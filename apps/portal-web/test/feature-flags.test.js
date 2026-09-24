@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isLandlordRedesignEnabled } from '../../src/redesign/landlord/flags.js';
+import { isLandlordRedesignEnabled } from '../src/feature-flags.js';
 
 // GitHub Copilot PR #134 review, finding #1: the redesign flag must be
 // unreachable in a production build/mode by construction, even if

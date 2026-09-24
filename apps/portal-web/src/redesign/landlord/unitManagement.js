@@ -28,7 +28,54 @@ export function openSoleUnitManagementControl(container, properties, manageUnitT
     (button) => button.textContent.trim() === manageUnitToggleLabel,
   );
   if (toggleButtons.length !== 1) return false;
+  const [toggleButton] = toggleButtons;
 
-  toggleButtons[0].click();
+  if (!toggleButton.disabled) {
+    toggleButton.click();
+    return true;
+  }
+
+  // Copilot PR #134 review, cycle-4 finding #2 (comment 4099022268, still
+  // open after the cycle-3 fix): the real "Manage this unit" toggle
+  // (`property-management-panel.jsx`'s `UnitPricingAvailabilityForm`,
+  // protected/unmodified) renders `disabled` until that panel's own
+  // token-resolution effect reaches `tokenStatus === 'ready'` (see its
+  // `disableActions` derivation) — and per the HTML spec, a disabled
+  // native <button>'s activation behavior (including its `click` event)
+  // is never invoked, even for a programmatic `.click()` call. The
+  // cycle-3 fix always called `.click()` synchronously, so for the very
+  // common case of a real (non-demo) session whose silent token
+  // acquisition is still in flight at the moment the checklist row is
+  // clicked, that call was a silent no-op — the user still landed on a
+  // collapsed, unopened control, exactly what this finding says must not
+  // happen. Rather than bypass that panel's own authorization gating
+  // (which would duplicate/override its domain logic — an explicit
+  // constraint on this task), this now observes the SAME button for its
+  // `disabled` attribute being removed and clicks it the moment that
+  // panel's own logic re-enables it, bounded by a timeout so a session
+  // that can never reach 'ready' (e.g. a demo session) does not leave a
+  // dangling observer running forever.
+  return scheduleClickWhenEnabled(toggleButton);
+}
+
+const ENABLE_WAIT_TIMEOUT_MS = 5000;
+
+function scheduleClickWhenEnabled(button, timeoutMs = ENABLE_WAIT_TIMEOUT_MS) {
+  let settled = false;
+  const observer = new MutationObserver(() => {
+    if (settled || button.disabled) return;
+    settle();
+    button.click();
+  });
+  observer.observe(button, { attributes: true, attributeFilter: ['disabled'] });
+  const timeoutId = setTimeout(settle, timeoutMs);
+
+  function settle() {
+    if (settled) return;
+    settled = true;
+    observer.disconnect();
+    clearTimeout(timeoutId);
+  }
+
   return true;
 }

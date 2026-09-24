@@ -20,6 +20,19 @@
 // `vite build --mode preview` + `vite preview` flow used for reviewing
 // this work before it reaches production, matching the acceptance
 // criterion that the route be reachable only in development/preview.
+//
+// Copilot PR #134 review, cycle-4 finding #1 (comment 4099022183): this
+// module deliberately does NOT live under `src/redesign/landlord/`. It is
+// imported statically (eagerly) by `portal-app.jsx` — every session must
+// be able to cheaply evaluate the flag predicate to decide whether to even
+// attempt the `lazy(() => import('./redesign/landlord/index.jsx'))` call.
+// Keeping the predicate itself outside the redesign directory means that
+// static, eager import never creates a module-graph edge into the redesign
+// directory, so the ONLY way to reach `src/redesign/landlord/**` from the
+// always-loaded entry file is the single dynamic `import()` used by
+// `lazy(...)` — the redesign directory therefore stays entirely behind the
+// lazy import boundary, regardless of what a given bundler's tree-shaker
+// happens to fold away in any one build.
 export function isLandlordRedesignEnabled() {
   const allowedMode = import.meta.env.DEV === true || import.meta.env.MODE === 'preview';
   return allowedMode && import.meta.env.VITE_REDESIGN_ENABLED === 'true';
