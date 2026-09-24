@@ -71,7 +71,8 @@
     "quick_actions": "Actions rapides",
     "keep_things_moving": "Faites avancer les choses.",
     "api_boundary": "Limite de l'API",
-    "api_boundary_body": "Chaque action correspond \u00e0 une commande ou une ressource du contrat partag\u00e9. Le serveur reste souverain."
+    "api_boundary_body": "Chaque action correspond \u00e0 une commande ou une ressource du contrat partag\u00e9. Le serveur reste souverain.",
+    "loading_landlord_redesign": "Chargement de votre espace de travail\u2026"
   },
   "listing_publication": {
     "kicker": "Publication d'annonce",

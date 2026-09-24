@@ -71,7 +71,8 @@
     "quick_actions": "Quick actions",
     "keep_things_moving": "Keep things moving.",
     "api_boundary": "API boundary",
-    "api_boundary_body": "Every action maps to a command or resource in the shared contract. The server remains authoritative."
+    "api_boundary_body": "Every action maps to a command or resource in the shared contract. The server remains authoritative.",
+    "loading_landlord_redesign": "Loading your workspace\u2026"
   },
   "listing_publication": {
     "kicker": "Listing publication",
