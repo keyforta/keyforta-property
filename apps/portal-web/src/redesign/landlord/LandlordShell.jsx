@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Avatar, Button } from '@fluentui/react-components';
 import { useTranslation } from 'react-i18next';
 import { ListingPublicationPanel } from '../../listing-publication-panel.jsx';
@@ -74,32 +74,39 @@ export function LandlordShell({
   const { t } = useTranslation();
   const activeIndex = navKeys.indexOf(active);
   const activeLabel = activeIndex >= 0 ? role.nav[activeIndex] : role.nav[0];
+  const rootRef = useRef(null);
 
-  // Copilot PR #134 review finding #2: annotate the reused (protected,
-  // unchanged) `.status` badges with a tone attribute derived purely from
-  // their already-rendered text, since that markup carries no
-  // status-specific class/attribute of its own. A MutationObserver (not a
-  // one-shot effect keyed on props) is used because the badge's own
-  // re-render can be triggered by the reused panel's internal state
-  // (e.g. after a successful set-availability/publish action inside
-  // PropertyManagementPanel/ListingPublicationPanel) rather than only by
+  // Copilot PR #134 review finding #2 (and remediation cycle 2, finding
+  // #1): annotate the reused (protected, unchanged) `.status` badges with
+  // a tone attribute derived purely from their already-rendered text,
+  // since that markup carries no status-specific class/attribute of its
+  // own. The SAME withdrawn listing renders as two separate DOM copies —
+  // once inside `ListingPublicationPanel` (a sibling of the
+  // property-management anchor, not a descendant of it) and once inside
+  // `PropertyManagementPanel`'s read-only `PublicListingForm` — so the
+  // observer must cover the whole shell root this component owns, not
+  // just the property-management anchor, or the ListingPublicationPanel
+  // copy silently keeps the reused green styling. A MutationObserver (not
+  // a one-shot effect keyed on props) is used because either reused
+  // panel's own internal state (e.g. after a successful set-availability/
+  // publish/withdraw action) can re-render these badges independently of
   // this shell's own `rentalProperties`/`managerListings` props changing.
   useEffect(() => {
-    if (!showPropertyManagement) return undefined;
-    const container = document.getElementById(PROPERTY_MANAGEMENT_ANCHOR_ID);
+    const container = rootRef.current;
     if (!container) return undefined;
     const negativeTexts = new Set([
       t('property_management.unit_availability_status.unavailable'),
       t('property_management.listing_status.withdrawn'),
+      t('listing_publication.status.withdrawn.badge'),
     ]);
     annotateStatusTone(container, negativeTexts);
     const observer = new MutationObserver(() => annotateStatusTone(container, negativeTexts));
     observer.observe(container, { characterData: true, childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [t, showPropertyManagement, managerListings, rentalProperties]);
+  }, [t, showListingPublication, showPropertyManagement, managerListings, rentalProperties]);
 
   return (
-    <div className='kf-landlord-redesign app-shell'>
+    <div className='kf-landlord-redesign app-shell' ref={rootRef}>
       <aside className='sidebar kf-sidebar'>
         <LandlordBrandHeader tone='reversed' />
         <div className='workspace-label kf-kicker-on-dark'>{role.eyebrow}</div>

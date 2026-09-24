@@ -107,4 +107,24 @@ test.describe('Landlord redesign (flag-gated)', () => {
     expect(listingColor).not.toBe(unitColor);
     await expect(listingStatus).toHaveAttribute('data-kf-tone', 'negative');
   });
+
+  // Remediation cycle 2, finding #1: the same withdrawn listing also
+  // renders as a separate DOM copy inside ListingPublicationPanel, a
+  // sibling of the property-management anchor rather than a descendant
+  // of it. That copy must get the same non-green treatment, not just the
+  // one nested inside PropertyManagementPanel's read-only view.
+  test('flag on: the withdrawn listing\'s badge inside the separate Listing Publication panel is also tinted negative, not left green', async ({ page }) => {
+    await page.goto(`${FLAG_ON_URL}/landlord-redesign-preview.html`);
+    const unitStatus = page.locator('.unit-row > .status');
+    const publicationPanelStatus = page.locator('.listing-row .status');
+    await expect(unitStatus).toHaveText('Available');
+    await expect(publicationPanelStatus).toHaveText('Withdrawn');
+
+    const [unitColor, publicationPanelColor] = await Promise.all([
+      unitStatus.evaluate((el) => window.getComputedStyle(el).color),
+      publicationPanelStatus.evaluate((el) => window.getComputedStyle(el).color),
+    ]);
+    expect(publicationPanelColor).not.toBe(unitColor);
+    await expect(publicationPanelStatus).toHaveAttribute('data-kf-tone', 'negative');
+  });
 });

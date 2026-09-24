@@ -106,4 +106,18 @@ describe('unit-status vs listing-status caption distinction (PO regression fix)'
     expect(listingStatus.textContent).toBe('Withdrawn');
     expect(listingStatus.getAttribute('data-kf-tone')).toBe('negative');
   });
+
+  // Copilot PR #134 review, remediation cycle 2, finding #1: the same
+  // withdrawn listing is ALSO rendered (as its own, separate DOM copy) by
+  // `ListingPublicationPanel`, a sibling of the property-management
+  // anchor rather than a descendant of it — the annotation must cover
+  // that copy too, not just the one nested inside
+  // PropertyManagementPanel's read-only PublicListingForm.
+  it('also annotates the withdrawn listing\'s badge as rendered by the separate, sibling ListingPublicationPanel', () => {
+    const { container } = renderShell();
+    const publicationPanelStatus = container.querySelector('.listing-row .status');
+    expect(publicationPanelStatus).toBeTruthy();
+    expect(publicationPanelStatus.textContent).toBe('Withdrawn');
+    expect(publicationPanelStatus.getAttribute('data-kf-tone')).toBe('negative');
+  });
 });
