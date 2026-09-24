@@ -14,6 +14,7 @@ function runtimeUrl(path: string) {
   return `${apiBasePath}${path}`
     .replace("{propertyId}", "property_alpha_01")
     .replace("{listingId}", "00000000-0000-4000-8000-000000000930")
+    .replace("{imageId}", "00000000-0000-4000-8000-000000000980")
     .replace("{applicationId}", "00000000-0000-4000-8000-000000000801");
 }
 
@@ -32,6 +33,27 @@ describe("OpenAPI runtime wire contract", () => {
       },
       membershipLookup: {
         async lookupMemberships() { return []; },
+      },
+      publicListingMedia: {
+        async canActorUploadImage() { return true; },
+        async deleteImage() { return undefined; },
+        async getPublicImageContent() {
+          return { content: Buffer.from("stub"), mediaType: "image/jpeg" };
+        },
+        async getReviewImageContent() {
+          return { content: Buffer.from("stub"), mediaType: "image/jpeg" };
+        },
+        async listImages() { return []; },
+        async listPublicImagesByRoom() {
+          return [
+            {
+              imageId: "00000000-0000-4000-8000-000000000980",
+              position: 0,
+              room: "kitchen",
+            },
+          ];
+        },
+        async uploadImage() { return undefined; },
       },
       publicListingPublication: {
         async listForActor() { return []; },

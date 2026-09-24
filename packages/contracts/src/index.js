@@ -67,8 +67,14 @@ export const runtimeHttpOperations = Object.freeze({
 	decideLandlordOnboardingApplication: { method: 'POST', path: '/landlord-onboarding-applications/{applicationId}/decision', authentication: 'required' },
 	createPublicListing: { method: 'POST', path: '/units/{unitId}/public-listing', authentication: 'required' },
 	updatePublicListingDraft: { method: 'PATCH', path: '/public-listings/{listingId}/draft', authentication: 'required' },
+	uploadPublicListingImage: { method: 'POST', path: '/public-listings/{listingId}/images', authentication: 'required' },
+	listPublicListingImages: { method: 'GET', path: '/public-listings/{listingId}/images', authentication: 'required' },
+	deletePublicListingImage: { method: 'DELETE', path: '/public-listings/{listingId}/images/{imageId}', authentication: 'required' },
+	listPublicListingPhotos: { method: 'GET', path: '/public-listings/{listingId}/photos', authentication: 'anonymous' },
+	getPublicListingImageContent: { method: 'GET', path: '/public-listings/{listingId}/images/{imageId}/content', authentication: 'anonymous' },
 	listPendingPublicListingMediaReview: { method: 'GET', path: '/admin/public-listings/pending-review', authentication: 'required' },
 	reviewPublicListingMedia: { method: 'POST', path: '/admin/public-listings/{listingId}/media-review', authentication: 'required' },
+	getPublicListingImageContentForReview: { method: 'GET', path: '/admin/public-listings/{listingId}/images/{imageId}/content', authentication: 'required' },
 	requestViewing: { method: 'POST', path: '/viewing-requests', authentication: 'anonymous' },
 });
 
@@ -79,6 +85,7 @@ export const publicListingIdSchema = z.uuid();
 export const landlordOnboardingApplicationIdSchema = z.uuid();
 export const propertyIdSchema = z.uuid();
 export const unitIdSchema = z.uuid();
+export const publicListingImageIdSchema = z.uuid();
 
 export const propertyTypes = Object.freeze([
 	'apartment_building',
@@ -455,7 +462,18 @@ export const publicPropertyProjectionSchema = z.object({
 	district: z.string(),
 	id: z.union([publicPropertyIdSchema, z.uuid()]),
 	imageUrl: z.string().optional(),
-	imageUrls: z.array(z.string()).min(1),
+	// REQ-038 decision 1: a listing may publish with zero legacy URLs and
+	// have its images served entirely through the uploaded-image gallery
+	// (ListingPhotoGallery/list_public_listing_images_by_room), so this can
+	// no longer require at least one URL without breaking every
+	// upload-only published listing's public projection.
+	imageUrls: z.array(z.string()),
+	// The PublicListing's own uuid (distinct from `id`, the public-facing
+	// slug above), required by the client to call
+	// GET /public-listings/{listingId}/photos, which validates its
+	// path parameter as a uuid. Only present on single-listing detail
+	// lookups (app.get_public_listing); browse/list results omit it.
+	listingId: z.uuid().optional(),
 	monthlyRentMinor: z.string().regex(/^[1-9]\d*$/),
 	name: z.string(),
 	summary: z.string(),
@@ -471,7 +489,8 @@ const publicListingProjectionSnapshotSchema = z.object({
 	currency: z.enum(supportedCurrencies),
 	district: boundedTextSchema(160),
 	id: publicPropertyIdSchema,
-	imageUrls: z.array(z.url().max(2048)).min(1).max(50),
+	// Same relaxation as publicPropertyProjectionSchema.imageUrls above.
+	imageUrls: z.array(z.url().max(2048)).max(50),
 	monthlyRentMinor: z.string().regex(/^[1-9]\d{0,18}$/).refine(
 		(value) => BigInt(value) <= 9223372036854775807n,
 		'Value exceeds the positive signed 64-bit range',
@@ -622,10 +641,19 @@ export const publicListingListEnvelopeSchema = z.object({
 	meta: metaSchema,
 }).strict();
 
+// REQ-038 (decision 1) replaces URL entry with upload as the API's input
+// path for new/edited listings, so `imageUrls` is now optional and defaults
+// to an empty array: a listing may be created with zero URLs and have its
+// images supplied entirely through app.upload_public_listing_image (the
+// `/public-listings/{listingId}/images` route below) afterward. The legacy
+// https://-URL path (migration 0030) is left in place for backward
+// compatibility, and both mechanisms count toward the same combined 1-10
+// image cap and "at least one image before publish" rule, enforced in
+// app.count_public_listing_images (migration 0032).
 export const createPublicListingInputSchema = z.object({
 	attestationAccepted: z.literal(true),
 	idempotencyKey: boundedTextSchema(128),
-	imageUrls: z.array(httpsImageUrlSchema).min(1).max(10),
+	imageUrls: z.array(httpsImageUrlSchema).max(10).default([]),
 	summary: publicListingSummaryInputSchema,
 	title: publicListingTitleInputSchema,
 }).strict();
@@ -641,7 +669,7 @@ export const createPublicListingEnvelopeSchema = envelopeSchema(createPublicList
 
 export const updatePublicListingDraftInputSchema = z.object({
 	expectedVersion: positiveVersionSchema,
-	imageUrls: z.array(httpsImageUrlSchema).min(1).max(10),
+	imageUrls: z.array(httpsImageUrlSchema).max(10).default([]),
 	summary: publicListingSummaryInputSchema,
 	title: publicListingTitleInputSchema,
 }).strict();
@@ -652,6 +680,90 @@ export const updatePublicListingDraftResultSchema = z.object({
 }).strict();
 
 export const updatePublicListingDraftEnvelopeSchema = envelopeSchema(updatePublicListingDraftResultSchema);
+
+// REQ-038 decision 8: the closed room-tag category list, fixed for v1
+// (not extensible per-organization). Mirrors the check constraint on
+// app.public_listing_images.room (migration 0032).
+export const publicListingImageRooms = Object.freeze([
+	'exterior',
+	'living',
+	'kitchen',
+	'bathroom',
+	'bedroom',
+	'dining',
+	'other',
+]);
+export const publicListingImageRoomSchema = z.enum(publicListingImageRooms);
+export const publicListingImageMediaTypes = Object.freeze(['image/jpeg', 'image/png']);
+
+// REQ-038: uploads are submitted as a base64-encoded JSON body (this
+// codebase has no multipart-parsing plugin registered; see apps/api/src/app.ts),
+// capped at 10 MB of *decoded* bytes (migration 0032's size_bytes check).
+// Base64 inflates payload size by ~4/3, so the route registers a
+// route-level bodyLimit large enough for the worst case rather than
+// raising the server-wide default.
+// PROP-028: the image-rights and consent attestation checkbox must be
+// affirmatively checked before any per-image upload is accepted, mirroring
+// createPublicListingInputSchema's attestationAccepted enforcement.
+export const uploadPublicListingImageInputSchema = z.object({
+	attestationAccepted: z.literal(true),
+	contentBase64: z.string().min(1).max(14_000_000),
+	mediaType: z.enum(publicListingImageMediaTypes),
+	room: publicListingImageRoomSchema,
+}).strict();
+
+export const uploadPublicListingImageResultSchema = z.object({
+	imageId: z.uuid(),
+	listingId: publicListingIdSchema,
+	listingVersion: positiveVersionSchema,
+	position: z.number().int().nonnegative(),
+}).strict();
+
+export const uploadPublicListingImageEnvelopeSchema = envelopeSchema(uploadPublicListingImageResultSchema);
+
+export const deletePublicListingImageResultSchema = z.object({
+	listingId: publicListingIdSchema,
+	listingVersion: positiveVersionSchema,
+}).strict();
+
+export const deletePublicListingImageEnvelopeSchema = envelopeSchema(deletePublicListingImageResultSchema);
+
+export const publicListingImageSummarySchema = z.object({
+	createdAt: timestampSchema,
+	imageId: z.uuid(),
+	mediaType: z.enum(publicListingImageMediaTypes),
+	position: z.number().int().nonnegative(),
+	room: publicListingImageRoomSchema,
+	sizeBytes: z.number().int().positive().max(10485760),
+}).strict();
+
+export const publicListingImageListEnvelopeSchema = z.object({
+	items: z.array(publicListingImageSummarySchema),
+	meta: metaSchema,
+}).strict();
+
+// PROP-031: the public read model groups a published listing's uploaded
+// images by room tab (plus an "All photos" view); a room with zero images
+// is omitted entirely rather than returned as an empty tab. `url` is a
+// scan-gated, API-served path (never a raw/guessable storage URL), per
+// REQ-038 decision 6.
+export const publicListingPhotoSchema = z.object({
+	imageId: z.uuid(),
+	room: publicListingImageRoomSchema,
+	url: z.string().min(1).max(400),
+}).strict();
+
+export const publicListingPhotoRoomGroupSchema = z.object({
+	photos: z.array(publicListingPhotoSchema).min(1),
+	room: publicListingImageRoomSchema,
+}).strict();
+
+export const publicListingPhotoGallerySchema = z.object({
+	allPhotos: z.array(publicListingPhotoSchema),
+	rooms: z.array(publicListingPhotoRoomGroupSchema),
+}).strict();
+
+export const publicListingPhotoGalleryEnvelopeSchema = envelopeSchema(publicListingPhotoGallerySchema);
 
 export const publicListingMediaReviewInputSchema = z.object({
 	decision: z.enum(['approved', 'rejected']),
@@ -668,6 +780,18 @@ export const publicListingMediaReviewResultSchema = z.object({
 }).strict();
 
 export const publicListingMediaReviewEnvelopeSchema = envelopeSchema(publicListingMediaReviewResultSchema);
+
+// REQ-038 fix: metadata for one uploaded image on a listing awaiting media
+// review (migration 0033's app.list_public_listings_pending_media_review).
+// Deliberately omits sizeBytes/createdAt (unlike publicListingImageSummarySchema)
+// since the review card only needs enough to request the image's bytes via
+// getPublicListingImageContentForReview and label it by room.
+export const pendingPublicListingMediaReviewImageSchema = z.object({
+	imageId: z.uuid(),
+	mediaType: z.enum(publicListingImageMediaTypes),
+	position: z.number().int().nonnegative(),
+	room: publicListingImageRoomSchema,
+}).strict();
 
 // Bounds mirror app.list_public_listings_pending_media_review (0030):
 // organizationName/propertyName <=160, unitLabel <=80, title <=140,
@@ -687,6 +811,7 @@ export const pendingPublicListingMediaReviewSchema = z.object({
 	title: boundedTextSchema(140).nullable(),
 	unitId: unitIdSchema,
 	unitLabel: boundedTextSchema(80),
+	uploadedImages: z.array(pendingPublicListingMediaReviewImageSchema).max(10),
 }).strict();
 
 export const pendingPublicListingMediaReviewListEnvelopeSchema = z.object({

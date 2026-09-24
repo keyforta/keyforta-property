@@ -154,6 +154,7 @@ describe("PostgreSQL public property gateway", () => {
               city: "Kinshasa",
               currency: "USD",
               district: "Gombe",
+              id: "00000000-0000-4000-8000-000000000901",
               image_urls: [],
               monthly_rent_minor: "40000",
               organization_id: "must-not-leave-the-gateway",
@@ -179,9 +180,47 @@ describe("PostgreSQL public property gateway", () => {
       district: "Gombe",
       id: "appartement-gombe",
       imageUrls: [],
+      listingId: "00000000-0000-4000-8000-000000000901",
       monthlyRentMinor: "40000",
       name: "Appartement Gombe",
       summary: "Synthetic published listing.",
     });
+  });
+
+  // The browse/list page's aggregated JSON items never carry the
+  // PublicListing uuid (only `app.get_public_listing`'s single-row lookup
+  // does), so `listingId` must stay absent there rather than throwing or
+  // defaulting to something misleading.
+  it("omits listingId from browse/list results, which never carry the PublicListing uuid", async () => {
+    const client = {
+      async query() {
+        return {
+          rows: [{
+            cursor_valid: true,
+            items: [{
+              amenities: [],
+              area_square_meters: null,
+              available_from: new Date(2026, 9, 1),
+              bathrooms: 1,
+              bedrooms: 2,
+              city: "Kinshasa",
+              currency: "USD",
+              district: "Limete",
+              image_urls: [],
+              monthly_rent_minor: "40000",
+              slug: "appartement-gombe",
+              summary: "Synthetic published listing.",
+              title: "Appartement Gombe",
+            }],
+            next_cursor: null,
+            total_count: "1",
+          }],
+        };
+      },
+    };
+    const gateway = createPostgresPublicPropertyGateway(client);
+
+    const result = await gateway.list({ limit: 1, sort: "created_at_desc" });
+    expect(result.items[0]).not.toHaveProperty("listingId");
   });
 });

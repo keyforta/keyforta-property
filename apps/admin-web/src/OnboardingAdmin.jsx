@@ -142,6 +142,28 @@ function ReviewQueue({ auth, onSectionChange }) {
   </div>;
 }
 
+function ReviewImage({ imageId, listingId, room, t }) {
+  const [state, setState] = useState({ objectUrl: '', status: 'loading' });
+  useEffect(() => {
+    let objectUrl = '';
+    let cancelled = false;
+    mediaReviewApi.getReviewImageContent(listingId, imageId).then((url) => {
+      if (cancelled) { URL.revokeObjectURL(url); return; }
+      objectUrl = url;
+      setState({ objectUrl: url, status: 'ready' });
+    }).catch(() => {
+      if (!cancelled) setState({ objectUrl: '', status: 'error' });
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [listingId, imageId]);
+  if (state.status === 'loading') return <div className="media-review-image loading"><Spinner size="tiny" /></div>;
+  if (state.status === 'error') return <div className="media-review-image error">{t('media_review.image_load_failed')}</div>;
+  return <img alt={t(`media_review.room.${room}`, { defaultValue: room })} className="media-review-image" src={state.objectUrl} />;
+}
+
 function MediaReviewCard({ decision, onDecision, review }) {
   const { t } = useTranslation();
   const [notes, setNotes] = useState('');
@@ -165,11 +187,17 @@ function MediaReviewCard({ decision, onDecision, review }) {
       <div><dt>{t('media_review.submitted')}</dt><dd>{formatDate(review.submittedAt)}</dd></div>
     </dl>
     {review.summary ? <p className="muted">{review.summary}</p> : null}
+    {review.uploadedImages?.length > 0 ? <ul className="media-review-uploaded-images">
+      {review.uploadedImages.map((image) => <li key={image.imageId}>
+        <ReviewImage imageId={image.imageId} listingId={review.listingId} room={image.room} t={t} />
+        <span className="media-review-image-room">{t(`media_review.room.${image.room}`, { defaultValue: image.room })}</span>
+      </li>)}
+    </ul> : null}
     {review.imageUrls.length > 0 ? <ul className="media-review-images">
       {review.imageUrls.map((url) => <li key={url}>{isSafeImageUrl(url)
         ? <a href={url} rel="noreferrer" target="_blank">{url}</a>
         : <span>{url}</span>}</li>)}
-    </ul> : <p className="muted">{t('media_review.no_images')}</p>}
+    </ul> : (review.uploadedImages?.length ? null : <p className="muted">{t('media_review.no_images')}</p>)}
     <form onSubmit={(event) => event.preventDefault()}>
       <Field label={t('media_review.notes_label')} hint={t('media_review.notes_hint')}>
         <Textarea value={notes} onChange={(_, data) => setNotes(data.value)} maxLength={2000} resize="vertical" />

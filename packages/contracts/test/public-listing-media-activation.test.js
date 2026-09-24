@@ -6,6 +6,7 @@ import {
   pendingPublicListingMediaReviewSchema,
   publicListingMediaReviewInputSchema,
   publicListingSummarySchema,
+  publicPropertyProjectionSchema,
   updatePublicListingDraftInputSchema,
 } from "../src/index.js";
 
@@ -101,6 +102,7 @@ test("REQ-037 publicListingSummarySchema and pendingPublicListingMediaReviewSche
     title: "Riverside apartment — Unit 2A",
     unitId: "1a2b3c4d-5e6f-4789-9abc-def012345678",
     unitLabel: "Unit 2A",
+    uploadedImages: [],
   };
   assert.equal(pendingPublicListingMediaReviewSchema.safeParse(pendingReview).success, true);
 });
@@ -164,4 +166,51 @@ test("REQ-037 publicListingMediaReviewInputSchema requires reviewer notes to rej
     }).success,
     true,
   );
+});
+
+test("REQ-038 publicPropertyProjectionSchema allows upload-only listings with zero legacy image URLs", () => {
+  const uploadOnlyProperty = {
+    address: "123 Riverside Way",
+    amenities: ["parking"],
+    availableFrom: "2025-01-01",
+    bathrooms: 1,
+    bedrooms: 2,
+    city: "Springfield",
+    currency: "USD",
+    district: "Riverside",
+    id: "b6c2b6a0-6c9a-4e3a-9b5b-1a2c3d4e5f60",
+    // All images for this listing live in app.public_listing_images and are
+    // served through the uploaded-image gallery route, not this field.
+    imageUrls: [],
+    monthlyRentMinor: "150000",
+    name: "Riverside apartment",
+    summary: "A bright two-bedroom unit close to transit and shops.",
+  };
+
+  assert.equal(publicPropertyProjectionSchema.safeParse(uploadOnlyProperty).success, true);
+});
+
+test("REQ-038 publicPropertyProjectionSchema accepts an optional listingId distinct from the public id slug", () => {
+  const withListingId = {
+    address: "123 Riverside Way",
+    amenities: ["parking"],
+    availableFrom: "2025-01-01",
+    bathrooms: 1,
+    bedrooms: 2,
+    city: "Springfield",
+    currency: "USD",
+    district: "Riverside",
+    id: "riverside-apartment",
+    imageUrls: [],
+    // The photos-gallery route requires this uuid; the public `id` above
+    // is a slug and cannot be used to fetch the uploaded-image gallery.
+    listingId: "b6c2b6a0-6c9a-4e3a-9b5b-1a2c3d4e5f60",
+    monthlyRentMinor: "150000",
+    name: "Riverside apartment",
+    summary: "A bright two-bedroom unit close to transit and shops.",
+  };
+
+  assert.equal(publicPropertyProjectionSchema.safeParse(withListingId).success, true);
+  const { imageUrls: _imageUrls, listingId, ...withoutListingId } = withListingId;
+  assert.equal(publicPropertyProjectionSchema.safeParse({ ...withoutListingId, imageUrls: [] }).success, true);
 });

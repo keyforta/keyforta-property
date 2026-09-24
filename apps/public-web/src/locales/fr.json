@@ -373,6 +373,18 @@
     "mock_figures": "Confirmez les conditions finales dans le contrat de location.",
     "living_room": "salon",
     "kitchen": "cuisine",
+    "gallery_tabs_label": "Cat\u00e9gories de photos de l'annonce",
+    "gallery_all_photos": "Toutes les photos",
+    "gallery_empty": "Aucune photo n'est disponible pour cette cat\u00e9gorie pour le moment.",
+    "gallery_room": {
+      "exterior": "Ext\u00e9rieur",
+      "living": "Salon",
+      "kitchen": "Cuisine",
+      "bathroom": "Salle de bain",
+      "bedroom": "Chambre",
+      "dining": "Salle \u00e0 manger",
+      "other": "Autre"
+    },
     "request_viewing": "Demander une visite",
     "viewing_eyebrow": "Visite du bien",
     "viewing_title": "Visiter {{title}}.",

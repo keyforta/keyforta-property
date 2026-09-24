@@ -111,6 +111,7 @@ describe("KEYFORTA API runtime", () => {
     expect(Object.keys(document.paths).sort()).toEqual([
       "/admin/jurisdiction-policies/activate",
       "/admin/public-listings/pending-review",
+      "/admin/public-listings/{listingId}/images/{imageId}/content",
       "/admin/public-listings/{listingId}/media-review",
       "/landlord-onboarding-applications",
       "/landlord-onboarding-applications/{applicationId}/decision",
@@ -121,6 +122,10 @@ describe("KEYFORTA API runtime", () => {
       "/properties/{propertyId}/verification-status",
       "/public-listings/mine",
       "/public-listings/{listingId}/draft",
+      "/public-listings/{listingId}/images",
+      "/public-listings/{listingId}/images/{imageId}",
+      "/public-listings/{listingId}/images/{imageId}/content",
+      "/public-listings/{listingId}/photos",
       "/public-listings/{listingId}/publish",
       "/public-listings/{listingId}/withdraw",
       "/session/memberships",

@@ -19,6 +19,11 @@ interface PublicListingRow {
   city: string;
   currency: string;
   district: string;
+  // The PublicListing's own uuid (as opposed to `slug`, the public-facing
+  // property identifier). Only `app.get_public_listing` (single-item
+  // lookup) selects it; `app.list_public_listings_page`'s aggregated JSON
+  // items do not, so this is absent for list/browse results.
+  id?: string;
   image_urls: string[];
   monthly_rent_minor: string;
   slug: string;
@@ -81,6 +86,7 @@ function parsePublicListingRow(row: unknown): PublicListingRow {
     typeof candidate.city !== "string" ||
     typeof candidate.currency !== "string" ||
     typeof candidate.district !== "string" ||
+    (candidate.id !== undefined && typeof candidate.id !== "string") ||
     !Array.isArray(candidate.image_urls) ||
     !candidate.image_urls.every((value) => typeof value === "string") ||
     typeof candidate.monthly_rent_minor !== "string" ||
@@ -99,6 +105,7 @@ function parsePublicListingRow(row: unknown): PublicListingRow {
     city: candidate.city,
     currency: candidate.currency,
     district: candidate.district,
+    ...(candidate.id !== undefined ? { id: candidate.id as string } : {}),
     image_urls: candidate.image_urls,
     monthly_rent_minor: candidate.monthly_rent_minor,
     slug: candidate.slug,
@@ -120,6 +127,10 @@ function toProjection(row: PublicListingRow): PublicPropertyProjection {
     id: row.slug,
     ...(row.image_urls[0] ? { imageUrl: row.image_urls[0] } : {}),
     imageUrls: row.image_urls,
+    // The PublicListing's own uuid, used by the client to call the
+    // upload-gallery route (`/api/v1/public-listings/:listingId/photos`),
+    // which requires a uuid and cannot resolve the public `id` slug above.
+    ...(row.id ? { listingId: row.id } : {}),
     monthlyRentMinor: row.monthly_rent_minor,
     name: row.title,
     summary: row.summary,

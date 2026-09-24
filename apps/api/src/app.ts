@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -12,6 +12,7 @@ import {
   createRentalPropertyInputSchema,
   createPublicListingEnvelopeSchema,
   createPublicListingInputSchema,
+  deletePublicListingImageEnvelopeSchema,
   jurisdictionPolicyActivationEnvelopeSchema,
   jurisdictionPolicyActivationInputSchema,
   landlordOnboardingApplicationIdSchema,
@@ -26,9 +27,12 @@ import {
   propertyVerificationStatusEnvelopeSchema,
   propertyVerificationStatusInputSchema,
   publicListingIdSchema,
+  publicListingImageIdSchema,
   publicListingListEnvelopeSchema,
   publicListingMediaReviewEnvelopeSchema,
   publicListingMediaReviewInputSchema,
+  publicListingImageListEnvelopeSchema,
+  publicListingPhotoGalleryEnvelopeSchema,
   publicPropertyIdSchema,
   publicPropertyListQuerySchema,
   publicPropertyListResultSchema,
@@ -43,6 +47,8 @@ import {
   unitIdSchema,
   updatePublicListingDraftEnvelopeSchema,
   updatePublicListingDraftInputSchema,
+  uploadPublicListingImageEnvelopeSchema,
+  uploadPublicListingImageInputSchema,
 } from "@keyforta/contracts";
 import { canAccess } from "@keyforta/authorization";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
@@ -63,10 +69,20 @@ import {
   type RentalInventoryCommandGateway,
 } from "./properties/inventory-command-gateway.js";
 import type { PublicListingPublicationGateway } from "./properties/publication-gateway.js";
+import type { PublicListingMediaGateway } from "./properties/media-gateway.js";
+import type { MediaScanner } from "./media/scanner.js";
+import { matchesDeclaredImageSignature, NoopScanner } from "./media/scanner.js";
 import type { PublicViewingRequestGateway } from "./properties/viewing-gateway.js";
 
 const serviceName = "keyforta-api";
 const requestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+// Node's Buffer.from(value, "base64") never throws: it silently ignores
+// characters outside the base64 alphabet instead of rejecting malformed
+// input, so a catch block around it is dead code. This pattern enforces
+// strict RFC 4648 base64 (correct alphabet, grouping, and padding) before
+// any decode is attempted, matching REQ-038's requirement that a rejected
+// upload never reaches the scanner or database with garbage bytes.
+const strictBase64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export interface AppDependencies {
   apiDocs?: boolean;
@@ -76,7 +92,9 @@ export interface AppDependencies {
   landlordOnboardingRateLimitMax?: number;
   inventory?: InventoryGateway;
   membershipLookup?: MembershipLookupGateway;
+  mediaScanner?: MediaScanner;
   platformAdminObjectIds?: ReadonlySet<string>;
+  publicListingMedia?: PublicListingMediaGateway;
   publicListingPublication?: PublicListingPublicationGateway;
   publicProperties?: PublicPropertyGateway;
   publicViewingRequests?: PublicViewingRequestGateway;
@@ -173,6 +191,7 @@ function toPublicProjection(candidate: unknown) {
 export async function buildApp(
   dependencies: AppDependencies = {},
 ): Promise<FastifyInstance> {
+  const mediaScanner: MediaScanner = dependencies.mediaScanner ?? new NoopScanner();
   const configuredCorsOrigin =
     dependencies.corsOrigin ??
     (process.env.NODE_ENV === "production" ? false : true);
@@ -1026,6 +1045,288 @@ export async function buildApp(
     },
   );
 
+  // REQ-038 uploaded listing media (upload/list/delete + public scan-gated
+  // serving). `uploadPublicListingImageInputSchema` requires
+  // `attestationAccepted: true` (PROP-028: the image-rights and consent
+  // attestation checkbox must be affirmatively checked before any upload is
+  // accepted); the safeParse below rejects with 400 before any database
+  // call or malware scan when it is missing or not `true`. Malware
+  // scanning happens here, before any database call, so a failed scan
+  // never persists a partial row (PROP-028).
+  app.post<{ Params: { listingId: string } }>(
+    "/api/v1/public-listings/:listingId/images",
+    { bodyLimit: 14 * 1024 * 1024 },
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.publicListingMedia) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "PublicListing image upload is temporarily unavailable.",
+        ));
+      }
+      const context = await authenticateOrganizationRequest(request, reply);
+      if (!context) return undefined;
+      const parsedListingId = publicListingIdSchema.safeParse(request.params.listingId);
+      const parsedInput = uploadPublicListingImageInputSchema.safeParse(request.body);
+      if (!parsedListingId.success || !parsedInput.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The image upload is invalid.",
+          parsedInput.success ? undefined : parsedInput.error.flatten(),
+        ));
+      }
+      if (!strictBase64Pattern.test(parsedInput.data.contentBase64)) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The image content is not valid base64.",
+        ));
+      }
+      // Authorization precheck before the expensive decode/scan below
+      // (Copilot review finding on PR #131: without this, an
+      // authenticated-but-unauthorized actor could repeatedly trigger the
+      // malware scan just to be rejected afterward by the upload function).
+      const canUpload = await dependencies.publicListingMedia.canActorUploadImage({
+        listingId: parsedListingId.data,
+        organizationId: context.organizationId,
+        subject: context.principal.subject,
+      });
+      if (!canUpload) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      const content = Buffer.from(parsedInput.data.contentBase64, "base64");
+      if (content.length < 1 || content.length > 10_485_760) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "An uploaded image must be between 1 byte and 10 MB.",
+        ));
+      }
+      // Signature validation (Copilot review finding on PR #131): the
+      // no-op scanner reports any bytes as clean, so the declared
+      // `mediaType` cannot be trusted alone as proof of the actual file
+      // format. Checked before scanning, consistent with the other
+      // pre-storage PROP-028 checks above (no scan/gateway call for
+      // rejected input).
+      if (!matchesDeclaredImageSignature(content, parsedInput.data.mediaType)) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The uploaded file does not match the declared image media type.",
+        ));
+      }
+      const scanResult = await mediaScanner.scanUpload(content, parsedInput.data.mediaType);
+      if (!scanResult.clean) {
+        return reply.status(422).send(problem(
+          request.id, 422, "MEDIA_SCAN_REJECTED", "Unprocessable Entity",
+          "The uploaded image failed malware scanning and was not stored.",
+        ));
+      }
+      const contentHash = createHash("sha256").update(content).digest("hex");
+      try {
+        const uploaded = await dependencies.publicListingMedia.uploadImage({
+          content,
+          contentHash,
+          correlationId: request.id,
+          listingId: parsedListingId.data,
+          mediaType: parsedInput.data.mediaType,
+          organizationId: context.organizationId,
+          room: parsedInput.data.room,
+          sizeBytes: content.length,
+          source: "runtime_api",
+          subject: context.principal.subject,
+        });
+        if (!uploaded) {
+          return reply.status(404).send(problem(
+            request.id, 404, "NOT_FOUND", "Not Found",
+            "The requested resource was not found.",
+          ));
+        }
+        return reply.status(201).send(
+          uploadPublicListingImageEnvelopeSchema.parse({
+            data: uploaded,
+            meta: { requestId: request.id },
+          }),
+        );
+      } catch (error) {
+        return handleRentalInventoryError(error, request, reply);
+      }
+    },
+  );
+
+  app.get<{ Params: { listingId: string } }>(
+    "/api/v1/public-listings/:listingId/images",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.publicListingMedia) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "PublicListing image listing is temporarily unavailable.",
+        ));
+      }
+      const context = await authenticateOrganizationRequest(request, reply);
+      if (!context) return undefined;
+      const parsedListingId = publicListingIdSchema.safeParse(request.params.listingId);
+      if (!parsedListingId.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The listing ID is invalid.",
+        ));
+      }
+      try {
+        const items = await dependencies.publicListingMedia.listImages({
+          listingId: parsedListingId.data,
+          organizationId: context.organizationId,
+          subject: context.principal.subject,
+        });
+        return reply.status(200).send(
+          publicListingImageListEnvelopeSchema.parse({
+            items,
+            meta: { requestId: request.id },
+          }),
+        );
+      } catch (error) {
+        return handleRentalInventoryError(error, request, reply);
+      }
+    },
+  );
+
+  app.delete<{ Params: { listingId: string; imageId: string } }>(
+    "/api/v1/public-listings/:listingId/images/:imageId",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.publicListingMedia) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "PublicListing image deletion is temporarily unavailable.",
+        ));
+      }
+      const context = await authenticateOrganizationRequest(request, reply);
+      if (!context) return undefined;
+      const parsedListingId = publicListingIdSchema.safeParse(request.params.listingId);
+      const parsedImageId = publicListingImageIdSchema.safeParse(request.params.imageId);
+      if (!parsedListingId.success || !parsedImageId.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The listing or image ID is invalid.",
+        ));
+      }
+      try {
+        const deleted = await dependencies.publicListingMedia.deleteImage({
+          correlationId: request.id,
+          imageId: parsedImageId.data,
+          listingId: parsedListingId.data,
+          organizationId: context.organizationId,
+          source: "runtime_api",
+          subject: context.principal.subject,
+        });
+        if (!deleted) {
+          return reply.status(404).send(problem(
+            request.id, 404, "NOT_FOUND", "Not Found",
+            "The requested resource was not found.",
+          ));
+        }
+        return reply.status(200).send(
+          deletePublicListingImageEnvelopeSchema.parse({
+            data: deleted,
+            meta: { requestId: request.id },
+          }),
+        );
+      } catch (error) {
+        return handleRentalInventoryError(error, request, reply);
+      }
+    },
+  );
+
+  // PROP-031: public, scan-gated photo gallery grouped by room. Anonymous
+  // (no bearer credential required, matching /api/v1/properties/:propertyId).
+  app.get<{ Params: { listingId: string } }>(
+    "/api/v1/public-listings/:listingId/photos",
+    async (request, reply) => {
+      if (!dependencies.publicListingMedia) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "PublicListing photo gallery is temporarily unavailable.",
+        ));
+      }
+      const parsedListingId = publicListingIdSchema.safeParse(request.params.listingId);
+      if (!parsedListingId.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The listing ID is invalid.",
+        ));
+      }
+      const images = await dependencies.publicListingMedia.listPublicImagesByRoom(
+        parsedListingId.data,
+      );
+      if (images.length === 0) {
+        // Distinguishing "listing exists but has no photos" from "listing
+        // is not published/eligible" would leak publication state to an
+        // anonymous caller, so both cases return the same 404 (nondisclosing
+        // denial, matching PROP-010/PROP-024's model applied here to public
+        // read access).
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      const toPhoto = (image: { imageId: string; room: string }) => ({
+        imageId: image.imageId,
+        room: image.room,
+        url: `/api/v1/public-listings/${parsedListingId.data}/images/${image.imageId}/content`,
+      });
+      const roomsInOrder: string[] = [];
+      for (const image of images) {
+        if (!roomsInOrder.includes(image.room)) roomsInOrder.push(image.room);
+      }
+      return reply.status(200).send(
+        publicListingPhotoGalleryEnvelopeSchema.parse({
+          data: {
+            allPhotos: images.map(toPhoto),
+            rooms: roomsInOrder.map((room) => ({
+              photos: images.filter((image) => image.room === room).map(toPhoto),
+              room,
+            })),
+          },
+          meta: { requestId: request.id },
+        }),
+      );
+    },
+  );
+
+  // Serves the raw bytes for one photo of a published, eligible listing
+  // only (decision 6): never a raw/directly link-shareable storage URL.
+  app.get<{ Params: { listingId: string; imageId: string } }>(
+    "/api/v1/public-listings/:listingId/images/:imageId/content",
+    async (request, reply) => {
+      if (!dependencies.publicListingMedia) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "PublicListing image serving is temporarily unavailable.",
+        ));
+      }
+      const parsedListingId = publicListingIdSchema.safeParse(request.params.listingId);
+      const parsedImageId = publicListingImageIdSchema.safeParse(request.params.imageId);
+      if (!parsedListingId.success || !parsedImageId.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The listing or image ID is invalid.",
+        ));
+      }
+      const content = await dependencies.publicListingMedia.getPublicImageContent(
+        parsedListingId.data,
+        parsedImageId.data,
+      );
+      if (!content) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      return reply
+        .status(200)
+        .header("content-type", content.mediaType)
+        .send(content.content);
+    },
+  );
+
   app.delete<{ Params: { unitId: string } }>(
     "/api/v1/units/:unitId",
     async (request, reply) => {
@@ -1379,6 +1680,64 @@ export async function buildApp(
           meta: { requestId: request.id },
         }),
       );
+    },
+  );
+
+  // Fixes a gap found while finishing REQ-038: a platform administrator
+  // could not previously see the bytes of an uploaded (non-URL) listing
+  // image anywhere before deciding its media review, because the public
+  // scan-gated content route (below) only serves a published listing's
+  // images. This route serves the same bytes, gated the same way as the
+  // review decision route above (platform-admin authorization, 404 for
+  // anyone else), and only while the listing is still pending review
+  // (migration 0033).
+  app.get<{ Params: { listingId: string; imageId: string } }>(
+    "/api/v1/admin/public-listings/:listingId/images/:imageId/content",
+    async (request, reply) => {
+      if (!dependencies.authenticator || !dependencies.publicListingMedia) {
+        return reply.status(503).send(problem(
+          request.id, 503, "DEPENDENCY_UNAVAILABLE", "Service Unavailable",
+          "Public-listing media review is temporarily unavailable.",
+        ));
+      }
+      const principal = await authenticate(
+        request.headers.authorization,
+        dependencies.authenticator,
+      );
+      if (!principal) {
+        return reply.status(401).send(problem(
+          request.id, 401, "UNAUTHENTICATED", "Unauthorized",
+          "A valid bearer credential is required.",
+        ));
+      }
+      if (!isAuthorizedPlatformAdminAction(principal, "review_public_listing_media", dependencies)) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      const parsedListingId = publicListingIdSchema.safeParse(request.params.listingId);
+      const parsedImageId = publicListingImageIdSchema.safeParse(request.params.imageId);
+      if (!parsedListingId.success || !parsedImageId.success) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The listing or image ID is invalid.",
+        ));
+      }
+      const content = await dependencies.publicListingMedia.getReviewImageContent(
+        parsedListingId.data,
+        parsedImageId.data,
+      );
+      if (!content) {
+        return reply.status(404).send(problem(
+          request.id, 404, "NOT_FOUND", "Not Found",
+          "The requested resource was not found.",
+        ));
+      }
+      return reply
+        .status(200)
+        .header("content-type", content.mediaType)
+        .send(content.content);
     },
   );
 

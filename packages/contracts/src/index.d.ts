@@ -54,6 +54,7 @@ export const publicListingIdSchema: z.ZodString;
 export const landlordOnboardingApplicationIdSchema: z.ZodString;
 export const propertyIdSchema: z.ZodString;
 export const unitIdSchema: z.ZodString;
+export const publicListingImageIdSchema: z.ZodString;
 export const jurisdictionCodeSchema: z.ZodString;
 
 export const propertyTypes: readonly ["apartment_building", "single_family", "townhouse", "mixed_use", "other"];
@@ -444,6 +445,7 @@ export interface PublicPropertyProjection {
   id: string;
   imageUrl?: string;
   imageUrls: readonly string[];
+  listingId?: string;
   monthlyRentMinor: string;
   name: string;
   summary: string;
@@ -546,6 +548,82 @@ export const updatePublicListingDraftEnvelopeSchema: z.ZodType<{
   data: UpdatePublicListingDraftResult;
   meta: Meta;
 }>;
+export const publicListingImageRooms: readonly [
+  "exterior",
+  "living",
+  "kitchen",
+  "bathroom",
+  "bedroom",
+  "dining",
+  "other",
+];
+export type PublicListingImageRoom = typeof publicListingImageRooms[number];
+export const publicListingImageRoomSchema: z.ZodType<PublicListingImageRoom>;
+export const publicListingImageMediaTypes: readonly ["image/jpeg", "image/png"];
+export type PublicListingImageMediaType = typeof publicListingImageMediaTypes[number];
+export interface UploadPublicListingImageInput {
+  attestationAccepted: true;
+  contentBase64: string;
+  mediaType: PublicListingImageMediaType;
+  room: PublicListingImageRoom;
+}
+export interface UploadPublicListingImageResult {
+  imageId: string;
+  listingId: string;
+  listingVersion: number;
+  position: number;
+}
+export const uploadPublicListingImageInputSchema: z.ZodType<UploadPublicListingImageInput>;
+export const uploadPublicListingImageResultSchema: z.ZodType<UploadPublicListingImageResult>;
+export const uploadPublicListingImageEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: UploadPublicListingImageResult;
+  meta: Meta;
+}>;
+export interface DeletePublicListingImageResult {
+  listingId: string;
+  listingVersion: number;
+}
+export const deletePublicListingImageResultSchema: z.ZodType<DeletePublicListingImageResult>;
+export const deletePublicListingImageEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: DeletePublicListingImageResult;
+  meta: Meta;
+}>;
+export interface PublicListingImageSummary {
+  createdAt: string;
+  imageId: string;
+  mediaType: PublicListingImageMediaType;
+  position: number;
+  room: PublicListingImageRoom;
+  sizeBytes: number;
+}
+export const publicListingImageSummarySchema: z.ZodType<PublicListingImageSummary>;
+export const publicListingImageListEnvelopeSchema: z.ZodType<{
+  items: PublicListingImageSummary[];
+  meta: Meta;
+}>;
+export interface PublicListingPhoto {
+  imageId: string;
+  room: PublicListingImageRoom;
+  url: string;
+}
+export const publicListingPhotoSchema: z.ZodType<PublicListingPhoto>;
+export interface PublicListingPhotoRoomGroup {
+  photos: PublicListingPhoto[];
+  room: PublicListingImageRoom;
+}
+export const publicListingPhotoRoomGroupSchema: z.ZodType<PublicListingPhotoRoomGroup>;
+export interface PublicListingPhotoGallery {
+  allPhotos: PublicListingPhoto[];
+  rooms: PublicListingPhotoRoomGroup[];
+}
+export const publicListingPhotoGallerySchema: z.ZodType<PublicListingPhotoGallery>;
+export const publicListingPhotoGalleryEnvelopeSchema: z.ZodType<{
+  auditEventId?: string;
+  data: PublicListingPhotoGallery;
+  meta: Meta;
+}>;
 export interface PublicListingMediaReviewInput {
   decision: "approved" | "rejected";
   notes?: string;
@@ -560,6 +638,12 @@ export const publicListingMediaReviewEnvelopeSchema: z.ZodType<{
   data: PublicListingMediaReviewResult;
   meta: Meta;
 }>;
+export interface PendingPublicListingMediaReviewImage {
+  imageId: string;
+  mediaType: typeof publicListingImageMediaTypes[number];
+  position: number;
+  room: PublicListingImageRoom;
+}
 export interface PendingPublicListingMediaReview {
   imageUrls: readonly string[];
   listingId: string;
@@ -571,7 +655,9 @@ export interface PendingPublicListingMediaReview {
   title: string | null;
   unitId: string;
   unitLabel: string;
+  uploadedImages: readonly PendingPublicListingMediaReviewImage[];
 }
+export const pendingPublicListingMediaReviewImageSchema: z.ZodType<PendingPublicListingMediaReviewImage>;
 export const pendingPublicListingMediaReviewSchema: z.ZodType<PendingPublicListingMediaReview>;
 export const pendingPublicListingMediaReviewListEnvelopeSchema: z.ZodType<{
   items: PendingPublicListingMediaReview[];

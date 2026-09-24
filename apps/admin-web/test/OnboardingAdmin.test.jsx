@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   decideMock: vi.fn(),
   mediaReviewListMock: vi.fn(),
   mediaReviewDecideMock: vi.fn(),
+  getReviewImageContentMock: vi.fn(),
   signInMock: vi.fn(),
   signOutMock: vi.fn(),
   initializeMock: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock('../src/media-review-api.js', () => ({
   createMediaReviewApi: () => ({
     list: mocks.mediaReviewListMock,
     decide: mocks.mediaReviewDecideMock,
+    getReviewImageContent: mocks.getReviewImageContentMock,
   }),
 }));
 
@@ -58,6 +60,7 @@ describe('OnboardingAdmin', () => {
     mocks.decideMock.mockReset();
     mocks.mediaReviewListMock.mockReset();
     mocks.mediaReviewDecideMock.mockReset();
+    mocks.getReviewImageContentMock.mockReset();
     mocks.signInMock.mockReset();
     mocks.signOutMock.mockReset();
     mocks.initializeMock.mockReset();
@@ -238,6 +241,39 @@ describe('OnboardingAdmin', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Onboarding' }));
       expect(await screen.findByText('Amina K.')).toBeInTheDocument();
+    });
+
+    describe('uploaded images (fixes the REQ-038 review-visibility gap)', () => {
+      const uploadedImageReview = {
+        ...pendingReview,
+        imageUrls: [],
+        uploadedImages: [{ imageId: 'image-1', mediaType: 'image/png', position: 0, room: 'living' }],
+      };
+
+      it('fetches and renders an uploaded image using the admin review-content route', async () => {
+        mocks.listMock.mockResolvedValue([]);
+        mocks.mediaReviewListMock.mockResolvedValue([uploadedImageReview]);
+        mocks.getReviewImageContentMock.mockResolvedValue('blob:https://admin-api.test/review-image');
+        renderAdmin();
+        fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+        await screen.findByText('Riverside apartment — Unit 2A');
+
+        await waitFor(() => expect(mocks.getReviewImageContentMock).toHaveBeenCalledWith('listing-1', 'image-1'));
+        const image = await screen.findByRole('img', { name: 'Living room' });
+        expect(image).toHaveAttribute('src', 'blob:https://admin-api.test/review-image');
+      });
+
+      it('shows an error message instead of a broken image when review content fails to load', async () => {
+        mocks.listMock.mockResolvedValue([]);
+        mocks.mediaReviewListMock.mockResolvedValue([uploadedImageReview]);
+        mocks.getReviewImageContentMock.mockRejectedValue({ status: 404 });
+        renderAdmin();
+        fireEvent.click(screen.getByRole('button', { name: 'Media review' }));
+        await screen.findByText('Riverside apartment — Unit 2A');
+
+        expect(await screen.findByText('Image could not be loaded.')).toBeInTheDocument();
+        expect(screen.queryByRole('img', { name: 'Living room' })).not.toBeInTheDocument();
+      });
     });
 
     it('has no critical accessibility violations on the media-review queue', async () => {

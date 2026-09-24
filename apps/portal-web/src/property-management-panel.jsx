@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Button, Checkbox, Field, Input, Select, Spinner, Textarea } from '@fluentui/react-components';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
@@ -6,14 +6,18 @@ import { createApiClient } from '@keyforta/api-client';
 import {
   availabilityVersionCreationEnvelopeSchema,
   createPublicListingEnvelopeSchema,
+  deletePublicListingImageEnvelopeSchema,
   furnishingStatuses,
   pricingVersionCreationEnvelopeSchema,
   propertyTypes,
+  publicListingImageListEnvelopeSchema,
+  publicListingImageRooms,
   rentalPropertyCreationEnvelopeSchema,
   rentableUnitCreationEnvelopeSchema,
   supportedCurrencies,
   unitTypes,
   updatePublicListingDraftEnvelopeSchema,
+  uploadPublicListingImageEnvelopeSchema,
 } from '@keyforta/contracts';
 import { resolveApiBaseUrl } from './listing-publication-panel.jsx';
 
@@ -53,24 +57,60 @@ const emptyPricingForm = {
 const emptyListingForm = {
   title: '',
   summary: '',
-  imageUrls: '',
   attestationAccepted: false,
 };
 
-function parseImageUrls(rawText) {
-  return rawText
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-}
-
+// REQ-038 decision 1: image upload replaces the free-text imageUrls
+// textarea for new/edited listings, so the form no longer collects or
+// round-trips imageUrls; uploaded images are managed separately by
+// ListingImageManager once the listing exists (see PublicListingForm).
 function listingFormFromSummary(listing) {
   return {
     title: listing.title,
     summary: listing.summary || '',
-    imageUrls: (listing.imageUrls || []).join('\n'),
     attestationAccepted: true,
   };
+}
+
+// REQ-038 decision 5: JPEG/PNG only, 10 MB max per file, client-side
+// enforcement mirrors the API's own limits (source of truth remains the
+// API's 400/409/422 responses).
+const MAX_LISTING_IMAGE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_LISTING_IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png'];
+// REQ-037's existing 1-10 image cap is unchanged by REQ-038 (decision 5).
+const MAX_LISTING_IMAGES = 10;
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error('Unable to read the selected file.'));
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const commaIndex = result.indexOf(',');
+      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Maps an API error (400/404/409/422/503) to a clear, non-technical
+// user-facing message, following the same pattern as the existing
+// validationError/attestationError fields on this form.
+function mapListingImageErrorMessage(error, t) {
+  switch (error?.code) {
+    case 'CONFLICT':
+      return t('property_management.listing_image_cap_reached');
+    case 'MEDIA_SCAN_REJECTED':
+      return t('property_management.listing_image_scan_rejected');
+    case 'VALIDATION_ERROR':
+      return t('property_management.listing_image_invalid');
+    case 'NOT_FOUND':
+      return t('property_management.listing_image_not_found');
+    case 'DEPENDENCY_UNAVAILABLE':
+      return t('property_management.listing_image_unavailable');
+    default:
+      return error instanceof Error ? error.message : t('property_management.listing_image_generic_error');
+  }
 }
 
 // Converts a decimal-string user input (e.g. "400", "400.50", or the
@@ -392,18 +432,202 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
   );
 }
 
+// REQ-038: uploads/lists/deletes a draft PublicListing's images. Rendered
+// only for a `draft` listing (migration 0032's app.upload_public_listing_image
+// and app.delete_public_listing_image both reject a non-draft listing), so
+// this component is only ever mounted alongside PublicListingForm's
+// draft-status views, never for a published/withdrawn listing.
+function ListingImageManager({ disabled, legacyImageCount = 0, listingId, session, t }) {
+  const [images, setImages] = useState([]);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [imagesError, setImagesError] = useState('');
+  const [room, setRoom] = useState('');
+  const [attestationAccepted, setAttestationAccepted] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [deletingImageId, setDeletingImageId] = useState('');
+  const fileInputRef = useRef(null);
+  const fileInputId = useId();
+  const attestationId = useId();
+
+  const fetchImages = async () => {
+    setImagesError('');
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.list(`public-listings/${listingId}/images`);
+      const parsed = publicListingImageListEnvelopeSchema.parse(payload);
+      setImages(parsed.items);
+    } catch (error) {
+      setImagesError(mapListingImageErrorMessage(error, t));
+    } finally {
+      setImagesLoaded(true);
+    }
+  };
+
+  useEffect(() => {
+    setImages([]);
+    setImagesLoaded(false);
+    fetchImages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listingId]);
+
+  // REQ-038's 10-image cap is combined across legacy imageUrls and
+  // uploaded images (both are rendered together in the public gallery), so
+  // the client-side cap check must count both, not just uploaded rows.
+  const capReached = images.length + legacyImageCount >= MAX_LISTING_IMAGES;
+
+  const handleUpload = async (event) => {
+    event.preventDefault();
+    setFormError('');
+    const file = fileInputRef.current?.files?.[0];
+    if (!room) {
+      setFormError(t('property_management.listing_image_room_required'));
+      return;
+    }
+    if (!file) {
+      setFormError(t('property_management.listing_image_file_required'));
+      return;
+    }
+    if (!ALLOWED_LISTING_IMAGE_MEDIA_TYPES.includes(file.type)) {
+      setFormError(t('property_management.listing_image_type_invalid'));
+      return;
+    }
+    if (file.size > MAX_LISTING_IMAGE_BYTES) {
+      setFormError(t('property_management.listing_image_too_large'));
+      return;
+    }
+    if (capReached) {
+      setFormError(t('property_management.listing_image_cap_reached'));
+      return;
+    }
+    if (!attestationAccepted) {
+      setFormError(t('property_management.listing_image_attestation_required'));
+      return;
+    }
+    setUploading(true);
+    try {
+      const contentBase64 = await readFileAsBase64(file);
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.create(`public-listings/${listingId}/images`, {
+        contentBase64,
+        mediaType: file.type,
+        room,
+        attestationAccepted: true,
+      });
+      uploadPublicListingImageEnvelopeSchema.parse(payload);
+      setRoom('');
+      setAttestationAccepted(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      await fetchImages();
+    } catch (error) {
+      setFormError(mapListingImageErrorMessage(error, t));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+
+  const handleDelete = async (imageId) => {
+    setFormError('');
+    setDeletingImageId(imageId);
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.remove(`public-listings/${listingId}/images`, imageId);
+      deletePublicListingImageEnvelopeSchema.parse(payload);
+      await fetchImages();
+    } catch (error) {
+      setFormError(mapListingImageErrorMessage(error, t));
+    } finally {
+      setDeletingImageId('');
+    }
+  };
+
+  return (
+    <div className='listing-image-manager'>
+      <h3>{t('property_management.listing_images_title')}</h3>
+      {imagesError ? <p className='field-error' role='alert'>{imagesError}</p> : null}
+      {imagesLoaded && images.length === 0 && !imagesError ? (
+        <p>{t('property_management.listing_images_empty')}</p>
+      ) : null}
+      {images.length > 0 ? (
+        <ul className='listing-image-list'>
+          {images.map((image) => (
+            <li key={image.imageId}>
+              <span>{t(`property_management.room.${image.room}`)}</span>
+              <Button
+                appearance='subtle'
+                disabled={disabled || deletingImageId === image.imageId}
+                onClick={() => handleDelete(image.imageId)}
+                type='button'
+              >
+                {deletingImageId === image.imageId
+                  ? <><Spinner size='tiny' /> {t('property_management.listing_image_deleting')}</>
+                  : t('property_management.listing_image_delete')}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <form className='listing-image-upload-form' noValidate onSubmit={handleUpload}>
+        <Field label={t('property_management.field.listing_image_room')} required>
+          <Select disabled={disabled || uploading || capReached} onChange={(_event, data) => setRoom(data.value)} value={room}>
+            <option value=''>{t('property_management.listing_image_room_placeholder')}</option>
+            {publicListingImageRooms.map((option) => (
+              <option key={option} value={option}>{t(`property_management.room.${option}`)}</option>
+            ))}
+          </Select>
+        </Field>
+        <div className='listing-image-file-field'>
+          <label htmlFor={fileInputId}>{t('property_management.field.listing_image_file')}<span aria-hidden='true'>*</span></label>
+          <input
+            accept='image/jpeg,image/png'
+            disabled={disabled || uploading || capReached}
+            id={fileInputId}
+            ref={fileInputRef}
+            required
+            type='file'
+          />
+        </div>
+        <Field>
+          <Checkbox
+            checked={attestationAccepted}
+            disabled={disabled || uploading || capReached}
+            id={attestationId}
+            label={t('property_management.listing_image_attestation_label')}
+            onChange={(_event, data) => setAttestationAccepted(Boolean(data.checked))}
+            required
+          />
+        </Field>
+        {formError ? <p className='field-error' role='alert'>{formError}</p> : null}
+        {capReached ? <p>{t('property_management.listing_image_cap_reached')}</p> : null}
+        <Button appearance='secondary' disabled={disabled || uploading || capReached || !attestationAccepted} type='submit'>
+          {uploading
+            ? <><Spinner size='tiny' /> {t('property_management.listing_image_uploading')}</>
+            : t('property_management.listing_image_upload_submit')}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
 // Builds/edits the PublicListing draft (REQ-037 / issue #116's final slice):
 // a unit without any listing gets a create form; a unit whose listing is
 // still `draft` gets an edit form pre-filled from the current draft;
 // `published`/`withdrawn` listings show read-only status only, since
 // content changes to a published listing must go through withdraw first
 // (ListingPublicationPanel), matching app.update_public_listing_draft's
-// draft-only precondition (migration 0030).
-function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, t, unitId }) {
+// draft-only precondition (migration 0030). Once a draft listing exists,
+// its images are managed independently by ListingImageManager (REQ-038):
+// title/summary edits and photo uploads are separate concerns, so the
+// image manager renders whenever a draft listing exists regardless of
+// whether the title/summary edit form is open.
+function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session, t, unitId }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => (listing ? listingFormFromSummary(listing) : emptyListingForm));
   const [busy, setBusy] = useState(false);
-  const [validationError, setValidationError] = useState('');
   const [attestationError, setAttestationError] = useState('');
   useEffect(() => {
     setForm(listing ? listingFormFromSummary(listing) : emptyListingForm);
@@ -429,27 +653,9 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, t, unit
     );
   }
 
-  if (hasListing && !open) {
-    return (
-      <div className='public-listing-status'>
-        <span className='status'>{t('property_management.listing_status.draft')}</span>
-        <span className='listing-meta'>{t(`property_management.media_review_status.${listing.mediaReviewStatus}`)}</span>
-        <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
-          {t('property_management.edit_listing_toggle')}
-        </Button>
-      </div>
-    );
-  }
-
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setValidationError('');
     setAttestationError('');
-    const imageUrls = parseImageUrls(form.imageUrls);
-    if (imageUrls.length === 0) {
-      setValidationError(t('property_management.listing_image_urls_required'));
-      return;
-    }
     if (!hasListing && !form.attestationAccepted) {
       setAttestationError(t('property_management.listing_attestation_required'));
       return;
@@ -457,8 +663,8 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, t, unit
     setBusy(true);
     try {
       const submitted = hasListing
-        ? await onUpdateDraft(listing.id, listing.version, { title: form.title, summary: form.summary, imageUrls })
-        : await onCreate(unitId, { title: form.title, summary: form.summary, imageUrls, attestationAccepted: form.attestationAccepted });
+        ? await onUpdateDraft(listing.id, listing.version, { title: form.title, summary: form.summary, imageUrls: listing.imageUrls ?? [] })
+        : await onCreate(unitId, { title: form.title, summary: form.summary, attestationAccepted: form.attestationAccepted });
       if (submitted) setOpen(false);
     } finally {
       setBusy(false);
@@ -466,41 +672,55 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, t, unit
   };
 
   return (
-    <form aria-label={t(hasListing ? 'property_management.edit_listing_form_label' : 'property_management.create_listing_form_label')} className='unit-form' noValidate onSubmit={handleSubmit}>
-      <Field label={t('property_management.field.listing_title')} required>
-        <Input disabled={busy} maxLength={140} required value={form.title} onChange={set('title')} />
-      </Field>
-      <Field label={t('property_management.field.listing_summary')} required>
-        <Textarea disabled={busy} maxLength={4000} required resize='vertical' value={form.summary} onChange={set('summary')} />
-      </Field>
-      <Field
-        hint={t('property_management.listing_image_urls_hint')}
-        label={t('property_management.field.listing_image_urls')}
-        required
-        validationMessage={validationError || undefined}
-      >
-        <Textarea disabled={busy} required resize='vertical' value={form.imageUrls} onChange={set('imageUrls')} />
-      </Field>
-      {!hasListing && (
-        <Field validationMessage={attestationError || undefined}>
-          <Checkbox
-            disabled={busy}
-            checked={form.attestationAccepted}
-            label={t('property_management.listing_attestation_label')}
-            onChange={(_event, data) => setForm((current) => ({ ...current, attestationAccepted: Boolean(data.checked) }))}
-            required
-          />
-        </Field>
-      )}
-      <div className='unit-form-actions'>
-        <Button appearance='primary' disabled={disabled || busy} type='submit'>
-          {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t(hasListing ? 'property_management.edit_listing_submit' : 'property_management.create_listing_submit')}
-        </Button>
-        <Button appearance='subtle' disabled={busy} onClick={() => setOpen(false)} type='button'>
-          {t('property_management.cancel')}
-        </Button>
-      </div>
-    </form>
+    <>
+      {hasListing && !open ? (
+        <div className='public-listing-status'>
+          <span className='status'>{t('property_management.listing_status.draft')}</span>
+          <span className='listing-meta'>{t(`property_management.media_review_status.${listing.mediaReviewStatus}`)}</span>
+          <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
+            {t('property_management.edit_listing_toggle')}
+          </Button>
+        </div>
+      ) : null}
+      {open ? (
+        <form aria-label={t(hasListing ? 'property_management.edit_listing_form_label' : 'property_management.create_listing_form_label')} className='unit-form' noValidate onSubmit={handleSubmit}>
+          <Field label={t('property_management.field.listing_title')} required>
+            <Input disabled={busy} maxLength={140} required value={form.title} onChange={set('title')} />
+          </Field>
+          <Field label={t('property_management.field.listing_summary')} required>
+            <Textarea disabled={busy} maxLength={4000} required resize='vertical' value={form.summary} onChange={set('summary')} />
+          </Field>
+          {!hasListing && (
+            <Field validationMessage={attestationError || undefined}>
+              <Checkbox
+                disabled={busy}
+                checked={form.attestationAccepted}
+                label={t('property_management.listing_attestation_label')}
+                onChange={(_event, data) => setForm((current) => ({ ...current, attestationAccepted: Boolean(data.checked) }))}
+                required
+              />
+            </Field>
+          )}
+          <div className='unit-form-actions'>
+            <Button appearance='primary' disabled={disabled || busy} type='submit'>
+              {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t(hasListing ? 'property_management.edit_listing_submit' : 'property_management.create_listing_submit')}
+            </Button>
+            <Button appearance='subtle' disabled={busy} onClick={() => setOpen(false)} type='button'>
+              {t('property_management.cancel')}
+            </Button>
+          </div>
+        </form>
+      ) : null}
+      {hasListing ? (
+        <ListingImageManager
+          disabled={disabled}
+          legacyImageCount={listing.imageUrls?.length ?? 0}
+          listingId={listing.id}
+          session={session}
+          t={t}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -719,7 +939,6 @@ export function PropertyManagementPanel({
       const payload = await apiClient.create(`units/${unitId}/public-listing`, {
         title: form.title,
         summary: form.summary,
-        imageUrls: form.imageUrls,
         attestationAccepted: form.attestationAccepted,
         idempotencyKey: generateIdempotencyKey(),
       });
@@ -745,7 +964,10 @@ export function PropertyManagementPanel({
       const payload = await apiClient.update('public-listings', `${listingId}/draft`, {
         title: form.title,
         summary: form.summary,
-        imageUrls: form.imageUrls,
+        // Preserve the listing's existing legacy image URLs: the schema
+        // defaults an omitted imageUrls to [], which would otherwise wipe
+        // them on every edit (this route never manages uploaded images).
+        imageUrls: form.imageUrls ?? [],
         expectedVersion,
       });
       updatePublicListingDraftEnvelopeSchema.parse(payload);
@@ -829,6 +1051,7 @@ export function PropertyManagementPanel({
                         listing={unitListing}
                         onCreate={submitCreateListing}
                         onUpdateDraft={submitUpdateListingDraft}
+                        session={session}
                         t={t}
                         unitId={unit.id}
                       />

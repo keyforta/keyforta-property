@@ -29,5 +29,7 @@
   "0028_rental_property_and_unit_commands.sql": "00215eaca6c8076d3175d719b4a3b16bc272aa1e25e46e30090faf55b8e26d4f",
   "0029_public_listing_portfolio_feed.sql": "c0767e6bc4cb79469767f3909f5f37e64f080f0ac4f7106dee604c9c85acc91e",
   "0030_public_listing_media_activation.sql": "fd042f04b1ea3be21f31f57cf2e9e727ba3b62a7951d83ee8bd15da8f8366c04",
-  "0031_auto_assign_property_creator.sql": "bd995dcd5a9a8fd8b31682b98bb22b3c9afdb6f887c3e6ae3451e0115d1dc2aa"
+  "0031_auto_assign_property_creator.sql": "bd995dcd5a9a8fd8b31682b98bb22b3c9afdb6f887c3e6ae3451e0115d1dc2aa",
+  "0032_public_listing_media_upload.sql": "f603a099bda87547b3f6c0efbd70bef19dc5942ad3c543472dd40eb499e139dc",
+  "0033_public_listing_media_review_content.sql": "d9bb3cd81278c40f66f7e172114dfc227f031633ddf4abe767f4d6f36039317f"
 }
