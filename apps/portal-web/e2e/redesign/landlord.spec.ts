@@ -83,4 +83,28 @@ test.describe('Landlord redesign (flag-gated)', () => {
 
     await page.screenshot({ path: 'e2e/redesign/__screenshots__/flag-on-landlord-properties-status-distinction.png', fullPage: true });
   });
+
+  // Copilot PR #134 review finding #2: the withdrawn listing's `.status`
+  // badge must not render with the same green "positive" color as the
+  // unit's own "Available" badge — this asserts the actual COMPUTED
+  // background/color in a real browser (jsdom cannot compute this),
+  // using the same PO-regression preview fixture (available unit +
+  // withdrawn listing, the exact reported combination).
+  test('flag on: a withdrawn listing\'s status badge no longer computes to the green "positive" color used for genuinely positive statuses', async ({ page }) => {
+    await page.goto(`${FLAG_ON_URL}/landlord-redesign-preview.html`);
+    const unitStatus = page.locator('.unit-row > .status');
+    const listingStatus = page.locator('.public-listing-status .status');
+    await expect(unitStatus).toHaveText('Available');
+    await expect(listingStatus).toHaveText('Withdrawn');
+
+    const [unitColor, listingColor] = await Promise.all([
+      unitStatus.evaluate((el) => window.getComputedStyle(el).color),
+      listingStatus.evaluate((el) => window.getComputedStyle(el).color),
+    ]);
+    // The unit's "Available" badge keeps the base reused green (unchanged,
+    // positive is correct here); the listing's "Withdrawn" badge must
+    // compute to a visibly different color.
+    expect(listingColor).not.toBe(unitColor);
+    await expect(listingStatus).toHaveAttribute('data-kf-tone', 'negative');
+  });
 });

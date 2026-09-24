@@ -91,4 +91,19 @@ describe('unit-status vs listing-status caption distinction (PO regression fix)'
     expect(anchor.style.getPropertyValue('--kf-unit-status-label')).toBe('"Statut de l\'unité"');
     expect(anchor.style.getPropertyValue('--kf-listing-status-label')).toBe('"Statut de l\'annonce"');
   });
+
+  // Copilot PR #134 review finding #2: the withdrawn listing's `.status`
+  // badge in this exact fixture must be annotated `data-kf-tone="negative"`
+  // (so redesign.css can give it a non-green tone), while the unit's own
+  // "Available" `.status` badge — a genuinely positive value — must not
+  // be.
+  it('annotates the withdrawn listing\'s .status badge with data-kf-tone="negative" but leaves the unit\'s "Available" badge untouched', () => {
+    const { container } = renderShell();
+    const unitStatus = container.querySelector('.unit-row > .status');
+    const listingStatus = container.querySelector('.public-listing-status .status');
+    expect(unitStatus.textContent).toBe('Available');
+    expect(unitStatus.getAttribute('data-kf-tone')).toBeNull();
+    expect(listingStatus.textContent).toBe('Withdrawn');
+    expect(listingStatus.getAttribute('data-kf-tone')).toBe('negative');
+  });
 });

@@ -278,7 +278,8 @@
       "add_photos": {
         "label": "Ajouter des photos \u00e0 l'annonce",
         "done_detail": "Au moins une annonce a des photos.",
-        "todo_detail": "Les annonces avec photos attirent davantage l'attention."
+        "todo_detail": "Les annonces avec photos attirent davantage l'attention.",
+        "unknown_detail": "Ouvrez le gestionnaire de photos d'une annonce ci-dessous pour v\u00e9rifier ses photos."
       },
       "publish_listing": {
         "label": "Publier l'annonce",

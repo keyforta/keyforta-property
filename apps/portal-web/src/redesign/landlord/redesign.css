@@ -36,6 +36,15 @@
   --kf-soft-bone: #F3EEE7;
   --kf-aubergine-08: rgba(36, 22, 46, 0.08);
   --kf-aubergine-12: rgba(36, 22, 46, 0.12);
+  /* Copilot PR #134 review finding #3: muted-neutral tone derived from
+     the approved aubergine brand token (not an ad hoc gray hex), used
+     anywhere a "can't tell yet / unknown" treatment is needed. Verified
+     >=4.5:1 contrast against a white background (WCAG AA for normal
+     text): blending aubergine #24162E at 60% opacity over white yields
+     an effective ~#7C7F8C-ish gray with a contrast ratio of ~4.53:1 (see
+     apps/portal-web/test/redesign/theme.test.js's contrast-ratio helper,
+     which independently re-verifies this). */
+  --kf-aubergine-muted-60: rgba(36, 22, 46, 0.6);
   --kf-font-display: 'Instrument Sans', 'Segoe UI', sans-serif;
   --kf-font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
 
@@ -486,7 +495,7 @@
 }
 .kf-landlord-redesign .kf-checklist-row-done .kf-checklist-icon { color: var(--kf-mineral-teal); }
 .kf-landlord-redesign .kf-checklist-row-todo .kf-checklist-icon { color: var(--kf-burnished-copper); }
-.kf-landlord-redesign .kf-checklist-row-unknown .kf-checklist-icon { color: #8a8378; }
+.kf-landlord-redesign .kf-checklist-row-unknown .kf-checklist-icon { color: var(--kf-aubergine-muted-60); }
 .kf-landlord-redesign .kf-checklist-copy { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
 .kf-landlord-redesign .kf-checklist-label { font-weight: 600; }
 .kf-landlord-redesign .kf-checklist-status-badge {
@@ -500,7 +509,7 @@
 }
 .kf-landlord-redesign .kf-checklist-status-badge[data-status='done'] { color: var(--kf-mineral-teal); }
 .kf-landlord-redesign .kf-checklist-status-badge[data-status='todo'] { color: var(--kf-burnished-copper); }
-.kf-landlord-redesign .kf-checklist-status-badge[data-status='unknown'] { color: #6b6459; }
+.kf-landlord-redesign .kf-checklist-status-badge[data-status='unknown'] { color: var(--kf-aubergine-muted-60); }
 
 /* ---------------------------------------------------------------------
    §10.4 — Visual chunking of already-adjacent existing controls, applied
@@ -520,7 +529,7 @@
   border-radius: var(--kf-radius-md);
   padding: var(--kf-space-4);
   margin-bottom: var(--kf-space-4);
-  border: 1px solid #e7e0d5;
+  border: 1px solid var(--kf-aubergine-12);
 }
 .kf-landlord-redesign .unit-rows { display: flex; flex-direction: column; gap: var(--kf-space-3); margin-top: var(--kf-space-3); }
 .kf-landlord-redesign .unit-row {
@@ -534,7 +543,7 @@
   border-radius: var(--kf-radius-sm);
   padding: var(--kf-space-3);
   margin-top: var(--kf-space-3);
-  border: 1px solid #e7e0d5;
+  border: 1px solid var(--kf-aubergine-12);
 }
 .kf-landlord-redesign .unit-pricing-availability::before {
   content: 'Manage this unit';
@@ -562,7 +571,7 @@
   letter-spacing: 0.04em;
   color: var(--kf-burnished-copper);
   margin: var(--kf-space-3) 0 var(--kf-space-1);
-  border-top: 1px solid #e7e0d5;
+  border-top: 1px solid var(--kf-aubergine-12);
   padding-top: var(--kf-space-3);
 }
 .kf-landlord-redesign .listing-image-manager {
@@ -570,7 +579,7 @@
   border-radius: var(--kf-radius-sm);
   padding: var(--kf-space-3);
   margin-top: var(--kf-space-3);
-  border: 1px solid #e7e0d5;
+  border: 1px solid var(--kf-aubergine-12);
 }
 .kf-landlord-redesign .listing-image-manager::before {
   content: 'Photos';
@@ -649,6 +658,24 @@
   letter-spacing: 0.05em;
   color: var(--kf-aubergine);
   opacity: 0.65;
+}
+
+/* Copilot PR #134 review finding #2: withdrawn listings / unavailable
+   units still rendered with the reused (protected) `.status` markup's
+   always-green background+text color (see styles.css, unchanged) — the
+   same flat "positive" look regardless of actual value, since that
+   markup carries no status-specific class/attribute. LandlordShell.jsx
+   annotates each `.status` badge from outside with `data-kf-tone`
+   (derived only from its own already-rendered translated text, via
+   statusTone.js) whenever it renders "Withdrawn"/"Unavailable"; this rule
+   gives that annotated state a distinct, non-green tone using Fluent's
+   semantic red palette tokens (with a literal hex fallback for the rare
+   case a consumer's theme doesn't define them), consistent with how
+   `.publication-feedback[data-tone='error']` already borrows the same
+   token family a few rules above. */
+.kf-landlord-redesign .status[data-kf-tone='negative'] {
+  background: var(--colorPaletteRedBackground2, #fdf3f4);
+  color: var(--colorPaletteRedForeground1, #b10e1c);
 }
 
 @media (prefers-reduced-motion: reduce) {

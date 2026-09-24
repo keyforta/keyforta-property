@@ -1,9 +1,11 @@
+import { useEffect } from 'react';
 import { Avatar, Button } from '@fluentui/react-components';
 import { useTranslation } from 'react-i18next';
 import { ListingPublicationPanel } from '../../listing-publication-panel.jsx';
 import { PropertyManagementPanel } from '../../property-management-panel.jsx';
 import { LandlordBrandHeader } from './components/BrandHeader.jsx';
 import { NextBestActionChecklist } from './components/NextBestActionChecklist.jsx';
+import { annotateStatusTone } from './statusTone.js';
 
 // DOM anchor ids this shell controls itself (not inside the reused
 // black-box panels) so the checklist card (§10.2) can scroll to the
@@ -72,6 +74,29 @@ export function LandlordShell({
   const { t } = useTranslation();
   const activeIndex = navKeys.indexOf(active);
   const activeLabel = activeIndex >= 0 ? role.nav[activeIndex] : role.nav[0];
+
+  // Copilot PR #134 review finding #2: annotate the reused (protected,
+  // unchanged) `.status` badges with a tone attribute derived purely from
+  // their already-rendered text, since that markup carries no
+  // status-specific class/attribute of its own. A MutationObserver (not a
+  // one-shot effect keyed on props) is used because the badge's own
+  // re-render can be triggered by the reused panel's internal state
+  // (e.g. after a successful set-availability/publish action inside
+  // PropertyManagementPanel/ListingPublicationPanel) rather than only by
+  // this shell's own `rentalProperties`/`managerListings` props changing.
+  useEffect(() => {
+    if (!showPropertyManagement) return undefined;
+    const container = document.getElementById(PROPERTY_MANAGEMENT_ANCHOR_ID);
+    if (!container) return undefined;
+    const negativeTexts = new Set([
+      t('property_management.unit_availability_status.unavailable'),
+      t('property_management.listing_status.withdrawn'),
+    ]);
+    annotateStatusTone(container, negativeTexts);
+    const observer = new MutationObserver(() => annotateStatusTone(container, negativeTexts));
+    observer.observe(container, { characterData: true, childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [t, showPropertyManagement, managerListings, rentalProperties]);
 
   return (
     <div className='kf-landlord-redesign app-shell'>

@@ -9,15 +9,29 @@
 > `REQ-038-...md`). If a `docs/design/` convention is later created (e.g. by
 > someone with shell access), this file should move there unchanged.
 
-Status: **Draft, pending Product Owner sign-off.** Tracked under
-`docs/engineering/REQUIREMENTS_GAPS.md` → "Redesigned per-role UI/UX with
-KEYFORTA branding" (approved-in-principle scope, final sign-off pending).
-This document is the design artifact called for by that row's open decision
-"(d) the per-role UX design spec itself does not yet exist."
+Status: **Implemented behind a build-time flag (default off) under a
+Solution Architect-approved bounded/additive/flag-gated exception** —
+NOT full Product Owner sign-off on the redesign initiative's scope. That
+exception permits exactly one minimal mount-point line in
+`apps/portal-web/src/portal-app.jsx` plus additive-only i18n keys in
+`en.json`/`fr.json` (see §9's reconciled acceptance criterion), with all
+other new code isolated under `apps/portal-web/src/redesign/landlord/` and
+reachable only in development/preview builds. Full sign-off on the
+redesign initiative itself (beyond this bounded Phase 1 exception) is
+still pending and tracked under `docs/engineering/REQUIREMENTS_GAPS.md` →
+"Redesigned per-role UI/UX with KEYFORTA branding" (approved-in-principle
+scope, final initiative sign-off pending). This document is the design
+artifact called for by that row's open decision "(d) the per-role UX
+design spec itself does not yet exist."
 
 Scope owner: UX Designer (this document). Implementation owner: Frontend
 Engineer, in `apps/portal-web/src/redesign/landlord/` only, flag-gated,
-**additive** — no existing file under `apps/portal-web/src` may be modified.
+**additive** — no existing file under `apps/portal-web/src` may be
+substantively modified/refactored, with one narrow, already-approved
+exception: a single minimal mount-point line/branch in `portal-app.jsx`
+to wire in the flag-gated route, plus additive-only new i18n keys in
+`en.json`/`fr.json` (never touching or removing any existing key/value).
+See §9's reconciled acceptance criterion for the exact, agreed boundary.
 
 This spec covers **Phase 1: Landlord** only (Overview + Properties screens),
 matching the phase ordering already recorded in `REQUIREMENTS_GAPS.md`
@@ -600,7 +614,13 @@ l. **File location** (this note) — `docs/design/` does not exist; this file
 ## 9. Acceptance checklist for Frontend Engineer implementation review
 
 - [ ] All new code lives under `apps/portal-web/src/redesign/landlord/`;
-      zero lines changed in any existing file.
+      the only changes to existing files are the single, minimal
+      mount-point line/branch in `apps/portal-web/src/portal-app.jsx` that
+      wires in the flag-gated route, and additive-only new i18n keys added
+      to `en.json`/`fr.json` (no existing key/value touched or removed) —
+      every other existing file, including `property-management-panel.jsx`,
+      `listing-publication-panel.jsx`, and `styles.css`, remains
+      byte-for-byte unchanged.
 - [ ] Flag-gated; flag-off path renders byte-for-byte identical to today.
 - [ ] Fluent UI v9 continues to be used; theme built from brand tokens per
       §2/§3.1, no ad hoc hex outside the documented brand palette + Fluent

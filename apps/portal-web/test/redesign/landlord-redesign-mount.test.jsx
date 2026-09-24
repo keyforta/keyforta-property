@@ -128,6 +128,28 @@ describe('Landlord redesign flag gating (single mount point in portal-app.jsx)',
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
   });
 
+  // Copilot PR #134 review finding #5: an 'unknown' row (e.g. "Set pricing
+  // & availability", which is always 'unknown' today per §10.2 item 2)
+  // must still be clickable/actionable — it must not be permanently
+  // disabled just because its status can't be computed, since the actual
+  // control for it exists below and is reachable exactly the same way as
+  // every other unchecked row.
+  it('clicking the "Set pricing & availability" row (status unknown) still scrolls to the property-management panel, matching every other unchecked row', async () => {
+    vi.stubEnv('VITE_REDESIGN_ENABLED', 'true');
+    seedLandlordSession();
+    const { container } = renderPortal();
+    await waitFor(() => expect(container.querySelector('.kf-landlord-redesign')).toBeInTheDocument());
+    const anchor = container.querySelector('#kf-property-management-anchor');
+    expect(anchor).toBeInTheDocument();
+    const scrollSpy = vi.fn();
+    anchor.scrollIntoView = scrollSpy;
+    const checklist = screen.getByTestId('next-best-action-checklist');
+    const setPricingRow = within(checklist).getByText('Set pricing & availability').closest('button');
+    expect(setPricingRow).not.toBeDisabled();
+    setPricingRow.click();
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+  });
+
   it('does not gate non-landlord roles into the redesign even when the flag is on', async () => {
     vi.stubEnv('VITE_REDESIGN_ENABLED', 'true');
     localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'manager@test.keyforta.com', role: 'manager', issuedAt: '2026-09-18T00:00:00.000Z', organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }));

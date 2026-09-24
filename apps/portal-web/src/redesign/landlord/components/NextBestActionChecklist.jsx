@@ -24,6 +24,7 @@ export function NextBestActionChecklist({ listings, onNavigateToProperties, prop
       done: t('landlord_redesign.checklist.add_photos.done_detail'),
       label: t('landlord_redesign.checklist.add_photos.label'),
       todo: t('landlord_redesign.checklist.add_photos.todo_detail'),
+      unknown: t('landlord_redesign.checklist.add_photos.unknown_detail'),
     },
     publishListing: {
       done: t('landlord_redesign.checklist.publish_listing.done_detail'),
@@ -57,7 +58,12 @@ export function NextBestActionChecklist({ listings, onNavigateToProperties, prop
         {rows.map((row) => {
           const copy = copyByKey[row.key];
           const detail = row.status === 'done' ? copy.done : row.status === 'unknown' ? copy.unknown : copy.todo;
-          const clickable = row.status !== 'done' && row.key !== 'setPricing';
+          // Copilot PR #134 review finding #5: clickability must depend
+          // only on whether the row is already done, not on which key it
+          // is — every unchecked row (including 'unknown' ones, e.g.
+          // "Set pricing & availability") has a real, reachable control
+          // below it, so every unchecked row must stay actionable.
+          const clickable = row.status !== 'done';
           return (
             <li className={`kf-checklist-row kf-checklist-row-${row.status}`} key={row.key}>
               <button

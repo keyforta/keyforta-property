@@ -88,4 +88,20 @@ describe('landlord redesign brand theme', () => {
     expect(parseAlpha(landlordRedesignTheme.colorNeutralStroke1Hover)).toBeGreaterThan(parseAlpha(landlordRedesignTheme.colorNeutralStroke1));
     expect(parseAlpha(landlordRedesignTheme.colorNeutralStroke1Pressed)).toBeGreaterThan(parseAlpha(landlordRedesignTheme.colorNeutralStroke1Hover));
   });
+
+  // Copilot PR #134 review finding #3: redesign.css's `--kf-aubergine-
+  // muted-60` token (replacing the ad hoc `#8a8378`/`#6b6459` hex values
+  // used for "unknown" checklist rows) must itself pass WCAG AA (>=
+  // 4.5:1) for normal text against the white background it's actually
+  // used on, not just look plausibly muted.
+  it('confirms the §11.4/finding-3 aubergine-muted-60 token (rgba(36,22,46,0.6) on white) passes WCAG AA for normal text (>= 4.5:1)', () => {
+    const blendOverWhite = (r, g, b, alpha) => [
+      255 * (1 - alpha) + r * alpha,
+      255 * (1 - alpha) + g * alpha,
+      255 * (1 - alpha) + b * alpha,
+    ];
+    const toHex = ([r, g, b]) => `#${[r, g, b].map((c) => Math.round(c).toString(16).padStart(2, '0')).join('')}`;
+    const blended = toHex(blendOverWhite(36, 22, 46, 0.6));
+    expect(contrastRatio(blended, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
+  });
 });
