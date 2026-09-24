@@ -445,6 +445,7 @@ export interface PublicPropertyProjection {
   id: string;
   imageUrl?: string;
   imageUrls: readonly string[];
+  listingId?: string;
   monthlyRentMinor: string;
   name: string;
   summary: string;

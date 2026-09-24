@@ -254,7 +254,9 @@ export function PropertiesPage({ lang, filters, onFilterChange }) {
 export function PropertyDetailPage({ lang, propertyId }) {
   const { t } = useTranslation();
   const { data: property, error, loading, retry } = usePublicProperty(propertyId);
-  const { data: gallery } = usePublicListingPhotos(property?.id);
+  // The photo-gallery route requires the PublicListing's internal uuid
+  // (`listingId`), distinct from `property.id` (the public-facing slug).
+  const { data: gallery } = usePublicListingPhotos(property?.listingId);
 
   useEffect(() => {
     if (property) document.title = `${property.name} - KEYFORTA`;

@@ -468,6 +468,12 @@ export const publicPropertyProjectionSchema = z.object({
 	// no longer require at least one URL without breaking every
 	// upload-only published listing's public projection.
 	imageUrls: z.array(z.string()),
+	// The PublicListing's own uuid (distinct from `id`, the public-facing
+	// slug above), required by the client to call
+	// GET /public-listings/{listingId}/photos, which validates its
+	// path parameter as a uuid. Only present on single-listing detail
+	// lookups (app.get_public_listing); browse/list results omit it.
+	listingId: z.uuid().optional(),
 	monthlyRentMinor: z.string().regex(/^[1-9]\d*$/),
 	name: z.string(),
 	summary: z.string(),

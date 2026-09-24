@@ -189,3 +189,28 @@ test("REQ-038 publicPropertyProjectionSchema allows upload-only listings with ze
 
   assert.equal(publicPropertyProjectionSchema.safeParse(uploadOnlyProperty).success, true);
 });
+
+test("REQ-038 publicPropertyProjectionSchema accepts an optional listingId distinct from the public id slug", () => {
+  const withListingId = {
+    address: "123 Riverside Way",
+    amenities: ["parking"],
+    availableFrom: "2025-01-01",
+    bathrooms: 1,
+    bedrooms: 2,
+    city: "Springfield",
+    currency: "USD",
+    district: "Riverside",
+    id: "riverside-apartment",
+    imageUrls: [],
+    // The photos-gallery route requires this uuid; the public `id` above
+    // is a slug and cannot be used to fetch the uploaded-image gallery.
+    listingId: "b6c2b6a0-6c9a-4e3a-9b5b-1a2c3d4e5f60",
+    monthlyRentMinor: "150000",
+    name: "Riverside apartment",
+    summary: "A bright two-bedroom unit close to transit and shops.",
+  };
+
+  assert.equal(publicPropertyProjectionSchema.safeParse(withListingId).success, true);
+  const { imageUrls: _imageUrls, listingId, ...withoutListingId } = withListingId;
+  assert.equal(publicPropertyProjectionSchema.safeParse({ ...withoutListingId, imageUrls: [] }).success, true);
+});

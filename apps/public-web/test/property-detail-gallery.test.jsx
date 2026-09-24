@@ -19,6 +19,10 @@ function renderWithProviders(node) {
 
 const property = {
   id: 'listing-1',
+  // The public-facing `id` above is a slug (e.g. would be
+  // "riverside-apartment" in production); `listingId` is the distinct
+  // PublicListing uuid that the photos route actually requires.
+  listingId: '00000000-0000-4000-8000-000000000901',
   name: 'Riverside apartment',
   city: 'Kinshasa',
   district: 'Gombe',
@@ -118,5 +122,16 @@ describe('PropertyDetailPage photo gallery (REQ-038)', () => {
 
     const { container } = renderWithProviders(<PropertyDetailPage lang='en' propertyId='listing-1' />);
     expect((await axe(container)).violations).toEqual([]);
+  });
+
+  // The photos route (`GET /api/v1/public-listings/:listingId/photos`)
+  // requires the PublicListing's uuid, not the public-facing `id` slug;
+  // passing the slug returns 400 and the gallery silently never renders.
+  it("fetches the photo gallery using the listing's uuid, not its public-facing slug", () => {
+    usePublicListingPhotos.mockReturnValue({ data: null, error: null, loading: false, retry: vi.fn() });
+
+    renderWithProviders(<PropertyDetailPage lang='en' propertyId='listing-1' />);
+
+    expect(usePublicListingPhotos).toHaveBeenCalledWith(property.listingId);
   });
 });
