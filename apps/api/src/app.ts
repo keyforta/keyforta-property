@@ -71,7 +71,7 @@ import {
 import type { PublicListingPublicationGateway } from "./properties/publication-gateway.js";
 import type { PublicListingMediaGateway } from "./properties/media-gateway.js";
 import type { MediaScanner } from "./media/scanner.js";
-import { NoopScanner } from "./media/scanner.js";
+import { matchesDeclaredImageSignature, NoopScanner } from "./media/scanner.js";
 import type { PublicViewingRequestGateway } from "./properties/viewing-gateway.js";
 
 const serviceName = "keyforta-api";
@@ -1100,6 +1100,18 @@ export async function buildApp(
         return reply.status(400).send(problem(
           request.id, 400, "VALIDATION_ERROR", "Validation Error",
           "An uploaded image must be between 1 byte and 10 MB.",
+        ));
+      }
+      // Signature validation (Copilot review finding on PR #131): the
+      // no-op scanner reports any bytes as clean, so the declared
+      // `mediaType` cannot be trusted alone as proof of the actual file
+      // format. Checked before scanning, consistent with the other
+      // pre-storage PROP-028 checks above (no scan/gateway call for
+      // rejected input).
+      if (!matchesDeclaredImageSignature(content, parsedInput.data.mediaType)) {
+        return reply.status(400).send(problem(
+          request.id, 400, "VALIDATION_ERROR", "Validation Error",
+          "The uploaded file does not match the declared image media type.",
         ));
       }
       const scanResult = await mediaScanner.scanUpload(content, parsedInput.data.mediaType);

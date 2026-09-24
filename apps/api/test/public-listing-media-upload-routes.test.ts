@@ -27,7 +27,15 @@ const listingId = "00000000-0000-4000-8000-000000000930";
 const imageId = "00000000-0000-4000-8000-000000000981";
 const adminObjectId = "00000000-0000-4000-8000-000000000702";
 
-const tinyJpegBase64 = Buffer.from("not-real-jpeg-bytes").toString("base64");
+// A real JPEG file-signature prefix (SOI + APP0 markers) followed by
+// arbitrary body bytes, so signature validation (added after the Copilot
+// review finding on PR #131: the API previously trusted the caller-supplied
+// `mediaType` with no check that the bytes were actually JPEG/PNG) accepts
+// this fixture the same way a genuine JPEG upload would be accepted.
+const tinyJpegBase64 = Buffer.concat([
+  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+  Buffer.from("not-real-jpeg-body"),
+]).toString("base64");
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -360,6 +368,42 @@ describe("PublicListing image upload/list/delete routes (REQ-038)", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(configured.uploadCommands).toEqual([]);
+  });
+
+  // Copilot review finding on PR #131: the declared `mediaType` was trusted
+  // as proof of the actual file format, with the no-op scanner reporting
+  // arbitrary bytes as clean, so non-image content could be persisted and
+  // later served with an image content type. Bytes whose signature does not
+  // match the declared `mediaType` must be rejected before the scan or the
+  // gateway call, exactly like the other PROP-028 pre-storage checks.
+  it("rejects an upload payload whose bytes do not match the declared JPEG/PNG media type, without invoking the scanner or the gateway", async () => {
+    const scanCalls: unknown[] = [];
+    const scanner: MediaScanner = {
+      async scanUpload() {
+        scanCalls.push(true);
+        return { clean: true };
+      },
+    };
+    const configured = dependencies({ scanner });
+    const app = await buildApp(configured);
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: LANDLORD_AUTH, "x-organization-id": organizationId },
+      method: "POST",
+      payload: {
+        attestationAccepted: true,
+        contentBase64: Buffer.from("not-real-jpeg-bytes").toString("base64"),
+        mediaType: "image/jpeg",
+        room: "kitchen",
+      },
+      url: `/api/v1/public-listings/${listingId}/images`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(scanCalls).toEqual([]);
     expect(configured.uploadCommands).toEqual([]);
   });
 
