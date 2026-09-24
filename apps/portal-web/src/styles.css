@@ -387,6 +387,43 @@ button {
 .unit-pricing-availability h3 {
   margin: 0;
 }
+/* PublicListingForm/ListingImageManager render as direct children of the
+   4-column `.unit-row` grid (issue: they previously had no explicit
+   grid-column, so grid auto-placement squeezed them into narrow columns
+   alongside each other instead of a full-width row, causing the listing
+   status/edit-form/photo-manager content to visually overlap). */
+.public-listing-status,
+.unit-row > .unit-form,
+.listing-image-manager {
+  grid-column: 1 / -1;
+}
+.public-listing-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+}
+.listing-image-manager {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+}
+.listing-image-manager h3 {
+  margin: 0;
+}
+.listing-image-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.listing-image-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .unit-availability-occupied-note {
   margin: 0;
   color: var(--colorNeutralForeground3, #616161);

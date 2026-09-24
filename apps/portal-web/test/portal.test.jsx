@@ -132,13 +132,31 @@ describe('Portal', () => {
   });
 
 
-  it('shows the listing publication panel only for manager overview and portfolio views', () => {
+  it('shows the listing publication panel for manager overview and portfolio views', () => {
     localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'manager@test.keyforta.com', role: 'manager', issuedAt: '2026-09-18T00:00:00.000Z', organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }));
     renderPortal();
     expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Applications' }));
     expect(screen.queryByRole('heading', { name: 'Publish or withdraw assigned listings' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Portfolio' }));
+    expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
+    expect(screen.getByText(/No listings are currently assigned to you/i)).toBeInTheDocument();
+  });
+
+  // A landlord who directly owns a property (no delegated manager) is
+  // already auto-assigned as its manager (migration 0031, resolving the
+  // "Manager/landlord self-assignment for auto-publish eligibility" gap in
+  // REQUIREMENTS_GAPS.md) and app.set_public_listing_publication authorizes
+  // by that assignment, not by the 'manager' role string. Before this fix,
+  // the sidebar never rendered ListingPublicationPanel for a landlord, so
+  // such a landlord had no UI path to withdraw/republish their own listing.
+  it('also shows the listing publication panel for landlord overview and properties views', () => {
+    localStorage.setItem('keyforta.portal.session', JSON.stringify({ email: 'landlord@test.keyforta.com', role: 'landlord', issuedAt: '2026-09-18T00:00:00.000Z', organizationId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }));
+    renderPortal();
+    expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Applications' }));
+    expect(screen.queryByRole('heading', { name: 'Publish or withdraw assigned listings' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Properties' }));
     expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
     expect(screen.getByText(/No listings are currently assigned to you/i)).toBeInTheDocument();
   });
