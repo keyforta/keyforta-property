@@ -193,6 +193,9 @@ importers:
       '@keyforta/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@keyforta/brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
       '@keyforta/browser-auth':
         specifier: workspace:*
         version: link:../../packages/browser-auth
@@ -215,6 +218,9 @@ importers:
         specifier: ^16.0.0
         version: 16.6.6(i18next@25.10.10(typescript@5.9.3))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@5.9.3)
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.63.0
+        version: 1.63.0
       '@testing-library/jest-dom':
         specifier: 7.0.1
         version: 7.0.1(@testing-library/dom@10.4.2)(vitest@5.0.0(@types/node@26.4.1)(jsdom@26.1.0)(vite@7.3.6(@types/node@26.4.1)(tsx@4.23.13)(yaml@2.9.1)))
@@ -259,7 +265,7 @@ importers:
         version: 25.10.10(typescript@5.9.3)
       next:
         specifier: ^16.3.5
-        version: 16.3.5(@babel/core@7.29.7)(@types/node@26.4.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 16.3.5(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@26.4.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react:
         specifier: ^19.1.1
         version: 19.3.0
@@ -1852,6 +1858,11 @@ packages:
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
 
+  '@playwright/test@1.63.0':
+    resolution: {integrity: sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   '@rolldown/pluginutils@1.0.0-beta.34':
     resolution: {integrity: sha512-LyAREkZHP5pMom7c24meKmJCdhf2hEyvam2q0unr3or9ydwDL+DJ8chTF6Av/RFPb3rH8UFBdMzO5MxTZW97oA==}
 
@@ -3180,6 +3191,16 @@ packages:
 
   pino@10.3.1:
     resolution: {integrity: sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==}
+    hasBin: true
+
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.63.0:
+    resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
+    engines: {node: '>=20'}
     hasBin: true
 
   points-on-curve@0.2.0:
@@ -5708,6 +5729,10 @@ snapshots:
 
   '@pinojs/redact@0.4.0': {}
 
+  '@playwright/test@1.63.0':
+    dependencies:
+      playwright: 1.63.0
+
   '@rolldown/pluginutils@1.0.0-beta.34': {}
 
   '@rolldown/pluginutils@1.0.0-rc.3': {}
@@ -6923,7 +6948,7 @@ snapshots:
 
   nanoid@3.3.19: {}
 
-  next@16.3.5(@babel/core@7.29.7)(@types/node@26.4.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  next@16.3.5(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@26.4.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       '@next/env': 16.3.5
       '@swc/helpers': 0.5.23
@@ -6942,6 +6967,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 16.3.5
       '@next/swc-win32-arm64-msvc': 16.3.5
       '@next/swc-win32-x64-msvc': 16.3.5
+      '@playwright/test': 1.63.0
       sharp: 0.35.4(@types/node@26.4.1)
     transitivePeerDependencies:
       - '@babel/core'
@@ -7087,6 +7113,12 @@ snapshots:
       safe-stable-stringify: 2.5.0
       sonic-boom: 4.2.1
       thread-stream: 4.2.0
+
+  playwright-core@1.63.0: {}
+
+  playwright@1.63.0:
+    dependencies:
+      playwright-core: 1.63.0
 
   points-on-curve@0.2.0: {}
 

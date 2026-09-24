@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react';
 import {
   Avatar,
   Button,
@@ -16,6 +16,14 @@ import { PropertyManagementPanel } from './property-management-panel.jsx';
 import { useMembership } from './hooks/use-membership.js';
 import { useManagerListings } from './hooks/use-manager-listings.js';
 import { useRentalProperties } from './hooks/use-rental-properties.js';
+// Flag-gated landlord redesign (docs/product/LANDLORD_REDESIGN_SPEC.md);
+// isolated, additive, code-split so it is never fetched unless the flag is
+// on (see docs/engineering/REQUIREMENTS_GAPS.md, "Redesigned per-role
+// UI/UX with KEYFORTA branding"). This is the only mount point touched in
+// this existing file — everything else lives under ./redesign/landlord/.
+import { isLandlordRedesignEnabled } from './redesign/landlord/flags.js';
+
+const LandlordRedesign = lazy(() => import('./redesign/landlord/index.jsx'));
 
 // Real Microsoft Entra B2B guest sign-in (issue #77 decision), mirroring
 // admin-web's working pattern. Falls back to an 'unavailable' status when
@@ -211,6 +219,40 @@ export function Portal() {
   const activeIndex = navKeys.indexOf(active);
   const activeLabel = activeIndex >= 0 ? role.nav[activeIndex] : role.nav[0];
   const roleActions = t(`actions.${roleKey}`, { returnObjects: true });
+
+  // Single flag-gated mount point for the additive landlord redesign (see
+  // ./redesign/landlord/). Every prop below is a value already computed
+  // above by the existing hooks/session logic — nothing new is fetched or
+  // authorized here.
+  if (roleKey === 'landlord' && isLandlordRedesignEnabled()) {
+    return (
+      <Suspense fallback={null}>
+        <LandlordRedesign
+          active={active}
+          completedAction={completedAction}
+          listingPublicationEmptyState={listingPublicationEmptyState}
+          managerListings={managerListings}
+          managerListingsError={managerListingsError}
+          managerListingsLoading={managerListingsLoading}
+          navKeys={navKeys}
+          onComplete={complete}
+          onLogout={logout}
+          onSetActive={setActive}
+          onToggleLanguage={toggleLanguage}
+          rentalProperties={rentalProperties}
+          rentalPropertiesError={rentalPropertiesError}
+          rentalPropertiesLoading={rentalPropertiesLoading}
+          retryManagerListings={retryManagerListings}
+          retryRentalProperties={retryRentalProperties}
+          role={role}
+          roleActions={roleActions}
+          session={session}
+          showListingPublication={showListingPublication}
+          showPropertyManagement={showPropertyManagement}
+        />
+      </Suspense>
+    );
+  }
   return (
     <div className='app-shell'>
       <aside className='sidebar'>
