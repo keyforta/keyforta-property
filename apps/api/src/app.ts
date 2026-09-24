@@ -76,6 +76,13 @@ import type { PublicViewingRequestGateway } from "./properties/viewing-gateway.j
 
 const serviceName = "keyforta-api";
 const requestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+// Node's Buffer.from(value, "base64") never throws: it silently ignores
+// characters outside the base64 alphabet instead of rejecting malformed
+// input, so a catch block around it is dead code. This pattern enforces
+// strict RFC 4648 base64 (correct alphabet, grouping, and padding) before
+// any decode is attempted, matching REQ-038's requirement that a rejected
+// upload never reaches the scanner or database with garbage bytes.
+const strictBase64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export interface AppDependencies {
   apiDocs?: boolean;
@@ -1067,15 +1074,13 @@ export async function buildApp(
           parsedInput.success ? undefined : parsedInput.error.flatten(),
         ));
       }
-      let content: Buffer;
-      try {
-        content = Buffer.from(parsedInput.data.contentBase64, "base64");
-      } catch {
+      if (!strictBase64Pattern.test(parsedInput.data.contentBase64)) {
         return reply.status(400).send(problem(
           request.id, 400, "VALIDATION_ERROR", "Validation Error",
           "The image content is not valid base64.",
         ));
       }
+      const content = Buffer.from(parsedInput.data.contentBase64, "base64");
       if (content.length < 1 || content.length > 10_485_760) {
         return reply.status(400).send(problem(
           request.id, 400, "VALIDATION_ERROR", "Validation Error",

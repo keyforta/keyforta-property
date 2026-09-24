@@ -273,6 +273,39 @@ describe("PublicListing image upload/list/delete routes (REQ-038)", () => {
     expect(configured.uploadCommands).toHaveLength(1);
   });
 
+  // Node's Buffer.from(value, "base64") silently drops invalid characters
+  // instead of throwing, so malformed base64 must be rejected by explicit
+  // format validation before any scan or database call.
+  it("rejects an upload payload with malformed base64 content without invoking the scanner or the gateway", async () => {
+    const scanCalls: unknown[] = [];
+    const scanner: MediaScanner = {
+      async scanUpload() {
+        scanCalls.push(true);
+        return { clean: true };
+      },
+    };
+    const configured = dependencies({ scanner });
+    const app = await buildApp(configured);
+    apps.push(app);
+
+    const response = await app.inject({
+      headers: { authorization: LANDLORD_AUTH, "x-organization-id": organizationId },
+      method: "POST",
+      payload: {
+        attestationAccepted: true,
+        contentBase64: "not!valid@base64#content",
+        mediaType: "image/jpeg",
+        room: "kitchen",
+      },
+      url: `/api/v1/public-listings/${listingId}/images`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(scanCalls).toEqual([]);
+    expect(configured.uploadCommands).toEqual([]);
+  });
+
   it("rejects an upload payload with a non-JPEG/PNG media type without invoking the scanner or the gateway", async () => {
     const configured = dependencies({
       scanner: { async scanUpload() { return { clean: true }; } },

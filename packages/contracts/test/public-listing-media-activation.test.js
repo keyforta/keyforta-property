@@ -6,6 +6,7 @@ import {
   pendingPublicListingMediaReviewSchema,
   publicListingMediaReviewInputSchema,
   publicListingSummarySchema,
+  publicPropertyProjectionSchema,
   updatePublicListingDraftInputSchema,
 } from "../src/index.js";
 
@@ -165,4 +166,26 @@ test("REQ-037 publicListingMediaReviewInputSchema requires reviewer notes to rej
     }).success,
     true,
   );
+});
+
+test("REQ-038 publicPropertyProjectionSchema allows upload-only listings with zero legacy image URLs", () => {
+  const uploadOnlyProperty = {
+    address: "123 Riverside Way",
+    amenities: ["parking"],
+    availableFrom: "2025-01-01",
+    bathrooms: 1,
+    bedrooms: 2,
+    city: "Springfield",
+    currency: "USD",
+    district: "Riverside",
+    id: "b6c2b6a0-6c9a-4e3a-9b5b-1a2c3d4e5f60",
+    // All images for this listing live in app.public_listing_images and are
+    // served through the uploaded-image gallery route, not this field.
+    imageUrls: [],
+    monthlyRentMinor: "150000",
+    name: "Riverside apartment",
+    summary: "A bright two-bedroom unit close to transit and shops.",
+  };
+
+  assert.equal(publicPropertyProjectionSchema.safeParse(uploadOnlyProperty).success, true);
 });

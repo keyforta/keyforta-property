@@ -1957,6 +1957,51 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       expect(afterDelete.rows[0].media_review_status).toBe("pending");
     });
 
+    // REQ-038 decision 4: deleted images are retained (soft-deleted) for
+    // recovery until purge, not hard-deleted; this asserts the row still
+    // exists with deleted_at set, and is excluded from the count/list paths
+    // that gate the upload cap and public gallery.
+    it("soft-deletes an image, retaining its row for recovery while excluding it from counts and listings (REQ-038 decision 4)", async () => {
+      const { listing } = await createDraftListing("soft-delete");
+      const uploaded = await uploadImage(listing.listingId, landlordSubject, { room: "kitchen" });
+      expect(uploaded?.imageId).toBeTruthy();
+
+      await mediaGateway().deleteImage({
+        correlationId: "corr-media-soft-delete",
+        imageId: uploaded!.imageId,
+        listingId: listing.listingId,
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+      });
+
+      const row = await client.query(
+        "select deleted_at from app.public_listing_images where id = $1",
+        [uploaded!.imageId],
+      );
+      expect(row.rows).toHaveLength(1);
+      expect(row.rows[0].deleted_at).not.toBeNull();
+
+      const count = await client.query(
+        "select count(*)::int as count from app.public_listing_images where public_listing_id = $1 and deleted_at is null",
+        [listing.listingId],
+      );
+      expect(count.rows[0].count).toBe(0);
+
+      const remainingImages = await mediaGateway().listImages({
+        listingId: listing.listingId,
+        organizationId: organizationA,
+        subject: landlordSubject,
+      });
+      expect(remainingImages).toHaveLength(0);
+
+      // A fresh upload after a soft-deleted row must not collide on
+      // position/count logic that forgot the deleted_at filter.
+      const reuploaded = await uploadImage(listing.listingId, landlordSubject, { room: "kitchen" });
+      expect(reuploaded?.imageId).toBeTruthy();
+      expect(reuploaded?.imageId).not.toBe(uploaded!.imageId);
+    });
+
     it("denies (nondisclosing) upload/delete/list attempts from an actor without an active listing-manager assignment (PROP-027)", async () => {
       const { listing } = await createDraftListing("cross-org-upload");
       const uploaded = await uploadImage(listing.listingId, landlordSubject);

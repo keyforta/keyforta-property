@@ -58,6 +58,7 @@ as $$
           )
           from app.public_listing_images as img
           where img.public_listing_id = l.id
+            and img.deleted_at is null
         ),
         '[]'::jsonb
       ),
@@ -102,6 +103,7 @@ as $$
   join app.public_listings as listing on listing.id = image.public_listing_id
   where image.public_listing_id = requested_listing_id
     and image.id = requested_image_id
+    and image.deleted_at is null
     and listing.status = 'draft'
     and listing.media_review_status = 'pending'
 $$;

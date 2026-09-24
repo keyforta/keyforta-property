@@ -462,7 +462,12 @@ export const publicPropertyProjectionSchema = z.object({
 	district: z.string(),
 	id: z.union([publicPropertyIdSchema, z.uuid()]),
 	imageUrl: z.string().optional(),
-	imageUrls: z.array(z.string()).min(1),
+	// REQ-038 decision 1: a listing may publish with zero legacy URLs and
+	// have its images served entirely through the uploaded-image gallery
+	// (ListingPhotoGallery/list_public_listing_images_by_room), so this can
+	// no longer require at least one URL without breaking every
+	// upload-only published listing's public projection.
+	imageUrls: z.array(z.string()),
 	monthlyRentMinor: z.string().regex(/^[1-9]\d*$/),
 	name: z.string(),
 	summary: z.string(),
@@ -478,7 +483,8 @@ const publicListingProjectionSnapshotSchema = z.object({
 	currency: z.enum(supportedCurrencies),
 	district: boundedTextSchema(160),
 	id: publicPropertyIdSchema,
-	imageUrls: z.array(z.url().max(2048)).min(1).max(50),
+	// Same relaxation as publicPropertyProjectionSchema.imageUrls above.
+	imageUrls: z.array(z.url().max(2048)).max(50),
 	monthlyRentMinor: z.string().regex(/^[1-9]\d{0,18}$/).refine(
 		(value) => BigInt(value) <= 9223372036854775807n,
 		'Value exceeds the positive signed 64-bit range',

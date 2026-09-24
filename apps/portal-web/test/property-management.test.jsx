@@ -531,10 +531,10 @@ describe('PropertyManagementPanel', () => {
       await waitFor(() => expect(list).toHaveBeenCalledWith(`public-listings/${draftListing.id}/images`));
     });
 
-    it('edits a draft listing, sending the expected version for optimistic concurrency', async () => {
+    it('edits a draft listing, sending the expected version for optimistic concurrency, and preserves its existing legacy image URLs (fixes a silent-image-wipe regression)', async () => {
       const draftListing = {
         id: '22222222-2222-4222-8222-222222222222',
-        imageUrls: [],
+        imageUrls: ['https://images.test/a.jpg', 'https://images.test/b.jpg'],
         mediaReviewNotes: null,
         mediaReviewStatus: 'pending',
         note: '',
@@ -564,7 +564,10 @@ describe('PropertyManagementPanel', () => {
         `${draftListing.id}/draft`,
         expect.objectContaining({ title: 'Riverside apartment — Unit 2A (updated)', expectedVersion: 1 }),
       ));
-      expect(update.mock.calls[0][2].imageUrls).toBeUndefined();
+      // The update route's schema defaults an omitted imageUrls to [], which
+      // would silently wipe a legacy listing's images on every edit; the
+      // form must resend the listing's existing imageUrls unchanged.
+      expect(update.mock.calls[0][2].imageUrls).toEqual(['https://images.test/a.jpg', 'https://images.test/b.jpg']);
       expect(await screen.findByText('Draft listing updated successfully.')).toBeInTheDocument();
       expect(onRetryListingsFeed).toHaveBeenCalledTimes(1);
     });
@@ -760,6 +763,32 @@ describe('PropertyManagementPanel', () => {
       }));
       list.mockResolvedValue({ items, meta: { requestId: 'req-image-cap' } });
       renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Upload photo' })).toBeDisabled());
+      expect(screen.getByText('This listing already has the maximum of 10 photos allowed.')).toBeInTheDocument();
+    });
+
+    // REQ-038's 10-image cap is combined across legacy imageUrls and
+    // uploaded images (both render in the same public gallery), so a
+    // listing with pre-existing legacy URLs must count them toward the cap
+    // instead of only counting uploaded rows.
+    it('disables uploads once legacy imageUrls plus uploaded images reach the combined cap of 10', async () => {
+      list.mockReset();
+      const items = Array.from({ length: 8 }, (_, index) => ({
+        imageId: `dddddddd-0000-4000-8000-00000000000${index}`,
+        room: 'other',
+        mediaType: 'image/jpeg',
+        sizeBytes: 3,
+        position: index,
+        createdAt: '2026-09-22T00:00:00.000Z',
+      }));
+      list.mockResolvedValue({ items, meta: { requestId: 'req-image-legacy-cap' } });
+      const listingWithLegacyUrls = {
+        ...draftListing,
+        imageUrls: ['https://images.test/a.jpg', 'https://images.test/b.jpg'],
+      };
+      renderPanel({ listings: [listingWithLegacyUrls] });
 
       fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
       await waitFor(() => expect(screen.getByRole('button', { name: 'Upload photo' })).toBeDisabled());

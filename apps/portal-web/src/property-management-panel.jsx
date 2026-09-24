@@ -437,7 +437,7 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
 // and app.delete_public_listing_image both reject a non-draft listing), so
 // this component is only ever mounted alongside PublicListingForm's
 // draft-status views, never for a published/withdrawn listing.
-function ListingImageManager({ disabled, listingId, session, t }) {
+function ListingImageManager({ disabled, legacyImageCount = 0, listingId, session, t }) {
   const [images, setImages] = useState([]);
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const [imagesError, setImagesError] = useState('');
@@ -472,7 +472,10 @@ function ListingImageManager({ disabled, listingId, session, t }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listingId]);
 
-  const capReached = images.length >= MAX_LISTING_IMAGES;
+  // REQ-038's 10-image cap is combined across legacy imageUrls and
+  // uploaded images (both are rendered together in the public gallery), so
+  // the client-side cap check must count both, not just uploaded rows.
+  const capReached = images.length + legacyImageCount >= MAX_LISTING_IMAGES;
 
   const handleUpload = async (event) => {
     event.preventDefault();
@@ -660,7 +663,7 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session
     setBusy(true);
     try {
       const submitted = hasListing
-        ? await onUpdateDraft(listing.id, listing.version, { title: form.title, summary: form.summary })
+        ? await onUpdateDraft(listing.id, listing.version, { title: form.title, summary: form.summary, imageUrls: listing.imageUrls ?? [] })
         : await onCreate(unitId, { title: form.title, summary: form.summary, attestationAccepted: form.attestationAccepted });
       if (submitted) setOpen(false);
     } finally {
@@ -709,7 +712,13 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session
         </form>
       ) : null}
       {hasListing ? (
-        <ListingImageManager disabled={disabled} listingId={listing.id} session={session} t={t} />
+        <ListingImageManager
+          disabled={disabled}
+          legacyImageCount={listing.imageUrls?.length ?? 0}
+          listingId={listing.id}
+          session={session}
+          t={t}
+        />
       ) : null}
     </>
   );
@@ -955,6 +964,10 @@ export function PropertyManagementPanel({
       const payload = await apiClient.update('public-listings', `${listingId}/draft`, {
         title: form.title,
         summary: form.summary,
+        // Preserve the listing's existing legacy image URLs: the schema
+        // defaults an omitted imageUrls to [], which would otherwise wipe
+        // them on every edit (this route never manages uploaded images).
+        imageUrls: form.imageUrls ?? [],
         expectedVersion,
       });
       updatePublicListingDraftEnvelopeSchema.parse(payload);

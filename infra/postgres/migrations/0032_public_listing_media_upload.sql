@@ -47,6 +47,11 @@ create table app.public_listing_images (
   position integer not null default 0 check (position >= 0),
   created_at timestamptz not null default transaction_timestamp(),
   updated_at timestamptz not null default transaction_timestamp(),
+  -- REQ-038 decision 4: images follow the same soft-delete/retention
+  -- behavior as other interim-stored records (retained for recovery, not
+  -- hard-deleted, until a separate purge process runs); every read path
+  -- below filters `deleted_at is null`.
+  deleted_at timestamptz,
   foreign key (organization_id, public_listing_id)
     references app.public_listings(organization_id, id),
   unique (organization_id, id)
@@ -128,6 +133,7 @@ as $$
       from app.public_listing_images as image
       where image.organization_id = requested_organization_id
         and image.public_listing_id = requested_listing_id
+        and image.deleted_at is null
     ), 0)
 $$;
 
@@ -204,7 +210,7 @@ begin
 
   select coalesce(max(position) + 1, 0) into next_position
   from app.public_listing_images
-  where organization_id = organization and public_listing_id = requested_listing_id;
+  where organization_id = organization and public_listing_id = requested_listing_id and deleted_at is null;
 
   insert into app.public_listing_images (
     organization_id, public_listing_id, room, media_type, size_bytes, content,
@@ -263,7 +269,7 @@ declare
   actor uuid := nullif(current_setting('app.actor_id', true), '')::uuid;
   correlation text := coalesce(requested_correlation_id, nullif(current_setting('app.correlation_id', true), ''));
   listing app.public_listings%rowtype;
-  deleted_count integer;
+  delete_count integer;
   updated_version integer;
 begin
   if organization is null or actor is null or correlation is null then
@@ -288,13 +294,19 @@ begin
     raise exception 'only a draft PublicListing may have images removed' using errcode = '23514';
   end if;
 
-  delete from app.public_listing_images
+  -- Soft-delete only (REQ-038 decision 4): the row and its bytes are
+  -- retained for recovery until a separate purge process runs, never
+  -- hard-deleted here. Every active-image read path filters
+  -- `deleted_at is null`.
+  update app.public_listing_images
+  set deleted_at = transaction_timestamp()
   where organization_id = organization
     and public_listing_id = requested_listing_id
-    and id = requested_image_id;
-  get diagnostics deleted_count = row_count;
+    and id = requested_image_id
+    and deleted_at is null;
+  get diagnostics delete_count = row_count;
 
-  if deleted_count = 0 then
+  if delete_count = 0 then
     return;
   end if;
 
@@ -365,6 +377,7 @@ begin
   select image.id, image.room, image.media_type, image.size_bytes, image.position as image_position, image.created_at
   from app.public_listing_images as image
   where image.organization_id = organization and image.public_listing_id = requested_listing_id
+    and image.deleted_at is null
   order by image.position, image.id;
 end
 $$;
@@ -393,6 +406,7 @@ as $$
   select image.id, image.room, image.position as image_position
   from app.public_listing_images as image
   where image.public_listing_id = requested_listing_id
+    and image.deleted_at is null
     and app.runtime_public_listing_is_eligible(requested_listing_id)
   order by image.room, image.position, image.id
 $$;
@@ -416,6 +430,7 @@ as $$
   from app.public_listing_images as image
   where image.public_listing_id = requested_listing_id
     and image.id = requested_image_id
+    and image.deleted_at is null
     and app.runtime_public_listing_is_eligible(requested_listing_id)
 $$;
 
