@@ -49,6 +49,14 @@ parses the pull request description and fails the build if a required section
 is missing, empty, or out of order — the PR template alone is guidance and
 can be edited or bypassed by an author, so this script is the actual gate.
 
+**UI-facing changes must show a matched before/after screenshot pair**, not a
+screenshot in only one section. Capture the same view/interaction in both the
+"Before evidence" and "After evidence" sections so a reviewer can compare them
+directly. Never commit screenshot or video binaries to the repository (as PR
+evidence artifacts or otherwise); upload them via the `github-pr-media` skill
+(GitHub's user-attachments API) and embed the hosted URLs directly in the PR
+description.
+
 **Documentation/process/configuration-only exception:** when a change has no
 executable behavior to test (e.g. editing `AGENTS.md`, a skill file, an agent
 instruction file, or a PR template), a red/green *test* is not required.
