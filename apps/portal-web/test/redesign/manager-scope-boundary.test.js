@@ -51,26 +51,40 @@ describe('Manager redesign scope boundaries (spec §0/§1/§9)', () => {
   });
 });
 
-describe('Hard-protected files stay byte-for-byte unchanged (content-hash guard, not just existence)', () => {
-  // Copilot review finding (PR #137): the previous version of this suite
-  // only asserted these files exist/are readable -- any content edit
-  // would still pass. These are the exact SHA-256 digests of the three
-  // protected files as of this PR (matching `git diff --stat origin/main
-  // -- <these paths>` being empty, verified manually before merge); any
-  // future change to their bytes, in this PR or any later one touching
-  // this directory, now fails this test instead of only being caught by
-  // a manual `git diff` a reviewer might forget to run.
-  const protectedFiles = {
-    '../../src/listing-publication-panel.jsx':
-      'ef1492a01b1c1705fc6f91990e235e57fb6a165a635e7b0fffc1d92365be2222',
-    '../../src/property-management-panel.jsx':
-      '0edc716a426d4dcc20b4f41a2342173483abb9cb17046d6e38574a8b8893b185',
-    '../../src/styles.css':
-      '0be6ac73cbd2e3d651612746252db40d55f43c46d7930e1d9f70fad148589cad',
-  };
+describe('Hard-protected files stay byte-for-byte unchanged (content-hash guard against a checked-in manifest)', () => {
+  // Copilot review (PR #137, two passes):
+  //   1st: the previous version of this suite only asserted these files
+  //        exist/are readable -- any content edit would still pass.
+  //   2nd: a hash hardcoded directly into a runtime test file is
+  //        permanent/brittle -- any later *approved* change to one of
+  //        these files (e.g. its own accessibility fix) would fail this
+  //        test until someone edits the test file, and that edit could
+  //        also mask the very regression the guard exists to catch.
+  //
+  // This repository already has an established, precedent-setting
+  // pattern for exactly this trade-off:
+  // `infra/postgres/migration-checksums.json` + the checksum-manifest
+  // test in `.github/tests/devsecops-controls.test.mjs` — a checked-in
+  // JSON manifest, separate from the test file itself, that CI verifies
+  // matches. Updating it is a deliberate, reviewable, single-line diff
+  // (not an edit buried inside test assertions), which is the *correct*
+  // friction for a genuinely protected file: any legitimate future
+  // change to one of these three files must be an explicit, visible
+  // decision in the PR diff, not something that can slip through
+  // silently. This mirrors that same pattern here.
+  //
+  // To intentionally update after an approved change to one of these
+  // files, regenerate the manifest with:
+  //   node -e "const fs=require('fs'),crypto=require('crypto');
+  //     const files=require('./test/redesign/__fixtures__/manager-protected-file-checksums.json');
+  //     for (const f of Object.keys(files)) console.log(f, crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex'));"
+  const repoRoot = path.resolve(__dirname, '../../../..');
+  const protectedFiles = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '__fixtures__/manager-protected-file-checksums.json'), 'utf8'),
+  );
 
-  it.each(Object.entries(protectedFiles))('matches its known-good content hash: %s', (relativePath, expectedHash) => {
-    const absolutePath = path.resolve(__dirname, relativePath);
+  it.each(Object.entries(protectedFiles))('matches its checked-in manifest hash: %s', (relativePath, expectedHash) => {
+    const absolutePath = path.join(repoRoot, relativePath);
     expect(fs.existsSync(absolutePath)).toBe(true);
     const actualHash = crypto.createHash('sha256').update(fs.readFileSync(absolutePath)).digest('hex');
     expect(actualHash).toBe(expectedHash);
