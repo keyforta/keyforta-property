@@ -51,19 +51,20 @@ export function ManagerShell({
   // Landlord (statusTone.js, imported unmodified above): the reused,
   // protected `ListingPublicationPanel` renders each listing's status as
   // a plain `<span className='status'>{translatedText}</span>` with no
-  // status-specific class/attribute of its own, so a withdrawn listing's
-  // badge is annotated with `data-kf-tone='negative'` purely by comparing
-  // its own already-rendered text against the one negative status string
-  // Manager's surface can ever show — no domain logic is reimplemented,
-  // only a presentational read of already-rendered output (see
-  // statusTone.js's own comment for the full rationale, which applies
-  // identically here).
+  // status-specific class/attribute of its own, so each row's badge is
+  // annotated purely by comparing its own already-rendered text against
+  // the known status strings Manager's surface can show (`withdrawn` ->
+  // negative/red, `draft` -> neutral/gray, `published` left at the base
+  // green) — no domain logic is reimplemented, only a presentational
+  // read of already-rendered output (see statusTone.js's own comment for
+  // the full rationale, which applies identically here).
   useEffect(() => {
     const container = rootRef.current;
     if (!container) return undefined;
     const negativeTexts = new Set([t('listing_publication.status.withdrawn.badge')]);
-    annotateStatusTone(container, negativeTexts);
-    const observer = new MutationObserver(() => annotateStatusTone(container, negativeTexts));
+    const neutralTexts = new Set([t('listing_publication.status.draft.badge')]);
+    annotateStatusTone(container, negativeTexts, neutralTexts);
+    const observer = new MutationObserver(() => annotateStatusTone(container, negativeTexts, neutralTexts));
     observer.observe(container, { characterData: true, childList: true, subtree: true });
     return () => observer.disconnect();
   }, [t, managerListings, showListingPublication]);
@@ -112,28 +113,30 @@ export function ManagerShell({
           </p>
         </section>
         <section className='content-grid'>
-          {showListingPublication ? (
-            <div className='kf-grid-full kf-listing-publication-wrap'>
-              {active === 'portfolio' ? <PortfolioStatusLegend /> : null}
-              <ListingPublicationPanel
-                emptyState={listingPublicationEmptyState}
-                feedError={managerListingsError}
-                feedLoading={managerListingsLoading}
-                listings={managerListings}
-                onRetryFeed={retryManagerListings}
-                session={session}
-              />
-            </div>
-          ) : null}
-          <article className='panel table-panel kf-panel'>
-            <div className='panel-head'>
-              <div>
-                <p className='kicker kf-kicker'>{t('workspace.activity')}</p>
-                <h2 className='kf-section-heading'>{t('workspace.needs_attention')}</h2>
+          <div className='kf-manager-primary-column'>
+            {showListingPublication ? (
+              <div className='kf-listing-publication-wrap'>
+                {active === 'portfolio' ? <PortfolioStatusLegend /> : null}
+                <ListingPublicationPanel
+                  emptyState={listingPublicationEmptyState}
+                  feedError={managerListingsError}
+                  feedLoading={managerListingsLoading}
+                  listings={managerListings}
+                  onRetryFeed={retryManagerListings}
+                  session={session}
+                />
               </div>
-            </div>
-            <p className='muted kf-empty-card' data-testid='rows-empty-state'>{role.rowsEmptyState}</p>
-          </article>
+            ) : null}
+            <article className='panel table-panel kf-panel'>
+              <div className='panel-head'>
+                <div>
+                  <p className='kicker kf-kicker'>{t('workspace.activity')}</p>
+                  <h2 className='kf-section-heading'>{t('workspace.needs_attention')}</h2>
+                </div>
+              </div>
+              <p className='muted kf-empty-card' data-testid='rows-empty-state'>{role.rowsEmptyState}</p>
+            </article>
+          </div>
           <aside className='panel quick-panel kf-panel'>
             <p className='kicker kf-kicker'>{t('workspace.quick_actions')}</p>
             <h2 className='kf-section-heading'>{t('workspace.keep_things_moving')}</h2>

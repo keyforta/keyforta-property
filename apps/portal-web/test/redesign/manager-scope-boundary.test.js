@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -50,14 +51,28 @@ describe('Manager redesign scope boundaries (spec §0/§1/§9)', () => {
   });
 });
 
-describe('Hard-protected files stay byte-for-byte unchanged (verified by absence of any edit marker; full guarantee is the git-diff check run in CI/PR description)', () => {
-  const protectedFiles = [
-    '../../src/listing-publication-panel.jsx',
-    '../../src/property-management-panel.jsx',
-    '../../src/styles.css',
-  ];
+describe('Hard-protected files stay byte-for-byte unchanged (content-hash guard, not just existence)', () => {
+  // Copilot review finding (PR #137): the previous version of this suite
+  // only asserted these files exist/are readable -- any content edit
+  // would still pass. These are the exact SHA-256 digests of the three
+  // protected files as of this PR (matching `git diff --stat origin/main
+  // -- <these paths>` being empty, verified manually before merge); any
+  // future change to their bytes, in this PR or any later one touching
+  // this directory, now fails this test instead of only being caught by
+  // a manual `git diff` a reviewer might forget to run.
+  const protectedFiles = {
+    '../../src/listing-publication-panel.jsx':
+      'ef1492a01b1c1705fc6f91990e235e57fb6a165a635e7b0fffc1d92365be2222',
+    '../../src/property-management-panel.jsx':
+      '0edc716a426d4dcc20b4f41a2342173483abb9cb17046d6e38574a8b8893b185',
+    '../../src/styles.css':
+      '0be6ac73cbd2e3d651612746252db40d55f43c46d7930e1d9f70fad148589cad',
+  };
 
-  it.each(protectedFiles)('exists and is readable: %s', (relativePath) => {
-    expect(fs.existsSync(path.resolve(__dirname, relativePath))).toBe(true);
+  it.each(Object.entries(protectedFiles))('matches its known-good content hash: %s', (relativePath, expectedHash) => {
+    const absolutePath = path.resolve(__dirname, relativePath);
+    expect(fs.existsSync(absolutePath)).toBe(true);
+    const actualHash = crypto.createHash('sha256').update(fs.readFileSync(absolutePath)).digest('hex');
+    expect(actualHash).toBe(expectedHash);
   });
 });

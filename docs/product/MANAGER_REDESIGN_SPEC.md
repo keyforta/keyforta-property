@@ -1,7 +1,12 @@
 # Manager Portal Redesign — UX/Visual Design Spec (Phase 2)
 
-Status: **Design spec only — not yet implemented.** This is the Phase 2
-design artifact called for by `docs/engineering/REQUIREMENTS_GAPS.md` →
+Status: **Implemented (PR #137), flag-gated behind `VITE_REDESIGN_ENABLED`.**
+Full Product Owner sign-off on the broader "Redesigned per-role UI/UX"
+initiative remains pending (`docs/engineering/REQUIREMENTS_GAPS.md`); this
+phase proceeded under the same Solution-Architect-approved bounded/
+additive/flag-gated exception Phase 1 (Landlord) already shipped under.
+This is the Phase 2 design artifact called for by
+`docs/engineering/REQUIREMENTS_GAPS.md` →
 "Redesigned per-role UI/UX with KEYFORTA branding," whose recorded phasing
 is "Landlord first ... then Manager, then Tenant, then Admin." Phase 1
 (Landlord) is implemented and merged (PR #134/#135) under
@@ -421,11 +426,22 @@ g. **File location** (this note) — same as Landlord §8(l): this file lives
 
 ### 8.1 Implementation defaults chosen (2026-09-24, Frontend Engineer, no PO available)
 
-The Product Owner was unavailable to confirm the above; to avoid blocking
-Phase 2 indefinitely, the following **lowest-risk, most-reversible**
-defaults were chosen for implementation. None of these widen Manager's
-capabilities or invent new product behavior; all are easily revisited
-without a data or API change if the PO decides differently:
+The Product Owner was unavailable to confirm the above. Per this
+repository's engineering loop, changing scope, architecture, or product
+behavior requires explicit human approval — none of that is what happened
+here. The bounded, additive, flag-gated exception under which this entire
+initiative proceeds (Solution Architect-approved; already exercised for
+Phase 1/Landlord, PR #134/#135) already authorizes exactly this kind of
+work: new code confined to an isolated `redesign/<role>/` directory,
+reusing existing auth/session hooks, no new deployable, no API/
+authorization change, reachable only behind `VITE_REDESIGN_ENABLED`. What
+follows is **not** a substitute for that architecture approval and does
+**not** itself authorize any scope, architecture, or product-behavior
+change — it only records which of the open, purely-cosmetic §8 questions
+had to be resolved *somehow* to write any code at all under that already-
+approved exception, and why the choice made is the smallest, most easily
+reversed one available, so that resolving it does not by itself commit the
+initiative to anything the PO has not seen:
 
 - **(a) Shared-component location: option (i)** — `redesign/manager/`
   imports `StatusBadge`, `BrandHeader`, and the theme directly from
@@ -448,9 +464,12 @@ without a data or API change if the PO decides differently:
   Landlord's identical, already-approved treatment for its own
   unimplemented tabs.
 
-These defaults are implementation choices, not requirements changes; the
-underlying open questions in §8(a–c, f) remain unresolved and should still
-be brought to the Product Owner for confirmation or revision.
+These are cosmetic implementation choices, not requirements or scope
+changes, and this note does not claim Product Owner sign-off on them. The
+underlying open questions in §8(a–c, f) remain formally unresolved and
+must still be brought to the Product Owner for confirmation or revision
+before, for example, the Tenant/Admin phases assume the same answers are
+final.
 
 ---
 

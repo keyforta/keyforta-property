@@ -11,8 +11,9 @@ import { StatusBadge } from '../../landlord/components/StatusBadge.jsx';
 // forking it — the exact same limitation already accepted for Landlord's
 // own redesign (see `../../landlord/LandlordShell.jsx`'s `statusTone.js`-
 // based CSS annotation of that identical reused markup, which this
-// module's sibling `applyListingStatusTone` in `ManagerShell.jsx` reuses
-// unmodified for the real, rendered listing rows).
+// module's sibling call to `annotateStatusTone` (imported from
+// `../landlord/statusTone.js`) in `ManagerShell.jsx` reuses unmodified
+// for the real, rendered listing rows).
 //
 // This legend is the one place `StatusBadge` is imported and rendered
 // directly, per the hard requirement to import it (not duplicate/fork

@@ -188,19 +188,27 @@
   background: var(--kf-burnished-copper);
 }
 
-/* §4.2 grid: `align-items: start` applied defensively (spec §4.2 item 2 —
-   "no known live defect ... preventive carry-over") so the "Needs
-   attention" empty-state card never stretches to match a taller
-   populated `ListingPublicationPanel` card. `ListingPublicationPanel` and
-   its status-legend wrapper each get their own full-width row — there is
+/* §4.2 grid: per spec §4.2 item 2, Manager's Overview/Portfolio grid is a
+   genuine two-column layout -- left column stacks `ListingPublicationPanel`
+   (plus its status-legend wrapper on Portfolio) above the "Needs
+   attention" panel; the right column (aside) holds Quick actions,
+   side-by-side with the left column, not stacked beneath it. Manager has
    no landlord-only property-management panel sibling to reflow around
-   here (§4.2/§0/§1). */
+   (§0/§1), so there is no need for the Landlord full-row/`kf-grid-full`
+   treatment here -- using it would incorrectly force Quick actions below
+   the listing panel instead of beside it (fixed after Copilot review on
+   PR #137 flagged this). `align-items: start` is kept defensively (spec
+   §4.2 item 2 — "no known live defect ... preventive carry-over") so the
+   right-column Quick actions card never stretches to match a taller left
+   column. */
 .kf-manager-redesign .content-grid {
   align-items: start;
 }
-.kf-manager-redesign .content-grid > .listing-panel,
-.kf-manager-redesign .content-grid > .kf-grid-full {
-  grid-column: 1 / -1;
+.kf-manager-redesign .kf-manager-primary-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 .kf-manager-redesign .kf-listing-publication-wrap {
   display: flex;
@@ -381,6 +389,15 @@
 .kf-manager-redesign .status[data-kf-tone='negative'] {
   background: var(--colorPaletteRedBackground2, #fdf3f4);
   color: var(--colorPaletteRedForeground1, #b10e1c);
+}
+/* Copilot review (PR #137) finding: a `draft` listing row previously kept
+   the base `.status` green "positive" background (styles.css), reading
+   identically to a genuinely `published` row. `draft` is neither
+   positive nor negative, so it gets the same neutral tone StatusBadge
+   already uses elsewhere (`kf-badge-neutral`'s token pairing). */
+.kf-manager-redesign .status[data-kf-tone='neutral'] {
+  background: var(--kf-soft-bone);
+  color: var(--kf-aubergine);
 }
 
 @media (prefers-reduced-motion: reduce) {
