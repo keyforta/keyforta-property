@@ -1,83 +1,92 @@
 {
   "common": {
     "switch_language": "Passer en anglais",
-    "sign_out": "Se d\u00e9connecter",
+    "sign_out": "Se déconnecter",
     "refresh": "Actualiser"
   },
   "nav": {
     "sections_label": "Sections de la console d'administration",
     "onboarding": "Accueil",
-    "media_review": "Examen des m\u00e9dias"
+    "media_review": "Examen des médias"
   },
   "auth": {
     "restricted_console": "Console restreinte",
-    "sign_in_title": "Examen des dossiers d'accueil des propri\u00e9taires",
-    "sign_in_subtitle": "Connectez-vous avec une identit\u00e9 d'administrateur de la plateforme pour examiner les demandes d'accueil.",
+    "sign_in_title": "Examen des dossiers d'accueil des propriétaires",
+    "sign_in_subtitle": "Connectez-vous avec une identité d'administrateur de la plateforme pour examiner les demandes d'accueil.",
     "sign_in_button": "Se connecter avec Microsoft Entra",
     "status": {
-      "loading": "V\u00e9rification de la connexion Microsoft Entra...",
+      "loading": "Vérification de la connexion Microsoft Entra...",
       "authenticating": "Ouverture de la connexion Microsoft Entra...",
-      "unavailable": "La connexion Microsoft Entra n'est pas configur\u00e9e pour cet environnement.",
-      "error": "La connexion Microsoft Entra n'a pas pu \u00eatre termin\u00e9e. R\u00e9essayez."
+      "unavailable": "La connexion Microsoft Entra n'est pas configurée pour cet environnement.",
+      "error": "La connexion Microsoft Entra n'a pas pu être terminée. Réessayez."
     },
-    "redirect_failed": "L'authentification n'a pas pu \u00eatre termin\u00e9e. Fermez cette fen\u00eatre et r\u00e9essayez."
+    "redirect_failed": "L'authentification n'a pas pu être terminée. Fermez cette fenêtre et réessayez."
   },
   "review": {
     "submitted": "Soumis",
-    "decided": "D\u00e9cid\u00e9",
+    "decided": "Décidé",
     "status": {
       "pending": "En attente",
-      "approved": "Approuv\u00e9",
-      "rejected": "Rejet\u00e9"
+      "approved": "Approuvé",
+      "rejected": "Rejeté"
     },
-    "decision_reason_label": "Motif de la d\u00e9cision",
+    "decision_reason_label": "Motif de la décision",
     "decision_reason_hint": "Requis pour l'approbation comme pour le rejet.",
     "approve": "Approuver",
     "reject": "Rejeter",
-    "not_authorized_review": "Cette identit\u00e9 n'est pas autoris\u00e9e \u00e0 examiner les demandes d'accueil.",
-    "api_unavailable": "L'API d'administration n'est pas configur\u00e9e.",
-    "queue_load_failed": "La file d'examen n'a pas pu \u00eatre charg\u00e9e.",
-    "not_authorized_decide": "Cette identit\u00e9 n'est pas autoris\u00e9e \u00e0 d\u00e9cider des demandes d'accueil.",
-    "decision_failed": "La d\u00e9cision n'a pas pu \u00eatre finalis\u00e9e. Actualisez la file et r\u00e9essayez.",
+    "not_authorized_review": "Cette identité n'est pas autorisée à examiner les demandes d'accueil.",
+    "api_unavailable": "L'API d'administration n'est pas configurée.",
+    "queue_load_failed": "La file d'examen n'a pas pu être chargée.",
+    "not_authorized_decide": "Cette identité n'est pas autorisée à décider des demandes d'accueil.",
+    "decision_failed": "La décision n'a pas pu être finalisée. Actualisez la file et réessayez.",
     "platform_administration": "Administration de la plateforme",
-    "page_title": "Examen des dossiers d'accueil des propri\u00e9taires",
-    "page_subtitle": "Approuvez ou rejetez les candidats v\u00e9rifi\u00e9s. Chaque d\u00e9cision n\u00e9cessite un motif et est audit\u00e9e par l'API.",
+    "page_title": "Examen des dossiers d'accueil des propriétaires",
+    "page_subtitle": "Approuvez ou rejetez les candidats vérifiés. Chaque décision nécessite un motif et est auditée par l'API.",
     "loading_applications": "Chargement des demandes...",
     "empty_state": "Aucune demande d'accueil n'est en attente d'examen.",
-    "access_denied": "Acc\u00e8s refus\u00e9",
-    "applications_list_label": "Demandes d'accueil des propri\u00e9taires"
+    "access_denied": "Accès refusé",
+    "applications_list_label": "Demandes d'accueil des propriétaires",
+    "table_column_applicant": "Candidat",
+    "table_column_status": "Statut",
+    "table_column_dates": "Dates",
+    "table_column_decision": "Décision"
   },
   "media_review": {
     "untitled_listing": "Annonce sans titre",
     "status": {
       "pending": "En attente"
     },
-    "property": "Propri\u00e9t\u00e9",
-    "unit": "Unit\u00e9",
+    "property": "Propriété",
+    "unit": "Unité",
     "submitted": "Soumis",
-    "no_images": "Aucune image n'a \u00e9t\u00e9 soumise pour cette annonce.",
-    "image_load_failed": "L'image n'a pas pu \u00eatre charg\u00e9e.",
+    "no_images": "Aucune image n'a été soumise pour cette annonce.",
+    "image_load_failed": "L'image n'a pas pu être chargée.",
     "room": {
-      "exterior": "Ext\u00e9rieur",
+      "exterior": "Extérieur",
       "living": "Salon",
       "kitchen": "Cuisine",
       "bathroom": "Salle de bain",
       "bedroom": "Chambre",
-      "dining": "Salle \u00e0 manger",
+      "dining": "Salle à manger",
       "other": "Autre"
     },
     "notes_label": "Notes de l'examinateur",
-    "notes_hint": "Requis en cas de rejet des m\u00e9dias d'une annonce.",
+    "notes_hint": "Requis en cas de rejet des médias d'une annonce.",
     "approve": "Approuver",
     "reject": "Rejeter",
-    "not_authorized_review": "Cette identit\u00e9 n'est pas autoris\u00e9e \u00e0 examiner les m\u00e9dias des annonces publiques.",
-    "queue_load_failed": "La file d'examen des m\u00e9dias n'a pas pu \u00eatre charg\u00e9e.",
-    "not_authorized_decide": "Cette identit\u00e9 n'est pas autoris\u00e9e \u00e0 d\u00e9cider des examens de m\u00e9dias des annonces publiques.",
-    "decision_failed": "La d\u00e9cision n'a pas pu \u00eatre finalis\u00e9e. Actualisez la file et r\u00e9essayez.",
-    "page_title": "Examen des m\u00e9dias des annonces publiques",
+    "not_authorized_review": "Cette identité n'est pas autorisée à examiner les médias des annonces publiques.",
+    "queue_load_failed": "La file d'examen des médias n'a pas pu être chargée.",
+    "not_authorized_decide": "Cette identité n'est pas autorisée à décider des examens de médias des annonces publiques.",
+    "decision_failed": "La décision n'a pas pu être finalisée. Actualisez la file et réessayez.",
+    "page_title": "Examen des médias des annonces publiques",
     "page_subtitle": "Approuvez ou rejetez les photos et la description soumises pour une annonce publique avant sa publication.",
-    "loading_reviews": "Chargement des examens de m\u00e9dias...",
-    "empty_state": "Aucune annonce publique n'est en attente d'examen des m\u00e9dias.",
-    "list_label": "Annonces publiques en attente d'examen des m\u00e9dias"
+    "loading_reviews": "Chargement des examens de médias...",
+    "empty_state": "Aucune annonce publique n'est en attente d'examen des médias.",
+    "list_label": "Annonces publiques en attente d'examen des médias",
+    "table_column_listing": "Annonce",
+    "table_column_property_unit": "Propriété / unité",
+    "table_column_status": "Statut",
+    "table_column_media": "Médias",
+    "table_column_decision": "Décision"
   }
 }

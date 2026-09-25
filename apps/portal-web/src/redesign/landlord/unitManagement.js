@@ -24,8 +24,14 @@ export function openSoleUnitManagementControl(container, properties, manageUnitT
   const units = Array.isArray(safeProperties[0]?.units) ? safeProperties[0].units : [];
   if (units.length !== 1) return false;
 
+  // PO feedback ("set pricing & availability can just be an appropriate
+  // icon"): the toggle is now icon-only, so it has no visible
+  // `textContent` to match against any more — its accessible name comes
+  // from `aria-label` instead. Falling back to `textContent` keeps this
+  // working if a future revision of that button ever restores a visible
+  // label.
   const toggleButtons = Array.from(container.querySelectorAll('button')).filter(
-    (button) => button.textContent.trim() === manageUnitToggleLabel,
+    (button) => (button.getAttribute('aria-label') ?? button.textContent.trim()) === manageUnitToggleLabel,
   );
   if (toggleButtons.length !== 1) return false;
   const [toggleButton] = toggleButtons;

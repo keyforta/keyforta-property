@@ -134,6 +134,24 @@
     "feed_error": "Nous n'avons pas pu charger vos propri\u00e9t\u00e9s. Cela ne signifie pas que vous n'en avez pas \u2014 r\u00e9essayez.",
     "feed_retry": "R\u00e9essayer",
     "portfolio": "Vos propri\u00e9t\u00e9s",
+    "search_label": "Rechercher des unit\u00e9s",
+    "search_placeholder": "Rechercher par unit\u00e9 ou nom de propri\u00e9t\u00e9",
+    "filter_status_label": "Statut",
+    "filter_status_all": "Tous les statuts",
+    "filter_listing_status_label": "Statut de l'annonce",
+    "filter_listing_status_all": "Tous les statuts d'annonce",
+    "filter_no_results": "Aucune unit\u00e9 ne correspond \u00e0 votre recherche ou \u00e0 vos filtres.",
+    "pagination_previous": "Pr\u00e9c\u00e9dent",
+    "pagination_next": "Suivant",
+    "pagination_summary": "Page {{page}} sur {{totalPages}}",
+    "units_table_label": "Unit\u00e9s",
+    "unit_table_column_unit": "Unit\u00e9",
+    "unit_table_column_type": "Type",
+    "unit_table_column_status": "Statut",
+    "unit_table_column_listing_status": "Statut de l'annonce",
+    "unit_table_column_media": "M\u00e9dias",
+    "unit_table_column_actions": "Actions",
+    "unit_table_no_listing": "Aucune annonce pour le moment",
     "empty_state": "Vous n'avez pas encore cr\u00e9\u00e9 de propri\u00e9t\u00e9. Utilisez le formulaire ci-dessous pour ajouter votre premi\u00e8re propri\u00e9t\u00e9.",
     "create_property_title": "Ajouter une propri\u00e9t\u00e9",
     "create_property_submit": "Cr\u00e9er la propri\u00e9t\u00e9",
@@ -249,9 +267,9 @@
       "withdrawn": "Retir\u00e9e"
     },
     "media_review_status": {
-      "pending": "En attente d'examen des m\u00e9dias",
-      "approved": "M\u00e9dias approuv\u00e9s",
-      "rejected": "M\u00e9dias rejet\u00e9s"
+      "pending": "En attente",
+      "approved": "Approuv\u00e9",
+      "rejected": "Rejet\u00e9"
     },
     "room": {
       "exterior": "Ext\u00e9rieur",

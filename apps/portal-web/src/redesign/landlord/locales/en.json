@@ -26,10 +26,6 @@
       "status_unknown": "Status unknown",
       "status_done": "Done",
       "status_todo": "Not yet"
-    },
-    "status_labels": {
-      "unit_status": "Unit status",
-      "listing_status": "Listing status"
     }
   }
 }

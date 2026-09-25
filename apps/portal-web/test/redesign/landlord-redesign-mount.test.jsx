@@ -101,8 +101,11 @@ describe('Landlord redesign flag gating (single mount point in portal-app.jsx)',
     const { container } = renderPortal();
     await waitFor(() => expect(container.querySelector('.kf-landlord-redesign')).toBeInTheDocument());
     expect(await screen.findByRole('heading', { name: 'A clear view of your property portfolio.' })).toBeInTheDocument();
-    // Same reused panel, same reused copy — only the shell chrome differs.
-    expect(screen.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeInTheDocument();
+    // PO feedback ("combine Listing publication and Property portfolio in
+    // the same table"): the redesigned Landlord shell no longer renders
+    // the separate "Publish or withdraw assigned listings" panel — that
+    // action now lives inside the single property-management table.
+    expect(screen.queryByRole('heading', { name: 'Publish or withdraw assigned listings' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Add a property' })).toBeInTheDocument();
     // Addendum §10.2: the next-best-action checklist card renders on the
     // Overview tab, computed only from data these hooks already fetch.

@@ -33,7 +33,12 @@ export function resolveApiBaseUrl() {
   return { baseUrl: '/api/v1', rejectedConfiguredValue: true };
 }
 
-function statusCopy(status, t) {
+// Exported so property-management-panel.jsx's per-unit "Publish"/
+// "Withdraw" action (PO feedback: "combine Listing publication and
+// Property portfolio in the same table") can reuse the exact same
+// status-to-action/command mapping and i18n keys as this panel's own
+// listing rows, rather than duplicating this logic.
+export function statusCopy(status, t) {
   const key = status === 'published' ? 'published' : status === 'draft' ? 'draft' : 'withdrawn';
   // `command` is the stable API wire value (see apps/api/src/app.ts's
   // public-listings command handler); `action` is the translated button

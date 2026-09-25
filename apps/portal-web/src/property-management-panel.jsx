@@ -1,5 +1,29 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Button, Checkbox, Field, Input, Select, Spinner, Textarea } from '@fluentui/react-components';
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
+  DialogTrigger,
+  Field,
+  Input,
+  Select,
+  Spinner,
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  Textarea,
+  Tooltip,
+} from '@fluentui/react-components';
+import { ChevronLeft20Regular, ChevronRight20Regular, CloudAdd20Regular, CloudArrowUp20Regular, CloudDismiss20Regular, Money20Regular } from '@fluentui/react-icons';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
@@ -12,14 +36,46 @@ import {
   propertyTypes,
   publicListingImageListEnvelopeSchema,
   publicListingImageRooms,
+  publicListingPublicationEnvelopeSchema,
+  publicListingStatuses,
   rentalPropertyCreationEnvelopeSchema,
   rentableUnitCreationEnvelopeSchema,
   supportedCurrencies,
+  unitAvailabilityStatuses,
   unitTypes,
   updatePublicListingDraftEnvelopeSchema,
   uploadPublicListingImageEnvelopeSchema,
 } from '@keyforta/contracts';
-import { resolveApiBaseUrl } from './listing-publication-panel.jsx';
+import { resolveApiBaseUrl, statusCopy } from './listing-publication-panel.jsx';
+
+// PO feedback ("fix the design of the status, listing status badges"):
+// map each status enum directly to a genuine Fluent `Badge` color,
+// rather than the reused legacy `.status` markup's flat, always-green
+// pill (see styles.css) that LandlordShell.jsx previously had to
+// re-tint from the outside by sniffing rendered text
+// (statusTone.js) — this file now owns these two columns' rendering, so
+// the color reflects the actual data directly.
+const UNIT_AVAILABILITY_BADGE_COLOR = {
+  available: 'success',
+  unavailable: 'danger',
+  occupied: 'informative',
+};
+
+const LISTING_STATUS_BADGE_COLOR = {
+  draft: 'informative',
+  published: 'success',
+  withdrawn: 'danger',
+};
+
+// PO feedback ("for media it can just say approved... also use the same
+// badge style as for status"): the Media column now renders the same
+// `Badge` treatment as Status/Listing status, colored directly from the
+// actual mediaReviewStatus enum value.
+const MEDIA_REVIEW_BADGE_COLOR = {
+  pending: 'informative',
+  approved: 'success',
+  rejected: 'danger',
+};
 
 const emptyPropertyForm = {
   name: '',
@@ -234,19 +290,30 @@ function CreatePropertyForm({ disabled, onSubmit, t }) {
   );
 }
 
+// Fluent v9's Dialog portals its surface to `document.body` by default,
+// outside this panel's `.kf-landlord-redesign`/`.kf-manager-redesign`/
+// `.kf-tenant-redesign` scoped root — which silently breaks every
+// redesign.css rule written as `.kf-*-redesign <selector>` (they require
+// that ancestor class to actually be present in the DOM, not just
+// visually behind the dialog). Anchoring `mountNode` to the trigger's own
+// scoped ancestor keeps the dialog's portal inside the same subtree, so
+// the existing scoped rules (borders, grid layout, `::before` captions,
+// etc.) keep applying unchanged.
+function useRedesignDialogMountNode() {
+  const anchorRef = useRef(null);
+  const [mountNode, setMountNode] = useState(null);
+  useEffect(() => {
+    setMountNode(anchorRef.current?.closest('.kf-landlord-redesign, .kf-manager-redesign, .kf-tenant-redesign') ?? null);
+  }, []);
+  return [anchorRef, mountNode];
+}
+
 function AddUnitForm({ disabled, onSubmit, propertyId, t }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyUnitForm);
   const [busy, setBusy] = useState(false);
+  const [anchorRef, mountNode] = useRedesignDialogMountNode();
   const set = (field) => (_event, data) => setForm((current) => ({ ...current, [field]: data.value }));
-
-  if (!open) {
-    return (
-      <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
-        {t('property_management.add_unit_toggle')}
-      </Button>
-    );
-  }
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -262,40 +329,60 @@ function AddUnitForm({ disabled, onSubmit, propertyId, t }) {
     }
   };
 
+  // PO feedback ("for button actions like add unit, set pricing, create
+  // public listing... open the form as a dialog"): a real Fluent `Dialog`
+  // (modal) replaces the previous inline-expanding form, which used to
+  // push the rest of the unit row down while open.
   return (
-    <form aria-label={t('property_management.add_unit_title')} className='unit-form' onSubmit={handleSubmit}>
-      <Field label={t('property_management.field.unit_label')} required>
-        <Input required value={form.label} onChange={set('label')} />
-      </Field>
-      <Field label={t('property_management.field.unit_type')}>
-        <Select value={form.unitType} onChange={set('unitType')}>
-          {unitTypes.map((option) => (
-            <option key={option} value={option}>{t(`property_management.unit_type.${option}`)}</option>
-          ))}
-        </Select>
-      </Field>
-      <Field label={t('property_management.field.bedrooms')} required>
-        <Input min={0} required type='number' value={form.bedrooms} onChange={set('bedrooms')} />
-      </Field>
-      <Field label={t('property_management.field.bathrooms')} required>
-        <Input min={1} required type='number' value={form.bathrooms} onChange={set('bathrooms')} />
-      </Field>
-      <Field label={t('property_management.field.furnishing_status')}>
-        <Select value={form.furnishingStatus} onChange={set('furnishingStatus')}>
-          {furnishingStatuses.map((option) => (
-            <option key={option} value={option}>{t(`property_management.furnishing_status.${option}`)}</option>
-          ))}
-        </Select>
-      </Field>
-      <div className='unit-form-actions'>
-        <Button appearance='primary' disabled={busy} type='submit'>
-          {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.add_unit_submit')}
+    <Dialog open={open} onOpenChange={(_event, data) => setOpen(data.open)}>
+      <DialogTrigger disableButtonEnhancement>
+        <Button appearance='secondary' disabled={disabled} ref={anchorRef} onClick={() => setOpen(true)}>
+          {t('property_management.add_unit_toggle')}
         </Button>
-        <Button appearance='subtle' disabled={busy} onClick={() => setOpen(false)} type='button'>
-          {t('property_management.cancel')}
-        </Button>
-      </div>
-    </form>
+      </DialogTrigger>
+      <DialogSurface mountNode={mountNode}>
+        <form onSubmit={handleSubmit}>
+          <DialogBody>
+            <DialogTitle>{t('property_management.add_unit_title')}</DialogTitle>
+            <DialogContent className='unit-form'>
+              <Field label={t('property_management.field.unit_label')} required>
+                <Input required value={form.label} onChange={set('label')} />
+              </Field>
+              <Field label={t('property_management.field.unit_type')}>
+                <Select value={form.unitType} onChange={set('unitType')}>
+                  {unitTypes.map((option) => (
+                    <option key={option} value={option}>{t(`property_management.unit_type.${option}`)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('property_management.field.bedrooms')} required>
+                <Input min={0} required type='number' value={form.bedrooms} onChange={set('bedrooms')} />
+              </Field>
+              <Field label={t('property_management.field.bathrooms')} required>
+                <Input min={1} required type='number' value={form.bathrooms} onChange={set('bathrooms')} />
+              </Field>
+              <Field label={t('property_management.field.furnishing_status')}>
+                <Select value={form.furnishingStatus} onChange={set('furnishingStatus')}>
+                  {furnishingStatuses.map((option) => (
+                    <option key={option} value={option}>{t(`property_management.furnishing_status.${option}`)}</option>
+                  ))}
+                </Select>
+              </Field>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance='primary' disabled={busy} type='submit'>
+                {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.add_unit_submit')}
+              </Button>
+              <DialogTrigger disableButtonEnhancement>
+                <Button appearance='subtle' disabled={busy} type='button'>
+                  {t('property_management.cancel')}
+                </Button>
+              </DialogTrigger>
+            </DialogActions>
+          </DialogBody>
+        </form>
+      </DialogSurface>
+    </Dialog>
   );
 }
 
@@ -308,6 +395,7 @@ function initialAvailabilityForm(unit) {
 
 function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing, t, unit }) {
   const [open, setOpen] = useState(false);
+  const [anchorRef, mountNode] = useRedesignDialogMountNode();
   const [pricingForm, setPricingForm] = useState(emptyPricingForm);
   const [availabilityForm, setAvailabilityForm] = useState(() => initialAvailabilityForm(unit));
   const [pricingBusy, setPricingBusy] = useState(false);
@@ -335,13 +423,12 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
   // a now-stale expectedVersion.
   const anyBusy = pricingBusy || availabilityBusy;
 
-  if (!open) {
-    return (
-      <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
-        {t('property_management.manage_unit_toggle')}
-      </Button>
-    );
-  }
+  // PO feedback ("for button actions like ... set pricing ... open the
+  // form as a dialog"): a real Fluent `Dialog` (modal) replaces the
+  // previous inline-expanding panel; the icon-only trigger button is
+  // unchanged (PO feedback: "set pricing & availability can just be an
+  // appropriate icon" / "need a tooltip on the buttons, no border").
+  const label = t('property_management.manage_unit_toggle');
 
   const handlePricingSubmit = async (event) => {
     event.preventDefault();
@@ -390,45 +477,66 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
   };
 
   return (
-    <div className='unit-pricing-availability'>
-      <h3>{t('property_management.manage_unit_title')}</h3>
-      <form aria-label={t('property_management.pricing_form_label')} className='unit-form' noValidate onSubmit={handlePricingSubmit}>
-        <Field label={t('property_management.field.monthly_rent_amount')} required validationMessage={pricingValidationError || undefined}>
-          <Input disabled={anyBusy} inputMode='decimal' required value={pricingForm.amount} onChange={setPricingField('amount')} />
-        </Field>
-        <Field label={t('property_management.field.currency')}>
-          <Select disabled={anyBusy} value={pricingForm.currency} onChange={setPricingField('currency')}>
-            {supportedCurrencies.map((option) => <option key={option} value={option}>{option}</option>)}
-          </Select>
-        </Field>
-        <Button appearance='primary' disabled={anyBusy} type='submit'>
-          {pricingBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_pricing_submit')}
-        </Button>
-      </form>
-      {isOccupied ? (
-        <p className='unit-availability-occupied-note'>{t('property_management.availability_locked_occupied')}</p>
-      ) : (
-        <form aria-label={t('property_management.availability_form_label')} className='unit-form' noValidate onSubmit={handleAvailabilitySubmit}>
-          <Field label={t('property_management.field.availability_status')}>
-            <Select disabled={anyBusy} value={availabilityForm.status} onChange={setAvailabilityField('status')}>
-              <option value='available'>{t('property_management.unit_availability_status.available')}</option>
-              <option value='unavailable'>{t('property_management.unit_availability_status.unavailable')}</option>
-            </Select>
-          </Field>
-          {availabilityForm.status === 'unavailable' ? (
-            <Field label={t('property_management.field.reason_code')} required validationMessage={availabilityValidationError || undefined}>
-              <Input disabled={anyBusy} required value={availabilityForm.reasonCode} onChange={setAvailabilityField('reasonCode')} />
-            </Field>
-          ) : null}
-          <Button appearance='primary' disabled={anyBusy} type='submit'>
-            {availabilityBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_availability_submit')}
-          </Button>
-        </form>
-      )}
-      <Button appearance='subtle' onClick={() => setOpen(false)} type='button'>
-        {t('property_management.cancel')}
-      </Button>
-    </div>
+    <Dialog open={open} onOpenChange={(_event, data) => setOpen(data.open)}>
+      <DialogTrigger disableButtonEnhancement>
+        <Tooltip content={label} relationship='label'>
+          <Button
+            appearance='subtle'
+            disabled={disabled}
+            icon={<Money20Regular />}
+            ref={anchorRef}
+            onClick={() => setOpen(true)}
+          />
+        </Tooltip>
+      </DialogTrigger>
+      <DialogSurface mountNode={mountNode}>
+        <DialogBody>
+          <DialogTitle>{t('property_management.manage_unit_title')}</DialogTitle>
+          <DialogContent className='unit-pricing-availability'>
+            <form aria-label={t('property_management.pricing_form_label')} className='unit-form' noValidate onSubmit={handlePricingSubmit}>
+              <Field label={t('property_management.field.monthly_rent_amount')} required validationMessage={pricingValidationError || undefined}>
+                <Input disabled={anyBusy} inputMode='decimal' required value={pricingForm.amount} onChange={setPricingField('amount')} />
+              </Field>
+              <Field label={t('property_management.field.currency')}>
+                <Select disabled={anyBusy} value={pricingForm.currency} onChange={setPricingField('currency')}>
+                  {supportedCurrencies.map((option) => <option key={option} value={option}>{option}</option>)}
+                </Select>
+              </Field>
+              <Button appearance='primary' disabled={anyBusy} type='submit'>
+                {pricingBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_pricing_submit')}
+              </Button>
+            </form>
+            {isOccupied ? (
+              <p className='unit-availability-occupied-note'>{t('property_management.availability_locked_occupied')}</p>
+            ) : (
+              <form aria-label={t('property_management.availability_form_label')} className='unit-form' noValidate onSubmit={handleAvailabilitySubmit}>
+                <Field label={t('property_management.field.availability_status')}>
+                  <Select disabled={anyBusy} value={availabilityForm.status} onChange={setAvailabilityField('status')}>
+                    <option value='available'>{t('property_management.unit_availability_status.available')}</option>
+                    <option value='unavailable'>{t('property_management.unit_availability_status.unavailable')}</option>
+                  </Select>
+                </Field>
+                {availabilityForm.status === 'unavailable' ? (
+                  <Field label={t('property_management.field.reason_code')} required validationMessage={availabilityValidationError || undefined}>
+                    <Input disabled={anyBusy} required value={availabilityForm.reasonCode} onChange={setAvailabilityField('reasonCode')} />
+                  </Field>
+                ) : null}
+                <Button appearance='primary' disabled={anyBusy} type='submit'>
+                  {availabilityBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_availability_submit')}
+                </Button>
+              </form>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <DialogTrigger disableButtonEnhancement>
+              <Button appearance='subtle' type='button'>
+                {t('property_management.cancel')}
+              </Button>
+            </DialogTrigger>
+          </DialogActions>
+        </DialogBody>
+      </DialogSurface>
+    </Dialog>
   );
 }
 
@@ -624,8 +732,20 @@ function ListingImageManager({ disabled, legacyImageCount = 0, listingId, sessio
 // title/summary edits and photo uploads are separate concerns, so the
 // image manager renders whenever a draft listing exists regardless of
 // whether the title/summary edit form is open.
-function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session, t, unitId }) {
+function PublicListingForm({
+  busyListingId,
+  disabled,
+  enableListingActions,
+  listing,
+  onCreate,
+  onPublishWithdraw,
+  onUpdateDraft,
+  session,
+  t,
+  unitId,
+}) {
   const [open, setOpen] = useState(false);
+  const [anchorRef, mountNode] = useRedesignDialogMountNode();
   const [form, setForm] = useState(() => (listing ? listingFormFromSummary(listing) : emptyListingForm));
   const [busy, setBusy] = useState(false);
   const [attestationError, setAttestationError] = useState('');
@@ -636,20 +756,42 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session
   const isDraft = listing?.status === 'draft';
   const hasListing = Boolean(listing);
 
-  if (!open && !hasListing) {
-    return (
-      <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
-        {t('property_management.create_listing_toggle')}
-      </Button>
-    );
-  }
-
   if (hasListing && !isDraft) {
+    // PO feedback ("listing status, media should be also different
+    // columns"): a published/withdrawn listing's own read-only
+    // status/media-review badges now live in the row's own dedicated
+    // "Listing status"/"Media" columns (see PropertyManagementPanel
+    // below) instead of here, and REQ-038's ListingImageManager only
+    // ever mounts for a `draft` listing (migration 0032's upload/delete
+    // commands both reject a non-draft listing) — so there is genuinely
+    // nothing left for the Actions column to render for a
+    // published/withdrawn listing, UNLESS the combined Landlord view
+    // (PO feedback: "combine Listing publication and Property portfolio
+    // in the same table") also delegates the Publish/Withdraw command
+    // here via `enableListingActions`. Legacy consumers (portal-app.jsx's
+    // flag-off view, which still renders the separate
+    // ListingPublicationPanel) never pass this prop, so they keep
+    // returning null exactly as before.
+    if (!enableListingActions) return null;
+    const copy = statusCopy(listing.status, t);
+    const isBusy = busyListingId === listing.id;
+    // PO feedback ("for the actions... just icons are enough"; "need a
+    // tooltip on the buttons, no border"): icon-only, matching
+    // UnitPricingAvailabilityForm's own toggle above — a Fluent `Tooltip`
+    // (`relationship='label'`) supplies both the hover/focus label and
+    // the accessible name, and `appearance='subtle'` removes the visible
+    // border. `CloudArrowUp20Regular` is "Publish", `CloudDismiss20Regular`
+    // is "Withdraw" (copy.command is the stable wire value driving this,
+    // never the translated `action` label).
     return (
-      <div className='public-listing-status'>
-        <span className='status'>{t(`property_management.listing_status.${listing.status}`)}</span>
-        <span className='listing-meta'>{t(`property_management.media_review_status.${listing.mediaReviewStatus}`)}</span>
-      </div>
+      <Tooltip content={copy.action} relationship='label'>
+        <Button
+          appearance='subtle'
+          disabled={disabled || isBusy}
+          icon={isBusy ? <Spinner size='tiny' /> : copy.command === 'publish' ? <CloudArrowUp20Regular /> : <CloudDismiss20Regular />}
+          onClick={() => onPublishWithdraw(listing.id, copy.command)}
+        />
+      </Tooltip>
     );
   }
 
@@ -673,44 +815,63 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session
 
   return (
     <>
-      {hasListing && !open ? (
-        <div className='public-listing-status'>
-          <span className='status'>{t('property_management.listing_status.draft')}</span>
-          <span className='listing-meta'>{t(`property_management.media_review_status.${listing.mediaReviewStatus}`)}</span>
-          <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
-            {t('property_management.edit_listing_toggle')}
-          </Button>
-        </div>
-      ) : null}
-      {open ? (
-        <form aria-label={t(hasListing ? 'property_management.edit_listing_form_label' : 'property_management.create_listing_form_label')} className='unit-form' noValidate onSubmit={handleSubmit}>
-          <Field label={t('property_management.field.listing_title')} required>
-            <Input disabled={busy} maxLength={140} required value={form.title} onChange={set('title')} />
-          </Field>
-          <Field label={t('property_management.field.listing_summary')} required>
-            <Textarea disabled={busy} maxLength={4000} required resize='vertical' value={form.summary} onChange={set('summary')} />
-          </Field>
-          {!hasListing && (
-            <Field validationMessage={attestationError || undefined}>
-              <Checkbox
-                disabled={busy}
-                checked={form.attestationAccepted}
-                label={t('property_management.listing_attestation_label')}
-                onChange={(_event, data) => setForm((current) => ({ ...current, attestationAccepted: Boolean(data.checked) }))}
-                required
-              />
-            </Field>
+      {/* PO feedback ("for button actions like ... create public
+          listing... open the form as a dialog"): a real Fluent `Dialog`
+          (modal) replaces the previous inline-expanding form. The
+          trigger stays icon-only for "create" (PO feedback: "use an
+          icon for create public listing" — `CloudAdd20Regular` pairs
+          the same "cloud" glyph family with a "+" to read as
+          "create/add a listing") and text for "edit", matching each
+          control's prior appearance. */}
+      <Dialog open={open} onOpenChange={(_event, data) => setOpen(data.open)}>
+        <DialogTrigger disableButtonEnhancement>
+          {hasListing ? (
+            <Button appearance='secondary' disabled={disabled} ref={anchorRef} onClick={() => setOpen(true)}>
+              {t('property_management.edit_listing_toggle')}
+            </Button>
+          ) : (
+            <Tooltip content={t('property_management.create_listing_toggle')} relationship='label'>
+              <Button appearance='subtle' disabled={disabled} icon={<CloudAdd20Regular />} ref={anchorRef} onClick={() => setOpen(true)} />
+            </Tooltip>
           )}
-          <div className='unit-form-actions'>
-            <Button appearance='primary' disabled={disabled || busy} type='submit'>
-              {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t(hasListing ? 'property_management.edit_listing_submit' : 'property_management.create_listing_submit')}
-            </Button>
-            <Button appearance='subtle' disabled={busy} onClick={() => setOpen(false)} type='button'>
-              {t('property_management.cancel')}
-            </Button>
-          </div>
-        </form>
-      ) : null}
+        </DialogTrigger>
+        <DialogSurface mountNode={mountNode}>
+          <form noValidate onSubmit={handleSubmit}>
+            <DialogBody>
+              <DialogTitle>{t(hasListing ? 'property_management.edit_listing_form_label' : 'property_management.create_listing_form_label')}</DialogTitle>
+              <DialogContent className='unit-form'>
+                <Field label={t('property_management.field.listing_title')} required>
+                  <Input disabled={busy} maxLength={140} required value={form.title} onChange={set('title')} />
+                </Field>
+                <Field label={t('property_management.field.listing_summary')} required>
+                  <Textarea disabled={busy} maxLength={4000} required resize='vertical' value={form.summary} onChange={set('summary')} />
+                </Field>
+                {!hasListing && (
+                  <Field className='listing-attestation-field' validationMessage={attestationError || undefined}>
+                    <Checkbox
+                      disabled={busy}
+                      checked={form.attestationAccepted}
+                      label={t('property_management.listing_attestation_label')}
+                      onChange={(_event, data) => setForm((current) => ({ ...current, attestationAccepted: Boolean(data.checked) }))}
+                      required
+                    />
+                  </Field>
+                )}
+              </DialogContent>
+              <DialogActions>
+                <Button appearance='primary' disabled={disabled || busy} type='submit'>
+                  {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t(hasListing ? 'property_management.edit_listing_submit' : 'property_management.create_listing_submit')}
+                </Button>
+                <DialogTrigger disableButtonEnhancement>
+                  <Button appearance='subtle' disabled={busy} type='button'>
+                    {t('property_management.cancel')}
+                  </Button>
+                </DialogTrigger>
+              </DialogActions>
+            </DialogBody>
+          </form>
+        </DialogSurface>
+      </Dialog>
       {hasListing ? (
         <ListingImageManager
           disabled={disabled}
@@ -725,9 +886,12 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session
 }
 
 export function PropertyManagementPanel({
+  enableListingActions,
   feedError,
   feedLoading,
   listings,
+  listingsFeedError,
+  listingsFeedLoading,
   onRetryFeed,
   onRetryListingsFeed,
   properties,
@@ -738,7 +902,83 @@ export function PropertyManagementPanel({
   const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : !hasOrganizationContext ? 'organization-unavailable' : session?.getAccessToken ? 'sign-in-required' : 'unavailable');
   const [message, setMessage] = useState('');
   const [messageTone, setMessageTone] = useState('');
+  const [busyListingId, setBusyListingId] = useState('');
   const apiConfig = useMemo(() => resolveApiBaseUrl(), []);
+
+  // PO feedback ("need also pagination, filter, search on the table"):
+  // search/filter operate on individual unit rows (not whole properties),
+  // so the combined table is flattened to one row per unit — each
+  // carrying its own parent property — filtered, paginated, and only
+  // then re-grouped back under its property heading for rendering (see
+  // `visiblePropertyGroups` below), preserving the existing grouped
+  // layout for whichever rows survive the current page/filter/search.
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [listingStatusFilter, setListingStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const UNITS_PER_PAGE = 10;
+
+  const filteredUnitRows = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const rows = [];
+    for (const property of properties || []) {
+      for (const unit of property.units || []) {
+        const unitListing = (listings || []).find((listing) => listing.unitId === unit.id);
+        if (statusFilter !== 'all' && unit.availabilityStatus !== statusFilter) continue;
+        if (listingStatusFilter !== 'all') {
+          const listingStatusValue = unitListing ? unitListing.status : 'none';
+          if (listingStatusValue !== listingStatusFilter) continue;
+        }
+        if (term && !`${property.name} ${unit.label}`.toLowerCase().includes(term)) continue;
+        rows.push({ property, unit, unitListing });
+      }
+    }
+    return rows;
+  }, [properties, listings, searchTerm, statusFilter, listingStatusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUnitRows.length / UNITS_PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+
+  // Resetting to page 1 whenever the underlying filtered set changes
+  // (rather than only on searchTerm/statusFilter/listingStatusFilter
+  // changes directly) also keeps `currentPage` in bounds if the feed
+  // itself shrinks (e.g. a unit is removed) while on a later page.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, listingStatusFilter]);
+
+  const pageRows = filteredUnitRows.slice((currentPage - 1) * UNITS_PER_PAGE, currentPage * UNITS_PER_PAGE);
+  const hasActiveFilter = Boolean(searchTerm.trim()) || statusFilter !== 'all' || listingStatusFilter !== 'all';
+
+  const visiblePropertyGroups = useMemo(() => {
+    const groups = [];
+    const byId = new Map();
+    for (const row of pageRows) {
+      let group = byId.get(row.property.id);
+      if (!group) {
+        group = { property: row.property, rows: [] };
+        byId.set(row.property.id, group);
+        groups.push(group);
+      }
+      group.rows.push(row);
+    }
+    // A property with genuinely zero units contributes zero rows to
+    // `filteredUnitRows`/pagination, so it would otherwise disappear
+    // entirely from view — it isn't being filtered *out*, there was
+    // simply never anything to filter. With no active search/filter, and
+    // only on the first page (later pages are real unit pagination, not
+    // "show every property"), still render its (empty) group so the
+    // property itself — and its "Add unit" affordance — stays reachable,
+    // matching this table's pre-search/filter/pagination behavior.
+    if (!hasActiveFilter && currentPage === 1) {
+      for (const property of properties || []) {
+        if ((property.units || []).length === 0 && !byId.has(property.id)) {
+          groups.push({ property, rows: [] });
+        }
+      }
+    }
+    return groups;
+  }, [pageRows, hasActiveFilter, currentPage, properties]);
 
   useEffect(() => {
     let active = true;
@@ -982,6 +1222,40 @@ export function PropertyManagementPanel({
     }
   };
 
+  // Mirrors listing-publication-panel.jsx's runCommand: same API client,
+  // command shape, and envelope schema, reused here (PO feedback:
+  // "combine Listing publication and Property portfolio in the same
+  // table") so a unit's Publish/Withdraw action lives in the row's own
+  // Actions column instead of a separate list of the same listings.
+  const submitPublishWithdrawListing = async (listingId, nextCommand) => {
+    if (disableActions) return;
+    setBusyListingId(listingId);
+    setMessage('');
+    setMessageTone('');
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.command('public-listings', listingId, nextCommand);
+      const parsed = publicListingPublicationEnvelopeSchema.parse(payload);
+      setMessage(
+        parsed.data.status === 'published'
+          ? t('listing_publication.published_success')
+          : t('listing_publication.withdrawn_success'),
+      );
+      setMessageTone('success');
+      if (onRetryListingsFeed) onRetryListingsFeed();
+    } catch (error) {
+      setMessage(
+        error?.code === 'NOT_FOUND'
+          ? t('listing_publication.not_found')
+          : error instanceof Error ? error.message : t('listing_publication.update_failed'),
+      );
+      setMessageTone('error');
+    } finally {
+      setBusyListingId('');
+    }
+  };
+
   return (
     <section aria-labelledby='property-management-title' className='panel property-panel'>
       <div className='panel-head'>
@@ -1022,47 +1296,172 @@ export function PropertyManagementPanel({
           {onRetryFeed ? <Button appearance='secondary' onClick={onRetryFeed}>{t('property_management.feed_retry')}</Button> : null}
         </div>
       ) : null}
+      {/* useManagerListings resolves a fetch failure to [] just like "no
+          listings assigned yet" (see its own doc comment), so when this
+          combined view is the only place listing status renders
+          (enableListingActions), the listings-feed error/loading must be
+          surfaced explicitly here too — otherwise a real fetch failure
+          would be indistinguishable from every unit genuinely having no
+          listing. Reuses ListingPublicationPanel's own copy keys since
+          this is the exact same feed. */}
+      {enableListingActions && listingsFeedLoading ? (
+        <p className='publication-feedback' data-tone='success' role='status'>{t('listing_publication.feed_loading')}</p>
+      ) : null}
+      {enableListingActions && listingsFeedError ? (
+        <div className='publication-feedback' data-tone='error' role='alert'>
+          <p>{t('listing_publication.feed_error')}</p>
+          {onRetryListingsFeed ? <Button appearance='secondary' onClick={onRetryListingsFeed}>{t('listing_publication.feed_retry')}</Button> : null}
+        </div>
+      ) : null}
       {!feedLoading && !feedError && properties.length === 0 ? (
         <p className='publication-empty'>{t('property_management.empty_state')}</p>
       ) : null}
       {!feedLoading && !feedError && properties.length > 0 ? (
-        <div className='rows' role='list' aria-label={t('property_management.portfolio')}>
-          {properties.map((property) => (
-            <div className='property-row' key={property.id} role='listitem'>
-              <strong>{property.name}</strong>
-              <span className='listing-meta'>{t(`property_management.property_type.${property.propertyType}`)}</span>
-              <div className='unit-rows'>
-                {property.units.map((unit) => {
-                  const unitListing = (listings || []).find((listing) => listing.unitId === unit.id);
-                  return (
-                    <div className='unit-row' key={unit.id}>
-                      <span>{unit.label}</span>
-                      <span className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</span>
-                      <span className='status'>{t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}</span>
-                      <UnitPricingAvailabilityForm
-                        disabled={disableActions}
-                        onSetAvailability={submitSetAvailability}
-                        onSetPricing={submitSetPricing}
-                        t={t}
-                        unit={unit}
-                      />
-                      <PublicListingForm
-                        disabled={disableActions}
-                        listing={unitListing}
-                        onCreate={submitCreateListing}
-                        onUpdateDraft={submitUpdateListingDraft}
-                        session={session}
-                        t={t}
-                        unitId={unit.id}
-                      />
+        <>
+          {/* PO feedback ("need also pagination, filter, search on the
+              table"): search matches unit label or property name;
+              status/listing-status filters reuse the same wire enums the
+              Badge colors above are keyed on (plus a synthetic 'none'
+              value for "no listing yet", since that's a real, filterable
+              state a unit can be in). */}
+          <div className='unit-table-controls'>
+            <Field label={t('property_management.search_label')}>
+              <Input
+                onChange={(_event, data) => setSearchTerm(data.value)}
+                placeholder={t('property_management.search_placeholder')}
+                value={searchTerm}
+              />
+            </Field>
+            <Field label={t('property_management.filter_status_label')}>
+              <Select onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}>
+                <option value='all'>{t('property_management.filter_status_all')}</option>
+                {unitAvailabilityStatuses.map((option) => (
+                  <option key={option} value={option}>{t(`property_management.unit_availability_status.${option}`)}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={t('property_management.filter_listing_status_label')}>
+              <Select onChange={(event) => setListingStatusFilter(event.target.value)} value={listingStatusFilter}>
+                <option value='all'>{t('property_management.filter_listing_status_all')}</option>
+                {publicListingStatuses.map((option) => (
+                  <option key={option} value={option}>{t(`property_management.listing_status.${option}`)}</option>
+                ))}
+                <option value='none'>{t('property_management.unit_table_no_listing')}</option>
+              </Select>
+            </Field>
+          </div>
+          {visiblePropertyGroups.length === 0 ? (
+            <p className='publication-empty'>{t('property_management.filter_no_results')}</p>
+          ) : (
+            <div className='rows' role='list' aria-label={t('property_management.portfolio')}>
+              {visiblePropertyGroups.map(({ property, rows }) => (
+                <div className='property-row' key={property.id} role='listitem'>
+                  {/* PO feedback ("have the add unit button on the same
+                      line as apartment building but at the right side"):
+                      the name/type header and the "Add a unit" toggle
+                      now share one row, the toggle right-aligned. When
+                      expanded into its full field form it still drops to
+                      its own full-width line below (same flex-basis:100%
+                      pattern already used for the Actions column's
+                      expandable cards), so it never squeezes the header
+                      text. */}
+                  <div className='property-row-header'>
+                    <div>
+                      <strong>{property.name}</strong>
+                      <span className='listing-meta'>{t(`property_management.property_type.${property.propertyType}`)}</span>
                     </div>
-                  );
-                })}
-              </div>
-              <AddUnitForm disabled={disableActions} onSubmit={submitAddUnit} propertyId={property.id} t={t} />
+                    <AddUnitForm disabled={disableActions} onSubmit={submitAddUnit} propertyId={property.id} t={t} />
+                  </div>
+                  <Table aria-label={t('property_management.units_table_label')} className='unit-rows' noNativeElements>
+                    <TableHeader>
+                      <TableRow className='unit-row unit-row-header'>
+                        <TableHeaderCell>{t('property_management.unit_table_column_unit')}</TableHeaderCell>
+                        <TableHeaderCell>{t('property_management.unit_table_column_type')}</TableHeaderCell>
+                        <TableHeaderCell>{t('property_management.unit_table_column_status')}</TableHeaderCell>
+                        <TableHeaderCell>{t('property_management.unit_table_column_listing_status')}</TableHeaderCell>
+                        <TableHeaderCell>{t('property_management.unit_table_column_media')}</TableHeaderCell>
+                        <TableHeaderCell>{t('property_management.unit_table_column_actions')}</TableHeaderCell>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map(({ unit, unitListing }) => (
+                        <TableRow className='unit-row' key={unit.id}>
+                          <TableCell className='unit-row-name'>{unit.label}</TableCell>
+                          <TableCell className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</TableCell>
+                          <TableCell className='status'>
+                            <Badge appearance='tint' color={UNIT_AVAILABILITY_BADGE_COLOR[unit.availabilityStatus]} shape='rounded'>
+                              {t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className='status listing-status'>
+                            {unitListing ? (
+                              <Badge appearance='tint' color={LISTING_STATUS_BADGE_COLOR[unitListing.status]} shape='rounded'>
+                                {t(`property_management.listing_status.${unitListing.status}`)}
+                              </Badge>
+                            ) : t('property_management.unit_table_no_listing')}
+                          </TableCell>
+                          <TableCell className='listing-meta media-status'>
+                            {unitListing ? (
+                              <Badge appearance='tint' color={MEDIA_REVIEW_BADGE_COLOR[unitListing.mediaReviewStatus]} shape='rounded'>
+                                {t(`property_management.media_review_status.${unitListing.mediaReviewStatus}`)}
+                              </Badge>
+                            ) : t('property_management.unit_table_no_listing')}
+                          </TableCell>
+                          <TableCell className='unit-row-actions'>
+                            <UnitPricingAvailabilityForm
+                              disabled={disableActions}
+                              onSetAvailability={submitSetAvailability}
+                              onSetPricing={submitSetPricing}
+                              t={t}
+                              unit={unit}
+                            />
+                            <PublicListingForm
+                              busyListingId={busyListingId}
+                              disabled={disableActions}
+                              enableListingActions={enableListingActions}
+                              listing={unitListing}
+                              onCreate={submitCreateListing}
+                              onPublishWithdraw={submitPublishWithdrawListing}
+                              onUpdateDraft={submitUpdateListingDraft}
+                              session={session}
+                              t={t}
+                              unitId={unit.id}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+          {filteredUnitRows.length > 0 ? (
+            <nav aria-label={t('property_management.units_table_label')} className='unit-table-pagination'>
+              {/* PO feedback ("for pagination, just use icons, not words
+                  like previous ... next"): icon-only, Tooltip-labelled
+                  buttons, matching the same pattern already used for the
+                  pricing/availability and publish/withdraw controls. */}
+              <Tooltip content={t('property_management.pagination_previous')} relationship='label'>
+                <Button
+                  appearance='subtle'
+                  disabled={currentPage <= 1}
+                  icon={<ChevronLeft20Regular />}
+                  onClick={() => setPage((current) => current - 1)}
+                />
+              </Tooltip>
+              <span role='status'>{t('property_management.pagination_summary', { page: currentPage, totalPages })}</span>
+              <Tooltip content={t('property_management.pagination_next')} relationship='label'>
+                <Button
+                  appearance='subtle'
+                  disabled={currentPage >= totalPages}
+                  icon={<ChevronRight20Regular />}
+                  onClick={() => setPage((current) => current + 1)}
+                />
+              </Tooltip>
+            </nav>
+          ) : null}
+        </>
       ) : null}
       {message ? (
         <p className='publication-feedback' data-tone={messageTone} role={messageTone === 'error' ? 'alert' : 'status'}>

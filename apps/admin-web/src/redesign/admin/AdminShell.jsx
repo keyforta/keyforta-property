@@ -35,7 +35,20 @@
 // not spell out either panel's name in this file so as not to trip its
 // own grep check.
 import { useEffect, useState } from 'react';
-import { Badge, Button, Field, Spinner, Textarea } from '@fluentui/react-components';
+import {
+  Badge,
+  Button,
+  Field,
+  Spinner,
+  Table,
+  TableBody,
+  TableCell,
+  TableCellLayout,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  Textarea,
+} from '@fluentui/react-components';
 import { ArrowClockwise20Regular, SignOut20Regular } from '@fluentui/react-icons';
 import { AppBrand } from '@keyforta/ui';
 import { useTranslation } from 'react-i18next';
@@ -82,49 +95,54 @@ function AdminReviewCard({ application, busy, onDecision, t }) {
   const [reason, setReason] = useState(application.decisionReason || '');
   const pending = application.status === 'pending';
   return (
-    <article className="kf-decision-card kf-accent-aubergine">
-      <div className="kf-card-heading">
-        <div>
-          <p className="kf-kicker">{application.proposedOrganizationName}</p>
-          <h2 className="kf-section-heading">{application.applicantName}</h2>
-        </div>
+    <TableRow className="kf-decision-row kf-accent-aubergine">
+      <TableCell>
+        <TableCellLayout description={application.proposedOrganizationName}>
+          {application.applicantName}
+        </TableCellLayout>
+      </TableCell>
+      <TableCell>
         <Badge appearance="tint" color={onboardingStatusTone(application.status)}>
           {t(`review.status.${application.status}`, { defaultValue: application.status })}
         </Badge>
-      </div>
-      <dl className="kf-definition-list">
-        <div><dt>{t('review.submitted')}</dt><dd>{formatDate(application.submittedAt)}</dd></div>
-        {application.decidedAt && <div><dt>{t('review.decided')}</dt><dd>{formatDate(application.decidedAt)}</dd></div>}
-      </dl>
-      {pending ? (
-        <form onSubmit={(event) => event.preventDefault()}>
-          <Field hint={t('review.decision_reason_hint')} label={t('review.decision_reason_label')}>
-            <Textarea maxLength={1000} minLength={3} onChange={(_, data) => setReason(data.value)} required resize="vertical" value={reason} />
-          </Field>
-          <div className="kf-decision-actions">
-            <Button
-              appearance="primary"
-              disabled={busy || reason.trim().length < 3}
-              onClick={() => onDecision(application.id, 'approved', reason)}
-            >
-              {t('review.approve')}
-            </Button>
-            <Button
-              appearance="secondary"
-              disabled={busy || reason.trim().length < 3}
-              onClick={() => onDecision(application.id, 'rejected', reason)}
-            >
-              {t('review.reject')}
-            </Button>
+      </TableCell>
+      <TableCell>
+        <dl className="kf-definition-list">
+          <div><dt>{t('review.submitted')}</dt><dd>{formatDate(application.submittedAt)}</dd></div>
+          {application.decidedAt && <div><dt>{t('review.decided')}</dt><dd>{formatDate(application.decidedAt)}</dd></div>}
+        </dl>
+      </TableCell>
+      <TableCell className="kf-decision-cell">
+        {pending ? (
+          <form onSubmit={(event) => event.preventDefault()}>
+            <Field hint={t('review.decision_reason_hint')} label={t('review.decision_reason_label')}>
+              <Textarea maxLength={1000} minLength={3} onChange={(_, data) => setReason(data.value)} required resize="vertical" value={reason} />
+            </Field>
+            <div className="kf-decision-actions">
+              <Button
+                appearance="primary"
+                disabled={busy || reason.trim().length < 3}
+                onClick={() => onDecision(application.id, 'approved', reason)}
+              >
+                {t('review.approve')}
+              </Button>
+              <Button
+                appearance="secondary"
+                disabled={busy || reason.trim().length < 3}
+                onClick={() => onDecision(application.id, 'rejected', reason)}
+              >
+                {t('review.reject')}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="kf-decision-evidence">
+            <strong>{t('review.decision_reason_label')}</strong>
+            <p>{application.decisionReason}</p>
           </div>
-        </form>
-      ) : (
-        <div className="kf-decision-evidence">
-          <strong>{t('review.decision_reason_label')}</strong>
-          <p>{application.decisionReason}</p>
-        </div>
-      )}
-    </article>
+        )}
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -168,53 +186,60 @@ function AdminMediaReviewCard({ decision, mediaReviewApi, onDecision, review, t 
     }
   }
   return (
-    <article className="kf-decision-card kf-accent-aubergine">
-      <div className="kf-card-heading">
-        <div>
-          <p className="kf-kicker">{review.organizationName}</p>
-          <h2 className="kf-section-heading">{review.title || t('media_review.untitled_listing')}</h2>
-        </div>
+    <TableRow className="kf-decision-row kf-accent-aubergine">
+      <TableCell>
+        <TableCellLayout description={review.organizationName}>
+          {review.title || t('media_review.untitled_listing')}
+        </TableCellLayout>
+      </TableCell>
+      <TableCell>
+        <dl className="kf-definition-list">
+          <div><dt>{t('media_review.property')}</dt><dd>{review.propertyName}</dd></div>
+          <div><dt>{t('media_review.unit')}</dt><dd>{review.unitLabel}</dd></div>
+        </dl>
+      </TableCell>
+      <TableCell>
         <Badge appearance="tint" color={mediaReviewStatusTone('pending')}>{t('media_review.status.pending')}</Badge>
-      </div>
-      <dl className="kf-definition-list">
-        <div><dt>{t('media_review.property')}</dt><dd>{review.propertyName}</dd></div>
-        <div><dt>{t('media_review.unit')}</dt><dd>{review.unitLabel}</dd></div>
-        <div><dt>{t('media_review.submitted')}</dt><dd>{formatDate(review.submittedAt)}</dd></div>
-      </dl>
-      {review.summary ? <p className="kf-body muted">{review.summary}</p> : null}
-      {review.uploadedImages?.length > 0 ? (
-        <ul className="kf-media-grid">
-          {review.uploadedImages.map((image) => (
-            <li key={image.imageId}>
-              <AdminReviewImage imageId={image.imageId} listingId={review.listingId} mediaReviewApi={mediaReviewApi} room={image.room} t={t} />
-              <span className="kf-media-caption">{t(`media_review.room.${image.room}`, { defaultValue: image.room })}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {review.imageUrls?.length > 0 ? (
-        <ul className="kf-legacy-media-list">
-          {review.imageUrls.map((url) => (
-            <li key={url}>
-              {isSafeImageUrl(url) ? (
-                <a className="kf-legacy-media-link" href={url} rel="noreferrer" target="_blank">{url}</a>
-              ) : (
-                <span className="kf-legacy-media-unsafe">{url}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : (review.uploadedImages?.length ? null : <p className="kf-body muted">{t('media_review.no_images')}</p>)}
-      <form onSubmit={(event) => event.preventDefault()}>
-        <Field hint={t('media_review.notes_hint')} label={t('media_review.notes_label')}>
-          <Textarea maxLength={2000} onChange={(_, data) => setNotes(data.value)} resize="vertical" value={notes} />
-        </Field>
-        <div className="kf-decision-actions">
-          <Button appearance="primary" disabled={busy || decision !== ''} onClick={() => submit('approved')}>{t('media_review.approve')}</Button>
-          <Button appearance="secondary" disabled={busy || decision !== '' || !canReject} onClick={() => submit('rejected')}>{t('media_review.reject')}</Button>
-        </div>
-      </form>
-    </article>
+        <span className="kf-body muted">{formatDate(review.submittedAt)}</span>
+      </TableCell>
+      <TableCell className="kf-media-cell">
+        {review.summary ? <p className="kf-body muted">{review.summary}</p> : null}
+        {review.uploadedImages?.length > 0 ? (
+          <ul className="kf-media-grid">
+            {review.uploadedImages.map((image) => (
+              <li key={image.imageId}>
+                <AdminReviewImage imageId={image.imageId} listingId={review.listingId} mediaReviewApi={mediaReviewApi} room={image.room} t={t} />
+                <span className="kf-media-caption">{t(`media_review.room.${image.room}`, { defaultValue: image.room })}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {review.imageUrls?.length > 0 ? (
+          <ul className="kf-legacy-media-list">
+            {review.imageUrls.map((url) => (
+              <li key={url}>
+                {isSafeImageUrl(url) ? (
+                  <a className="kf-legacy-media-link" href={url} rel="noreferrer" target="_blank">{url}</a>
+                ) : (
+                  <span className="kf-legacy-media-unsafe">{url}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (review.uploadedImages?.length ? null : <p className="kf-body muted">{t('media_review.no_images')}</p>)}
+      </TableCell>
+      <TableCell className="kf-decision-cell">
+        <form onSubmit={(event) => event.preventDefault()}>
+          <Field hint={t('media_review.notes_hint')} label={t('media_review.notes_label')}>
+            <Textarea maxLength={2000} onChange={(_, data) => setNotes(data.value)} resize="vertical" value={notes} />
+          </Field>
+          <div className="kf-decision-actions">
+            <Button appearance="primary" disabled={busy || decision !== ''} onClick={() => submit('approved')}>{t('media_review.approve')}</Button>
+            <Button appearance="secondary" disabled={busy || decision !== '' || !canReject} onClick={() => submit('rejected')}>{t('media_review.reject')}</Button>
+          </div>
+        </form>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -280,11 +305,21 @@ function AdminOnboardingQueue({ auth, onLanguageToggle, onSectionChange, onSignO
           <div className="kf-denied-state"><h2>{t('review.access_denied')}</h2><p>{queue.message}</p></div>
         )}
         {queue.status === 'ready' && (
-          <section aria-label={t('review.applications_list_label')} className="kf-application-list">
-            {queue.applications.map((application) => (
-              <AdminReviewCard application={application} busy={busyId === application.id} key={application.id} onDecision={decide} t={t} />
-            ))}
-          </section>
+          <Table aria-label={t('review.applications_list_label')} className="kf-application-table">
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>{t('review.table_column_applicant')}</TableHeaderCell>
+                <TableHeaderCell>{t('review.table_column_status')}</TableHeaderCell>
+                <TableHeaderCell>{t('review.table_column_dates')}</TableHeaderCell>
+                <TableHeaderCell>{t('review.table_column_decision')}</TableHeaderCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {queue.applications.map((application) => (
+                <AdminReviewCard application={application} busy={busyId === application.id} key={application.id} onDecision={decide} t={t} />
+              ))}
+            </TableBody>
+          </Table>
         )}
       </main>
     </>
@@ -353,18 +388,29 @@ function AdminMediaReviewQueue({ auth, mediaReviewApi, onLanguageToggle, onSecti
           <div className="kf-denied-state"><h2>{t('review.access_denied')}</h2><p>{queue.message}</p></div>
         )}
         {queue.status === 'ready' && (
-          <section aria-label={t('media_review.list_label')} className="kf-application-list">
-            {queue.reviews.map((review) => (
-              <AdminMediaReviewCard
-                decision={busyId === review.listingId ? busyId : ''}
-                key={review.listingId}
-                mediaReviewApi={mediaReviewApi}
-                onDecision={decide}
-                review={review}
-                t={t}
-              />
-            ))}
-          </section>
+          <Table aria-label={t('media_review.list_label')} className="kf-application-table">
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>{t('media_review.table_column_listing')}</TableHeaderCell>
+                <TableHeaderCell>{t('media_review.table_column_property_unit')}</TableHeaderCell>
+                <TableHeaderCell>{t('media_review.table_column_status')}</TableHeaderCell>
+                <TableHeaderCell>{t('media_review.table_column_media')}</TableHeaderCell>
+                <TableHeaderCell>{t('media_review.table_column_decision')}</TableHeaderCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {queue.reviews.map((review) => (
+                <AdminMediaReviewCard
+                  decision={busyId === review.listingId ? busyId : ''}
+                  key={review.listingId}
+                  mediaReviewApi={mediaReviewApi}
+                  onDecision={decide}
+                  review={review}
+                  t={t}
+                />
+              ))}
+            </TableBody>
+          </Table>
         )}
       </main>
     </>

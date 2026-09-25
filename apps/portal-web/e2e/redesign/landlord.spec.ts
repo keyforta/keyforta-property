@@ -27,8 +27,11 @@ test.describe('Landlord redesign (flag-gated)', () => {
     const shell = page.locator('.kf-landlord-redesign');
     await expect(shell).toHaveCount(1);
     await expect(page.getByRole('heading', { name: 'A clear view of your property portfolio.' })).toBeVisible();
-    // Same reused panels/copy, only the shell chrome differs (§6 of the spec).
-    await expect(page.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeVisible();
+    // PO feedback ("combine Listing publication and Property portfolio in
+    // the same table"): the redesigned shell no longer renders the
+    // separate "Publish or withdraw assigned listings" panel — the same
+    // reused property-management panel now covers both.
+    await expect(page.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Add a property' })).toBeVisible();
     // Addendum §10.2: next-best-action checklist, computed from already-
     // fetched data only (no new fetch/endpoint).
@@ -56,30 +59,31 @@ test.describe('Landlord redesign (flag-gated)', () => {
   // Regression fix — PO live-review finding: a unit's own occupancy
   // "Available" badge sitting next to its listing's "Withdrawn"/"Media
   // approved" badges was read as a contradiction, but these are unrelated
-  // fields that can legitimately disagree; the §10.4/§11 visual chunking
-  // just grouped them with no distinguishing caption. This uses the
-  // dev-only PO-regression preview fixture (never part of the production
-  // entry point/build — see src/landlord-redesign-preview.html and
+  // fields that can legitimately disagree; the original visual chunking
+  // just grouped them with no distinguishing caption.
+  //
+  // PO follow-up ("listing status, media should be also different
+  // columns") superseded the original same-column-caption fix: "Status",
+  // "Listing status", and "Media" are now three separate genuine
+  // TableHeaderCell/TableCell columns, so the column header itself is
+  // the distinguishing label — there is no more `::before` caption
+  // content to assert here. This uses the dev-only PO-regression preview
+  // fixture (never part of the production entry point/build — see
+  // src/landlord-redesign-preview.html and
   // src/redesign/landlord/__fixtures__/) to reproduce the exact reported
-  // combination and assert the two groups now render distinguishable
-  // captions in a real browser (jsdom cannot compute pseudo-element
-  // `content` — see the paired vitest spec for the JS-side wiring
-  // assertion).
-  test('flag on: the unit-status and listing-status badge groups render distinguishable captions (PO regression fix)', async ({ page }) => {
+  // combination and assert the three values now render in their own
+  // distinct, headed columns in a real browser.
+  test('flag on: the unit-status, listing-status, and media badges render in their own distinct, headed columns (PO regression fix)', async ({ page }) => {
     await page.goto(`${FLAG_ON_URL}/landlord-redesign-preview.html`);
-    const unitStatus = page.locator('.unit-row > .status');
-    const listingStatusGroup = page.locator('.public-listing-status');
-    await expect(unitStatus).toContainText('Available');
-    await expect(listingStatusGroup).toContainText('Withdrawn');
-    await expect(listingStatusGroup).toContainText('Media approved');
+    await expect(page.getByRole('columnheader', { name: 'Listing status' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Media', exact: true })).toBeVisible();
 
-    const [unitCaption, listingCaption] = await Promise.all([
-      unitStatus.evaluate((el) => window.getComputedStyle(el, '::before').content),
-      listingStatusGroup.evaluate((el) => window.getComputedStyle(el, '::before').content),
-    ]);
-    expect(unitCaption).toBe('"Unit status"');
-    expect(listingCaption).toBe('"Listing status"');
-    expect(unitCaption).not.toBe(listingCaption);
+    const unitStatus = page.locator('.unit-row > .status:not(.listing-status)');
+    const listingStatus = page.locator('.unit-row > .status.listing-status');
+    const mediaStatus = page.locator('.unit-row > .media-status');
+    await expect(unitStatus).toHaveText('Available');
+    await expect(listingStatus).toHaveText('Withdrawn');
+    await expect(mediaStatus).toHaveText('Approved');
 
     await page.screenshot({ path: 'e2e/redesign/__screenshots__/flag-on-landlord-properties-status-distinction.png', fullPage: true });
   });
@@ -92,14 +96,14 @@ test.describe('Landlord redesign (flag-gated)', () => {
   // withdrawn listing, the exact reported combination).
   test('flag on: a withdrawn listing\'s status badge no longer computes to the green "positive" color used for genuinely positive statuses', async ({ page }) => {
     await page.goto(`${FLAG_ON_URL}/landlord-redesign-preview.html`);
-    const unitStatus = page.locator('.unit-row > .status');
-    const listingStatus = page.locator('.public-listing-status .status');
+    const unitStatus = page.locator('.unit-row > .status:not(.listing-status)');
+    const listingStatus = page.locator('.unit-row > .status.listing-status');
     await expect(unitStatus).toHaveText('Available');
     await expect(listingStatus).toHaveText('Withdrawn');
 
     const [unitColor, listingColor] = await Promise.all([
-      unitStatus.evaluate((el) => window.getComputedStyle(el).color),
-      listingStatus.evaluate((el) => window.getComputedStyle(el).color),
+      unitStatus.locator('.fui-Badge').evaluate((el) => window.getComputedStyle(el).color),
+      listingStatus.locator('.fui-Badge').evaluate((el) => window.getComputedStyle(el).color),
     ]);
     // The unit's "Available" badge keeps the base reused green (unchanged,
     // positive is correct here); the listing's "Withdrawn" badge must
@@ -257,7 +261,13 @@ test.describe('Landlord redesign (flag-gated)', () => {
     // that is the intentional, approved treatment. Assert it stays that
     // way (no resting border) rather than reintroducing the reverted
     // override.
-    const cancelButton = panel.locator("> button[type='button']").last();
+    //
+    // PO feedback (this session, "open the form as a dialog"): the panel
+    // is now a real Fluent `Dialog`, so Cancel moved from a direct child
+    // of `.unit-pricing-availability` into the dialog's own
+    // `DialogActions` region (a sibling, not a descendant) — locate it by
+    // role/name within the dialog instead of the old DOM-position selector.
+    const cancelButton = page.getByRole('dialog').getByRole('button', { name: 'Cancel' });
     await expect(cancelButton).toHaveText(/Cancel/);
     // Fluent's own `subtle` Button already renders a 1px solid border by
     // default (kept transparent, purely for layout/box-model stability
@@ -350,22 +360,11 @@ test.describe('Landlord redesign (flag-gated)', () => {
     expect(buttonOverflowsPanel).toBe(false);
   });
 
-  // renders as a separate DOM copy inside ListingPublicationPanel, a
-  // sibling of the property-management anchor rather than a descendant
-  // of it. That copy must get the same non-green treatment, not just the
-  // one nested inside PropertyManagementPanel's read-only view.
-  test('flag on: the withdrawn listing\'s badge inside the separate Listing Publication panel is also tinted negative, not left green', async ({ page }) => {
-    await page.goto(`${FLAG_ON_URL}/landlord-redesign-preview.html`);
-    const unitStatus = page.locator('.unit-row > .status');
-    const publicationPanelStatus = page.locator('.listing-row .status');
-    await expect(unitStatus).toHaveText('Available');
-    await expect(publicationPanelStatus).toHaveText('Withdrawn');
-
-    const [unitColor, publicationPanelColor] = await Promise.all([
-      unitStatus.evaluate((el) => window.getComputedStyle(el).color),
-      publicationPanelStatus.evaluate((el) => window.getComputedStyle(el).color),
-    ]);
-    expect(publicationPanelColor).not.toBe(unitColor);
-    await expect(publicationPanelStatus).toHaveAttribute('data-kf-tone', 'negative');
-  });
+  // Copilot PR #134 review, remediation cycle 2, finding #1 — superseded:
+  // PO feedback ("combine Listing publication and Property portfolio in
+  // the same table") removed the separate ListingPublicationPanel
+  // entirely from the redesigned Landlord shell, so the withdrawn
+  // listing's badge now renders in exactly one place (asserted by the
+  // "flag on: a withdrawn listing's status badge..." test above) — there
+  // is no second, separate panel copy left to check here.
 });

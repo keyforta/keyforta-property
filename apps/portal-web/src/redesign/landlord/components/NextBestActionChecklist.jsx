@@ -1,4 +1,4 @@
-import { Button } from '@fluentui/react-components';
+import { Button, Tooltip } from '@fluentui/react-components';
 import { useTranslation } from 'react-i18next';
 import { computeNextBestActionChecklist } from '../checklist.js';
 
@@ -67,42 +67,39 @@ export function NextBestActionChecklist({ listings, onRowAction, properties }) {
           const clickable = row.status !== 'done';
           return (
             <li className={`kf-checklist-row kf-checklist-row-${row.status}`} key={row.key}>
-              {/* Copilot PR #134 review, cycle-3/4 finding #2: this is a
-                  navigation-triggering row (it scrolls to / opens an
-                  existing control below), never a persistent on/off
-                  toggle — `aria-pressed` communicates the latter and was
-                  never accurate here (a "done" row isn't "pressed", it's
-                  simply no longer actionable, which `disabled` already
-                  conveys). Removed rather than "corrected" to some other
-                  pressed value, since no toggle semantics apply to this
-                  control at all.
-                  Follow-up guidance (same cycle): prefer a Fluent UI
-                  component with correct built-in semantics over a
-                  hand-rolled <button> — Fluent's `Button` renders a plain
-                  native <button> with no toggle/pressed state by default
-                  (unlike `ToggleButton`/`MenuItem`, which would reintroduce
-                  the exact wrong semantics this finding removed), so it is
-                  a drop-in, semantically-correct replacement here.
-                  `appearance='transparent'` keeps Fluent's own chrome
-                  minimal so the existing, already-reviewed
-                  `.kf-checklist-row-button` visual styling in
-                  redesign.css continues to fully own this row's look. */}
-              <Button
-                appearance='transparent'
-                className='kf-checklist-row-button'
-                disabled={!clickable}
-                onClick={clickable ? () => onRowAction(row.key) : undefined}
-                type='button'
-              >
-                <span aria-hidden='true' className='kf-checklist-icon'>
-                  {row.status === 'done' ? '✓' : row.status === 'unknown' ? '?' : '○'}
-                </span>
-                <span className='kf-checklist-copy'>
+              {/* PO feedback ("Keep your listings up to date is taking so
+                  much space, can you find a better design for it?"): each
+                  row used to render its full explanatory sentence
+                  (`detail`) as permanently-visible second-line text,
+                  which — stacked one-per-line across four rows — made
+                  this card the tallest thing on the page. The detail
+                  text is still available (via a Fluent `Tooltip`,
+                  `relationship='description'` so it supplements rather
+                  than replaces the row's accessible name/label), just no
+                  longer forces its own line; combined with
+                  redesign.css's switch from a single stacked column to a
+                  responsive multi-column grid, the whole card now
+                  collapses to roughly its icon+label+badge height. */}
+              <Tooltip content={detail} relationship='description'>
+                <Button
+                  appearance='transparent'
+                  className='kf-checklist-row-button'
+                  disabled={!clickable}
+                  onClick={clickable ? () => onRowAction(row.key) : undefined}
+                  type='button'
+                >
+                  <span aria-hidden='true' className='kf-checklist-icon'>
+                    {row.status === 'done' ? '✓' : row.status === 'unknown' ? '?' : '○'}
+                  </span>
                   <span className='kf-checklist-label'>{copy.label}</span>
-                  <span className='kf-checklist-detail kf-small'>{detail}</span>
-                </span>
-                <span className='kf-checklist-status-badge' data-status={row.status}>{statusLabel[row.status]}</span>
-              </Button>
+                  {/* PO feedback ("no need to have done and the icon, the
+                      icon is enough"): the visible status pill duplicated
+                      what the icon already conveys. It's now visually
+                      hidden (kept for assistive tech, since the icon
+                      itself is aria-hidden) rather than removed outright. */}
+                  <span className='kf-visually-hidden' data-status={row.status}>{statusLabel[row.status]}</span>
+                </Button>
+              </Tooltip>
             </li>
           );
         })}
