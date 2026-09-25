@@ -1,0 +1,418 @@
+/*
+ * KEYFORTA Admin redesign — visual system implementing
+ * docs/product/ADMIN_REDESIGN_SPEC.md (which itself reuses
+ * docs/product/LANDLORD_REDESIGN_SPEC.md §3/§5/§11 verbatim — "one
+ * coherent KEYFORTA design system spans all four roles", spec §2). Every
+ * selector below is scoped under `.kf-admin-redesign` so this stylesheet
+ * can never affect the existing (flag-off) rendering path or bleed into
+ * `apps/admin-web/src/styles.css` (unscoped, protected, unchanged) or any
+ * stylesheet belonging to the sibling Portal front-end application
+ * (separate app entirely, see spec §1 for its exact path).
+ *
+ * Design choice (documented per the task's instruction to record it):
+ * Admin's current shell (`OnboardingAdmin.jsx`) has NO sidebar — it is a
+ * single `admin-shell` with a header (brand + two-button nav + actions)
+ * and a `main` content area (spec §4.1). This stylesheet therefore does
+ * NOT retrofit the Landlord/Manager/Tenant sidebar layout; the header/nav
+ * is horizontal, not a vertical sidebar list, matching the real existing
+ * DOM shape this phase restyles (see AdminShell.jsx). The token *values*
+ * (spacing scale, radii, brand hexes, shadows, fonts) are copied verbatim
+ * from `../landlord/redesign.css`'s documented values (same names, same
+ * literals) — one design system, expressed in an additive, independently-
+ * loadable stylesheet, never a different visual language.
+ *
+ * Layout note (spec §4.2/§4.3, Copilot-review lesson: verify the grid
+ * genuinely fits Admin's real content shape, don't blindly copy a
+ * sibling's unrelated panel CSS): Admin has exactly one column of content
+ * per section — a queue of decision cards — not a two-column
+ * primary/aside split like Landlord/Manager's Overview grids. The layout
+ * below is therefore a single-column, `align-items: start` vertical list
+ * of cards (`.kf-application-list`), not a `content-grid` two-column
+ * layout copied from Manager/Landlord.
+ */
+
+.kf-admin-redesign {
+  --kf-space-1: 4px;
+  --kf-space-2: 8px;
+  --kf-space-3: 12px;
+  --kf-space-4: 16px;
+  --kf-space-5: 24px;
+  --kf-space-6: 32px;
+  --kf-radius-sm: 8px;
+  --kf-radius-md: 12px;
+  --kf-radius-lg: 16px;
+  --kf-radius-card: 20px;
+  --kf-radius-pill: 999px;
+  --kf-aubergine: #24162E;
+  --kf-mineral-teal: #267C78;
+  --kf-burnished-copper: #C47A4A;
+  --kf-soft-bone: #F3EEE7;
+  --kf-aubergine-08: rgba(36, 22, 46, 0.08);
+  --kf-aubergine-12: rgba(36, 22, 46, 0.12);
+  --kf-font-display: 'Instrument Sans', 'Segoe UI', sans-serif;
+  --kf-font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
+  --kf-shadow-resting: 0 1px 2px rgba(36, 22, 46, 0.04), 0 12px 32px rgba(36, 22, 46, 0.10);
+  --kf-shadow-hover: 0 1px 2px rgba(36, 22, 46, 0.05), 0 20px 48px rgba(36, 22, 46, 0.14);
+
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: radial-gradient(ellipse 900px 420px at 15% -10%, rgba(38, 124, 120, 0.06), transparent 60%), var(--kf-soft-bone);
+  font-family: var(--kf-font-body);
+  color: var(--kf-aubergine);
+}
+
+/* Header — brand (left), horizontal SectionNav (center), actions cluster
+   (right). Spec §4.1: horizontal, not a vertical sidebar list. */
+.kf-admin-redesign .kf-admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kf-space-4);
+  flex-wrap: wrap;
+  padding: var(--kf-space-4) var(--kf-space-6);
+  background: var(--kf-aubergine);
+  color: var(--kf-soft-bone);
+}
+.kf-admin-redesign .kf-admin-header .brand,
+.kf-admin-redesign .kf-admin-header > div:first-child {
+  font-family: var(--kf-font-display);
+  font-weight: 700;
+  color: var(--kf-soft-bone);
+}
+
+.kf-admin-redesign .kf-admin-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-2);
+}
+.kf-admin-redesign .kf-nav-item,
+.kf-admin-redesign button.kf-nav-item {
+  border-radius: var(--kf-radius-pill) !important;
+  color: var(--kf-soft-bone);
+  min-height: 40px;
+  font-family: var(--kf-font-body);
+  font-weight: 400;
+  opacity: 0.75;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+.kf-admin-redesign .kf-nav-item:hover,
+.kf-admin-redesign button.kf-nav-item:hover {
+  opacity: 0.95;
+  background: rgba(243, 238, 231, 0.08) !important;
+}
+.kf-admin-redesign .kf-nav-item-active,
+.kf-admin-redesign button.kf-nav-item-active {
+  background: rgba(38, 124, 120, 0.35) !important;
+  color: #fff;
+  font-weight: 600;
+  opacity: 1;
+}
+.kf-admin-redesign .kf-nav-item-active:hover,
+.kf-admin-redesign button.kf-nav-item-active:hover {
+  background: rgba(38, 124, 120, 0.4) !important;
+  opacity: 1;
+}
+
+.kf-admin-redesign .kf-admin-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  flex-wrap: wrap;
+}
+.kf-admin-redesign .kf-user-chip {
+  font-family: var(--kf-font-body);
+  font-size: 14px;
+  color: var(--kf-soft-bone);
+  opacity: 0.9;
+}
+
+/* Main content */
+.kf-admin-redesign .kf-admin-main {
+  flex: 1;
+  padding: var(--kf-space-6);
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.kf-admin-redesign .kf-page-heading {
+  margin-bottom: var(--kf-space-5);
+}
+.kf-admin-redesign .kf-kicker {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--kf-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--kf-aubergine);
+  background: color-mix(in srgb, var(--kf-burnished-copper) 12%, white);
+  padding: var(--kf-space-1) var(--kf-space-3);
+  border-radius: var(--kf-radius-pill);
+  width: fit-content;
+  margin: 0 0 var(--kf-space-2);
+}
+.kf-admin-redesign .kf-display-title {
+  font-family: var(--kf-font-display);
+  font-weight: 700;
+  font-size: clamp(26px, 3.6vw, 36px);
+  line-height: 1.1;
+  color: var(--kf-aubergine);
+  margin: 0 0 var(--kf-space-2);
+}
+.kf-admin-redesign .kf-body { font-family: var(--kf-font-body); font-size: 15px; line-height: 1.5; margin: 0; }
+.kf-admin-redesign .muted { color: var(--kf-aubergine); opacity: 0.75; }
+
+/* §5.3 canonical loading/empty treatment; §5.2 error banner (role='alert'
+   preserved exactly on the existing element, spec §7). */
+.kf-admin-redesign .kf-state-message {
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  background: var(--kf-soft-bone);
+  border: 1px dashed var(--kf-aubergine-12);
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-3) var(--kf-space-4);
+  min-height: 56px;
+  color: var(--kf-aubergine);
+  font-family: var(--kf-font-body);
+  margin-bottom: var(--kf-space-4);
+}
+.kf-admin-redesign .kf-state-message-error {
+  background: #fff;
+  border: 1px solid var(--colorPaletteRedForeground1, #b10e1c);
+  border-left: 3px solid var(--colorPaletteRedForeground1, #b10e1c);
+  color: var(--colorPaletteRedForeground1, #b10e1c);
+}
+
+/* Denied state — spec §7/§8c flags the missing explicit role as an open
+   accessibility question, NOT resolved by this stylesheet; visually this
+   still gets the canonical denied-state treatment (Landlord §5.3). */
+.kf-admin-redesign .kf-denied-state {
+  background: #fff;
+  border: 1px solid var(--kf-aubergine-12);
+  border-radius: var(--kf-radius-card);
+  padding: var(--kf-space-5);
+  box-shadow: var(--kf-shadow-resting);
+}
+.kf-admin-redesign .kf-denied-state h2 {
+  font-family: var(--kf-font-display);
+  color: var(--kf-aubergine);
+  margin: 0 0 var(--kf-space-2);
+}
+.kf-admin-redesign .kf-denied-state p { margin: 0; }
+
+/* Queue — single-column vertical list of decision cards (not a two-column
+   content-grid; see file header note). `align-items: start` kept
+   defensively per the same rule Manager/Landlord already apply. */
+.kf-admin-redesign .kf-application-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kf-space-4);
+  align-items: stretch;
+}
+
+/* §3.4/§11.3 card/panel surfaces — two-layer elevation, 20px radius, 3px
+   category-colored top accent bar. Both Admin queues use the aubergine
+   informational/decision-record category (spec §2 — "review-and-decide
+   records, not a landlord/manager's own workflow action"). */
+.kf-admin-redesign .kf-decision-card {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--kf-aubergine-08);
+  border-radius: var(--kf-radius-card);
+  box-shadow: var(--kf-shadow-resting);
+  padding: var(--kf-space-5);
+  transition: box-shadow 150ms ease;
+}
+.kf-admin-redesign .kf-decision-card:hover,
+.kf-admin-redesign .kf-decision-card:focus-within {
+  box-shadow: var(--kf-shadow-hover);
+}
+.kf-admin-redesign .kf-decision-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+.kf-admin-redesign .kf-accent-aubergine::before {
+  background: var(--kf-aubergine);
+}
+
+.kf-admin-redesign .kf-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kf-space-3);
+  margin-bottom: var(--kf-space-3);
+}
+.kf-admin-redesign .kf-section-heading {
+  font-family: var(--kf-font-display);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.25;
+  color: var(--kf-aubergine);
+  margin: 0;
+}
+
+.kf-admin-redesign .kf-definition-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kf-space-5);
+  margin: 0 0 var(--kf-space-4);
+}
+.kf-admin-redesign .kf-definition-list > div { display: flex; flex-direction: column; gap: 2px; }
+.kf-admin-redesign .kf-definition-list dt {
+  font-family: var(--kf-font-display);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--kf-aubergine);
+  opacity: 0.65;
+}
+.kf-admin-redesign .kf-definition-list dd {
+  margin: 0;
+  font-family: var(--kf-font-body);
+  font-size: 15px;
+  color: var(--kf-aubergine);
+}
+
+.kf-admin-redesign .kf-decision-actions {
+  display: flex;
+  gap: var(--kf-space-3);
+  margin-top: var(--kf-space-4);
+  flex-wrap: wrap;
+}
+
+/* Decided-application evidence — a quiet, read-only field block, no input
+   affordance (spec §4.2 — a genuinely new state-treatment category, since
+   the record is immutable once decided). */
+.kf-admin-redesign .kf-decision-evidence {
+  background: var(--kf-soft-bone);
+  border: 1px solid var(--kf-aubergine-08);
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-3) var(--kf-space-4);
+  margin-top: var(--kf-space-3);
+}
+.kf-admin-redesign .kf-decision-evidence strong {
+  display: block;
+  font-family: var(--kf-font-display);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--kf-aubergine);
+  opacity: 0.75;
+  margin-bottom: var(--kf-space-1);
+}
+.kf-admin-redesign .kf-decision-evidence p { margin: 0; color: var(--kf-aubergine); }
+
+/* §4.3.1 image gallery — responsive grid, 3-4 columns on desktop, per
+   Landlord §7 breakpoints. */
+.kf-admin-redesign .kf-media-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--kf-space-3);
+  list-style: none;
+  margin: var(--kf-space-3) 0;
+  padding: 0;
+}
+.kf-admin-redesign .kf-media-tile {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--kf-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.kf-admin-redesign .kf-media-tile-loading,
+.kf-admin-redesign .kf-media-tile-error {
+  background: var(--kf-soft-bone);
+  border: 1px dashed var(--kf-aubergine-12);
+  color: var(--kf-aubergine);
+  font-size: 13px;
+  text-align: center;
+  padding: var(--kf-space-2);
+}
+.kf-admin-redesign .kf-media-tile-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.kf-admin-redesign .kf-media-caption {
+  display: block;
+  font-size: 12px;
+  color: var(--kf-aubergine);
+  opacity: 0.75;
+  margin-top: var(--kf-space-1);
+  text-align: center;
+}
+
+/* Legacy imageUrls list — link vs. inert text remain visually distinct
+   (spec §4.3.1/§6/§9 — the safety branch itself is untouched). */
+.kf-admin-redesign .kf-legacy-media-list {
+  list-style: none;
+  margin: var(--kf-space-2) 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kf-space-1);
+}
+.kf-admin-redesign .kf-legacy-media-link {
+  color: var(--kf-mineral-teal);
+  text-decoration: underline;
+  word-break: break-all;
+}
+.kf-admin-redesign .kf-legacy-media-unsafe {
+  color: var(--kf-aubergine);
+  opacity: 0.6;
+  word-break: break-all;
+}
+
+/* §5.1 buttons */
+.kf-admin-redesign button {
+  border-radius: var(--kf-radius-md) !important;
+  min-height: 40px;
+  font-family: var(--kf-font-body);
+  font-weight: 600;
+  font-size: 15px;
+}
+.kf-admin-redesign button:focus-visible,
+.kf-admin-redesign input:focus-visible,
+.kf-admin-redesign select:focus-visible,
+.kf-admin-redesign textarea:focus-visible {
+  outline: 2px solid var(--kf-mineral-teal);
+  outline-offset: 2px;
+}
+
+/* Responsive breakpoints reused from Landlord §7 verbatim. */
+@media (max-width: 900px) {
+  .kf-admin-redesign .kf-admin-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .kf-admin-redesign .kf-media-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 620px) {
+  .kf-admin-redesign .kf-admin-main {
+    padding: var(--kf-space-4);
+  }
+  .kf-admin-redesign .kf-media-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kf-admin-redesign .kf-card-heading {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kf-admin-redesign * { transition: none !important; animation: none !important; }
+}

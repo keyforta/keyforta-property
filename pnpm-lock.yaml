@@ -53,6 +53,9 @@ importers:
       '@fluentui/react-icons':
         specifier: ^2.0.341
         version: 2.0.341(react@19.3.0)
+      '@keyforta/brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
       '@keyforta/browser-auth':
         specifier: workspace:*
         version: link:../../packages/browser-auth
@@ -75,6 +78,9 @@ importers:
         specifier: ^16.0.0
         version: 16.6.6(i18next@25.10.10(typescript@5.9.3))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@5.9.3)
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.63.0
+        version: 1.63.0
       '@testing-library/jest-dom':
         specifier: 7.0.1
         version: 7.0.1(@testing-library/dom@10.4.2)(vitest@5.0.0(@types/node@26.4.1)(jsdom@26.1.0)(vite@7.3.6(@types/node@26.4.1)(tsx@4.23.13)(yaml@2.9.1)))
