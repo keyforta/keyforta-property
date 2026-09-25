@@ -40,12 +40,6 @@ const LandlordRedesign = lazy(() => import('./redesign/landlord/index.jsx'));
 // explicitly requires reusing "the same mechanism" rather than inventing
 // a second flag (§9).
 const ManagerRedesign = lazy(() => import('./redesign/manager/index.jsx'));
-// Phase 3 (docs/product/TENANT_REDESIGN_SPEC.md): additive, isolated,
-// flag-gated Tenant redesign, mirroring the exact Landlord/Manager wiring
-// above line-for-line. `isLandlordRedesignEnabled` is deliberately reused
-// as-is (not duplicated into a third, Tenant-only flag predicate) — same
-// reasoning already recorded for Manager's identical reuse above (spec §9).
-const TenantRedesign = lazy(() => import('./redesign/tenant/index.jsx'));
 
 // Real Microsoft Entra B2B guest sign-in (issue #77 decision), mirroring
 // admin-web's working pattern. Falls back to an 'unavailable' status when
@@ -208,53 +202,6 @@ class ManagerRedesignErrorBoundary extends Component {
     // eslint-disable-next-line no-console
     console.error(
       'Manager redesign chunk failed to load; falling back to the legacy manager workspace.',
-      error,
-      info,
-    );
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback;
-    }
-    return this.props.children;
-  }
-}
-
-// Tenant-phase mirror of `ManagerRedesignLoading`/`ManagerRedesignErrorBoundary`
-// above (docs/product/TENANT_REDESIGN_SPEC.md §9's "mirroring the exact
-// pattern already proven for the landlord and manager redesign's ...
-// wiring"). Kept as its own small class (rather than reusing the manager
-// one) only so a caught chunk-load failure logs an accurate,
-// non-misleading message.
-function TenantRedesignLoading() {
-  const { t } = useTranslation();
-  return (
-    <div className='auth-layout'>
-      <section className='auth-card'>
-        <div className='state-message' role='status'>
-          <Spinner size='tiny' />
-          <span>{t('workspace.loading_landlord_redesign')}</span>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-class TenantRedesignErrorBoundary extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error, info) {
-    // eslint-disable-next-line no-console
-    console.error(
-      'Tenant redesign chunk failed to load; falling back to the legacy tenant workspace.',
       error,
       info,
     );
@@ -544,34 +491,6 @@ export function Portal() {
           />
         </Suspense>
       </ManagerRedesignErrorBoundary>
-    );
-  }
-  // Tenant-phase mirror of the landlord/manager mount points immediately
-  // above (docs/product/TENANT_REDESIGN_SPEC.md §9). Same reused flag
-  // predicate, same error-boundary/Suspense/legacy-fallback shape; only
-  // the props actually consumed by `TenantShell` (no
-  // managerListings/rentalProperties/showListingPublication/
-  // showPropertyManagement — Tenant never renders
-  // `ListingPublicationPanel` or `PropertyManagementPanel`, §0/§1 of that
-  // spec — Tenant has zero dedicated data-bearing panels) are passed down.
-  if (roleKey === 'tenant' && isLandlordRedesignEnabled()) {
-    return (
-      <TenantRedesignErrorBoundary fallback={legacyWorkspace}>
-        <Suspense fallback={<TenantRedesignLoading />}>
-          <TenantRedesign
-            active={active}
-            completedAction={completedAction}
-            navKeys={navKeys}
-            onComplete={complete}
-            onLogout={logout}
-            onSetActive={setActive}
-            onToggleLanguage={toggleLanguage}
-            role={role}
-            roleActions={roleActions}
-            session={session}
-          />
-        </Suspense>
-      </TenantRedesignErrorBoundary>
     );
   }
   return legacyWorkspace;

@@ -1,0 +1,317 @@
+/*
+ * KEYFORTA tenant redesign — visual system implementing
+ * docs/product/TENANT_REDESIGN_SPEC.md (which itself reuses
+ * docs/product/LANDLORD_REDESIGN_SPEC.md §3/§5/§11 verbatim, per that
+ * spec's §2 — "one coherent KEYFORTA design system spans all three
+ * implemented-or-designed roles"). Every selector below is scoped under
+ * `.kf-tenant-redesign` so this stylesheet can never affect the existing
+ * (flag-off) rendering path, the unrelated `.kf-landlord-redesign` /
+ * `.kf-manager-redesign` scopes, or `apps/portal-web/src/styles.css`
+ * (unscoped, protected, unchanged).
+ *
+ * Design choice (documented per the task's instruction to record it, same
+ * reasoning already recorded in `../manager/redesign.css`'s header
+ * comment): this is a NEW, separate stylesheet rather than an extension of
+ * `../landlord/redesign.css` or `../manager/redesign.css`, because CSS
+ * custom properties declared on `.kf-landlord-redesign`/
+ * `.kf-manager-redesign` are not visible to a `.kf-tenant-redesign`
+ * subtree (they are not global) — sharing them would require hoisting the
+ * token declarations to `:root` (a change to already-merged, reviewed
+ * Phase 1/2 CSS, out of scope here per spec §9's acceptance boundary) or
+ * duplicating the token *values* here. The values themselves are copied
+ * verbatim from `../landlord/redesign.css`/`../manager/redesign.css` (same
+ * hex/px/rem literals, same names where the same concept applies) so
+ * there is exactly one design system, expressed in three additive,
+ * independently-loadable stylesheets — never a different visual language.
+ */
+
+.kf-tenant-redesign {
+  --kf-space-1: 4px;
+  --kf-space-2: 8px;
+  --kf-space-3: 12px;
+  --kf-space-4: 16px;
+  --kf-space-5: 24px;
+  --kf-space-6: 32px;
+  --kf-radius-sm: 8px;
+  --kf-radius-md: 12px;
+  --kf-radius-lg: 16px;
+  --kf-radius-card: 20px;
+  --kf-radius-pill: 999px;
+  --kf-aubergine: #24162E;
+  --kf-mineral-teal: #267C78;
+  --kf-burnished-copper: #C47A4A;
+  --kf-soft-bone: #F3EEE7;
+  --kf-aubergine-08: rgba(36, 22, 46, 0.08);
+  --kf-aubergine-12: rgba(36, 22, 46, 0.12);
+  --kf-font-display: 'Instrument Sans', 'Segoe UI', sans-serif;
+  --kf-font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
+  --kf-shadow-resting: 0 1px 2px rgba(36, 22, 46, 0.04), 0 12px 32px rgba(36, 22, 46, 0.10);
+  --kf-shadow-hover: 0 1px 2px rgba(36, 22, 46, 0.05), 0 20px 48px rgba(36, 22, 46, 0.14);
+
+  background: radial-gradient(ellipse 900px 420px at 15% -10%, rgba(38, 124, 120, 0.06), transparent 60%), var(--kf-soft-bone);
+  font-family: var(--kf-font-body);
+  color: var(--kf-aubergine);
+}
+
+/* Sidebar — same aubergine solid fill / softBone body text as
+   Landlord/Manager (spec §3.1.1 rule 4, reused verbatim, no
+   Tenant-specific variant). */
+.kf-tenant-redesign .kf-sidebar {
+  background: var(--kf-aubergine);
+  color: var(--kf-soft-bone);
+}
+.kf-tenant-redesign .kf-brand-header {
+  padding: 0 var(--kf-space-3) var(--kf-space-6);
+}
+.kf-tenant-redesign .kf-brand-header-mark {
+  height: 22px;
+  width: auto;
+  display: block;
+}
+.kf-tenant-redesign .kf-kicker-on-dark {
+  padding: 0 var(--kf-space-3) var(--kf-space-4);
+  color: var(--kf-soft-bone);
+  opacity: 0.75;
+  font-family: var(--kf-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.kf-tenant-redesign .kf-nav-item,
+.kf-tenant-redesign button.kf-nav-item {
+  border-radius: var(--kf-radius-md) !important;
+  color: var(--kf-soft-bone);
+  min-height: 40px;
+  font-family: var(--kf-font-body);
+  font-weight: 400;
+  opacity: 0.7;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+.kf-tenant-redesign .kf-nav-item:hover,
+.kf-tenant-redesign button.kf-nav-item:hover {
+  opacity: 0.9;
+  background: rgba(243, 238, 231, 0.08) !important;
+}
+.kf-tenant-redesign .kf-nav-item-active,
+.kf-tenant-redesign button.kf-nav-item-active {
+  background: rgba(38, 124, 120, 0.35) !important;
+  color: #fff;
+  font-weight: 600;
+  opacity: 1;
+}
+.kf-tenant-redesign .kf-nav-item-active:hover,
+.kf-tenant-redesign button.kf-nav-item-active:hover {
+  background: rgba(38, 124, 120, 0.4) !important;
+  opacity: 1;
+}
+
+/* Topbar */
+.kf-tenant-redesign .kf-topbar { align-items: flex-start; position: relative; }
+.kf-tenant-redesign .kf-topbar::before {
+  content: '';
+  position: absolute;
+  inset: -32px -32px auto -32px;
+  height: 180px;
+  background: radial-gradient(ellipse 640px 220px at 20% 0%, rgba(38, 124, 120, 0.07), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.kf-tenant-redesign .kf-topbar > * { position: relative; z-index: 1; }
+
+/* Kickers — aubergine text (WCAG AA), copper-tinted pill background,
+   identical binding contrast rule already applied to Landlord/Manager
+   (spec §3.1.1). */
+.kf-tenant-redesign .kf-kicker {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--kf-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--kf-aubergine);
+  background: color-mix(in srgb, var(--kf-burnished-copper) 12%, white);
+  padding: var(--kf-space-1) var(--kf-space-3);
+  border-radius: var(--kf-radius-pill);
+  width: fit-content;
+}
+.kf-tenant-redesign .kf-topbar-kicker {
+  color: var(--kf-aubergine);
+  margin-bottom: 0;
+}
+.kf-tenant-redesign .kf-topbar-kicker::after {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 2px;
+  margin-top: var(--kf-space-2);
+  background: var(--kf-mineral-teal);
+  border-radius: var(--kf-radius-pill);
+}
+.kf-tenant-redesign .kf-display-title {
+  font-family: var(--kf-font-display);
+  font-weight: 700;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.05;
+  color: var(--kf-aubergine);
+  margin-top: var(--kf-space-3);
+  margin-bottom: 0;
+}
+.kf-tenant-redesign .kf-topbar .kf-body {
+  margin-top: var(--kf-space-2);
+  margin-bottom: 0;
+}
+.kf-tenant-redesign .kf-body { font-family: var(--kf-font-body); font-size: 15px; line-height: 1.5; }
+.kf-tenant-redesign .kf-body-strong { font-family: var(--kf-font-body); font-size: 15px; font-weight: 600; color: var(--kf-aubergine); }
+.kf-tenant-redesign .kf-small { font-family: var(--kf-font-body); font-size: 13px; line-height: 1.4; color: var(--kf-aubergine); opacity: 0.75; }
+.kf-tenant-redesign .kf-user-chip { color: var(--kf-aubergine); }
+
+/* §5.3 quiet neutral empty-state placeholder — never red/error-colored. */
+.kf-tenant-redesign .kf-empty-card,
+.kf-tenant-redesign .stats-empty-state {
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  background: var(--kf-soft-bone);
+  border: 1px dashed var(--kf-aubergine-12);
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-3) var(--kf-space-4);
+  min-height: 56px;
+  color: var(--kf-aubergine);
+  font-family: var(--kf-font-body);
+  margin: 0;
+}
+.kf-tenant-redesign .kf-empty-card::before,
+.kf-tenant-redesign .stats-empty-state::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kf-burnished-copper);
+}
+
+/* §4.2/§8d: Tenant's Overview (and, per §4.3-§4.8, every one of its six
+   tabs) has no dedicated left-column panel at all — the left column is
+   always just the shared "Needs attention" empty-state card, never a
+   stacked multi-item primary column like Manager's
+   `.kf-manager-primary-column`. The spec explicitly leaves open whether
+   the existing two-column grid (Option A) or a single-column stack
+   (Option B) is correct here (§8d) — this stylesheet keeps the existing
+   two-column `content-grid` (Option A, the narrower/more reversible
+   restyling of today's DOM, recorded as an engineering default pending
+   confirmation, not a resolution of §8d — see TenantShell.jsx's own
+   comment). `align-items: start` (§11.3, reused verbatim) ensures the
+   "Needs attention" card and the "Quick actions" aside each size to their
+   own content and never stretch to match the taller of the two, exactly
+   as already applied for Landlord/Manager. No extra flex wrapper is
+   needed around the left column's single child (unlike Manager's
+   `.kf-manager-primary-column`), since there is nothing to stack above or
+   below it. */
+.kf-tenant-redesign .content-grid {
+  align-items: start;
+}
+
+/* §3.4/§11.3 card/panel surfaces — two-layer elevation, 20px radius, 3px
+   category-colored top accent bar, reused verbatim. */
+.kf-tenant-redesign .kf-panel,
+.kf-tenant-redesign .panel {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(36, 22, 46, 0.06);
+  border-radius: var(--kf-radius-card);
+  box-shadow: var(--kf-shadow-resting);
+  padding: var(--kf-space-5);
+  transition: box-shadow 150ms ease;
+}
+.kf-tenant-redesign .kf-panel:hover,
+.kf-tenant-redesign .kf-panel:focus-within,
+.kf-tenant-redesign .panel:hover,
+.kf-tenant-redesign .panel:focus-within {
+  box-shadow: var(--kf-shadow-hover);
+}
+.kf-tenant-redesign .kf-panel::before,
+.kf-tenant-redesign .panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+/* Category mapping (spec §11/§4, reused verbatim): burnishedCopper =
+   quick actions, aubergine = informational/activity (Needs attention).
+   Tenant has no action/workflow panel (mineralTeal's category, unlike
+   Manager's Listing Publication panel), so that mapping simply has no
+   `.listing-panel` counterpart to apply here — not omitted by mistake. */
+.kf-tenant-redesign .quick-panel::before {
+  background: var(--kf-burnished-copper);
+}
+.kf-tenant-redesign .table-panel::before {
+  background: var(--kf-aubergine);
+}
+.kf-tenant-redesign .table-panel {
+  background: linear-gradient(180deg, rgba(36, 22, 46, 0.035), rgba(36, 22, 46, 0) 140px), #fff;
+}
+.kf-tenant-redesign .kf-section-heading,
+.kf-tenant-redesign .panel h2,
+.kf-tenant-redesign .panel h3,
+.kf-tenant-redesign h3 {
+  font-family: var(--kf-font-display);
+  font-weight: 700;
+  color: var(--kf-aubergine);
+}
+.kf-tenant-redesign .panel h2 { font-size: 22px; line-height: 1.2; }
+.kf-tenant-redesign .panel h3 { font-size: 17px; line-height: 1.3; }
+
+/* §5.1 buttons */
+.kf-tenant-redesign button {
+  border-radius: var(--kf-radius-md) !important;
+  min-height: 40px;
+  font-family: var(--kf-font-body);
+  font-weight: 600;
+  font-size: 15px;
+}
+.kf-tenant-redesign button:focus-visible,
+.kf-tenant-redesign input:focus-visible,
+.kf-tenant-redesign select:focus-visible,
+.kf-tenant-redesign textarea:focus-visible {
+  outline: 2px solid var(--kf-mineral-teal);
+  outline-offset: 2px;
+}
+
+/* §5.1 quick actions (outline + icon chip) */
+.kf-tenant-redesign .kf-quick-actions { display: grid; gap: var(--kf-space-2); margin: var(--kf-space-4) 0; }
+.kf-tenant-redesign .kf-quick-action {
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  justify-content: flex-start;
+  background: var(--kf-soft-bone);
+  border: 1px solid var(--kf-aubergine-12);
+  color: var(--kf-aubergine);
+  padding: var(--kf-space-3);
+}
+.kf-tenant-redesign .kf-quick-action-chip {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: var(--kf-radius-sm);
+  background: var(--kf-burnished-copper);
+  color: var(--kf-aubergine);
+  font-weight: 700;
+  flex: none;
+}
+.kf-tenant-redesign .kf-api-note {
+  margin-top: var(--kf-space-5);
+  padding-top: var(--kf-space-4);
+  border-top: 1px solid var(--kf-aubergine-08);
+  color: var(--kf-aubergine);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kf-tenant-redesign * { transition: none !important; animation: none !important; }
+}
