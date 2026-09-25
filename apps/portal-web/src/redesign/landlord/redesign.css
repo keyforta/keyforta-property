@@ -575,13 +575,19 @@
   border-radius: 0;
   padding: var(--kf-space-3) var(--kf-space-4);
   margin-left: 0;
-  border-bottom: 1px solid var(--kf-aubergine-12);
+  border-bottom: 1px solid var(--kf-aubergine-08);
   transition: background 150ms ease;
 }
 .kf-landlord-redesign .unit-row:last-child { border-bottom: none; }
+/* PO feedback (post-#140 polish): the earlier hover/focus fill used the
+   opaque, tan `--kf-soft-bone` token, which read as a jarring, boxy
+   highlight against the otherwise-white table (nothing like Fluent's own
+   Table row hover, a barely-there neutral tint). Swapped for a
+   translucent aubergine wash — same family as this file's own border
+   tokens — for a much subtler, table-appropriate highlight. */
 .kf-landlord-redesign .unit-row:hover,
 .kf-landlord-redesign .unit-row:focus-within {
-  background: var(--kf-soft-bone);
+  background: rgba(36, 22, 46, 0.04);
 }
 /* Full-width rows: the reused pricing/availability toggle+form and the
    reused listing-status/listing-form block always span every column,
@@ -868,7 +874,19 @@
 .kf-landlord-redesign .unit-row > span:first-child {
   font-weight: 600;
 }
-.kf-landlord-redesign .unit-row > span:first-child::before {
+/* PO feedback (post-#140 polish, "looks ugly" vs the Fluent Table
+   reference): repeating the NAME/TYPE captions on every single row read
+   as noisy clutter, unlike a real table's single header row. Since a
+   literal shared `<thead>` still isn't achievable here (see this
+   section's opening comment), these two captions are now scoped to only
+   the FIRST unit row of each property's list — visually standing in for
+   a one-time header the same way a real `<thead>` would, while every
+   later row shows just the clean value. (The unit/listing-status
+   captions below are intentionally left per-row — unlike name/type,
+   which is header. — that pairing is a distinct, already-tested
+   PO regression fix disambiguating two fields that can genuinely differ
+   row-to-row; see status-label-distinction.test.jsx.) */
+.kf-landlord-redesign .unit-row:first-child > span:first-child::before {
   content: var(--kf-unit-name-label);
   font-size: 9px;
   font-weight: 700;
@@ -876,7 +894,7 @@
   letter-spacing: 0.05em;
   opacity: 0.65;
 }
-.kf-landlord-redesign .unit-row > span.listing-meta:nth-child(2)::before {
+.kf-landlord-redesign .unit-row:first-child > span.listing-meta:nth-child(2)::before {
   content: var(--kf-unit-type-label);
   font-size: 9px;
   font-weight: 700;

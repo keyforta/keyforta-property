@@ -40,13 +40,13 @@ describe('redesign.css restyles the unit list into a table-like CSS Grid layout'
     expect(gridRule[1]).toMatch(/grid-template-columns:\s*minmax\(140px, 1\.4fr\) minmax\(90px, 0\.8fr\) minmax\(150px, 1fr\) auto/);
   });
 
-  it('draws a row divider between units and highlights the row on hover/focus (table-row affordance)', () => {
-    expect(css).toMatch(/\.kf-landlord-redesign \.unit-row \{[^}]*border-bottom:\s*1px solid var\(--kf-aubergine-12\);[^}]*\}/s);
+  it('draws a row divider between units and highlights the row on hover/focus with a subtle neutral tint (table-row affordance)', () => {
+    expect(css).toMatch(/\.kf-landlord-redesign \.unit-row \{[^}]*border-bottom:\s*1px solid var\(--kf-aubergine-08\);[^}]*\}/s);
     const hoverMatch = css.match(
       /\.kf-landlord-redesign \.unit-row:hover,\s*\n\.kf-landlord-redesign \.unit-row:focus-within\s*\{([^}]*)\}/,
     );
     expect(hoverMatch).not.toBeNull();
-    expect(hoverMatch[1]).toMatch(/background:\s*var\(--kf-soft-bone\)/);
+    expect(hoverMatch[1]).toMatch(/background:\s*rgba\(36,\s*22,\s*46,\s*0\.04\)/);
   });
 
   it('spans the reused pricing/listing-status blocks and second action button across every column', () => {
@@ -57,12 +57,12 @@ describe('redesign.css restyles the unit list into a table-like CSS Grid layout'
     expect(match[1]).toMatch(/grid-column:\s*1\s*\/\s*-1/);
   });
 
-  it('adds Name/Type column captions (via ::before) alongside the existing Status caption', () => {
+  it('adds Name/Type column captions (via ::before), scoped to the first row only (a single header, not per-row noise)', () => {
     expect(css).toMatch(
-      /\.kf-landlord-redesign \.unit-row > span:first-child::before\s*\{\s*content:\s*var\(--kf-unit-name-label\);/,
+      /\.kf-landlord-redesign \.unit-row:first-child > span:first-child::before\s*\{\s*content:\s*var\(--kf-unit-name-label\);/,
     );
     expect(css).toMatch(
-      /\.kf-landlord-redesign \.unit-row > span\.listing-meta:nth-child\(2\)::before\s*\{\s*content:\s*var\(--kf-unit-type-label\);/,
+      /\.kf-landlord-redesign \.unit-row:first-child > span\.listing-meta:nth-child\(2\)::before\s*\{\s*content:\s*var\(--kf-unit-type-label\);/,
     );
   });
 });

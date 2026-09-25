@@ -17,7 +17,7 @@
   "apps/portal-web/src/redesign/landlord/index.jsx": "7bdd99a1f3ea0fa4442bf707808e2b6e843871a169e8100553212c17b1260ae0",
   "apps/portal-web/src/redesign/landlord/locales/en.json": "cf978225ff0cb993b1c636c270de7a1154f95c890247a3dd02438f39fd6181b0",
   "apps/portal-web/src/redesign/landlord/locales/fr.json": "dc479f1e0a9dabcdc5efda743a76c6cb14b68025e8c52934ca9458a5fb8d5b9b",
-  "apps/portal-web/src/redesign/landlord/redesign.css": "0181c313811b301e66d95fd320375f807a3d54a38508009a8fdea0925c4cc199",
+  "apps/portal-web/src/redesign/landlord/redesign.css": "5716b016ecd7dfcd566b539345a061d343896bcf2814006cdb536a3944e4fcd3",
   "apps/portal-web/src/redesign/landlord/statusTone.js": "fbd6edbae81377f93b4650a92e2c526c98e1a56f60e67010cd219116eb20500d",
   "apps/portal-web/src/redesign/landlord/theme.js": "48f74b382bfc55284a866364184367907a778fa22544497547b13d9e90ca774e",
   "apps/portal-web/src/redesign/landlord/unitManagement.js": "45fc7a37ad1be20c7e835e3864d1a82788b321dc1acf4445de9a5f766c4d9d48",
