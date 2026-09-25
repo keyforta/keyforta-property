@@ -198,6 +198,158 @@ test.describe('Landlord redesign (flag-gated)', () => {
     await expect(page.getByRole('form', { name: 'Availability' })).toBeVisible();
   });
 
+  // Bug fix (PO report): the "Set pricing & availability" panel's section
+  // captions (`.unit-pricing-availability form.unit-form ::before`)
+  // rendered BESIDE the form's fields instead of ABOVE them as a heading,
+  // and the availability caption's `border-top` divider rendered as a
+  // short, disconnected line floating in its own auto-fill grid column —
+  // because the protected `.unit-form` (styles.css) is a CSS Grid
+  // container and the `::before` pseudo (a grid item with no explicit
+  // `grid-column`) was auto-placed into its own column rather than
+  // spanning the row. jsdom cannot lay out CSS Grid (see the paired
+  // vitest source-text spec for the static-source-only assertion), so
+  // this is a real-browser bounding-box assertion using the same
+  // checklist-open preview fixture as the test above (needed to reach the
+  // real, protected, token-ready "Manage this unit" control rather than
+  // the always-`tokenStatus: 'demo'` `?role=landlord` routes).
+  test('flag on: the pricing/availability section captions span the full form width as a heading, not a narrow side column', async ({ page }) => {
+    await page.goto(`${FLAG_ON_URL}/landlord-redesign-checklist-preview.html`);
+    const checklistRow = page.getByTestId('next-best-action-checklist').getByRole('button', { name: /Set pricing & availability/ });
+    await checklistRow.click();
+    await expect(page.getByRole('heading', { name: 'Pricing & availability' })).toBeVisible();
+
+    const panel = page.locator('.unit-pricing-availability');
+    await expect(panel).toBeVisible();
+
+    const diagnostics = await panel.evaluate((panelEl) => {
+      const forms = Array.from(panelEl.querySelectorAll('form.unit-form'));
+      return forms.map((form) => {
+        const formRect = form.getBoundingClientRect();
+        const beforeStyle = window.getComputedStyle(form, '::before');
+        return {
+          formWidth: formRect.width,
+          beforeGridColumn: beforeStyle.gridColumn,
+        };
+      });
+    });
+
+    // Both captions' `::before` must resolve to spanning every column
+    // (`1 / -1` or an equivalent computed span), not the default `auto`
+    // single-column placement that caused the reported bug.
+    for (const form of diagnostics) {
+      expect(form.beforeGridColumn).not.toBe('auto');
+      expect(form.beforeGridColumn).toMatch(/1\s*\/\s*(-1|auto)|span/);
+    }
+
+    // The two submit buttons must render at a visually consistent width
+    // (previously they differed because the caption ate one of the
+    // auto-fill columns unevenly between the two forms).
+    const buttonWidths = await panel.evaluate((panelEl) => Array.from(
+      panelEl.querySelectorAll("button[type='submit']"),
+    ).map((button) => button.getBoundingClientRect().width));
+    expect(buttonWidths).toHaveLength(2);
+    expect(Math.abs(buttonWidths[0] - buttonWidths[1])).toBeLessThanOrEqual(2);
+
+    // Copilot PR #135 review, cycle-1 finding: an earlier version of this
+    // fix added a visible border to the Cancel button, but the approved
+    // spec (LANDLORD_REDESIGN_SPEC.md §5.1) explicitly documents `subtle`
+    // (Cancel/nav/sign-out/language toggle) as transparent/borderless —
+    // that is the intentional, approved treatment. Assert it stays that
+    // way (no resting border) rather than reintroducing the reverted
+    // override.
+    const cancelButton = panel.locator("> button[type='button']").last();
+    await expect(cancelButton).toHaveText(/Cancel/);
+    // Fluent's own `subtle` Button already renders a 1px solid border by
+    // default (kept transparent, purely for layout/box-model stability
+    // across appearances) — so `borderTopStyle` alone can't distinguish
+    // "spec-compliant borderless subtle" from "a real visible border was
+    // added". Assert the border stays invisible (transparent), which is
+    // what the spec's "no border" actually means visually.
+    const cancelBorderColor = await cancelButton.evaluate((el) => window.getComputedStyle(el).borderTopColor);
+    expect(cancelBorderColor).toMatch(/^rgba\([^)]*,\s*0\)$|^transparent$/);
+
+    // PO feedback (PR #135, ergonomic polish pass): rather than shrink-
+    // wrapping the whole card/form to a fixed max-width (which relocated
+    // the "large dead area" complaint to a narrower floating card,
+    // inconsistent with the full-width "Create public listing" bar
+    // below it), the card/forms stay full width and instead the
+    // protected `.unit-form` grid's own column size is capped
+    // (`minmax(220px, 260px)`, see redesign.css) so individual real
+    // fields/buttons never stretch past a comfortable size. Assert the
+    // input fields themselves render at a comfortable, non-stretched
+    // width, not the whole form.
+    const fieldWidths = await panel.evaluate((panelEl) => Array.from(
+      panelEl.querySelectorAll('input, select'),
+    ).map((field) => field.getBoundingClientRect().width));
+    for (const width of fieldWidths) {
+      expect(width).toBeLessThanOrEqual(260);
+    }
+
+    await panel.screenshot({ path: 'e2e/redesign/__screenshots__/flag-on-unit-pricing-availability-caption-fix.png' });
+  });
+
+  // Copilot PR #135 review, cycle-1 finding: a bare `min-width` on the
+  // submit buttons is only a lower bound — with `justify-self: start` the
+  // button still shrinks to fit its own label, so the English-only
+  // assertion above passed while the French labels (fr: "Définir le
+  // prix" 15 chars vs. "Mettre à jour la disponibilité" 30 chars) could
+  // still render at visibly different widths. Switch the app's stored
+  // language (see `src/i18n.js`'s `kf-language` localStorage key) to
+  // French and re-run the same width-parity assertion in that locale.
+  test('flag on: the pricing/availability submit buttons stay width-consistent in French (longest currently approved label)', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('kf-language', 'fr'));
+    await page.goto(`${FLAG_ON_URL}/landlord-redesign-checklist-preview.html`);
+    const checklistRow = page.getByTestId('next-best-action-checklist').getByRole('button', { name: /prix et (la )?disponibilité/i });
+    await checklistRow.click();
+
+    const panel = page.locator('.unit-pricing-availability');
+    await expect(panel).toBeVisible();
+
+    const buttonWidths = await panel.evaluate((panelEl) => Array.from(
+      panelEl.querySelectorAll("button[type='submit']"),
+    ).map((button) => button.getBoundingClientRect().width));
+    expect(buttonWidths).toHaveLength(2);
+    expect(Math.abs(buttonWidths[0] - buttonWidths[1])).toBeLessThanOrEqual(2);
+
+    // Neither button's label should overflow its own box at the shared
+    // min-width (would indicate the min-width is still too small for a
+    // real translation, not just an English-only guess).
+    const overflow = await panel.evaluate((panelEl) => Array.from(
+      panelEl.querySelectorAll("button[type='submit']"),
+    ).map((button) => button.scrollWidth > button.clientWidth + 1));
+    expect(overflow).toEqual([false, false]);
+  });
+
+  // Copilot PR #135 review, cycle-2 finding: a hard `min-width: 260px` on
+  // the submit buttons could itself overflow a narrow phone viewport.
+  // Fixed by resetting the min-width to 0/full-width at the same 900px
+  // breakpoint styles.css already uses to collapse `.unit-form` to a
+  // single column. Scope this assertion to the panel this PR actually
+  // touches (`.unit-pricing-availability` and its submit buttons), not
+  // the whole document: at 320px the shell's own horizontal nav bar
+  // already overflows the viewport pre-existing/unrelated to this diff
+  // (confirmed by inspecting the overflowing elements — five `nav-item`
+  // buttons in LandlordShell's chrome, never touched by this PR), so a
+  // whole-document `scrollWidth` assertion would be a false positive on
+  // a pre-existing, out-of-scope shell bug rather than this fix.
+  test('flag on: the pricing/availability submit buttons do not overflow their own panel on a narrow (320px) mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto(`${FLAG_ON_URL}/landlord-redesign-checklist-preview.html`);
+    const checklistRow = page.getByTestId('next-best-action-checklist').getByRole('button', { name: /Set pricing & availability/ });
+    await checklistRow.click();
+
+    const panel = page.locator('.unit-pricing-availability');
+    await expect(panel).toBeVisible();
+
+    const buttonOverflowsPanel = await panel.evaluate((panelEl) => {
+      const panelRight = panelEl.getBoundingClientRect().right;
+      return Array.from(panelEl.querySelectorAll("button[type='submit']")).some(
+        (button) => button.getBoundingClientRect().right > panelRight + 1,
+      );
+    });
+    expect(buttonOverflowsPanel).toBe(false);
+  });
+
   // renders as a separate DOM copy inside ListingPublicationPanel, a
   // sibling of the property-management anchor rather than a descendant
   // of it. That copy must get the same non-green treatment, not just the

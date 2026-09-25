@@ -559,6 +559,107 @@
   margin-top: var(--kf-space-3);
   border: 1px solid var(--kf-aubergine-12);
 }
+/* PO feedback (PR #135, ergonomic polish pass): a `max-width` on the card
+   (an earlier revision of this fix) technically stopped the stretching,
+   but just relocated the "large dead area" complaint one level up — a
+   narrow white card floating disconnected in the middle of the much
+   wider row, inconsistent with the full-width "Create public listing"
+   bar directly below it. Ergonomically, a fixed-width card that doesn't
+   fill its row also reads as unfinished/broken, not intentional.
+   Instead: let both the card AND its inner forms stay full width
+   (matching their full-width sibling), but cap the protected `.unit-form`
+   grid's *column* size (`auto-fill, minmax(220px, 1fr)` → `minmax(220px,
+   260px)`) so a real field/button never stretches past a comfortable
+   reading/click width — the previously-huge single dead gap is instead
+   naturally distributed as normal grid gaps between reasonably-sized
+   fields, which is both more usable (shorter line lengths, larger,
+   evenly-spaced click targets) and visually consistent with the rest of
+   the panel. */
+.kf-landlord-redesign .unit-pricing-availability form.unit-form {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
+}
+/* Design pass (UX/UI review, PR #135 further polish): the two sub-forms
+   were both plain white on a white outer card, giving zero figure-ground
+   contrast — "Pricing" and "Availability" read as one undifferentiated
+   block rather than two distinct groups. Reuse this file's existing
+   white-outer/softBone-inner nesting idiom (see `.property-row` (white)
+   containing `.unit-row` (--kf-soft-bone) above) instead of a border to
+   signal each sub-section's boundary.
+
+   Copilot PR #135 review, cycle-5 finding (correcting an earlier,
+   inaccurate revision of this comment): switching this rule's
+   `auto-fill` to `auto-fit` was tried and reverted — CSS Grid's
+   "collapse empty tracks" behavior only applies to tracks with no item
+   placed in OR spanning across them, and both the section caption
+   (`::before`, `grid-column: 1 / -1`) and the submit button below
+   (`grid-column: 1 / -1`) span every generated track in this row. That
+   means, with these full-width spanning items present, no track here is
+   ever "empty" regardless of `auto-fill` vs. `auto-fit` — the residual
+   whitespace visible to the right of a short field row genuinely cannot
+   be closed by a track-collapsing keyword alone, so `auto-fill`
+   (matching the protected base styles.css convention) is kept instead of
+   a keyword that implies a benefit it can't actually deliver here. The
+   full-width tinted `--kf-soft-bone` background below is what makes the
+   remaining space read as *intentional* card padding instead of a
+   layout bug, which is the actual fix for the "dead space" complaint. */
+
+   PO feedback (further round): the two rounded, gapped tinted boxes
+   still read as two separate "cards" rather than one cohesive panel.
+   The two forms stay two separate `<form>` elements submitting two
+   independent, protected commands (`submitSetPricing`/
+   `submitSetAvailability`) — LANDLORD_REDESIGN_SPEC.md §10.4 requires
+   them to stay visually distinguishable as separate actions, and merging
+   the actual submission behavior (e.g. auto-submit-on-change, no submit
+   buttons) would mean editing the protected, byte-for-byte-unchanged
+   `property-management-panel.jsx` and superseding that spec text — out
+   of scope here without explicit PO/spec sign-off. What CSS-only *can*
+   safely do: remove the margin/border-radius between the two forms so
+   their shared `--kf-soft-bone` backgrounds form one continuous visual
+   surface (rounded only at the very top and bottom), while the existing
+   caption + full-width divider above "AVAILABILITY" still marks the
+   section boundary — one panel, two still-distinguishable actions. */
+.kf-landlord-redesign .unit-pricing-availability form.unit-form {
+  background: var(--kf-soft-bone);
+  border-color: transparent;
+  border-radius: 0;
+  padding: var(--kf-space-4);
+  margin-top: 0;
+}
+.kf-landlord-redesign .unit-pricing-availability form.unit-form:first-of-type {
+  margin-top: var(--kf-space-2);
+  border-top-left-radius: var(--kf-radius-md);
+  border-top-right-radius: var(--kf-radius-md);
+}
+.kf-landlord-redesign .unit-pricing-availability form.unit-form:last-of-type {
+  border-bottom-left-radius: var(--kf-radius-md);
+  border-bottom-right-radius: var(--kf-radius-md);
+}
+/* Bring Fluent's default Field label/input chrome onto this file's own
+   type scale/spacing rhythm instead of Fluent's plain defaults. Targets
+   stable HTML elements, not Fluent's own generated (unstable) atomic
+   classNames. */
+.kf-landlord-redesign .unit-pricing-availability form.unit-form label {
+  display: block;
+  font-family: var(--kf-font-body);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--kf-aubergine);
+  margin-bottom: var(--kf-space-1);
+}
+.kf-landlord-redesign .unit-pricing-availability form.unit-form input,
+.kf-landlord-redesign .unit-pricing-availability form.unit-form select {
+  min-height: 40px;
+  border-radius: var(--kf-radius-sm) !important;
+}
+/* The Cancel button is a sibling *outside* both forms (see e2e's
+   `panel.locator("> button[type='button']").last()`); give it its own
+   breathing room now that the Availability form has a visible tinted
+   surface directly above it. Appearance/border are untouched — still
+   the approved borderless "subtle" treatment (LANDLORD_REDESIGN_SPEC.md
+   §5.1). */
+.kf-landlord-redesign .unit-pricing-availability > button[type='button'] {
+  margin-top: var(--kf-space-4);
+}
 /* Copilot PR #134 review, cycle-3/4 finding #5: no `::before` caption
    here — property-management-panel.jsx (protected, unmodified) already
    renders its own localized, visible `<h3>{t('manage_unit_title')}</h3>`
@@ -566,9 +667,22 @@
    Duplicating it here with a hardcoded, mistranslated ("Manage this
    unit" vs. the real heading's "Pricing & availability") English literal
    was pure redundant/incorrect decoration, not a real caption need. */
+/* Bug fix (post-#134 polish): the base (protected) styles.css defines
+   `.unit-form { display: grid; grid-template-columns: repeat(auto-fill,
+   minmax(220px, 1fr)); ... }`. Without an explicit `grid-column`, each
+   `::before` caption below is just another auto-placed grid item, so it
+   lands in its own auto-fill COLUMN to the left of the Field inputs
+   instead of spanning above them as a heading — which also squeezes the
+   availability caption's `border-top` "divider" into that one narrow
+   column, reading as a short, disconnected floating line rather than a
+   full-width divider above "AVAILABILITY". `grid-column: 1 / -1` makes
+   each caption span every auto-fill column in its row, so it renders as
+   a proper full-width heading above the fields, and the divider now
+   spans the same full width directly above it. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form:nth-of-type(1)::before {
   content: var(--kf-pricing-form-label);
   display: block;
+  grid-column: 1 / -1;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -579,6 +693,7 @@
 .kf-landlord-redesign .unit-pricing-availability form.unit-form:nth-of-type(2)::before {
   content: var(--kf-availability-form-label);
   display: block;
+  grid-column: 1 / -1;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -588,6 +703,66 @@
   border-top: 1px solid var(--kf-aubergine-12);
   padding-top: var(--kf-space-3);
 }
+/* Same root cause's secondary effect: with the caption now a full-width
+   row of its own, the submit button's auto-fill column still competes
+   with a *different* number of sibling field columns between the two
+   forms (pricing: rent amount + currency fields before the button;
+   availability: status select alone, or status + reason-code when
+   'unavailable' is selected), so the two submit buttons' auto-fill
+   column widths can still legitimately differ. Pin both to a shared
+   comfortable minimum and let them size to content/left-align, rather
+   than stretching to fill whatever column width auto-fill happens to
+   compute, so they read as visually consistent regardless of sibling
+   field count.
+   Copilot PR #135 review, cycle-1 finding: a bare `min-width` is only a
+   lower bound — with `justify-self: start` the button still shrinks to
+   fit its own label, so a longer translation (fr: "Mettre à jour la
+   disponibilité", 30 chars) still renders wider than a shorter one (fr:
+   "Définir le prix", 15 chars) even though the English labels happen to
+   be closer in length. `min-width` is raised to comfortably fit the
+   longest currently-approved label across en/fr (measured with the
+   redesign's 15px/600-weight button font) instead of an English-only
+   guess, and both locales now have Playwright coverage (see
+   e2e/redesign/landlord.spec.ts).
+   Copilot PR #135 review, cycle-2 finding: a hard 260px min-width can
+   itself overflow the viewport below styles.css's existing 620px
+   breakpoint (padding/indent on `.main`/`.panel`/`.unit-row` there leave
+   well under 260px inside the nested form on a narrow phone). `min()`
+   clamps the button to the smaller of 260px or the full available
+   inline size, so it still hits the shared 260px target whenever there's
+   room but shrinks to fit (rather than overflowing) on narrow screens —
+   verified with a 320px-viewport Playwright assertion. `min()` alone
+   still measured wider than the available track in testing (percentage
+   min-width inside a CSS Grid item resolves against the pre-layout
+   track-sizing pass, not the final narrow track, on some engines), so
+   the same existing 900px breakpoint the protected styles.css already
+   uses to collapse `.unit-form` to a single column is reused here to
+   reset the button to full-width/no-minimum below it, instead of
+   inventing a new breakpoint. */
+.kf-landlord-redesign .unit-pricing-availability form.unit-form button[type='submit'] {
+  grid-column: 1 / -1;
+  justify-self: start;
+  min-width: 260px;
+}
+@media (max-width: 900px) {
+  .kf-landlord-redesign .unit-pricing-availability form.unit-form button[type='submit'] {
+    min-width: 0;
+    width: 100%;
+  }
+}
+/* Copilot PR #135 review, cycle-1 finding: the "Annuler"/Cancel button
+   (Fluent `appearance='subtle'`) was given a visible border/background
+   here in the first pass of this fix, but
+   docs/product/LANDLORD_REDESIGN_SPEC.md §5.1 explicitly documents
+   `subtle` (used for Cancel/nav/sign-out/language toggle) as
+   "Transparent fill, aubergine text ... no border" — that is the
+   approved, intentional treatment, not a bug. Overriding it here would
+   silently change an approved spec without product-owner sign-off,
+   which this repository's working agreement does not permit. Reverted:
+   the Cancel button is intentionally left with Fluent's default
+   `subtle` appearance (no added border/background) so this fix stays
+   scoped to the two genuine layout bugs (caption placement, submit
+   button width) that this PR's evidence actually demonstrates. */
 .kf-landlord-redesign .listing-image-manager {
   background: #fff;
   border-radius: var(--kf-radius-sm);
