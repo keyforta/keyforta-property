@@ -8,7 +8,7 @@ import { LandlordBrandHeader } from './components/BrandHeader.jsx';
 import { NextBestActionChecklist } from './components/NextBestActionChecklist.jsx';
 import landlordRedesignCopyEn from './locales/en.json';
 import landlordRedesignCopyFr from './locales/fr.json';
-import { annotateAccessibleStatusLabels, annotateStatusTone } from './statusTone.js';
+import { annotateStatusTone } from './statusTone.js';
 import { openSoleUnitManagementControl } from './unitManagement.js';
 
 // Copilot PR #134 review, cycle-3/4 finding #1: this redesign's own
@@ -43,17 +43,14 @@ function scrollToPropertyManagement() {
 // `availabilityStatus` badge and its listing's publication
 // `status`/`mediaReviewStatus` badges are unrelated fields that can
 // legitimately disagree (e.g. unit "Available" + listing "Withdrawn" is
-// correct, not a contradiction), but the §10.4/§11 visual chunking work
-// placed them close together with no distinguishing caption, which read
-// as a bug to the PO. redesign.css adds a small caption before each
-// group via `content: var(--kf-unit-status-label)` / `var(--kf-listing-
-// status-label)` — CSS `content` needs the custom property's value to
-// already be a quoted CSS string, so this escapes the translated text
-// per CSS string-literal rules (backslash and double-quote) before
-// wrapping it in quotes here, rather than hardcoding English text in
-// redesign.css (see that file's comment for why the older §10.4 labels
-// are a separate, already-flagged exception rather than a precedent to
-// repeat).
+// correct, not a contradiction). Both now live in their own genuine
+// Fluent Table columns ("Status", "Listing status", "Media" — PO
+// feedback), whose `TableHeaderCell`s already convey what each value is,
+// so no distinguishing caption is needed here any more. `cssQuotedString`
+// is still used below for the Pricing/Availability sub-form captions,
+// which reuse existing `property_management.*` i18n keys as JS-
+// translated CSS custom properties rather than hardcoded English
+// `content:` strings in redesign.css.
 function cssQuotedString(value) {
   return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
@@ -121,22 +118,17 @@ export function LandlordShell({
       t('property_management.listing_status.withdrawn'),
       t('listing_publication.status.withdrawn.badge'),
     ]);
-    // Copilot PR #134 review, cycle-3/4 finding #6: the same observer
-    // that annotates tone also annotates the accessible unit-status/
-    // listing-status distinction (see statusTone.js) so a screen reader
-    // gets the same grouping distinction the CSS `::before` captions give
-    // sighted users, kept in sync across the same re-renders (this
-    // shell's own props changing, or either reused panel's internal
-    // state changing after a successful command).
-    const accessibleLabels = {
-      unitStatusLabel: t('landlord_redesign.status_labels.unit_status'),
-      listingStatusLabel: t('landlord_redesign.status_labels.listing_status'),
-    };
+    // Genuine Fluent Table conversion (PO feedback: "the column title is
+    // enough for status" / "listing status, media should be also
+    // different columns"): both the unit's own status badge and its
+    // listing's status/media badges now live in genuine Fluent Table
+    // columns whose `TableHeaderCell` already conveys what each value
+    // is, so this observer no longer needs to annotate any accessible
+    // "<column>: <value>" label of its own — only tone annotation
+    // remains.
     annotateStatusTone(container, negativeTexts);
-    annotateAccessibleStatusLabels(container, accessibleLabels);
     const observer = new MutationObserver(() => {
       annotateStatusTone(container, negativeTexts);
-      annotateAccessibleStatusLabels(container, accessibleLabels);
     });
     observer.observe(container, { characterData: true, childList: true, subtree: true });
     return () => observer.disconnect();
@@ -223,16 +215,13 @@ export function LandlordShell({
               className='kf-grid-full'
               id={PROPERTY_MANAGEMENT_ANCHOR_ID}
               style={{
-                '--kf-unit-status-label': cssQuotedString(t('landlord_redesign.status_labels.unit_status')),
-                '--kf-listing-status-label': cssQuotedString(t('landlord_redesign.status_labels.listing_status')),
                 // Copilot PR #134 review, cycle-3/4 finding #5: these two
                 // sub-form captions reuse the SAME existing i18n keys
                 // property-management-panel.jsx (protected, unmodified)
                 // already uses for these forms' own (screen-reader-only)
-                // `aria-label`s — not new redesign-only copy — via the
-                // same JS-translated-CSS-custom-property mechanism as the
-                // unit/listing status labels above, instead of a
-                // hardcoded English `content:` string in redesign.css.
+                // `aria-label`s — not new redesign-only copy — via a
+                // JS-translated-CSS-custom-property mechanism, instead of
+                // a hardcoded English `content:` string in redesign.css.
                 '--kf-pricing-form-label': cssQuotedString(t('property_management.pricing_form_label')),
                 '--kf-availability-form-label': cssQuotedString(t('property_management.availability_form_label')),
               }}

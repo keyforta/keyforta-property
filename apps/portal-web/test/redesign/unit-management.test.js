@@ -23,6 +23,22 @@ describe('openSoleUnitManagementControl', () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
   });
 
+  // PO feedback ("set pricing & availability can just be an appropriate
+  // icon"): the real toggle button is icon-only now, so it has no
+  // visible `textContent` — only an `aria-label` — and this must still
+  // be found and clicked the same way.
+  it('clicks the sole toggle button by its aria-label when it has no visible text (icon-only button)', () => {
+    const container = document.createElement('div');
+    const button = document.createElement('button');
+    button.setAttribute('aria-label', 'Set pricing & availability');
+    const clickSpy = vi.spyOn(button, 'click');
+    container.appendChild(button);
+    const properties = [{ id: 'p1', units: [{ id: 'u1' }] }];
+    const result = openSoleUnitManagementControl(container, properties, 'Set pricing & availability');
+    expect(result).toBe(true);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('does nothing when there is more than one property', () => {
     const { container, button } = containerWithToggle();
     const clickSpy = vi.spyOn(button, 'click');

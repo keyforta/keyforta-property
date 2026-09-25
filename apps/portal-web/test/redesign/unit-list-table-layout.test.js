@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest';
 // lay out CSS Grid, so this remains a static-source assertion (mirrors
 // the pattern already used by pricing-availability-caption-layout.test.js
 // for this same file).
-describe('redesign.css lays out the genuine Fluent Table unit list on a CSS Grid (name/type/status/actions columns)', () => {
+describe('redesign.css lays out the genuine Fluent Table unit list on a CSS Grid (name/type/status/listing-status/media/actions columns)', () => {
   const css = fs.readFileSync(
     path.resolve(__dirname, '../../src/redesign/landlord/redesign.css'),
     'utf8',
@@ -35,7 +35,7 @@ describe('redesign.css lays out the genuine Fluent Table unit list on a CSS Grid
     expect(match[1]).toMatch(/overflow:\s*hidden/);
   });
 
-  it('lays out each .unit-row (header and body) on a fixed 4-column CSS Grid (name/type/status/actions)', () => {
+  it('lays out each .unit-row (header and body) on a fixed 6-column CSS Grid (name/type/status/listing-status/media/actions)', () => {
     // An earlier, legacy `.unit-row` rule (unrelated chrome-only tint,
     // pre-dating this fix) also matches this selector — the grid rule is
     // a later cascade override, so match every occurrence and find the
@@ -44,7 +44,7 @@ describe('redesign.css lays out the genuine Fluent Table unit list on a CSS Grid
     const gridRule = matches.find((m) => /display:\s*grid/.test(m[1]));
     expect(gridRule).not.toBeUndefined();
     expect(gridRule[1]).toMatch(
-      /grid-template-columns:\s*minmax\(140px, 1\.4fr\) minmax\(90px, 0\.8fr\) minmax\(150px, 1fr\) minmax\(260px, 1\.6fr\)/,
+      /grid-template-columns:\s*minmax\(140px, 1\.4fr\) minmax\(90px, 0\.8fr\) minmax\(120px, 0\.9fr\) minmax\(120px, 0\.9fr\) minmax\(120px, 0\.9fr\) minmax\(260px, 1\.6fr\)/,
     );
   });
 
@@ -78,14 +78,18 @@ describe('redesign.css lays out the genuine Fluent Table unit list on a CSS Grid
     expect(panelSource).toMatch(/<TableHeaderCell>\{t\('property_management\.unit_table_column_unit'\)\}<\/TableHeaderCell>/);
     expect(panelSource).toMatch(/<TableHeaderCell>\{t\('property_management\.unit_table_column_type'\)\}<\/TableHeaderCell>/);
     expect(panelSource).toMatch(/<TableHeaderCell>\{t\('property_management\.unit_table_column_status'\)\}<\/TableHeaderCell>/);
+    expect(panelSource).toMatch(/<TableHeaderCell>\{t\('property_management\.unit_table_column_listing_status'\)\}<\/TableHeaderCell>/);
+    expect(panelSource).toMatch(/<TableHeaderCell>\{t\('property_management\.unit_table_column_media'\)\}<\/TableHeaderCell>/);
     expect(panelSource).toMatch(/<TableHeaderCell>\{t\('property_management\.unit_table_column_actions'\)\}<\/TableHeaderCell>/);
   });
 
-  it('renders each unit as a real <TableRow>/<TableCell> body row (name/type/status/actions), not a plain div/span row', () => {
+  it('renders each unit as a real <TableRow>/<TableCell> body row (name/type/status/listing-status/media/actions), not a plain div/span row', () => {
     expect(panelSource).toMatch(/<TableRow className='unit-row' key=\{unit\.id\}>/);
     expect(panelSource).toMatch(/<TableCell className='unit-row-name'>\{unit\.label\}<\/TableCell>/);
     expect(panelSource).toMatch(/<TableCell className='listing-meta'>\{t\(`property_management\.unit_type\.\$\{unit\.unitType\}`\)\}<\/TableCell>/);
     expect(panelSource).toMatch(/<TableCell className='status'>\{t\(`property_management\.unit_availability_status\.\$\{unit\.availabilityStatus\}`\)\}<\/TableCell>/);
+    expect(panelSource).toMatch(/<TableCell className='status listing-status'>/);
+    expect(panelSource).toMatch(/<TableCell className='listing-meta media-status'>/);
     expect(panelSource).toMatch(/<TableCell className='unit-row-actions'>/);
   });
 });

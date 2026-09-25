@@ -545,16 +545,14 @@
   margin-bottom: var(--kf-space-4);
   border: 1px solid var(--kf-aubergine-12);
 }
-/* Product feedback (post-#139): present unit lists as tables (Fluent's
-   Table pattern), not stacked cards. `property-management-panel.jsx` is
-   checksum-protected and cannot receive new DOM (see statusTone.js's own
-   header comment for why this shell never inserts child nodes into it),
-   so a real `<table>`/shared `<thead>` isn't achievable here — this is a
-   CSS-only Grid layout on the SAME reused elements, giving each unit its
-   own table-like row (aligned columns, row dividers, hover highlight)
-   inside one bordered container that reads as a single table surface,
-   with per-row column captions (below) standing in for a shared header
-   row the same way the unit/listing-status captions already do. */
+/* Product feedback (post-#139): present unit lists as genuine Fluent
+   Tables (Fluent's Table pattern), not stacked cards. `property-
+   management-panel.jsx` renders a real `<Table noNativeElements>` (see
+   that file), which keeps rendering as `<div>`s with ARIA roles instead
+   of native `<table>`/`<tr>`/`<td>` so this CSS Grid layout can still
+   give each unit its own table-like row (aligned columns, row dividers,
+   hover highlight, a real header row) inside one bordered container that
+   reads as a single table surface. */
 .kf-landlord-redesign .unit-rows {
   display: flex;
   flex-direction: column;
@@ -567,7 +565,7 @@
 }
 .kf-landlord-redesign .unit-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1.4fr) minmax(90px, 0.8fr) minmax(150px, 1fr) minmax(260px, 1.6fr);
+  grid-template-columns: minmax(140px, 1.4fr) minmax(90px, 0.8fr) minmax(120px, 0.9fr) minmax(120px, 0.9fr) minmax(120px, 0.9fr) minmax(260px, 1.6fr);
   align-items: start;
   column-gap: var(--kf-space-3);
   row-gap: var(--kf-space-2);
@@ -839,83 +837,28 @@
    above — ListingImageManager (protected, unmodified) already renders
    its own localized, visible `<h3>{t('listing_images_title')}</h3>`
    heading ("Listing photos") inside this exact element. */
-.kf-landlord-redesign .public-listing-status {
-  display: flex;
-  gap: var(--kf-space-2);
-  align-items: center;
-  margin-bottom: var(--kf-space-2);
-}
 
 /* ---------------------------------------------------------------------
-   Regression fix: PO read the unit's "Available" badge sitting directly
-   next to the listing's "Withdrawn"/"Media approved" badges as a single
+   Regression fix (PO live-review finding, since fully superseded): a
+   unit's own "Available" badge sitting directly next to its listing's
+   "Withdrawn"/"Media approved" badges once read as a single
    contradictory group (unit occupancy availability vs. listing
    publication status are unrelated fields that can legitimately disagree
-   — a unit can be Available while its listing is Withdrawn). The §10.4/
-   §11 visual chunking work grouped these two unrelated status sources
-   tightly together with no distinguishing label, which is what created
-   the ambiguity — this was a clarity regression in the CSS, not a data
-   bug. Fixed by adding a small uppercase caption before each group,
-   scoped to the two STABLE, pre-existing selectors that already uniquely
-   separate them structurally:
-     - `.unit-row > .status` (direct child combinator) matches ONLY the
-       unit's own availability badge — the listing's `.status` span lives
-       several levels deeper (unit-row > PublicListingForm >
-       .public-listing-status > .status), so it is never a direct child
-       of `.unit-row` and this selector cannot accidentally match it.
-     - `.public-listing-status` (existing wrapper div, already grouping
-       exactly the listing's own `status`/`mediaReviewStatus` badges,
-       nothing from the unit) gets its own caption before the whole
-       group.
-   Caption text is real, translated i18n copy (new, additive-only keys —
-   see locales/en.json|fr.json `landlord_redesign.status_labels.*`), read
-   via `t()` in LandlordShell.jsx and passed down as CSS custom properties
-   (`--kf-unit-status-label`/`--kf-listing-status-label`) on the one
-   wrapper `<div>` this shell already owns around PropertyManagementPanel
-   — NOT hardcoded English `content:` strings (unlike the older §10.4
-   sub-heading labels above, which predate this fix and are a separate,
-   already-flagged item, see §8e). `content: var(--x)` needs the custom
-   property's value to already include the surrounding quotes (set that
-   way in JS), which is why these rules don't wrap the var() in quotes
-   themselves. */
-.kf-landlord-redesign .unit-row > .unit-row-name,
-.kf-landlord-redesign .unit-row > .listing-meta {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
+   — a unit can be Available while its listing is Withdrawn). That was
+   originally fixed with small `::before` captions distinguishing the two
+   groups. Two later rounds of PO feedback made those captions
+   unnecessary: "the column title is enough for status, no need to have
+   [it] again ... next to the value" (removed the unit-status caption),
+   then "listing status, media should be also different columns" (gave
+   the listing's status/media-review badges their own genuine "Listing
+   status"/"Media" `TableHeaderCell`s in property-management-panel.jsx,
+   see PropertyManagementPanel, instead of grouping them under one
+   `.public-listing-status` wrapper with its own caption) — every value
+   in this table now has its own real column header conveying what it
+   is, to both sighted and assistive-technology users navigating the
+   table, so no per-row caption is needed for any of them any more. */
 .kf-landlord-redesign .unit-row > .unit-row-name {
   font-weight: 600;
-}
-.kf-landlord-redesign .unit-row > .status {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-.kf-landlord-redesign .unit-row > .status::before {
-  content: var(--kf-unit-status-label);
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.65;
-}
-.kf-landlord-redesign .public-listing-status {
-  position: relative;
-  flex-wrap: wrap;
-}
-.kf-landlord-redesign .public-listing-status::before {
-  content: var(--kf-listing-status-label);
-  flex-basis: 100%;
-  order: -1;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--kf-aubergine);
-  opacity: 0.65;
 }
 
 /* Copilot PR #134 review finding #2: withdrawn listings / unavailable

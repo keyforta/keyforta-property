@@ -14,6 +14,7 @@ import {
   TableRow,
   Textarea,
 } from '@fluentui/react-components';
+import { Money20Regular } from '@fluentui/react-icons';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
@@ -350,10 +351,21 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
   const anyBusy = pricingBusy || availabilityBusy;
 
   if (!open) {
+    // PO feedback ("set pricing & availability can just be an
+    // appropriate icon"): now that the row has more columns competing
+    // for width (Listing status/Media, see PropertyManagementPanel
+    // below), this toggle is icon-only — `Money20Regular` for the
+    // pricing/availability command it opens — with the same translated
+    // copy moved to `aria-label` so it stays a real, nameable control
+    // for assistive technology despite having no visible text.
     return (
-      <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
-        {t('property_management.manage_unit_toggle')}
-      </Button>
+      <Button
+        appearance='secondary'
+        aria-label={t('property_management.manage_unit_toggle')}
+        disabled={disabled}
+        icon={<Money20Regular />}
+        onClick={() => setOpen(true)}
+      />
     );
   }
 
@@ -659,12 +671,16 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session
   }
 
   if (hasListing && !isDraft) {
-    return (
-      <div className='public-listing-status'>
-        <span className='status'>{t(`property_management.listing_status.${listing.status}`)}</span>
-        <span className='listing-meta'>{t(`property_management.media_review_status.${listing.mediaReviewStatus}`)}</span>
-      </div>
-    );
+    // PO feedback ("listing status, media should be also different
+    // columns"): a published/withdrawn listing's own read-only
+    // status/media-review badges now live in the row's own dedicated
+    // "Listing status"/"Media" columns (see PropertyManagementPanel
+    // below) instead of here, and REQ-038's ListingImageManager only
+    // ever mounts for a `draft` listing (migration 0032's upload/delete
+    // commands both reject a non-draft listing) — so there is genuinely
+    // nothing left for the Actions column to render for a
+    // published/withdrawn listing.
+    return null;
   }
 
   const handleSubmit = async (event) => {
@@ -688,13 +704,9 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session
   return (
     <>
       {hasListing && !open ? (
-        <div className='public-listing-status'>
-          <span className='status'>{t('property_management.listing_status.draft')}</span>
-          <span className='listing-meta'>{t(`property_management.media_review_status.${listing.mediaReviewStatus}`)}</span>
-          <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
-            {t('property_management.edit_listing_toggle')}
-          </Button>
-        </div>
+        <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
+          {t('property_management.edit_listing_toggle')}
+        </Button>
       ) : null}
       {open ? (
         <form aria-label={t(hasListing ? 'property_management.edit_listing_form_label' : 'property_management.create_listing_form_label')} className='unit-form' noValidate onSubmit={handleSubmit}>
@@ -1051,6 +1063,8 @@ export function PropertyManagementPanel({
                     <TableHeaderCell>{t('property_management.unit_table_column_unit')}</TableHeaderCell>
                     <TableHeaderCell>{t('property_management.unit_table_column_type')}</TableHeaderCell>
                     <TableHeaderCell>{t('property_management.unit_table_column_status')}</TableHeaderCell>
+                    <TableHeaderCell>{t('property_management.unit_table_column_listing_status')}</TableHeaderCell>
+                    <TableHeaderCell>{t('property_management.unit_table_column_media')}</TableHeaderCell>
                     <TableHeaderCell>{t('property_management.unit_table_column_actions')}</TableHeaderCell>
                   </TableRow>
                 </TableHeader>
@@ -1062,6 +1076,12 @@ export function PropertyManagementPanel({
                         <TableCell className='unit-row-name'>{unit.label}</TableCell>
                         <TableCell className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</TableCell>
                         <TableCell className='status'>{t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}</TableCell>
+                        <TableCell className='status listing-status'>
+                          {unitListing ? t(`property_management.listing_status.${unitListing.status}`) : t('property_management.unit_table_no_listing')}
+                        </TableCell>
+                        <TableCell className='listing-meta media-status'>
+                          {unitListing ? t(`property_management.media_review_status.${unitListing.mediaReviewStatus}`) : t('property_management.unit_table_no_listing')}
+                        </TableCell>
                         <TableCell className='unit-row-actions'>
                           <UnitPricingAvailabilityForm
                             disabled={disableActions}

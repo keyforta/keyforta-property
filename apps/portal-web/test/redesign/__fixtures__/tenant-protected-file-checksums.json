@@ -1,7 +1,7 @@
 {
   "apps/portal-web/src/listing-publication-panel.jsx": "ef1492a01b1c1705fc6f91990e235e57fb6a165a635e7b0fffc1d92365be2222",
-  "apps/portal-web/src/property-management-panel.jsx": "2be88fad8358f9df4653aa01d78c83fd91a61aaf8141765d3d67231da9458a66",
-  "apps/portal-web/src/redesign/landlord/LandlordShell.jsx": "9970d71b6d463f2309152acd25b382cbb1e5522aecbdb63204f014eb9ab3a1da",
+  "apps/portal-web/src/property-management-panel.jsx": "7dbbcf33e2a507fced9feda0a133c583963117aa9ae3e8c46171644c27d2e39b",
+  "apps/portal-web/src/redesign/landlord/LandlordShell.jsx": "0dd53959ea0dd410c745a46663e5ba141ed7b72a0c04b82999138210144ad02a",
   "apps/portal-web/src/redesign/landlord/__fixtures__/ChecklistOpenPreview.jsx": "c0446bbe77b084609c2d0985ef409022dc0c203cc1a471961d19b73aa8dca8ab",
   "apps/portal-web/src/redesign/landlord/__fixtures__/PoRegressionPreview.jsx": "5f6a10530a97faa15376a4fae014ced72abf60597047beecb2dc885b326a3b9c",
   "apps/portal-web/src/redesign/landlord/__fixtures__/checklist-open-preview-entry.jsx": "fce8f0ab8f730c58f36759381533423d8ada046a2cfa075cf79404c16cf73538",
@@ -15,17 +15,17 @@
   "apps/portal-web/src/redesign/landlord/components/NextBestActionChecklist.jsx": "9147e64f2f2fe5ab94937b88f555f693169e71c7651bf0e39213f42c83c3ab98",
   "apps/portal-web/src/redesign/landlord/components/StatusBadge.jsx": "4e42529677edd61cc184ed1aee25f4e91d8490b90c015773e073e1c99850a6d7",
   "apps/portal-web/src/redesign/landlord/index.jsx": "7bdd99a1f3ea0fa4442bf707808e2b6e843871a169e8100553212c17b1260ae0",
-  "apps/portal-web/src/redesign/landlord/locales/en.json": "3ed5e94169a4832dfa01d296b3f435ef0493586c497b9ae666a43a112dd970bf",
-  "apps/portal-web/src/redesign/landlord/locales/fr.json": "938dd5130e9ad2db0154436d242790386ce0a4ebd40eb6ccd8c7ff4d35885554",
-  "apps/portal-web/src/redesign/landlord/redesign.css": "91f1451e0c4c291f653095e26c6ec5232a50b8f4bb8ec0d91a0eb0795e564554",
-  "apps/portal-web/src/redesign/landlord/statusTone.js": "b04f7bc1b3392a8e5d93f4e45ef3dbfe0b3d154d192390b45bf247b5e6be0049",
+  "apps/portal-web/src/redesign/landlord/locales/en.json": "8e983ae62ac00cfda1cd56126f14721b6e8465b812639419a519369f92bc35e8",
+  "apps/portal-web/src/redesign/landlord/locales/fr.json": "61925b0bf35c618199b61b5cfc484d66cef363cbee8bf5f7edb93fa3da5cf87b",
+  "apps/portal-web/src/redesign/landlord/redesign.css": "7f9fdf1d473ef91d9ac2c98ef85b5e35f291feaf3c15744e9f61d20051e83015",
+  "apps/portal-web/src/redesign/landlord/statusTone.js": "95b41fd14add56b0899aa4461b58191077ff2235ec40d9f88dfb115a9d06d6f7",
   "apps/portal-web/src/redesign/landlord/theme.js": "48f74b382bfc55284a866364184367907a778fa22544497547b13d9e90ca774e",
-  "apps/portal-web/src/redesign/landlord/unitManagement.js": "45fc7a37ad1be20c7e835e3864d1a82788b321dc1acf4445de9a5f766c4d9d48",
+  "apps/portal-web/src/redesign/landlord/unitManagement.js": "6834875ce3057cf365e2ba5506b25837c1493123ca27de81992909302b829958",
   "apps/portal-web/src/redesign/manager/ManagerShell.jsx": "4d0507b4c06be92b6d2233105af436b20e34f60933af00cd914f7e5629a2980b",
   "apps/portal-web/src/redesign/manager/__fixtures__/managerListingsFixture.js": "4a803e0d6c16d9f0fc4cbc067b862eb3a06b683b8363dc25c5a7ce54176b4204",
   "apps/portal-web/src/redesign/manager/components/PortfolioStatusLegend.jsx": "a23300c726f4e79a48d0f044c1d7935212befc6afae48663948272d98478bf72",
   "apps/portal-web/src/redesign/manager/index.jsx": "987d8047b249b4df679c85ca04e6b97dafbf60d7a5ba37efb02e06537e507880",
   "apps/portal-web/src/redesign/manager/redesign.css": "513543e4d230047e936e6655e8ea4579844969f1897437124c01734466a88405",
   "apps/portal-web/src/redesign/manager/statusTone.js": "82aa4d847442c7aee17a6602c4938a3c68e89f381752c3b95d632e84b9dcb181",
-  "apps/portal-web/src/styles.css": "8da0d1aa88cf6f33154f959dc90cc288eec515254fb3cfe2ab0fef2c33041f95"
+  "apps/portal-web/src/styles.css": "10733c6ac7215f943ef3e8ee0e9d961bd3fe7704beff7fedce4d5df8d6a2f57b"
 }
