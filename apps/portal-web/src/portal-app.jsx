@@ -31,6 +31,15 @@ import { useRentalProperties } from './hooks/use-rental-properties.js';
 import { isLandlordRedesignEnabled } from './feature-flags.js';
 
 const LandlordRedesign = lazy(() => import('./redesign/landlord/index.jsx'));
+// Phase 2 (docs/product/MANAGER_REDESIGN_SPEC.md): additive, isolated,
+// flag-gated Manager redesign, mirroring the exact Landlord wiring above
+// line-for-line. `isLandlordRedesignEnabled` is deliberately reused
+// as-is (not duplicated into a second, Manager-only flag predicate) —
+// its underlying check (`VITE_REDESIGN_ENABLED` + dev/preview mode) is
+// role-agnostic despite its name; the spec's acceptance checklist
+// explicitly requires reusing "the same mechanism" rather than inventing
+// a second flag (§9).
+const ManagerRedesign = lazy(() => import('./redesign/manager/index.jsx'));
 
 // Real Microsoft Entra B2B guest sign-in (issue #77 decision), mirroring
 // admin-web's working pattern. Falls back to an 'unavailable' status when
@@ -147,6 +156,52 @@ class LandlordRedesignErrorBoundary extends Component {
     // eslint-disable-next-line no-console
     console.error(
       'Landlord redesign chunk failed to load; falling back to the legacy landlord workspace.',
+      error,
+      info,
+    );
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
+// Manager-phase mirror of `LandlordRedesignLoading`/`LandlordRedesignErrorBoundary`
+// above (docs/product/MANAGER_REDESIGN_SPEC.md §9's "mirroring the exact
+// pattern already proven for the landlord redesign's ... wiring"). Kept as
+// its own small class (rather than reusing the landlord one) only so a
+// caught chunk-load failure logs an accurate, non-misleading message.
+function ManagerRedesignLoading() {
+  const { t } = useTranslation();
+  return (
+    <div className='auth-layout'>
+      <section className='auth-card'>
+        <div className='state-message' role='status'>
+          <Spinner size='tiny' />
+          <span>{t('workspace.loading_landlord_redesign')}</span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+class ManagerRedesignErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    // eslint-disable-next-line no-console
+    console.error(
+      'Manager redesign chunk failed to load; falling back to the legacy manager workspace.',
       error,
       info,
     );
@@ -404,6 +459,38 @@ export function Portal() {
           />
         </Suspense>
       </LandlordRedesignErrorBoundary>
+    );
+  }
+  // Manager-phase mirror of the landlord mount point immediately above
+  // (docs/product/MANAGER_REDESIGN_SPEC.md §9). Same reused flag
+  // predicate, same error-boundary/Suspense/legacy-fallback shape; only
+  // the props actually consumed by `ManagerShell` (no
+  // rentalProperties/showPropertyManagement — Manager never renders
+  // `PropertyManagementPanel`, §0/§1 of that spec) are passed down.
+  if (roleKey === 'manager' && isLandlordRedesignEnabled()) {
+    return (
+      <ManagerRedesignErrorBoundary fallback={legacyWorkspace}>
+        <Suspense fallback={<ManagerRedesignLoading />}>
+          <ManagerRedesign
+            active={active}
+            completedAction={completedAction}
+            listingPublicationEmptyState={listingPublicationEmptyState}
+            managerListings={managerListings}
+            managerListingsError={managerListingsError}
+            managerListingsLoading={managerListingsLoading}
+            navKeys={navKeys}
+            onComplete={complete}
+            onLogout={logout}
+            onSetActive={setActive}
+            onToggleLanguage={toggleLanguage}
+            retryManagerListings={retryManagerListings}
+            role={role}
+            roleActions={roleActions}
+            session={session}
+            showListingPublication={showListingPublication}
+          />
+        </Suspense>
+      </ManagerRedesignErrorBoundary>
     );
   }
   return legacyWorkspace;
