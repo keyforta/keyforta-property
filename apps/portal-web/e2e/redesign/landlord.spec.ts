@@ -360,6 +360,35 @@ test.describe('Landlord redesign (flag-gated)', () => {
     expect(buttonOverflowsPanel).toBe(false);
   });
 
+  // PO feedback (this session, "re-arrange efficiently items on the
+  // form"): stacking the Pricing and Availability sub-forms vertically
+  // left a tall column of unused space to their right once each card
+  // shrank to fit its own (260px-capped) content inside the Dialog. This
+  // is a real-browser layout assertion (jsdom cannot lay out CSS Grid,
+  // matching the existing rationale on the caption-span test above) that
+  // the two cards render side by side — same row, non-overlapping x
+  // ranges — whenever the Dialog has room for both, rather than
+  // one-above-the-other.
+  test('flag on: the Pricing and Availability sub-forms render side by side, not stacked, when the dialog has room for both', async ({ page }) => {
+    await page.goto(`${FLAG_ON_URL}/landlord-redesign-checklist-preview.html`);
+    const checklistRow = page.getByTestId('next-best-action-checklist').getByRole('button', { name: /Set pricing & availability/ });
+    await checklistRow.click();
+
+    const forms = page.locator('.unit-pricing-availability form.unit-form');
+    await expect(forms).toHaveCount(2);
+    const [pricingBox, availabilityBox] = await Promise.all([
+      forms.nth(0).boundingBox(),
+      forms.nth(1).boundingBox(),
+    ]);
+    expect(pricingBox).not.toBeNull();
+    expect(availabilityBox).not.toBeNull();
+    // Same row: their vertical (top) positions are close together.
+    expect(Math.abs(pricingBox.y - availabilityBox.y)).toBeLessThan(10);
+    // Side by side, not overlapping: the second card starts to the right
+    // of where the first one ends.
+    expect(availabilityBox.x).toBeGreaterThanOrEqual(pricingBox.x + pricingBox.width);
+  });
+
   // Copilot PR #134 review, remediation cycle 2, finding #1 — superseded:
   // PO feedback ("combine Listing publication and Property portfolio in
   // the same table") removed the separate ListingPublicationPanel

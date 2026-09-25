@@ -489,7 +489,7 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
           />
         </Tooltip>
       </DialogTrigger>
-      <DialogSurface mountNode={mountNode}>
+      <DialogSurface className='unit-pricing-dialog-surface' mountNode={mountNode}>
         <DialogBody>
           <DialogTitle>{t('property_management.manage_unit_title')}</DialogTitle>
           <DialogContent className='unit-pricing-availability'>
