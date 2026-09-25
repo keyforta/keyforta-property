@@ -576,7 +576,55 @@
    evenly-spaced click targets) and visually consistent with the rest of
    the panel. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form {
-  grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 260px));
+}
+/* Design pass (UX/UI review, PR #135 further polish): the two sub-forms
+   were both plain white on a white outer card, giving zero figure-ground
+   contrast — "Pricing" and "Availability" read as one undifferentiated
+   block rather than two distinct groups. Reuse this file's existing
+   white-outer/softBone-inner nesting idiom (see `.property-row` (white)
+   containing `.unit-row` (--kf-soft-bone) above) instead of a border to
+   signal each sub-section's boundary. Also switches the phantom empty
+   grid tracks (`auto-fill`, which reserves a track even when unused)
+   to `auto-fit` (which collapses them to 0 width) — column *count/size*
+   is otherwise unchanged, so this doesn't reopen the auto-fill stretching
+   bug fixed above, it only removes the leftover invisible reserved
+   tracks the PO kept seeing as "dead space." */
+.kf-landlord-redesign .unit-pricing-availability form.unit-form {
+  background: var(--kf-soft-bone);
+  border-color: transparent;
+  border-radius: var(--kf-radius-md);
+  padding: var(--kf-space-4);
+  margin-top: var(--kf-space-4);
+}
+.kf-landlord-redesign .unit-pricing-availability form.unit-form:first-of-type {
+  margin-top: var(--kf-space-2);
+}
+/* Bring Fluent's default Field label/input chrome onto this file's own
+   type scale/spacing rhythm instead of Fluent's plain defaults. Targets
+   stable HTML elements, not Fluent's own generated (unstable) atomic
+   classNames. */
+.kf-landlord-redesign .unit-pricing-availability form.unit-form label {
+  display: block;
+  font-family: var(--kf-font-body);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--kf-aubergine);
+  margin-bottom: var(--kf-space-1);
+}
+.kf-landlord-redesign .unit-pricing-availability form.unit-form input,
+.kf-landlord-redesign .unit-pricing-availability form.unit-form select {
+  min-height: 40px;
+  border-radius: var(--kf-radius-sm) !important;
+}
+/* The Cancel button is a sibling *outside* both forms (see e2e's
+   `panel.locator("> button[type='button']").last()`); give it its own
+   breathing room now that the Availability form has a visible tinted
+   surface directly above it. Appearance/border are untouched — still
+   the approved borderless "subtle" treatment (LANDLORD_REDESIGN_SPEC.md
+   §5.1). */
+.kf-landlord-redesign .unit-pricing-availability > button[type='button'] {
+  margin-top: var(--kf-space-4);
 }
 /* Copilot PR #134 review, cycle-3/4 finding #5: no `::before` caption
    here — property-management-panel.jsx (protected, unmodified) already

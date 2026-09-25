@@ -40,24 +40,39 @@ describe('redesign.css unit-pricing-availability section captions span the full 
     expect(match[1]).toMatch(/grid-column:\s*1\s*\/\s*-1/);
   });
 
-  it('caps each auto-fill column at a comfortable max width instead of a bare max-width on the whole form', () => {
-    // PO feedback (PR #135, ergonomic polish pass): an earlier revision
-    // capped the whole form/card at `max-width: 520px`, which stopped
-    // individual fields/buttons from stretching but relocated the
-    // "large dead area" complaint one level up — a narrow card floating
-    // disconnected in the middle of the much wider row, inconsistent
-    // with the full-width "Create public listing" bar directly below
-    // it. Instead, cap the protected `.unit-form` grid's own column
-    // size (`repeat(auto-fill, minmax(220px, 1fr))` -> `minmax(220px,
-    // 260px)`), so the card/form stay full width (visually consistent
-    // with their sibling) while individual fields/buttons still never
-    // stretch past a comfortable size — the leftover space becomes
-    // ordinary grid gaps, not one giant disconnected gap.
+  it('caps each grid column at a comfortable max width AND collapses unused tracks (auto-fit, not auto-fill)', () => {
+    // PO feedback (PR #135, ergonomic + design-review polish passes):
+    // an earlier revision capped the whole form/card at `max-width:
+    // 520px`, which stopped fields from stretching but relocated the
+    // "large dead area" complaint one level up (a narrow card floating
+    // disconnected mid-row). Capping the column *size* instead
+    // (`minmax(220px, 260px)`) fixed that, but `auto-fill` still
+    // *reserves* as many 260px tracks as fit the row even when unused —
+    // those invisible reserved tracks were the literal mechanical cause
+    // of the still-visible "dead space to the right." Switching to
+    // `auto-fit` collapses unused tracks to 0 width instead of reserving
+    // them, while keeping the same per-column size cap (column
+    // count/order/stacking is otherwise unchanged).
     const match = css.match(
       /\.kf-landlord-redesign \.unit-pricing-availability form\.unit-form\s*\{([^}]*)\}/,
     );
     expect(match).not.toBeNull();
-    expect(match[1]).toMatch(/grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(220px,\s*260px\)\)/);
+    expect(match[1]).toMatch(/grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(220px,\s*260px\)\)/);
+  });
+
+  it('gives each sub-form a soft-tinted surface (not white-on-white) for real visual grouping', () => {
+    // Design review (PR #135 further polish): two white sub-forms on a
+    // white outer card gave zero figure-ground contrast — "Pricing" and
+    // "Availability" read as one undifferentiated block. Reuses this
+    // file's existing white-outer/softBone-inner nesting idiom
+    // (.property-row white containing .unit-row --kf-soft-bone) instead
+    // of inventing a new pattern.
+    const matches = [...css.matchAll(
+      /\.kf-landlord-redesign \.unit-pricing-availability form\.unit-form\s*\{([^}]*)\}/g,
+    )];
+    const tintedRule = matches.find((m) => /background:\s*var\(--kf-soft-bone\)/.test(m[1]));
+    expect(tintedRule).not.toBeUndefined();
+    expect(tintedRule[1]).toMatch(/border-color:\s*transparent/);
   });
 
   it('also spans the submit buttons across the full row and pins a shared min-width wide enough for the longest approved fr/en label', () => {
