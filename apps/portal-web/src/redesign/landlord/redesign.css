@@ -639,11 +639,32 @@
    longest currently-approved label across en/fr (measured with the
    redesign's 15px/600-weight button font) instead of an English-only
    guess, and both locales now have Playwright coverage (see
-   e2e/redesign/landlord.spec.ts). */
+   e2e/redesign/landlord.spec.ts).
+   Copilot PR #135 review, cycle-2 finding: a hard 260px min-width can
+   itself overflow the viewport below styles.css's existing 620px
+   breakpoint (padding/indent on `.main`/`.panel`/`.unit-row` there leave
+   well under 260px inside the nested form on a narrow phone). `min()`
+   clamps the button to the smaller of 260px or the full available
+   inline size, so it still hits the shared 260px target whenever there's
+   room but shrinks to fit (rather than overflowing) on narrow screens —
+   verified with a 320px-viewport Playwright assertion. `min()` alone
+   still measured wider than the available track in testing (percentage
+   min-width inside a CSS Grid item resolves against the pre-layout
+   track-sizing pass, not the final narrow track, on some engines), so
+   the same existing 900px breakpoint the protected styles.css already
+   uses to collapse `.unit-form` to a single column is reused here to
+   reset the button to full-width/no-minimum below it, instead of
+   inventing a new breakpoint. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form button[type='submit'] {
   grid-column: 1 / -1;
   justify-self: start;
   min-width: 260px;
+}
+@media (max-width: 900px) {
+  .kf-landlord-redesign .unit-pricing-availability form.unit-form button[type='submit'] {
+    min-width: 0;
+    width: 100%;
+  }
 }
 /* Copilot PR #135 review, cycle-1 finding: the "Annuler"/Cancel button
    (Fluent `appearance='subtle'`) was given a visible border/background

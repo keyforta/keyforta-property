@@ -56,6 +56,16 @@ describe('redesign.css unit-pricing-availability section captions span the full 
     expect(Number(minWidthMatch[1])).toBeGreaterThanOrEqual(260);
   });
 
+  it('resets the submit-button min-width to full-width/no-minimum at the existing 900px breakpoint styles.css already uses to collapse .unit-form to one column', () => {
+    // Copilot PR #135 review, cycle-2 finding: a hard 260px min-width can
+    // overflow a narrow mobile viewport. Reuses the existing 900px
+    // breakpoint (protected styles.css collapses .unit-form to
+    // grid-template-columns: 1fr there) instead of inventing a new one.
+    expect(css).toMatch(
+      /@media \(max-width:\s*900px\)\s*\{\s*\.kf-landlord-redesign \.unit-pricing-availability form\.unit-form button\[type='submit'\]\s*\{[^}]*min-width:\s*0[^}]*width:\s*100%/,
+    );
+  });
+
   it('does not add a border/background to the Cancel button, preserving the approved borderless "subtle" spec (LANDLORD_REDESIGN_SPEC.md §5.1)', () => {
     // Copilot PR #135 review, cycle-1 finding: an earlier version of this
     // fix added a visible border to the Cancel button, but the approved

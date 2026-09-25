@@ -303,6 +303,36 @@ test.describe('Landlord redesign (flag-gated)', () => {
     expect(overflow).toEqual([false, false]);
   });
 
+  // Copilot PR #135 review, cycle-2 finding: a hard `min-width: 260px` on
+  // the submit buttons could itself overflow a narrow phone viewport.
+  // Fixed by resetting the min-width to 0/full-width at the same 900px
+  // breakpoint styles.css already uses to collapse `.unit-form` to a
+  // single column. Scope this assertion to the panel this PR actually
+  // touches (`.unit-pricing-availability` and its submit buttons), not
+  // the whole document: at 320px the shell's own horizontal nav bar
+  // already overflows the viewport pre-existing/unrelated to this diff
+  // (confirmed by inspecting the overflowing elements — five `nav-item`
+  // buttons in LandlordShell's chrome, never touched by this PR), so a
+  // whole-document `scrollWidth` assertion would be a false positive on
+  // a pre-existing, out-of-scope shell bug rather than this fix.
+  test('flag on: the pricing/availability submit buttons do not overflow their own panel on a narrow (320px) mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto(`${FLAG_ON_URL}/landlord-redesign-checklist-preview.html`);
+    const checklistRow = page.getByTestId('next-best-action-checklist').getByRole('button', { name: /Set pricing & availability/ });
+    await checklistRow.click();
+
+    const panel = page.locator('.unit-pricing-availability');
+    await expect(panel).toBeVisible();
+
+    const buttonOverflowsPanel = await panel.evaluate((panelEl) => {
+      const panelRight = panelEl.getBoundingClientRect().right;
+      return Array.from(panelEl.querySelectorAll("button[type='submit']")).some(
+        (button) => button.getBoundingClientRect().right > panelRight + 1,
+      );
+    });
+    expect(buttonOverflowsPanel).toBe(false);
+  });
+
   // renders as a separate DOM copy inside ListingPublicationPanel, a
   // sibling of the property-management anchor rather than a descendant
   // of it. That copy must get the same non-green treatment, not just the
