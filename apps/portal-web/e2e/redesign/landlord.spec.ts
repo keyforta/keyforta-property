@@ -198,6 +198,69 @@ test.describe('Landlord redesign (flag-gated)', () => {
     await expect(page.getByRole('form', { name: 'Availability' })).toBeVisible();
   });
 
+  // Bug fix (PO report): the "Set pricing & availability" panel's section
+  // captions (`.unit-pricing-availability form.unit-form ::before`)
+  // rendered BESIDE the form's fields instead of ABOVE them as a heading,
+  // and the availability caption's `border-top` divider rendered as a
+  // short, disconnected line floating in its own auto-fill grid column —
+  // because the protected `.unit-form` (styles.css) is a CSS Grid
+  // container and the `::before` pseudo (a grid item with no explicit
+  // `grid-column`) was auto-placed into its own column rather than
+  // spanning the row. jsdom cannot lay out CSS Grid (see the paired
+  // vitest source-text spec for the static-source-only assertion), so
+  // this is a real-browser bounding-box assertion using the same
+  // checklist-open preview fixture as the test above (needed to reach the
+  // real, protected, token-ready "Manage this unit" control rather than
+  // the always-`tokenStatus: 'demo'` `?role=landlord` routes).
+  test('flag on: the pricing/availability section captions span the full form width as a heading, not a narrow side column', async ({ page }) => {
+    await page.goto(`${FLAG_ON_URL}/landlord-redesign-checklist-preview.html`);
+    const checklistRow = page.getByTestId('next-best-action-checklist').getByRole('button', { name: /Set pricing & availability/ });
+    await checklistRow.click();
+    await expect(page.getByRole('heading', { name: 'Pricing & availability' })).toBeVisible();
+
+    const panel = page.locator('.unit-pricing-availability');
+    await expect(panel).toBeVisible();
+
+    const diagnostics = await panel.evaluate((panelEl) => {
+      const forms = Array.from(panelEl.querySelectorAll('form.unit-form'));
+      return forms.map((form) => {
+        const formRect = form.getBoundingClientRect();
+        const beforeStyle = window.getComputedStyle(form, '::before');
+        return {
+          formWidth: formRect.width,
+          beforeGridColumn: beforeStyle.gridColumn,
+        };
+      });
+    });
+
+    // Both captions' `::before` must resolve to spanning every column
+    // (`1 / -1` or an equivalent computed span), not the default `auto`
+    // single-column placement that caused the reported bug.
+    for (const form of diagnostics) {
+      expect(form.beforeGridColumn).not.toBe('auto');
+      expect(form.beforeGridColumn).toMatch(/1\s*\/\s*(-1|auto)|span/);
+    }
+
+    // The two submit buttons must render at a visually consistent width
+    // (previously they differed because the caption ate one of the
+    // auto-fill columns unevenly between the two forms).
+    const buttonWidths = await panel.evaluate((panelEl) => Array.from(
+      panelEl.querySelectorAll("button[type='submit']"),
+    ).map((button) => button.getBoundingClientRect().width));
+    expect(buttonWidths).toHaveLength(2);
+    expect(Math.abs(buttonWidths[0] - buttonWidths[1])).toBeLessThanOrEqual(2);
+
+    // The Cancel button must have a real, visible affordance (a resting
+    // border), not the bare/borderless "plain text" look reported by the
+    // PO.
+    const cancelButton = panel.locator("> button[type='button']").last();
+    await expect(cancelButton).toHaveText(/Cancel/);
+    const cancelBorder = await cancelButton.evaluate((el) => window.getComputedStyle(el).borderTopStyle);
+    expect(cancelBorder).toBe('solid');
+
+    await panel.screenshot({ path: 'e2e/redesign/__screenshots__/flag-on-unit-pricing-availability-caption-fix.png' });
+  });
+
   // renders as a separate DOM copy inside ListingPublicationPanel, a
   // sibling of the property-management anchor rather than a descendant
   // of it. That copy must get the same non-green treatment, not just the

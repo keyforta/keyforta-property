@@ -566,9 +566,22 @@
    Duplicating it here with a hardcoded, mistranslated ("Manage this
    unit" vs. the real heading's "Pricing & availability") English literal
    was pure redundant/incorrect decoration, not a real caption need. */
+/* Bug fix (post-#134 polish): the base (protected) styles.css defines
+   `.unit-form { display: grid; grid-template-columns: repeat(auto-fill,
+   minmax(220px, 1fr)); ... }`. Without an explicit `grid-column`, each
+   `::before` caption below is just another auto-placed grid item, so it
+   lands in its own auto-fill COLUMN to the left of the Field inputs
+   instead of spanning above them as a heading — which also squeezes the
+   availability caption's `border-top` "divider" into that one narrow
+   column, reading as a short, disconnected floating line rather than a
+   full-width divider above "AVAILABILITY". `grid-column: 1 / -1` makes
+   each caption span every auto-fill column in its row, so it renders as
+   a proper full-width heading above the fields, and the divider now
+   spans the same full width directly above it. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form:nth-of-type(1)::before {
   content: var(--kf-pricing-form-label);
   display: block;
+  grid-column: 1 / -1;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -579,6 +592,7 @@
 .kf-landlord-redesign .unit-pricing-availability form.unit-form:nth-of-type(2)::before {
   content: var(--kf-availability-form-label);
   display: block;
+  grid-column: 1 / -1;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -587,6 +601,42 @@
   margin: var(--kf-space-3) 0 var(--kf-space-1);
   border-top: 1px solid var(--kf-aubergine-12);
   padding-top: var(--kf-space-3);
+}
+/* Same root cause's secondary effect: with the caption now a full-width
+   row of its own, the submit button's auto-fill column still competes
+   with a *different* number of sibling field columns between the two
+   forms (pricing: rent amount + currency fields before the button;
+   availability: status select alone, or status + reason-code when
+   'unavailable' is selected), so the two submit buttons' auto-fill
+   column widths can still legitimately differ. Pin both to a shared
+   comfortable minimum and let them size to content/left-align, rather
+   than stretching to fill whatever column width auto-fill happens to
+   compute, so they read as visually consistent regardless of sibling
+   field count. */
+.kf-landlord-redesign .unit-pricing-availability form.unit-form button[type='submit'] {
+  grid-column: 1 / -1;
+  justify-self: start;
+  min-width: 180px;
+}
+/* The "Annuler"/Cancel button (Fluent `appearance='subtle'`, rendered as
+   the last child of `.unit-pricing-availability`, a sibling of the two
+   `form.unit-form` elements above — not itself a form control) is
+   intentionally borderless/transparent by Fluent's own "subtle"
+   appearance, which reads as bare unstyled text next to the two solid
+   submit buttons above it. Layered on here purely via a stable,
+   pre-existing structural selector (last `button[type='button']` child
+   of the unchanged `.unit-pricing-availability` wrapper) using only
+   already-approved brand tokens — no new DOM, no hex colors. */
+.kf-landlord-redesign .unit-pricing-availability > button[type='button']:last-child {
+  border: 1px solid var(--kf-aubergine-12);
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-2) var(--kf-space-4);
+  background: #fff;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.kf-landlord-redesign .unit-pricing-availability > button[type='button']:last-child:hover {
+  background: var(--kf-soft-bone);
+  border-color: var(--kf-aubergine-08);
 }
 .kf-landlord-redesign .listing-image-manager {
   background: #fff;
