@@ -8,11 +8,13 @@
     "check": "node scripts/check.mjs",
     "build": "vite build",
     "dev": "vite --host 127.0.0.1 --port 3002",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fluentui/react-components": "9.72.5",
     "@fluentui/react-icons": "^2.0.341",
+    "@keyforta/brand": "workspace:*",
     "@keyforta/browser-auth": "workspace:*",
     "@keyforta/contracts": "workspace:*",
     "@keyforta/ui": "workspace:*",
@@ -22,6 +24,7 @@
     "react-i18next": "^16.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@vitejs/plugin-react": "^5.0.2",
