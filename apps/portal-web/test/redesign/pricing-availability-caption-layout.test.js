@@ -75,6 +75,30 @@ describe('redesign.css unit-pricing-availability section captions span the full 
     expect(tintedRule[1]).toMatch(/border-color:\s*transparent/);
   });
 
+  it('merges the two tinted sub-forms into one continuous panel (no gap/radius between them) while keeping them as two distinguishable actions', () => {
+    // PO feedback (PR #135 further polish): the two rounded, gapped
+    // tinted boxes still read as two separate "cards." The two <form>
+    // elements stay separate (two independent, protected commands —
+    // merging actual submission behavior would mean editing the
+    // protected property-management-panel.jsx and is out of scope
+    // without explicit PO/spec sign-off), but their shared background
+    // now forms one continuous surface: no gap between them, and
+    // border-radius only at the very top/bottom of the pair.
+    const matches = [...css.matchAll(
+      /\.kf-landlord-redesign \.unit-pricing-availability form\.unit-form\s*\{([^}]*)\}/g,
+    )];
+    const tintedRule = matches.find((m) => /background:\s*var\(--kf-soft-bone\)/.test(m[1]));
+    expect(tintedRule).not.toBeUndefined();
+    expect(tintedRule[1]).toMatch(/border-radius:\s*0/);
+    expect(tintedRule[1]).toMatch(/margin-top:\s*0/);
+    expect(css).toMatch(
+      /\.unit-pricing-availability form\.unit-form:first-of-type\s*\{[^}]*border-top-left-radius:\s*var\(--kf-radius-md\)/,
+    );
+    expect(css).toMatch(
+      /\.unit-pricing-availability form\.unit-form:last-of-type\s*\{[^}]*border-bottom-left-radius:\s*var\(--kf-radius-md\)/,
+    );
+  });
+
   it('also spans the submit buttons across the full row and pins a shared min-width wide enough for the longest approved fr/en label', () => {
     // Copilot PR #135 review, cycle-1 finding: a bare min-width is only a
     // lower bound with justify-self:start — it must be raised past the

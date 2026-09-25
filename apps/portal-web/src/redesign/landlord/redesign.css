@@ -589,16 +589,38 @@
    to `auto-fit` (which collapses them to 0 width) — column *count/size*
    is otherwise unchanged, so this doesn't reopen the auto-fill stretching
    bug fixed above, it only removes the leftover invisible reserved
-   tracks the PO kept seeing as "dead space." */
+   tracks the PO kept seeing as "dead space."
+
+   PO feedback (further round): the two rounded, gapped tinted boxes
+   still read as two separate "cards" rather than one cohesive panel.
+   The two forms stay two separate `<form>` elements submitting two
+   independent, protected commands (`submitSetPricing`/
+   `submitSetAvailability`) — LANDLORD_REDESIGN_SPEC.md §10.4 requires
+   them to stay visually distinguishable as separate actions, and merging
+   the actual submission behavior (e.g. auto-submit-on-change, no submit
+   buttons) would mean editing the protected, byte-for-byte-unchanged
+   `property-management-panel.jsx` and superseding that spec text — out
+   of scope here without explicit PO/spec sign-off. What CSS-only *can*
+   safely do: remove the margin/border-radius between the two forms so
+   their shared `--kf-soft-bone` backgrounds form one continuous visual
+   surface (rounded only at the very top and bottom), while the existing
+   caption + full-width divider above "AVAILABILITY" still marks the
+   section boundary — one panel, two still-distinguishable actions. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form {
   background: var(--kf-soft-bone);
   border-color: transparent;
-  border-radius: var(--kf-radius-md);
+  border-radius: 0;
   padding: var(--kf-space-4);
-  margin-top: var(--kf-space-4);
+  margin-top: 0;
 }
 .kf-landlord-redesign .unit-pricing-availability form.unit-form:first-of-type {
   margin-top: var(--kf-space-2);
+  border-top-left-radius: var(--kf-radius-md);
+  border-top-right-radius: var(--kf-radius-md);
+}
+.kf-landlord-redesign .unit-pricing-availability form.unit-form:last-of-type {
+  border-bottom-left-radius: var(--kf-radius-md);
+  border-bottom-right-radius: var(--kf-radius-md);
 }
 /* Bring Fluent's default Field label/input chrome onto this file's own
    type scale/spacing rhythm instead of Fluent's plain defaults. Targets
