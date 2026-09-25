@@ -1067,23 +1067,15 @@
    property-management-panel.jsx) — only its chrome is restyled here,
    the same "reused unmodified markup, chrome-only restyle" pattern used
    for `.property-row`/`.unit-row` above. */
-/* PO follow-up ("what if we have a long list of images?"): REQ-038 caps
-   a listing at MAX_LISTING_IMAGES (10) combined images, so this list can
-   grow to 10 bordered rows. Without a height cap the dialog itself grows
-   with the list, which can push the upload sub-form and Cancel button
-   below the fold and force whole-page/dialog scrolling. Same internal-
-   scroll-region pattern already used for `.kf-sidebar` above (fixed-
-   height ancestor + `overflow-y: auto` on the scrollable region) — the
-   max-height below comfortably shows ~4-5 rows (each row is ~44px incl.
-   border) before the list scrolls internally, so the dialog's overall
-   height stays stable regardless of image count and the rest of the
-   dialog (title, upload form, Cancel) never needs to scroll off-screen. */
+/* PO follow-up ("what if we have a long list of images?"): the internal-
+   scroll constraint itself (max-height/overflow) is a genuine behavior
+   requirement, not a redesign-only opinion, so it now lives unscoped in
+   `styles.css` (applies to legacy consumers of ListingImageManager too,
+   per Copilot review finding on this PR). Only the redesign's card
+   border/background chrome is scoped here. */
 .kf-landlord-redesign .listing-image-list {
   border: 1px solid var(--kf-aubergine-08);
   border-radius: var(--kf-radius-md);
-  overflow-x: hidden;
-  overflow-y: auto;
-  max-height: 224px;
   background: #fff;
 }
 .kf-landlord-redesign .listing-image-row {

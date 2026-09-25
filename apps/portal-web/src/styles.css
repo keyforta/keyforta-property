@@ -399,12 +399,22 @@ button {
 .listing-image-manager h3 {
   margin: 0;
 }
+/* REQ-038 caps a listing at MAX_LISTING_IMAGES (10) combined images, so
+   this list can grow to 10 rows. Without a height cap the dialog itself
+   grows with the list, which can push the upload sub-form/Cancel button
+   off-screen. This scroll constraint is a genuine behavior requirement
+   (not a redesign-only opinion), so it lives here rather than only under
+   `.kf-landlord-redesign`, ensuring legacy (flag-off) consumers of
+   ListingImageManager get internal scrolling too. */
 .listing-image-list {
   display: grid;
   gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 224px;
 }
 .listing-image-list li {
   display: flex;
