@@ -1,0 +1,112 @@
+import { Button } from '@fluentui/react-components';
+import { useTranslation } from 'react-i18next';
+import { computeNextBestActionChecklist } from '../checklist.js';
+
+// "Get your first listing live" checklist card
+// (docs/product/LANDLORD_REDESIGN_SPEC.md §10.2). Renders four rows
+// derived only from the `properties`/`listings` data already passed into
+// this shell by `portal-app.jsx` (same `useRentalProperties`/
+// `useManagerListings` hook results the reused panels already use) — no
+// new fetch, no invented aggregate/percentage. Clicking an unchecked row
+// scrolls to the relevant already-rendered panel (pure client-side
+// orchestration of existing controls, per §10.2's explicit constraint).
+export function NextBestActionChecklist({ listings, onRowAction, properties }) {
+  const { t } = useTranslation();
+  const rows = computeNextBestActionChecklist({ listings, properties });
+  const anyPublished = rows.some((row) => row.key === 'publishListing' && row.status === 'done');
+
+  const copyByKey = {
+    addProperty: {
+      done: t('landlord_redesign.checklist.add_property.done_detail'),
+      label: t('landlord_redesign.checklist.add_property.label'),
+      todo: t('landlord_redesign.checklist.add_property.todo_detail'),
+    },
+    addPhotos: {
+      done: t('landlord_redesign.checklist.add_photos.done_detail'),
+      label: t('landlord_redesign.checklist.add_photos.label'),
+      todo: t('landlord_redesign.checklist.add_photos.todo_detail'),
+      unknown: t('landlord_redesign.checklist.add_photos.unknown_detail'),
+    },
+    publishListing: {
+      done: t('landlord_redesign.checklist.publish_listing.done_detail'),
+      label: t('landlord_redesign.checklist.publish_listing.label'),
+      todo: t('landlord_redesign.checklist.publish_listing.todo_detail'),
+    },
+    setPricing: {
+      label: t('landlord_redesign.checklist.set_pricing.label'),
+      unknown: t('landlord_redesign.checklist.set_pricing.unknown_detail'),
+    },
+  };
+
+  const statusLabel = {
+    done: t('landlord_redesign.checklist.status_done'),
+    todo: t('landlord_redesign.checklist.status_todo'),
+    unknown: t('landlord_redesign.checklist.status_unknown'),
+  };
+
+  return (
+    <article className='panel kf-panel kf-checklist-card' data-testid='next-best-action-checklist'>
+      <div className='panel-head'>
+        <div>
+          <h2 className='kf-section-heading'>
+            {anyPublished
+              ? t('landlord_redesign.checklist.title_after_published')
+              : t('landlord_redesign.checklist.title_before_published')}
+          </h2>
+        </div>
+      </div>
+      <ul className='kf-checklist-list' role='list'>
+        {rows.map((row) => {
+          const copy = copyByKey[row.key];
+          const detail = row.status === 'done' ? copy.done : row.status === 'unknown' ? copy.unknown : copy.todo;
+          // Copilot PR #134 review finding #5: clickability must depend
+          // only on whether the row is already done, not on which key it
+          // is — every unchecked row (including 'unknown' ones, e.g.
+          // "Set pricing & availability") has a real, reachable control
+          // below it, so every unchecked row must stay actionable.
+          const clickable = row.status !== 'done';
+          return (
+            <li className={`kf-checklist-row kf-checklist-row-${row.status}`} key={row.key}>
+              {/* Copilot PR #134 review, cycle-3/4 finding #2: this is a
+                  navigation-triggering row (it scrolls to / opens an
+                  existing control below), never a persistent on/off
+                  toggle — `aria-pressed` communicates the latter and was
+                  never accurate here (a "done" row isn't "pressed", it's
+                  simply no longer actionable, which `disabled` already
+                  conveys). Removed rather than "corrected" to some other
+                  pressed value, since no toggle semantics apply to this
+                  control at all.
+                  Follow-up guidance (same cycle): prefer a Fluent UI
+                  component with correct built-in semantics over a
+                  hand-rolled <button> — Fluent's `Button` renders a plain
+                  native <button> with no toggle/pressed state by default
+                  (unlike `ToggleButton`/`MenuItem`, which would reintroduce
+                  the exact wrong semantics this finding removed), so it is
+                  a drop-in, semantically-correct replacement here.
+                  `appearance='transparent'` keeps Fluent's own chrome
+                  minimal so the existing, already-reviewed
+                  `.kf-checklist-row-button` visual styling in
+                  redesign.css continues to fully own this row's look. */}
+              <Button
+                appearance='transparent'
+                className='kf-checklist-row-button'
+                disabled={!clickable}
+                onClick={clickable ? () => onRowAction(row.key) : undefined}
+                type='button'
+              >
+                <span aria-hidden='true' className='kf-checklist-icon'>
+                  {row.status === 'done' ? '✓' : row.status === 'unknown' ? '?' : '○'}
+                </span>
+                <span className='kf-checklist-copy'>
+                  <span className='kf-checklist-label'>{copy.label}</span>
+                  <span className='kf-checklist-detail kf-small'>{detail}</span>
+                </span>
+                <span className='kf-checklist-status-badge' data-status={row.status}>{statusLabel[row.status]}</span>
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </article>
+  );
+}

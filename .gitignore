@@ -7,3 +7,8 @@ keyforta-*.tar.gz
 upload/
 *.log
 .env.local
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+apps/*/e2e/**/__screenshots__/

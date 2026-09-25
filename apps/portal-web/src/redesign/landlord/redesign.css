@@ -1,0 +1,692 @@
+/*
+ * KEYFORTA landlord redesign — visual system implementing
+ * docs/product/LANDLORD_REDESIGN_SPEC.md §3 (tokens), §4 (layout), §5
+ * (component treatment). Every selector below is scoped under
+ * `.kf-landlord-redesign` so this stylesheet can never affect the
+ * existing (flag-off) rendering path — it is only ever loaded by this
+ * lazy-loaded module (see index.jsx), and even if it were present in the
+ * same bundle, the scoping class alone prevents any bleed into
+ * `apps/portal-web/src/styles.css`'s unscoped selectors.
+ *
+ * §8c (font sourcing) is left as an explicit open item: no self-hosted or
+ * CDN web-font loading is added here (that would be a new, separately
+ * reviewable licensing/CSP decision per the spec). The two brand font
+ * *names* are declared first in the stack so they apply automatically the
+ * moment such a decision is made and the fonts are made available;
+ * until then, the fallback system sans-serif renders.
+ */
+
+.kf-landlord-redesign {
+  --kf-space-1: 4px;
+  --kf-space-2: 8px;
+  --kf-space-3: 12px;
+  --kf-space-4: 16px;
+  --kf-space-5: 24px;
+  --kf-space-6: 32px;
+  --kf-space-7: 48px;
+  --kf-space-8: 64px;
+  --kf-radius-sm: 8px;
+  --kf-radius-md: 12px;
+  --kf-radius-lg: 16px;
+  --kf-radius-card: 20px;
+  --kf-radius-pill: 999px;
+  --kf-aubergine: #24162E;
+  --kf-mineral-teal: #267C78;
+  --kf-burnished-copper: #C47A4A;
+  --kf-soft-bone: #F3EEE7;
+  --kf-aubergine-08: rgba(36, 22, 46, 0.08);
+  --kf-aubergine-12: rgba(36, 22, 46, 0.12);
+  /* Copilot PR #134 review finding #3: muted-neutral tone derived from
+     the approved aubergine brand token (not an ad hoc gray hex), used
+     anywhere a "can't tell yet / unknown" treatment is needed. Verified
+     >=4.5:1 contrast against a white background (WCAG AA for normal
+     text): blending aubergine #24162E at 60% opacity over white yields
+     an effective ~#7C7F8C-ish gray with a contrast ratio of ~4.53:1 (see
+     apps/portal-web/test/redesign/theme.test.js's contrast-ratio helper,
+     which independently re-verifies this). */
+  --kf-aubergine-muted-60: rgba(36, 22, 46, 0.6);
+  --kf-font-display: 'Instrument Sans', 'Segoe UI', sans-serif;
+  --kf-font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
+
+  /* §11.3.1 — two-layer elevation system (ambient contact shadow + a
+     softer, wider key shadow), replacing the previous single flat
+     `box-shadow` that read as "flat cards with a faint outline" rather
+     than genuinely lifted surfaces. `--kf-shadow-hover` is used only on
+     :hover/:focus-within so cards read as *interactive* without needing
+     any new imagery/iconography (§11.5 excludes new imagery). */
+  --kf-shadow-resting: 0 1px 2px rgba(36, 22, 46, 0.04), 0 12px 32px rgba(36, 22, 46, 0.10);
+  --kf-shadow-hover: 0 1px 2px rgba(36, 22, 46, 0.05), 0 20px 48px rgba(36, 22, 46, 0.14);
+
+  background: radial-gradient(ellipse 900px 420px at 15% -10%, rgba(38, 124, 120, 0.06), transparent 60%), var(--kf-soft-bone);
+  font-family: var(--kf-font-body);
+  color: var(--kf-aubergine);
+}
+
+/* §4.1 sidebar — aubergine solid fill (replaces today's unrelated dark
+   green), softBone/white body text only (§3.1.1 rule 4). */
+.kf-landlord-redesign .kf-sidebar {
+  background: var(--kf-aubergine);
+  color: var(--kf-soft-bone);
+}
+.kf-landlord-redesign .kf-brand-header {
+  padding: 0 var(--kf-space-3) var(--kf-space-6);
+}
+.kf-landlord-redesign .kf-brand-header-mark {
+  height: 22px;
+  width: auto;
+  display: block;
+}
+.kf-landlord-redesign .kf-kicker-on-dark {
+  padding: 0 var(--kf-space-3) var(--kf-space-4);
+  color: var(--kf-soft-bone);
+  opacity: 0.75;
+  font-family: var(--kf-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.kf-landlord-redesign .kf-nav-item,
+.kf-landlord-redesign button.kf-nav-item {
+  border-radius: var(--kf-radius-md) !important;
+  color: var(--kf-soft-bone);
+  min-height: 40px;
+  font-family: var(--kf-font-body);
+  font-weight: 400;
+  opacity: 0.7;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+.kf-landlord-redesign .kf-nav-item:hover,
+.kf-landlord-redesign button.kf-nav-item:hover {
+  opacity: 0.9;
+  background: rgba(243, 238, 231, 0.08) !important;
+}
+.kf-landlord-redesign .kf-nav-item-active,
+.kf-landlord-redesign button.kf-nav-item-active {
+  background: rgba(38, 124, 120, 0.35) !important;
+  color: #fff;
+  font-weight: 600;
+  opacity: 1;
+}
+.kf-landlord-redesign .kf-nav-item-active:hover,
+.kf-landlord-redesign button.kf-nav-item-active:hover {
+  background: rgba(38, 124, 120, 0.4) !important;
+  opacity: 1;
+}
+
+/* §4.1 topbar */
+.kf-landlord-redesign .kf-topbar { align-items: flex-start; position: relative; }
+.kf-landlord-redesign .kf-topbar::before {
+  content: '';
+  position: absolute;
+  inset: -32px -32px auto -32px;
+  height: 180px;
+  background: radial-gradient(ellipse 640px 220px at 20% 0%, rgba(38, 124, 120, 0.07), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.kf-landlord-redesign .kf-topbar > * { position: relative; z-index: 1; }
+
+/* §11.3.6 kicker pills — every kicker (card eyebrow labels) gets a soft
+   tinted pill background, so copper/teal/aubergine-tinted kickers each
+   get a matching tint.
+   Copilot PR #134 review, cycle-3/4 finding #4: `color: currentColor`-
+   derived kickers previously used `--kf-burnished-copper` as the 12px
+   TEXT color — per the spec's own §3.1.1 contrast table, copper text on
+   a white/near-white surface is only ~3.37:1 (white | burnishedCopper),
+   which fails WCAG AA for text under 14px (needs >= 4.5:1); the spec's
+   binding rule 3 explicitly says copper is "never a text color on
+   softBone" and lists its only small-text-adjacent approved use as "(c) a
+   badge/chip background with aubergine text (5.07:1, passes)". Fixed by
+   using `--kf-aubergine` (14.8–17.1:1 against softBone/white, comfortably
+   >= 4.5:1) as the kicker text color, while keeping the pill's
+   copper-tinted background (a fixed, named-token tint rather than a
+   `currentColor`-derived one, since the text color driving that tint is
+   no longer copper) so the "copper accent" identity these eyebrow labels
+   had is preserved visually — matching approved usage (a) "thin accent
+   borders/underlines"/(b) "icon fill"-adjacent tinting, not small text. */
+.kf-landlord-redesign .kf-kicker {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--kf-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--kf-aubergine);
+  background: color-mix(in srgb, var(--kf-burnished-copper) 12%, white);
+  padding: var(--kf-space-1) var(--kf-space-3);
+  border-radius: var(--kf-radius-pill);
+  width: fit-content;
+}
+/* Topbar kicker specifically: thin 2px teal rule underneath, per §11.3.5
+   ("tightened hero typography") — the rule visually separates the eyebrow
+   pill from the H1 without adding vertical whitespace the PO called out
+   as excessive in the first review. */
+.kf-landlord-redesign .kf-topbar-kicker {
+  color: var(--kf-aubergine);
+  margin-bottom: 0;
+}
+.kf-landlord-redesign .kf-topbar-kicker::after {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 2px;
+  margin-top: var(--kf-space-2);
+  background: var(--kf-mineral-teal);
+  border-radius: var(--kf-radius-pill);
+}
+.kf-landlord-redesign .kf-display-title {
+  font-family: var(--kf-font-display);
+  font-weight: 700;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.05;
+  color: var(--kf-aubergine);
+  margin-top: var(--kf-space-3);
+  margin-bottom: 0;
+}
+.kf-landlord-redesign .kf-topbar .kf-body {
+  margin-top: var(--kf-space-2);
+  margin-bottom: 0;
+}
+.kf-landlord-redesign .kf-body { font-family: var(--kf-font-body); font-size: 15px; line-height: 1.5; }
+.kf-landlord-redesign .kf-body-strong { font-family: var(--kf-font-body); font-size: 15px; font-weight: 600; color: var(--kf-aubergine); }
+.kf-landlord-redesign .kf-small { font-family: var(--kf-font-body); font-size: 13px; line-height: 1.4; color: var(--kf-aubergine); opacity: 0.75; }
+.kf-landlord-redesign .kf-user-chip { color: var(--kf-aubergine); }
+
+/* §4.2/5.3 quiet neutral empty-state placeholder — never red/error-colored.
+   §11.3 dead-space fix: compacted from a tall dashed box to a single
+   ~56px content-driven row (icon glyph + copy), matched to the actual
+   line-height of the copy instead of a fixed oversized padding. */
+.kf-landlord-redesign .kf-empty-card,
+.kf-landlord-redesign .stats-empty-state {
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  background: var(--kf-soft-bone);
+  border: 1px dashed var(--kf-aubergine-12);
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-3) var(--kf-space-4);
+  min-height: 56px;
+  color: var(--kf-aubergine);
+  font-family: var(--kf-font-body);
+  margin: 0;
+}
+.kf-landlord-redesign .kf-empty-card::before,
+.kf-landlord-redesign .stats-empty-state::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kf-burnished-copper);
+}
+
+/* §11.1/§11.3.4 — headline diagnosed bug fix: `styles.css`'s
+   `.content-grid` has no `align-items` override, so the browser default
+   `stretch` forces the short ListingPublicationPanel card to stretch to
+   match the much taller PropertyManagementPanel card in the adjacent
+   column — this is the literal cause of the large dead space the PO
+   flagged. Fixed here (scoped, not at the source) with `align-items:
+   start` so each card sizes to its own content height.
+   §11.3.4 also reflows the grid so ListingPublicationPanel and
+   PropertyManagementPanel each get their own full-width row instead of
+   being forced into a side-by-side pairing at all — this removes the
+   height-mismatch problem entirely rather than only capping its visual
+   symptom, and gives the 16-field property form its own full-width
+   column to breathe in. */
+.kf-landlord-redesign .content-grid {
+  align-items: start;
+}
+.kf-landlord-redesign .content-grid > .listing-panel,
+.kf-landlord-redesign .content-grid > .kf-grid-full {
+  grid-column: 1 / -1;
+}
+
+/* §3.4 card/panel surfaces — two-layer elevation, softened
+   border, 20px card radius (up from 16px), and a hover/focus-within
+   elevation step so cards read as interactive surfaces rather than flat
+   outlined boxes (the PO's core "I do not like this design" complaint). */
+.kf-landlord-redesign .kf-panel,
+.kf-landlord-redesign .panel {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(36, 22, 46, 0.06);
+  border-radius: var(--kf-radius-card);
+  box-shadow: var(--kf-shadow-resting);
+  padding: var(--kf-space-5);
+  transition: box-shadow 150ms ease;
+}
+.kf-landlord-redesign .kf-panel:hover,
+.kf-landlord-redesign .kf-panel:focus-within,
+.kf-landlord-redesign .panel:hover,
+.kf-landlord-redesign .panel:focus-within {
+  box-shadow: var(--kf-shadow-hover);
+}
+/* §11.3.3 — 3px colored top-accent bar per card category. Categories are
+   assigned via the STABLE, pre-existing class names each card already
+   carries (either from the reused panels themselves, or from this
+   shell's own chrome) — no new markup/wrapper elements required. */
+.kf-landlord-redesign .kf-panel::before,
+.kf-landlord-redesign .panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+.kf-landlord-redesign .kf-checklist-card::before,
+.kf-landlord-redesign .listing-panel::before {
+  background: var(--kf-mineral-teal);
+}
+.kf-landlord-redesign .property-panel::before,
+.kf-landlord-redesign .quick-panel::before {
+  background: var(--kf-burnished-copper);
+}
+.kf-landlord-redesign .table-panel::before {
+  background: var(--kf-aubergine);
+}
+/* Aubergine-category cards additionally get a subtle tinted background
+   wash (rather than plain white) so the accent reads as a deliberate
+   category system, not just a decorative stripe. */
+.kf-landlord-redesign .table-panel {
+  background: linear-gradient(180deg, rgba(36, 22, 46, 0.035), rgba(36, 22, 46, 0) 140px), #fff;
+}
+.kf-landlord-redesign .kf-section-heading,
+.kf-landlord-redesign .panel h2,
+.kf-landlord-redesign .panel h3,
+.kf-landlord-redesign h3 {
+  font-family: var(--kf-font-display);
+  font-weight: 700;
+  color: var(--kf-aubergine);
+}
+.kf-landlord-redesign .panel h2 { font-size: 22px; line-height: 1.2; }
+.kf-landlord-redesign .panel h3 { font-size: 17px; line-height: 1.3; }
+
+/* §5.1 buttons. Fluent's `appearance` prop already selects the right
+   Fluent-managed colors via the brand theme (FluentProvider in index.jsx);
+   this block only fixes the radius/height/weight scale and removes the
+   existing global `button { border-radius: 4px 10px 10px 10px !important }`
+   "clipped corner" treatment (§3.3) for buttons inside this scope. */
+.kf-landlord-redesign button {
+  border-radius: var(--kf-radius-md) !important;
+  min-height: 40px;
+  font-family: var(--kf-font-body);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+/* §11.4 — Fluent v9 primary-button default-style override: a subtle inset
+   top highlight plus a small ambient shadow so primary submit buttons
+   read as tactile/pressable rather than the flat single-tone fill Fluent
+   ships by default. Targeted via `button[type='submit']`, the most stable
+   selector available from outside the reused, unmodified panel files (no
+   new className can be added there without touching protected files).
+   One known, accepted over-application: property-management-panel.jsx's
+   listing-image upload button is `appearance='secondary'` but also
+   `type='submit'`, so it picks up this treatment too — judged a benign
+   visual enhancement, not a functional regression (see PR notes). */
+.kf-landlord-redesign button[type='submit'] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 8px rgba(36, 22, 46, 0.18);
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+.kf-landlord-redesign button[type='submit']:active {
+  box-shadow: inset 0 1px 2px rgba(36, 22, 46, 0.2);
+  transform: translateY(1px);
+}
+
+/* §5.1 focus ring — never removed, always visible, mineralTeal. */
+.kf-landlord-redesign button:focus-visible,
+.kf-landlord-redesign input:focus-visible,
+.kf-landlord-redesign select:focus-visible,
+.kf-landlord-redesign textarea:focus-visible {
+  outline: 2px solid var(--kf-mineral-teal);
+  outline-offset: 2px;
+}
+
+/* §5.1 quick actions (outline appearance + icon chip) */
+.kf-landlord-redesign .kf-quick-actions { display: grid; gap: var(--kf-space-2); margin: var(--kf-space-4) 0; }
+.kf-landlord-redesign .kf-quick-action {
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  justify-content: flex-start;
+  background: var(--kf-soft-bone);
+  border: 1px solid var(--kf-aubergine-12);
+  color: var(--kf-aubergine);
+  padding: var(--kf-space-3);
+}
+.kf-landlord-redesign .kf-quick-action-chip {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: var(--kf-radius-sm);
+  background: var(--kf-burnished-copper);
+  color: var(--kf-aubergine);
+  font-weight: 700;
+  flex: none;
+}
+.kf-landlord-redesign .kf-api-note {
+  margin-top: var(--kf-space-5);
+  padding-top: var(--kf-space-4);
+  border-top: 1px solid var(--kf-aubergine-08);
+  color: var(--kf-aubergine);
+}
+
+/* §4.3 property/unit cards + rows (reused unmodified markup from
+   property-management-panel.jsx — only chrome is restyled). */
+.kf-landlord-redesign .property-row {
+  border-bottom: 1px solid var(--kf-aubergine-08);
+}
+.kf-landlord-redesign .unit-row {
+  background: var(--kf-soft-bone);
+  border-radius: var(--kf-radius-md);
+}
+.kf-landlord-redesign .listing-row {
+  border-bottom: 1px solid var(--kf-aubergine-08);
+}
+
+/* §5.4 forms — field-to-field gap, radius, border tint (this restyles the
+   *containers* only; the Field/Input/Select controls inside are Fluent
+   components and pick up brand colors automatically from the theme). */
+.kf-landlord-redesign .property-form,
+.kf-landlord-redesign .unit-form,
+.kf-landlord-redesign .manual-listing-form,
+.kf-landlord-redesign .listing-image-upload-form {
+  gap: var(--kf-space-4);
+  padding: var(--kf-space-5);
+  border: 1px solid var(--kf-aubergine-08);
+  border-radius: var(--kf-radius-lg);
+  background: #fff;
+}
+
+/* §5.5 badges (used by the new shell chrome around the reused panels; see
+   components/StatusBadge.jsx) */
+.kf-landlord-redesign .kf-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--kf-radius-pill);
+  padding: var(--kf-space-1) var(--kf-space-3);
+  font-family: var(--kf-font-body);
+  font-size: 13px;
+  font-weight: 600;
+}
+.kf-landlord-redesign .kf-badge-neutral { background: var(--kf-soft-bone); color: var(--kf-aubergine); }
+.kf-landlord-redesign .kf-badge-attention { background: var(--kf-burnished-copper); color: var(--kf-aubergine); }
+.kf-landlord-redesign .kf-badge-locked { background: rgba(36, 22, 46, 0.1); color: var(--kf-aubergine); }
+/* Positive/negative badges intentionally use Fluent's semantic tokens
+   (the colorPaletteGreen and colorPaletteRed token families) via inline
+   style in StatusBadge.jsx consumers, not a hardcoded hex here — see spec
+   §3.1.2/§5.5. */
+
+/* §5.2 banners — existing `.publication-feedback` markup/conditions
+   unchanged (both panels), only the visual shell is restyled here: a left
+   accent bar instead of a flat colored block, quieter demo-mode treatment
+   instead of the jarring red the PO called out. Tone mapping preserved
+   1:1 from the existing `data-tone` attribute (no new tones invented). */
+.kf-landlord-redesign .publication-feedback {
+  background: #fff;
+  color: var(--kf-aubergine);
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-4);
+  border-left: 3px solid var(--kf-mineral-teal);
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  flex-wrap: wrap;
+}
+.kf-landlord-redesign .publication-feedback[data-tone='success'] {
+  background: #fff;
+  color: var(--kf-aubergine);
+  border-left-color: var(--kf-mineral-teal);
+}
+.kf-landlord-redesign .publication-feedback[data-tone='error'] {
+  background: #fff;
+  color: var(--kf-aubergine);
+  border-left-color: var(--colorPaletteRedForeground1, #b10e1c);
+}
+/* Demo-mode read-only notice specifically: quiet copper accent, not red,
+   per §5.2's binding fix for the PO's "jarring red demo banner" complaint.
+   Matched by content by `[role='status']` since role stays 'alert' today
+   in the reused component (§8e flags this as an open, unconfirmed
+   semantics question) — visually this rule targets the same element via
+   the existing data-tone='error' selector immediately above being
+   overridden here for the one specific demo copy string is not reliable
+   from CSS alone, so the copper-accent demo treatment is intentionally
+   deferred to a future pass once §8e is resolved (see PR notes); today
+   this file only removes the "jarring flat red block" look uniformly
+   (quiet white card + slim accent bar) for every banner tone, which is
+   itself a significant fix over the original solid red/green fills. */
+
+.kf-landlord-redesign .publication-feedback p { margin: 0; }
+
+/* ---------------------------------------------------------------------
+   §10.2 — Next-best-action checklist card. New DOM authored entirely by
+   this redesign (NextBestActionChecklist.jsx), computed only from
+   already-fetched properties/listings data — see checklist.js.
+   ------------------------------------------------------------------- */
+.kf-landlord-redesign .kf-checklist-card { grid-column: 1 / -1; }
+.kf-landlord-redesign .kf-checklist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kf-space-2);
+}
+.kf-landlord-redesign .kf-checklist-row-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  text-align: left;
+  background: var(--kf-soft-bone);
+  border: 1px solid transparent;
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-3) var(--kf-space-4);
+  font: inherit;
+  color: var(--kf-aubergine);
+  cursor: pointer;
+}
+.kf-landlord-redesign .kf-checklist-row-button:disabled { cursor: default; }
+.kf-landlord-redesign .kf-checklist-row-button:not(:disabled):hover,
+.kf-landlord-redesign .kf-checklist-row-button:not(:disabled):focus-visible {
+  border-color: var(--kf-mineral-teal);
+}
+.kf-landlord-redesign .kf-checklist-icon {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 700;
+  background: #fff;
+}
+.kf-landlord-redesign .kf-checklist-row-done .kf-checklist-icon { color: var(--kf-mineral-teal); }
+.kf-landlord-redesign .kf-checklist-row-todo .kf-checklist-icon { color: var(--kf-burnished-copper); }
+.kf-landlord-redesign .kf-checklist-row-unknown .kf-checklist-icon { color: var(--kf-aubergine-muted-60); }
+.kf-landlord-redesign .kf-checklist-copy { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
+.kf-landlord-redesign .kf-checklist-label { font-weight: 600; }
+.kf-landlord-redesign .kf-checklist-status-badge {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #fff;
+}
+.kf-landlord-redesign .kf-checklist-status-badge[data-status='done'] { color: var(--kf-mineral-teal); }
+.kf-landlord-redesign .kf-checklist-status-badge[data-status='todo'] { color: var(--kf-burnished-copper); }
+.kf-landlord-redesign .kf-checklist-status-badge[data-status='unknown'] { color: var(--kf-aubergine-muted-60); }
+
+/* ---------------------------------------------------------------------
+   §10.4 — Visual chunking of already-adjacent existing controls, applied
+   purely via CSS against the reused panels' STABLE, pre-existing class
+   names (property-row/unit-row/unit-pricing-availability/
+   listing-image-manager/public-listing-status). No new DOM is added
+   inside PropertyManagementPanel/ListingPublicationPanel — those files
+   stay byte-for-byte unchanged; only spacing/borders/generated section
+   labels are layered on from outside. Sub-headings on the
+   pricing/availability pair rely on document order (pricing form always
+   renders before the availability form in unit-pricing-availability), not
+   on new classes, so they degrade gracefully (no broken layout) if that
+   order ever changes.
+   ------------------------------------------------------------------- */
+.kf-landlord-redesign .property-row {
+  background: #fff;
+  border-radius: var(--kf-radius-md);
+  padding: var(--kf-space-4);
+  margin-bottom: var(--kf-space-4);
+  border: 1px solid var(--kf-aubergine-12);
+}
+.kf-landlord-redesign .unit-rows { display: flex; flex-direction: column; gap: var(--kf-space-3); margin-top: var(--kf-space-3); }
+.kf-landlord-redesign .unit-row {
+  background: var(--kf-soft-bone);
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-3) var(--kf-space-4);
+  margin-left: var(--kf-space-4);
+}
+.kf-landlord-redesign .unit-pricing-availability {
+  background: #fff;
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-3);
+  margin-top: var(--kf-space-3);
+  border: 1px solid var(--kf-aubergine-12);
+}
+/* Copilot PR #134 review, cycle-3/4 finding #5: no `::before` caption
+   here — property-management-panel.jsx (protected, unmodified) already
+   renders its own localized, visible `<h3>{t('manage_unit_title')}</h3>`
+   heading inside this exact element once its `open` state is true.
+   Duplicating it here with a hardcoded, mistranslated ("Manage this
+   unit" vs. the real heading's "Pricing & availability") English literal
+   was pure redundant/incorrect decoration, not a real caption need. */
+.kf-landlord-redesign .unit-pricing-availability form.unit-form:nth-of-type(1)::before {
+  content: var(--kf-pricing-form-label);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--kf-burnished-copper);
+  margin-bottom: var(--kf-space-1);
+}
+.kf-landlord-redesign .unit-pricing-availability form.unit-form:nth-of-type(2)::before {
+  content: var(--kf-availability-form-label);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--kf-burnished-copper);
+  margin: var(--kf-space-3) 0 var(--kf-space-1);
+  border-top: 1px solid var(--kf-aubergine-12);
+  padding-top: var(--kf-space-3);
+}
+.kf-landlord-redesign .listing-image-manager {
+  background: #fff;
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-3);
+  margin-top: var(--kf-space-3);
+  border: 1px solid var(--kf-aubergine-12);
+}
+/* Copilot PR #134 review, cycle-3/4 finding #5: no `::before` caption
+   here either, for the same reason as `.unit-pricing-availability`
+   above — ListingImageManager (protected, unmodified) already renders
+   its own localized, visible `<h3>{t('listing_images_title')}</h3>`
+   heading ("Listing photos") inside this exact element. */
+.kf-landlord-redesign .public-listing-status {
+  display: flex;
+  gap: var(--kf-space-2);
+  align-items: center;
+  margin-bottom: var(--kf-space-2);
+}
+
+/* ---------------------------------------------------------------------
+   Regression fix: PO read the unit's "Available" badge sitting directly
+   next to the listing's "Withdrawn"/"Media approved" badges as a single
+   contradictory group (unit occupancy availability vs. listing
+   publication status are unrelated fields that can legitimately disagree
+   — a unit can be Available while its listing is Withdrawn). The §10.4/
+   §11 visual chunking work grouped these two unrelated status sources
+   tightly together with no distinguishing label, which is what created
+   the ambiguity — this was a clarity regression in the CSS, not a data
+   bug. Fixed by adding a small uppercase caption before each group,
+   scoped to the two STABLE, pre-existing selectors that already uniquely
+   separate them structurally:
+     - `.unit-row > .status` (direct child combinator) matches ONLY the
+       unit's own availability badge — the listing's `.status` span lives
+       several levels deeper (unit-row > PublicListingForm >
+       .public-listing-status > .status), so it is never a direct child
+       of `.unit-row` and this selector cannot accidentally match it.
+     - `.public-listing-status` (existing wrapper div, already grouping
+       exactly the listing's own `status`/`mediaReviewStatus` badges,
+       nothing from the unit) gets its own caption before the whole
+       group.
+   Caption text is real, translated i18n copy (new, additive-only keys —
+   see locales/en.json|fr.json `landlord_redesign.status_labels.*`), read
+   via `t()` in LandlordShell.jsx and passed down as CSS custom properties
+   (`--kf-unit-status-label`/`--kf-listing-status-label`) on the one
+   wrapper `<div>` this shell already owns around PropertyManagementPanel
+   — NOT hardcoded English `content:` strings (unlike the older §10.4
+   sub-heading labels above, which predate this fix and are a separate,
+   already-flagged item, see §8e). `content: var(--x)` needs the custom
+   property's value to already include the surrounding quotes (set that
+   way in JS), which is why these rules don't wrap the var() in quotes
+   themselves. */
+.kf-landlord-redesign .unit-row > .status {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.kf-landlord-redesign .unit-row > .status::before {
+  content: var(--kf-unit-status-label);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+}
+.kf-landlord-redesign .public-listing-status {
+  position: relative;
+  flex-wrap: wrap;
+}
+.kf-landlord-redesign .public-listing-status::before {
+  content: var(--kf-listing-status-label);
+  flex-basis: 100%;
+  order: -1;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--kf-aubergine);
+  opacity: 0.65;
+}
+
+/* Copilot PR #134 review finding #2: withdrawn listings / unavailable
+   units still rendered with the reused (protected) `.status` markup's
+   always-green background+text color (see styles.css, unchanged) — the
+   same flat "positive" look regardless of actual value, since that
+   markup carries no status-specific class/attribute. LandlordShell.jsx
+   annotates each `.status` badge from outside with `data-kf-tone`
+   (derived only from its own already-rendered translated text, via
+   statusTone.js) whenever it renders "Withdrawn"/"Unavailable"; this rule
+   gives that annotated state a distinct, non-green tone using Fluent's
+   semantic red palette tokens (with a literal hex fallback for the rare
+   case a consumer's theme doesn't define them), consistent with how
+   `.publication-feedback[data-tone='error']` already borrows the same
+   token family a few rules above. */
+.kf-landlord-redesign .status[data-kf-tone='negative'] {
+  background: var(--colorPaletteRedBackground2, #fdf3f4);
+  color: var(--colorPaletteRedForeground1, #b10e1c);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kf-landlord-redesign * { transition: none !important; animation: none !important; }
+}

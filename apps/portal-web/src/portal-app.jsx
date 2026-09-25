@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { Component, lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react';
 import {
   Avatar,
   Button,
@@ -16,6 +16,21 @@ import { PropertyManagementPanel } from './property-management-panel.jsx';
 import { useMembership } from './hooks/use-membership.js';
 import { useManagerListings } from './hooks/use-manager-listings.js';
 import { useRentalProperties } from './hooks/use-rental-properties.js';
+// Flag-gated landlord redesign (docs/product/LANDLORD_REDESIGN_SPEC.md);
+// isolated, additive, code-split so it is never fetched unless the flag is
+// on (see docs/engineering/REQUIREMENTS_GAPS.md, "Redesigned per-role
+// UI/UX with KEYFORTA branding"). This is the only mount point touched in
+// this existing file — everything else lives under ./redesign/landlord/.
+//
+// Copilot PR #134 review, cycle-4 finding #1 (comment 4099022183): the
+// flag predicate itself is deliberately NOT imported from
+// ./redesign/landlord/ (it lives in the non-redesign ./feature-flags.js
+// module instead), so this file's only module-graph edge into the
+// redesign directory is the lazy() dynamic import directly below — the
+// redesign directory stays entirely behind that lazy import boundary.
+import { isLandlordRedesignEnabled } from './feature-flags.js';
+
+const LandlordRedesign = lazy(() => import('./redesign/landlord/index.jsx'));
 
 // Real Microsoft Entra B2B guest sign-in (issue #77 decision), mirroring
 // admin-web's working pattern. Falls back to an 'unavailable' status when
@@ -89,6 +104,60 @@ function LoginGate({ auth }) {
       </section>
     </div>
   );
+}
+
+// Copilot PR #134 review, cycle-6 finding (High): the lazy-loaded
+// landlord redesign previously used `<Suspense fallback={null}>`, which
+// left the screen blank while the chunk fetch was in flight, and had no
+// error boundary at all — a rejected dynamic import (transient
+// chunk/network failure) therefore left the portal permanently blank.
+// This is a real, visible loading state (mirrors the `role='status'` +
+// Fluent `Spinner` pattern already used by `LoginGate` above), shown only
+// for the brief window the redesign chunk is being fetched.
+function LandlordRedesignLoading() {
+  const { t } = useTranslation();
+  return (
+    <div className='auth-layout'>
+      <section className='auth-card'>
+        <div className='state-message' role='status'>
+          <Spinner size='tiny' />
+          <span>{t('workspace.loading_landlord_redesign')}</span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// Catches a rejected dynamic import of the landlord redesign chunk (e.g. a
+// transient network/CDN failure) and falls back to rendering the existing,
+// unmodified legacy landlord shell (`fallback`) instead of leaving the
+// portal blank. The failure is logged (not swallowed) so it stays
+// diagnosable.
+class LandlordRedesignErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    // eslint-disable-next-line no-console
+    console.error(
+      'Landlord redesign chunk failed to load; falling back to the legacy landlord workspace.',
+      error,
+      info,
+    );
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
 }
 
 function PendingWorkspaceAccess({ auth, onSignOut }) {
@@ -211,7 +280,12 @@ export function Portal() {
   const activeIndex = navKeys.indexOf(active);
   const activeLabel = activeIndex >= 0 ? role.nav[activeIndex] : role.nav[0];
   const roleActions = t(`actions.${roleKey}`, { returnObjects: true });
-  return (
+
+  // This is the existing, unmodified legacy workspace shell — rendered for
+  // every non-landlord role, for landlords when the redesign flag is off,
+  // AND (see the error boundary below) as the fallback when the
+  // redesign's lazy chunk fails to load, so the portal never goes blank.
+  const legacyWorkspace = (
     <div className='app-shell'>
       <aside className='sidebar'>
         <AppBrand surface='PORTAL' />
@@ -289,6 +363,50 @@ export function Portal() {
       </main>
     </div>
   );
+
+  // Single flag-gated mount point for the additive landlord redesign (see
+  // ./redesign/landlord/). Every prop below is a value already computed
+  // above by the existing hooks/session logic — nothing new is fetched or
+  // authorized here.
+  //
+  // Copilot PR #134 review, cycle-6 finding (High): a rejected dynamic
+  // import (transient chunk/network failure) must not leave the portal
+  // blank. `LandlordRedesignErrorBoundary` catches that failure, logs it,
+  // and falls back to rendering `legacyWorkspace` — the exact same,
+  // unmodified shell landlords already see today — so the portal stays
+  // usable. The happy path (chunk loads successfully) is unchanged.
+  if (roleKey === 'landlord' && isLandlordRedesignEnabled()) {
+    return (
+      <LandlordRedesignErrorBoundary fallback={legacyWorkspace}>
+        <Suspense fallback={<LandlordRedesignLoading />}>
+          <LandlordRedesign
+            active={active}
+            completedAction={completedAction}
+            listingPublicationEmptyState={listingPublicationEmptyState}
+            managerListings={managerListings}
+            managerListingsError={managerListingsError}
+            managerListingsLoading={managerListingsLoading}
+            navKeys={navKeys}
+            onComplete={complete}
+            onLogout={logout}
+            onSetActive={setActive}
+            onToggleLanguage={toggleLanguage}
+            rentalProperties={rentalProperties}
+            rentalPropertiesError={rentalPropertiesError}
+            rentalPropertiesLoading={rentalPropertiesLoading}
+            retryManagerListings={retryManagerListings}
+            retryRentalProperties={retryRentalProperties}
+            role={role}
+            roleActions={roleActions}
+            session={session}
+            showListingPublication={showListingPublication}
+            showPropertyManagement={showPropertyManagement}
+          />
+        </Suspense>
+      </LandlordRedesignErrorBoundary>
+    );
+  }
+  return legacyWorkspace;
 }
 
 export function PortalApp() {

@@ -1,0 +1,35 @@
+{
+  "landlord_redesign": {
+    "checklist": {
+      "title_before_published": "Publiez votre première annonce",
+      "title_after_published": "Gardez vos annonces à jour",
+      "add_property": {
+        "label": "Ajouter une propriété",
+        "done_detail": "Votre portefeuille compte au moins une propriété.",
+        "todo_detail": "Commencez par le formulaire ci-dessous."
+      },
+      "set_pricing": {
+        "label": "Définir le prix et la disponibilité",
+        "unknown_detail": "Ouvrez une unité ci-dessous pour vérifier son prix et sa disponibilité."
+      },
+      "add_photos": {
+        "label": "Ajouter des photos à l'annonce",
+        "done_detail": "Au moins une annonce a des photos.",
+        "todo_detail": "Les annonces avec photos attirent davantage l'attention.",
+        "unknown_detail": "Ouvrez le gestionnaire de photos d'une annonce ci-dessous pour vérifier ses photos."
+      },
+      "publish_listing": {
+        "label": "Publier l'annonce",
+        "done_detail": "Au moins une annonce est publiée.",
+        "todo_detail": "Publiez une fois le prix, la disponibilité et les photos prêts."
+      },
+      "status_unknown": "Statut inconnu",
+      "status_done": "Fait",
+      "status_todo": "Pas encore"
+    },
+    "status_labels": {
+      "unit_status": "Statut de l'unité",
+      "listing_status": "Statut de l'annonce"
+    }
+  }
+}
