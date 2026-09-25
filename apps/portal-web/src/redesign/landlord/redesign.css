@@ -576,7 +576,7 @@
    evenly-spaced click targets) and visually consistent with the rest of
    the panel. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 260px));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
 }
 /* Design pass (UX/UI review, PR #135 further polish): the two sub-forms
    were both plain white on a white outer card, giving zero figure-ground
@@ -584,12 +584,24 @@
    block rather than two distinct groups. Reuse this file's existing
    white-outer/softBone-inner nesting idiom (see `.property-row` (white)
    containing `.unit-row` (--kf-soft-bone) above) instead of a border to
-   signal each sub-section's boundary. Also switches the phantom empty
-   grid tracks (`auto-fill`, which reserves a track even when unused)
-   to `auto-fit` (which collapses them to 0 width) — column *count/size*
-   is otherwise unchanged, so this doesn't reopen the auto-fill stretching
-   bug fixed above, it only removes the leftover invisible reserved
-   tracks the PO kept seeing as "dead space."
+   signal each sub-section's boundary.
+
+   Copilot PR #135 review, cycle-5 finding (correcting an earlier,
+   inaccurate revision of this comment): switching this rule's
+   `auto-fill` to `auto-fit` was tried and reverted — CSS Grid's
+   "collapse empty tracks" behavior only applies to tracks with no item
+   placed in OR spanning across them, and both the section caption
+   (`::before`, `grid-column: 1 / -1`) and the submit button below
+   (`grid-column: 1 / -1`) span every generated track in this row. That
+   means, with these full-width spanning items present, no track here is
+   ever "empty" regardless of `auto-fill` vs. `auto-fit` — the residual
+   whitespace visible to the right of a short field row genuinely cannot
+   be closed by a track-collapsing keyword alone, so `auto-fill`
+   (matching the protected base styles.css convention) is kept instead of
+   a keyword that implies a benefit it can't actually deliver here. The
+   full-width tinted `--kf-soft-bone` background below is what makes the
+   remaining space read as *intentional* card padding instead of a
+   layout bug, which is the actual fix for the "dead space" complaint. */
 
    PO feedback (further round): the two rounded, gapped tinted boxes
    still read as two separate "cards" rather than one cohesive panel.

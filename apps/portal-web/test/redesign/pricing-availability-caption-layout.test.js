@@ -40,24 +40,27 @@ describe('redesign.css unit-pricing-availability section captions span the full 
     expect(match[1]).toMatch(/grid-column:\s*1\s*\/\s*-1/);
   });
 
-  it('caps each grid column at a comfortable max width AND collapses unused tracks (auto-fit, not auto-fill)', () => {
+  it('caps each grid column at a comfortable max width (auto-fill, matching the protected base convention)', () => {
     // PO feedback (PR #135, ergonomic + design-review polish passes):
     // an earlier revision capped the whole form/card at `max-width:
     // 520px`, which stopped fields from stretching but relocated the
     // "large dead area" complaint one level up (a narrow card floating
     // disconnected mid-row). Capping the column *size* instead
-    // (`minmax(220px, 260px)`) fixed that, but `auto-fill` still
-    // *reserves* as many 260px tracks as fit the row even when unused —
-    // those invisible reserved tracks were the literal mechanical cause
-    // of the still-visible "dead space to the right." Switching to
-    // `auto-fit` collapses unused tracks to 0 width instead of reserving
-    // them, while keeping the same per-column size cap (column
-    // count/order/stacking is otherwise unchanged).
+    // (`minmax(220px, 260px)`) fixed that.
+    //
+    // Copilot PR #135 review, cycle-5 finding: a since-reverted revision
+    // switched this to `auto-fit`, claiming it would collapse unused
+    // tracks — but the section caption and submit button both span
+    // every generated track (`grid-column: 1 / -1`), so no track here is
+    // ever genuinely "empty" and `auto-fit` behaves identically to
+    // `auto-fill` in this specific layout. `auto-fill` (matching the
+    // protected base styles.css convention) is kept instead of a keyword
+    // that implies an unearned benefit.
     const match = css.match(
       /\.kf-landlord-redesign \.unit-pricing-availability form\.unit-form\s*\{([^}]*)\}/,
     );
     expect(match).not.toBeNull();
-    expect(match[1]).toMatch(/grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(220px,\s*260px\)\)/);
+    expect(match[1]).toMatch(/grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(220px,\s*260px\)\)/);
   });
 
   it('gives each sub-form a soft-tinted surface (not white-on-white) for real visual grouping', () => {
