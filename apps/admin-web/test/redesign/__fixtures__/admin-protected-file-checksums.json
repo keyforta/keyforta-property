@@ -81,6 +81,7 @@
   "apps/portal-web/test/redesign/tenant-scope-boundary.test.js": "b16343d7508cc8196364c331321c416b79a21771a85d3b0d1a81bf07a5714c58",
   "apps/portal-web/test/redesign/tenant-shell-axe.test.jsx": "ae9f468e25421ad187dac51c4e9f6f7e15af795ae69f602be1502e5e8ae2e9f3",
   "apps/portal-web/test/redesign/theme.test.js": "0d38520475eb9e7fa378659420c700c6bc5a4103951cf37f57572e69f2b1d171",
+  "apps/portal-web/test/redesign/unit-list-table-layout.test.js": "27fb133db9aeea8ca77768ac17fc039858c596a802cfdcb8553a347ed8114a41",
   "apps/portal-web/test/redesign/unit-management.test.js": "1d123af134446dda7434e7745a7855f22fee865a698d0742cb33cf17c9839862",
   "apps/portal-web/test/setup.js": "4e0ae5e9c8eb2292e303b51832fd9a6e49f5ac993ea6a20ef77fa147e5db5084",
   "apps/portal-web/vite.config.js": "c87f95579c073179baa7371e2f39a387a85091189482f7a4c13bafe10af79e36",
