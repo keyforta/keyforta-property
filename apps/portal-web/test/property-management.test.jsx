@@ -402,6 +402,9 @@ describe('PropertyManagementPanel', () => {
       version: 1,
     };
     const { container } = renderPanel({ listings: [draftListing] });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Listing photos' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Listing photos' }));
     await waitFor(() => expect(list).toHaveBeenCalled());
     expect((await axe(container)).violations).toEqual([]);
   });
@@ -536,7 +539,10 @@ describe('PropertyManagementPanel', () => {
       expect(container.querySelector('.unit-row > .media-status').textContent).toBe('Pending');
       expect(screen.getByRole('button', { name: 'Edit draft listing' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Create public listing' })).not.toBeInTheDocument();
-      await waitFor(() => expect(list).toHaveBeenCalledWith(`public-listings/${draftListing.id}/images`));
+      // The image manager is now a Dialog (opened on demand), so its
+      // images are fetched lazily once opened, not eagerly on mount.
+      expect(screen.getByRole('button', { name: 'Listing photos' })).toBeInTheDocument();
+      expect(list).not.toHaveBeenCalled();
     });
 
     it('edits a draft listing, sending the expected version for optimistic concurrency, and preserves its existing legacy image URLs (fixes a silent-image-wipe regression)', async () => {
@@ -667,6 +673,29 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ enableListingActions: true, listingsFeedError: true, listings: [] });
       expect(screen.getByText('We couldn\'t load your assigned listings. This does not mean you have no listings — try again.')).toBeInTheDocument();
     });
+
+    // REQ-039: the Product Owner reported "I have withdrawn unit but I
+    // can't add new images to them" — migrations 0034/0035 already widen
+    // the backend guard to accept `withdrawn` alongside `draft`, so the
+    // portal UI must keep rendering the image manager's trigger for a
+    // withdrawn listing (unlike a published one, which stays fully
+    // read-only). The image manager itself is now a Dialog (like every
+    // other form in this panel), so opening it is required before its
+    // fields become visible.
+    it('still renders the image manager for a withdrawn listing (REQ-039), unlike a published listing', async () => {
+      const withdrawnListing = { ...publishedListing, status: 'withdrawn' };
+      renderPanel({ enableListingActions: true, listings: [withdrawnListing] });
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Listing photos' })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: 'Listing photos' }));
+      expect(await screen.findByText('Listing photos')).toBeInTheDocument();
+      await waitFor(() => expect(list).toHaveBeenCalledWith(`public-listings/${withdrawnListing.id}/images`));
+    });
+
+    it('does not render the image manager for a published listing', () => {
+      renderPanel({ enableListingActions: true, listings: [publishedListing] });
+      expect(screen.queryByRole('button', { name: 'Listing photos' })).not.toBeInTheDocument();
+    });
   });
 
   describe('listing image upload (REQ-038)', () => {
@@ -695,6 +724,7 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ listings: [draftListing] });
 
       fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
       await waitFor(() => expect(list).toHaveBeenCalled());
 
       fireEvent.change(screen.getByLabelText('Room*'), { target: { value: 'kitchen' } });
@@ -717,6 +747,7 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ listings: [draftListing] });
 
       fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
       await waitFor(() => expect(list).toHaveBeenCalled());
 
       fireEvent.change(screen.getByLabelText('Photo file*'), { target: { files: [jpegFile()] } });
@@ -731,6 +762,7 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ listings: [draftListing] });
 
       fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
       await waitFor(() => expect(list).toHaveBeenCalled());
 
       expect(screen.getByRole('button', { name: 'Upload photo' })).toBeDisabled();
@@ -749,6 +781,7 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ listings: [draftListing] });
 
       fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
       await waitFor(() => expect(list).toHaveBeenCalled());
 
       fireEvent.change(screen.getByLabelText('Room*'), { target: { value: 'kitchen' } });
@@ -768,6 +801,7 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ listings: [draftListing] });
 
       fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
       await waitFor(() => expect(list).toHaveBeenCalled());
 
       const oversized = new File([new Uint8Array(11 * 1024 * 1024)], 'big.jpg', { type: 'image/jpeg' });
@@ -784,6 +818,7 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ listings: [draftListing] });
 
       fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
       await waitFor(() => expect(list).toHaveBeenCalled());
 
       const invalid = new File(['abc'], 'photo.gif', { type: 'image/gif' });
@@ -811,6 +846,7 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ listings: [draftListing] });
 
       fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
       expect(await screen.findByRole('button', { name: 'Delete' })).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
@@ -821,6 +857,38 @@ describe('PropertyManagementPanel', () => {
       ));
       await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument());
       expect(await screen.findByText('No photos uploaded yet.')).toBeInTheDocument();
+    });
+
+    // PO live-review polish pass ("Listing photos" dialog): the existing-
+    // images list used to be a bare `<ul><li>` of "<room>    Delete" text
+    // with no row separation, and Delete rendered as plain bold text
+    // despite being a real Fluent `Button`. This asserts the row now has
+    // its own structural hook (`.listing-image-row`) with the room name
+    // in a dedicated `.listing-image-room` element and an icon-only,
+    // accessible Delete button — a real Fluent icon, not just text —
+    // without changing any of the delete button's existing test hooks
+    // (accessible name, disabled/deleting states) asserted elsewhere in
+    // this file.
+    it('renders each existing image as a distinct, bordered row with an icon delete action (visual polish)', async () => {
+      list.mockReset();
+      list.mockResolvedValueOnce({
+        items: [{ imageId: 'eeeeeeee-3333-4333-8333-333333333333', room: 'kitchen', mediaType: 'image/jpeg', sizeBytes: 3, position: 0, createdAt: '2026-09-22T00:00:00.000Z' }],
+        meta: { requestId: 'req-image-list-row' },
+      });
+      renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
+
+      const deleteButton = await screen.findByRole('button', { name: 'Delete' });
+      const row = deleteButton.closest('.listing-image-row');
+      expect(row).not.toBeNull();
+      expect(within(row).getByText('Kitchen')).toHaveClass('listing-image-room');
+      // Icon-only: no visible "Delete" text node sits next to the room
+      // name any more — the accessible name comes from the button's own
+      // aria-label/Tooltip, and the button renders a real icon element.
+      expect(deleteButton).toHaveAttribute('aria-label', 'Delete');
+      expect(deleteButton.querySelector('svg')).not.toBeNull();
     });
 
     it('disables uploads once the listing has 10 images (REQ-037 cap)', async () => {
@@ -837,6 +905,7 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ listings: [draftListing] });
 
       fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
       await waitFor(() => expect(screen.getByRole('button', { name: 'Upload photo' })).toBeDisabled());
       expect(screen.getByText('This listing already has the maximum of 10 photos allowed.')).toBeInTheDocument();
     });
@@ -863,6 +932,7 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ listings: [listingWithLegacyUrls] });
 
       fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
       await waitFor(() => expect(screen.getByRole('button', { name: 'Upload photo' })).toBeDisabled());
       expect(screen.getByText('This listing already has the maximum of 10 photos allowed.')).toBeInTheDocument();
     });

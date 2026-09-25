@@ -64,6 +64,15 @@
   height: 100vh;
   overflow-y: auto;
 }
+/* See the matching landlord redesign.css rule/comment: the legacy
+   `.main { width: min(1240px, 100%) }` leaves dead space on wide
+   viewports because `.main` is a flex item of `.app-shell` with no
+   flex-grow. Applied here too for the same "full-width card" layout. */
+.kf-manager-redesign .main {
+  width: auto;
+  max-width: 1600px;
+  flex: 1;
+}
 .kf-manager-redesign .kf-brand-header {
   padding: 0 var(--kf-space-3) var(--kf-space-6);
 }

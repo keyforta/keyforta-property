@@ -399,17 +399,41 @@ button {
 .listing-image-manager h3 {
   margin: 0;
 }
+/* REQ-038 caps a listing at MAX_LISTING_IMAGES (10) combined images, so
+   this list can grow to 10 rows. Without a height cap the dialog itself
+   grows with the list, which can push the upload sub-form/Cancel button
+   off-screen. This scroll constraint is a genuine behavior requirement
+   (not a redesign-only opinion), so it lives here rather than only under
+   `.kf-landlord-redesign`, ensuring legacy (flag-off) consumers of
+   ListingImageManager get internal scrolling too. */
 .listing-image-list {
   display: grid;
   gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 224px;
 }
 .listing-image-list li {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+/* The native file input's label and control used to render inline on the
+   same line ("Photo file*| Choose File | No file chosen"), which reads as
+   unstyled raw HTML regardless of flag state — this is a genuine layout
+   bug affecting both the legacy (flag-off) and redesigned UI, not a
+   redesign-only visual preference, so it's fixed here rather than scoped
+   under `.kf-landlord-redesign` (matching this file's own convention of
+   only scoping changes that are redesign-specific opinions). */
+.listing-image-file-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
 }
 .unit-availability-occupied-note {
   margin: 0;

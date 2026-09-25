@@ -23,7 +23,7 @@ import {
   Textarea,
   Tooltip,
 } from '@fluentui/react-components';
-import { ChevronLeft20Regular, ChevronRight20Regular, CloudAdd20Regular, CloudArrowUp20Regular, CloudDismiss20Regular, Money20Regular } from '@fluentui/react-icons';
+import { ChevronLeft20Regular, ChevronRight20Regular, CloudAdd20Regular, CloudArrowUp20Regular, CloudDismiss20Regular, Delete20Regular, ImageMultiple20Regular, Money20Regular } from '@fluentui/react-icons';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
@@ -540,12 +540,14 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
   );
 }
 
-// REQ-038: uploads/lists/deletes a draft PublicListing's images. Rendered
-// only for a `draft` listing (migration 0032's app.upload_public_listing_image
-// and app.delete_public_listing_image both reject a non-draft listing), so
-// this component is only ever mounted alongside PublicListingForm's
-// draft-status views, never for a published/withdrawn listing.
+// REQ-038/REQ-039: uploads/lists/deletes a `draft` or `withdrawn`
+// PublicListing's images (migrations 0032/0034 widen
+// app.upload_public_listing_image/app.delete_public_listing_image to
+// accept both statuses; only `published` rejects). This component is only
+// ever mounted alongside PublicListingForm's draft/withdrawn-status views.
 function ListingImageManager({ disabled, legacyImageCount = 0, listingId, session, t }) {
+  const [open, setOpen] = useState(false);
+  const [anchorRef, mountNode] = useRedesignDialogMountNode();
   const [images, setImages] = useState([]);
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const [imagesError, setImagesError] = useState('');
@@ -574,11 +576,16 @@ function ListingImageManager({ disabled, legacyImageCount = 0, listingId, sessio
   };
 
   useEffect(() => {
+    // Lazily loads only once the dialog is actually open — this component
+    // is now always mounted (its trigger button lives in the table row),
+    // so fetching unconditionally on mount would hit the API for every
+    // draft/withdrawn row's images before the landlord ever opens one.
+    if (!open) return;
     setImages([]);
     setImagesLoaded(false);
     fetchImages();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listingId]);
+  }, [listingId, open]);
 
   // REQ-038's 10-image cap is combined across legacy imageUrls and
   // uploaded images (both are rendered together in the public gallery), so
@@ -654,83 +661,114 @@ function ListingImageManager({ disabled, legacyImageCount = 0, listingId, sessio
   };
 
   return (
-    <div className='listing-image-manager'>
-      <h3>{t('property_management.listing_images_title')}</h3>
-      {imagesError ? <p className='field-error' role='alert'>{imagesError}</p> : null}
-      {imagesLoaded && images.length === 0 && !imagesError ? (
-        <p>{t('property_management.listing_images_empty')}</p>
-      ) : null}
-      {images.length > 0 ? (
-        <ul className='listing-image-list'>
-          {images.map((image) => (
-            <li key={image.imageId}>
-              <span>{t(`property_management.room.${image.room}`)}</span>
-              <Button
-                appearance='subtle'
-                disabled={disabled || deletingImageId === image.imageId}
-                onClick={() => handleDelete(image.imageId)}
-                type='button'
-              >
-                {deletingImageId === image.imageId
-                  ? <><Spinner size='tiny' /> {t('property_management.listing_image_deleting')}</>
-                  : t('property_management.listing_image_delete')}
+    // `surfaceMotion`/`backdropMotion` are disabled here (and only here) because this dialog's
+    // content height changes after mount (images load asynchronously via fetchImages()), which made
+    // the default ~250ms scale/fade entrance animation's transitional frames (undersized surface,
+    // partially-dimmed backdrop) visibly overlap the page content behind it. The other dialogs in
+    // this file have static content and keep their default Fluent entrance motion.
+    <Dialog open={open} onOpenChange={(_event, data) => setOpen(data.open)} surfaceMotion={null} backdropMotion={null}>
+      <DialogTrigger disableButtonEnhancement>
+        <Tooltip content={t('property_management.listing_images_title')} relationship='label'>
+          <Button appearance='subtle' disabled={disabled} icon={<ImageMultiple20Regular />} ref={anchorRef} onClick={() => setOpen(true)} />
+        </Tooltip>
+      </DialogTrigger>
+      <DialogSurface mountNode={mountNode}>
+        <DialogBody>
+          <DialogTitle>{t('property_management.listing_images_title')}</DialogTitle>
+          <DialogContent className='listing-image-manager'>
+            {imagesError ? <p className='field-error' role='alert'>{imagesError}</p> : null}
+            {imagesLoaded && images.length === 0 && !imagesError ? (
+              <p>{t('property_management.listing_images_empty')}</p>
+            ) : null}
+            {images.length > 0 ? (
+              <ul className='listing-image-list'>
+                {images.map((image) => {
+                  const isDeleting = deletingImageId === image.imageId;
+                  const deleteLabel = isDeleting
+                    ? t('property_management.listing_image_deleting')
+                    : t('property_management.listing_image_delete');
+                  return (
+                    <li className='listing-image-row' key={image.imageId}>
+                      <span className='listing-image-room'>{t(`property_management.room.${image.room}`)}</span>
+                      <Tooltip content={deleteLabel} relationship='label'>
+                        <Button
+                          appearance='subtle'
+                          aria-label={deleteLabel}
+                          disabled={disabled || isDeleting}
+                          icon={isDeleting ? <Spinner size='tiny' /> : <Delete20Regular />}
+                          onClick={() => handleDelete(image.imageId)}
+                          type='button'
+                        />
+                      </Tooltip>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            <form className='listing-image-upload-form' noValidate onSubmit={handleUpload}>
+              <Field label={t('property_management.field.listing_image_room')} required>
+                <Select disabled={disabled || uploading || capReached} onChange={(_event, data) => setRoom(data.value)} value={room}>
+                  <option value=''>{t('property_management.listing_image_room_placeholder')}</option>
+                  {publicListingImageRooms.map((option) => (
+                    <option key={option} value={option}>{t(`property_management.room.${option}`)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <div className='listing-image-file-field'>
+                <label htmlFor={fileInputId}>{t('property_management.field.listing_image_file')}<span aria-hidden='true'>*</span></label>
+                <input
+                  accept='image/jpeg,image/png'
+                  disabled={disabled || uploading || capReached}
+                  id={fileInputId}
+                  ref={fileInputRef}
+                  required
+                  type='file'
+                />
+              </div>
+              <Field>
+                <Checkbox
+                  checked={attestationAccepted}
+                  disabled={disabled || uploading || capReached}
+                  id={attestationId}
+                  label={t('property_management.listing_image_attestation_label')}
+                  onChange={(_event, data) => setAttestationAccepted(Boolean(data.checked))}
+                  required
+                />
+              </Field>
+              {formError ? <p className='field-error' role='alert'>{formError}</p> : null}
+              {capReached ? <p>{t('property_management.listing_image_cap_reached')}</p> : null}
+              <Button appearance='secondary' disabled={disabled || uploading || capReached || !attestationAccepted} type='submit'>
+                {uploading
+                  ? <><Spinner size='tiny' /> {t('property_management.listing_image_uploading')}</>
+                  : t('property_management.listing_image_upload_submit')}
               </Button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <form className='listing-image-upload-form' noValidate onSubmit={handleUpload}>
-        <Field label={t('property_management.field.listing_image_room')} required>
-          <Select disabled={disabled || uploading || capReached} onChange={(_event, data) => setRoom(data.value)} value={room}>
-            <option value=''>{t('property_management.listing_image_room_placeholder')}</option>
-            {publicListingImageRooms.map((option) => (
-              <option key={option} value={option}>{t(`property_management.room.${option}`)}</option>
-            ))}
-          </Select>
-        </Field>
-        <div className='listing-image-file-field'>
-          <label htmlFor={fileInputId}>{t('property_management.field.listing_image_file')}<span aria-hidden='true'>*</span></label>
-          <input
-            accept='image/jpeg,image/png'
-            disabled={disabled || uploading || capReached}
-            id={fileInputId}
-            ref={fileInputRef}
-            required
-            type='file'
-          />
-        </div>
-        <Field>
-          <Checkbox
-            checked={attestationAccepted}
-            disabled={disabled || uploading || capReached}
-            id={attestationId}
-            label={t('property_management.listing_image_attestation_label')}
-            onChange={(_event, data) => setAttestationAccepted(Boolean(data.checked))}
-            required
-          />
-        </Field>
-        {formError ? <p className='field-error' role='alert'>{formError}</p> : null}
-        {capReached ? <p>{t('property_management.listing_image_cap_reached')}</p> : null}
-        <Button appearance='secondary' disabled={disabled || uploading || capReached || !attestationAccepted} type='submit'>
-          {uploading
-            ? <><Spinner size='tiny' /> {t('property_management.listing_image_uploading')}</>
-            : t('property_management.listing_image_upload_submit')}
-        </Button>
-      </form>
-    </div>
+            </form>
+          </DialogContent>
+          <DialogActions>
+            <DialogTrigger disableButtonEnhancement>
+              <Button appearance='subtle' type='button'>
+                {t('property_management.cancel')}
+              </Button>
+            </DialogTrigger>
+          </DialogActions>
+        </DialogBody>
+      </DialogSurface>
+    </Dialog>
   );
 }
 
 // Builds/edits the PublicListing draft (REQ-037 / issue #116's final slice):
 // a unit without any listing gets a create form; a unit whose listing is
 // still `draft` gets an edit form pre-filled from the current draft;
-// `published`/`withdrawn` listings show read-only status only, since
-// content changes to a published listing must go through withdraw first
-// (ListingPublicationPanel), matching app.update_public_listing_draft's
-// draft-only precondition (migration 0030). Once a draft listing exists,
-// its images are managed independently by ListingImageManager (REQ-038):
+// `published` listings show read-only status only (title/summary edits
+// must go through withdraw first, via ListingPublicationPanel, matching
+// app.update_public_listing_draft's draft-only precondition, migration
+// 0030); `withdrawn` listings also show read-only title/summary status,
+// but — per REQ-039 — keep editing their images the same way a `draft`
+// listing does. Once a `draft` or `withdrawn` listing exists, its images
+// are managed independently by ListingImageManager (REQ-038/REQ-039):
 // title/summary edits and photo uploads are separate concerns, so the
-// image manager renders whenever a draft listing exists regardless of
+// image manager renders whenever such a listing exists regardless of
 // whether the title/summary edit form is open.
 function PublicListingForm({
   busyListingId,
@@ -754,6 +792,12 @@ function PublicListingForm({
   }, [listing]);
   const set = (field) => (_event, data) => setForm((current) => ({ ...current, [field]: data.value }));
   const isDraft = listing?.status === 'draft';
+  // REQ-039: a `withdrawn` listing's media follows the exact same
+  // upload/replace/delete rules a `draft` listing already does
+  // (migrations 0034/0035 widened the backend guard accordingly), so
+  // ListingImageManager must keep rendering for `withdrawn`, not just
+  // `draft`. Only `published` truly has nothing left to edit here.
+  const isWithdrawn = listing?.status === 'withdrawn';
   const hasListing = Boolean(listing);
 
   if (hasListing && !isDraft) {
@@ -761,37 +805,53 @@ function PublicListingForm({
     // columns"): a published/withdrawn listing's own read-only
     // status/media-review badges now live in the row's own dedicated
     // "Listing status"/"Media" columns (see PropertyManagementPanel
-    // below) instead of here, and REQ-038's ListingImageManager only
-    // ever mounts for a `draft` listing (migration 0032's upload/delete
-    // commands both reject a non-draft listing) — so there is genuinely
-    // nothing left for the Actions column to render for a
-    // published/withdrawn listing, UNLESS the combined Landlord view
+    // below) instead of here — so the Actions column itself has nothing
+    // left to render for a published/withdrawn listing beyond the
+    // Publish/Withdraw command, UNLESS the combined Landlord view
     // (PO feedback: "combine Listing publication and Property portfolio
-    // in the same table") also delegates the Publish/Withdraw command
-    // here via `enableListingActions`. Legacy consumers (portal-app.jsx's
+    // in the same table") also delegates that command here via
+    // `enableListingActions`. Legacy consumers (portal-app.jsx's
     // flag-off view, which still renders the separate
     // ListingPublicationPanel) never pass this prop, so they keep
-    // returning null exactly as before.
-    if (!enableListingActions) return null;
-    const copy = statusCopy(listing.status, t);
-    const isBusy = busyListingId === listing.id;
-    // PO feedback ("for the actions... just icons are enough"; "need a
-    // tooltip on the buttons, no border"): icon-only, matching
-    // UnitPricingAvailabilityForm's own toggle above — a Fluent `Tooltip`
-    // (`relationship='label'`) supplies both the hover/focus label and
-    // the accessible name, and `appearance='subtle'` removes the visible
-    // border. `CloudArrowUp20Regular` is "Publish", `CloudDismiss20Regular`
-    // is "Withdraw" (copy.command is the stable wire value driving this,
-    // never the translated `action` label).
+    // returning null exactly as before (for `withdrawn`, they still
+    // reach ListingImageManager below).
+    const actionButton = enableListingActions
+      ? (() => {
+          const copy = statusCopy(listing.status, t);
+          const isBusy = busyListingId === listing.id;
+          // PO feedback ("for the actions... just icons are enough";
+          // "need a tooltip on the buttons, no border"): icon-only,
+          // matching UnitPricingAvailabilityForm's own toggle above — a
+          // Fluent `Tooltip` (`relationship='label'`) supplies both the
+          // hover/focus label and the accessible name, and
+          // `appearance='subtle'` removes the visible border.
+          // `CloudArrowUp20Regular` is "Publish", `CloudDismiss20Regular`
+          // is "Withdraw" (copy.command is the stable wire value driving
+          // this, never the translated `action` label).
+          return (
+            <Tooltip content={copy.action} relationship='label'>
+              <Button
+                appearance='subtle'
+                disabled={disabled || isBusy}
+                icon={isBusy ? <Spinner size='tiny' /> : copy.command === 'publish' ? <CloudArrowUp20Regular /> : <CloudDismiss20Regular />}
+                onClick={() => onPublishWithdraw(listing.id, copy.command)}
+              />
+            </Tooltip>
+          );
+        })()
+      : null;
+    if (!isWithdrawn) return actionButton;
     return (
-      <Tooltip content={copy.action} relationship='label'>
-        <Button
-          appearance='subtle'
-          disabled={disabled || isBusy}
-          icon={isBusy ? <Spinner size='tiny' /> : copy.command === 'publish' ? <CloudArrowUp20Regular /> : <CloudDismiss20Regular />}
-          onClick={() => onPublishWithdraw(listing.id, copy.command)}
+      <>
+        {actionButton}
+        <ListingImageManager
+          disabled={disabled}
+          legacyImageCount={listing.imageUrls?.length ?? 0}
+          listingId={listing.id}
+          session={session}
+          t={t}
         />
-      </Tooltip>
+      </>
     );
   }
 
