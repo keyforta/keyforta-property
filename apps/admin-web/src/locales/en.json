@@ -45,7 +45,11 @@
     "loading_applications": "Loading applications...",
     "empty_state": "No onboarding applications are awaiting review.",
     "access_denied": "Access denied",
-    "applications_list_label": "Landlord onboarding applications"
+    "applications_list_label": "Landlord onboarding applications",
+    "table_column_applicant": "Applicant",
+    "table_column_status": "Status",
+    "table_column_dates": "Dates",
+    "table_column_decision": "Decision"
   },
   "media_review": {
     "untitled_listing": "Untitled listing",
@@ -78,6 +82,11 @@
     "page_subtitle": "Approve or reject the photos and description submitted for a public listing before it can be published.",
     "loading_reviews": "Loading media reviews...",
     "empty_state": "No public listings are awaiting media review.",
-    "list_label": "Public listings awaiting media review"
+    "list_label": "Public listings awaiting media review",
+    "table_column_listing": "Listing",
+    "table_column_property_unit": "Property / unit",
+    "table_column_status": "Status",
+    "table_column_media": "Media",
+    "table_column_decision": "Decision"
   }
 }

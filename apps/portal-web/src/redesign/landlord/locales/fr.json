@@ -30,6 +30,10 @@
     "status_labels": {
       "unit_status": "Statut de l'unité",
       "listing_status": "Statut de l'annonce"
+    },
+    "column_labels": {
+      "unit_name": "Unité",
+      "unit_type": "Type"
     }
   }
 }

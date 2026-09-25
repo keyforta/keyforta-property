@@ -545,12 +545,56 @@
   margin-bottom: var(--kf-space-4);
   border: 1px solid var(--kf-aubergine-12);
 }
-.kf-landlord-redesign .unit-rows { display: flex; flex-direction: column; gap: var(--kf-space-3); margin-top: var(--kf-space-3); }
+/* Product feedback (post-#139): present unit lists as tables (Fluent's
+   Table pattern), not stacked cards. `property-management-panel.jsx` is
+   checksum-protected and cannot receive new DOM (see statusTone.js's own
+   header comment for why this shell never inserts child nodes into it),
+   so a real `<table>`/shared `<thead>` isn't achievable here — this is a
+   CSS-only Grid layout on the SAME reused elements, giving each unit its
+   own table-like row (aligned columns, row dividers, hover highlight)
+   inside one bordered container that reads as a single table surface,
+   with per-row column captions (below) standing in for a shared header
+   row the same way the unit/listing-status captions already do. */
+.kf-landlord-redesign .unit-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: var(--kf-space-3);
+  background: #fff;
+  border: 1px solid var(--kf-aubergine-12);
+  border-radius: var(--kf-radius-md);
+  overflow: hidden;
+}
 .kf-landlord-redesign .unit-row {
-  background: var(--kf-soft-bone);
-  border-radius: var(--kf-radius-sm);
+  display: grid;
+  grid-template-columns: minmax(140px, 1.4fr) minmax(90px, 0.8fr) minmax(150px, 1fr) auto;
+  align-items: center;
+  column-gap: var(--kf-space-3);
+  row-gap: var(--kf-space-2);
+  background: #fff;
+  border-radius: 0;
   padding: var(--kf-space-3) var(--kf-space-4);
-  margin-left: var(--kf-space-4);
+  margin-left: 0;
+  border-bottom: 1px solid var(--kf-aubergine-12);
+  transition: background 150ms ease;
+}
+.kf-landlord-redesign .unit-row:last-child { border-bottom: none; }
+.kf-landlord-redesign .unit-row:hover,
+.kf-landlord-redesign .unit-row:focus-within {
+  background: var(--kf-soft-bone);
+}
+/* Full-width rows: the reused pricing/availability toggle+form and the
+   reused listing-status/listing-form block always span every column,
+   whichever state they're currently in (collapsed button, expanded
+   form, or read-only status block) — CSS Grid auto-placement pushes any
+   `grid-column: 1 / -1` item onto its own new row once the 4 fixed-width
+   cells above are filled, with no explicit `grid-row` needed. */
+.kf-landlord-redesign .unit-row > .unit-pricing-availability,
+.kf-landlord-redesign .unit-row > .public-listing-status,
+.kf-landlord-redesign .unit-row > form.unit-form,
+.kf-landlord-redesign .unit-row > button:nth-of-type(2) {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 .kf-landlord-redesign .unit-pricing-availability {
   background: #fff;
@@ -814,6 +858,32 @@
    property's value to already include the surrounding quotes (set that
    way in JS), which is why these rules don't wrap the var() in quotes
    themselves. */
+.kf-landlord-redesign .unit-row > span:first-child,
+.kf-landlord-redesign .unit-row > span.listing-meta:nth-child(2) {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.kf-landlord-redesign .unit-row > span:first-child {
+  font-weight: 600;
+}
+.kf-landlord-redesign .unit-row > span:first-child::before {
+  content: var(--kf-unit-name-label);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+}
+.kf-landlord-redesign .unit-row > span.listing-meta:nth-child(2)::before {
+  content: var(--kf-unit-type-label);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+}
 .kf-landlord-redesign .unit-row > .status {
   display: inline-flex;
   flex-direction: column;

@@ -205,53 +205,51 @@
 }
 .kf-admin-redesign .kf-denied-state p { margin: 0; }
 
-/* Queue — single-column vertical list of decision cards (not a two-column
-   content-grid; see file header note). `align-items: start` kept
-   defensively per the same rule Manager/Landlord already apply. */
-.kf-admin-redesign .kf-application-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--kf-space-4);
-  align-items: stretch;
-}
-
-/* §3.4/§11.3 card/panel surfaces — two-layer elevation, 20px radius, 3px
-   category-colored top accent bar. Both Admin queues use the aubergine
-   informational/decision-record category (spec §2 — "review-and-decide
-   records, not a landlord/manager's own workflow action"). */
-.kf-admin-redesign .kf-decision-card {
-  position: relative;
-  overflow: hidden;
+/* Queue — Fluent `Table` presenting each queue as rows/columns rather
+   than stacked cards (product feedback: "for all lists, present them in
+   tables"), matching Fluent's Table pattern. Kept full-width, elevated
+   like a panel so it reads as one cohesive surface. */
+.kf-admin-redesign .kf-application-table {
+  width: 100%;
   background: #fff;
   border: 1px solid var(--kf-aubergine-08);
   border-radius: var(--kf-radius-card);
   box-shadow: var(--kf-shadow-resting);
-  padding: var(--kf-space-5);
-  transition: box-shadow 150ms ease;
+  overflow: hidden;
 }
-.kf-admin-redesign .kf-decision-card:hover,
-.kf-admin-redesign .kf-decision-card:focus-within {
-  box-shadow: var(--kf-shadow-hover);
+
+/* §3.4/§11.3 row surfaces — same aubergine informational/decision-record
+   category as before, now expressed as a left accent bar per row (rows
+   have no "top" the way cards did) plus a hover background rather than a
+   hover shadow (flat, tabular surfaces don't float on hover). */
+.kf-admin-redesign .kf-decision-row {
+  position: relative;
 }
-.kf-admin-redesign .kf-decision-card::before {
+.kf-admin-redesign .kf-decision-row:hover,
+.kf-admin-redesign .kf-decision-row:focus-within {
+  background: var(--kf-soft-bone);
+}
+.kf-admin-redesign .kf-decision-row::before {
   content: '';
   position: absolute;
   top: 0;
+  bottom: 0;
   left: 0;
-  right: 0;
-  height: 3px;
+  width: 3px;
 }
 .kf-admin-redesign .kf-accent-aubergine::before {
   background: var(--kf-aubergine);
 }
-
-.kf-admin-redesign .kf-card-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--kf-space-3);
-  margin-bottom: var(--kf-space-3);
+.kf-admin-redesign .kf-decision-row > * {
+  vertical-align: top;
+  padding-top: var(--kf-space-4);
+  padding-bottom: var(--kf-space-4);
 }
+.kf-admin-redesign .kf-decision-cell,
+.kf-admin-redesign .kf-media-cell {
+  min-width: 260px;
+}
+
 .kf-admin-redesign .kf-section-heading {
   font-family: var(--kf-font-display);
   font-weight: 700;
@@ -265,7 +263,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--kf-space-5);
-  margin: 0 0 var(--kf-space-4);
+  margin: 0;
 }
 .kf-admin-redesign .kf-definition-list > div { display: flex; flex-direction: column; gap: 2px; }
 .kf-admin-redesign .kf-definition-list dt {
@@ -408,8 +406,9 @@
   .kf-admin-redesign .kf-media-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  .kf-admin-redesign .kf-card-heading {
-    flex-direction: column;
+  .kf-admin-redesign .kf-application-table {
+    display: block;
+    overflow-x: auto;
   }
 }
 
