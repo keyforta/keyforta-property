@@ -1,5 +1,5 @@
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -107,10 +107,13 @@ describe('PropertyManagementPanel', () => {
   });
 
   it('renders the existing property/unit portfolio', () => {
-    renderPanel();
+    const { container } = renderPanel();
     expect(screen.getByText('Riverside Apartments')).toBeInTheDocument();
     expect(screen.getByText('Unit 2A')).toBeInTheDocument();
-    expect(screen.getByText('Available')).toBeInTheDocument();
+    // Scoped to the unit's own Status badge — 'Available' is now also a
+    // filter-dropdown <option> elsewhere in this panel, so an unscoped
+    // `getByText` would be ambiguous.
+    expect(container.querySelector('.unit-row > .status:not(.listing-status)').textContent).toBe('Available');
   });
 
   it('shows an honest empty state when the landlord has no properties yet', () => {
@@ -524,10 +527,13 @@ describe('PropertyManagementPanel', () => {
         unitId: properties[0].units[0].id,
         version: 1,
       };
-      renderPanel({ listings: [draftListing] });
+      const { container } = renderPanel({ listings: [draftListing] });
 
-      expect(screen.getByText('Draft')).toBeInTheDocument();
-      expect(screen.getByText('Awaiting media review')).toBeInTheDocument();
+      // Scoped to this unit's own Listing status/Media badges — both
+      // 'Draft' and (post shortened-copy) 'Pending' are also filter
+      // <option> text elsewhere in this panel.
+      expect(container.querySelector('.unit-row > .status.listing-status').textContent).toBe('Draft');
+      expect(container.querySelector('.unit-row > .media-status').textContent).toBe('Pending');
       expect(screen.getByRole('button', { name: 'Edit draft listing' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Create public listing' })).not.toBeInTheDocument();
       await waitFor(() => expect(list).toHaveBeenCalledWith(`public-listings/${draftListing.id}/images`));
@@ -587,10 +593,11 @@ describe('PropertyManagementPanel', () => {
         unitId: properties[0].units[0].id,
         version: 3,
       };
-      renderPanel({ listings: [publishedListing] });
+      const { container } = renderPanel({ listings: [publishedListing] });
 
-      expect(screen.getByText('Published')).toBeInTheDocument();
-      expect(screen.getByText('Media approved')).toBeInTheDocument();
+      // Scoped for the same reason as the draft-listing test above.
+      expect(container.querySelector('.unit-row > .status.listing-status').textContent).toBe('Published');
+      expect(container.querySelector('.unit-row > .media-status').textContent).toBe('Approved');
       expect(screen.queryByRole('button', { name: 'Edit draft listing' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Create public listing' })).not.toBeInTheDocument();
       // A published listing cannot receive/remove images (draft-only

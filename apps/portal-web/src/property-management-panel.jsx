@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
+  Badge,
   Button,
   Checkbox,
   Field,
@@ -13,8 +14,9 @@ import {
   TableHeaderCell,
   TableRow,
   Textarea,
+  Tooltip,
 } from '@fluentui/react-components';
-import { Money20Regular } from '@fluentui/react-icons';
+import { ChevronLeft20Regular, ChevronRight20Regular, CloudArrowUp20Regular, CloudDismiss20Regular, Money20Regular } from '@fluentui/react-icons';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
@@ -28,14 +30,45 @@ import {
   publicListingImageListEnvelopeSchema,
   publicListingImageRooms,
   publicListingPublicationEnvelopeSchema,
+  publicListingStatuses,
   rentalPropertyCreationEnvelopeSchema,
   rentableUnitCreationEnvelopeSchema,
   supportedCurrencies,
+  unitAvailabilityStatuses,
   unitTypes,
   updatePublicListingDraftEnvelopeSchema,
   uploadPublicListingImageEnvelopeSchema,
 } from '@keyforta/contracts';
 import { resolveApiBaseUrl, statusCopy } from './listing-publication-panel.jsx';
+
+// PO feedback ("fix the design of the status, listing status badges"):
+// map each status enum directly to a genuine Fluent `Badge` color,
+// rather than the reused legacy `.status` markup's flat, always-green
+// pill (see styles.css) that LandlordShell.jsx previously had to
+// re-tint from the outside by sniffing rendered text
+// (statusTone.js) — this file now owns these two columns' rendering, so
+// the color reflects the actual data directly.
+const UNIT_AVAILABILITY_BADGE_COLOR = {
+  available: 'success',
+  unavailable: 'danger',
+  occupied: 'informative',
+};
+
+const LISTING_STATUS_BADGE_COLOR = {
+  draft: 'informative',
+  published: 'success',
+  withdrawn: 'danger',
+};
+
+// PO feedback ("for media it can just say approved... also use the same
+// badge style as for status"): the Media column now renders the same
+// `Badge` treatment as Status/Listing status, colored directly from the
+// actual mediaReviewStatus enum value.
+const MEDIA_REVIEW_BADGE_COLOR = {
+  pending: 'informative',
+  approved: 'success',
+  rejected: 'danger',
+};
 
 const emptyPropertyForm = {
   name: '',
@@ -356,17 +389,23 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
     // appropriate icon"): now that the row has more columns competing
     // for width (Listing status/Media, see PropertyManagementPanel
     // below), this toggle is icon-only — `Money20Regular` for the
-    // pricing/availability command it opens — with the same translated
-    // copy moved to `aria-label` so it stays a real, nameable control
-    // for assistive technology despite having no visible text.
+    // pricing/availability command it opens. PO follow-up ("need a
+    // tooltip on the buttons, no border"): a Fluent `Tooltip` (with
+    // `relationship='label'`, so its content also supplies the
+    // control's accessible name — no separate `aria-label` needed) shows
+    // the same translated copy on hover/focus, and `appearance='subtle'`
+    // drops the visible button border/background so only the icon shows
+    // until hovered/pressed.
+    const label = t('property_management.manage_unit_toggle');
     return (
-      <Button
-        appearance='secondary'
-        aria-label={t('property_management.manage_unit_toggle')}
-        disabled={disabled}
-        icon={<Money20Regular />}
-        onClick={() => setOpen(true)}
-      />
+      <Tooltip content={label} relationship='label'>
+        <Button
+          appearance='subtle'
+          disabled={disabled}
+          icon={<Money20Regular />}
+          onClick={() => setOpen(true)}
+        />
+      </Tooltip>
     );
   }
 
@@ -701,14 +740,23 @@ function PublicListingForm({
     if (!enableListingActions) return null;
     const copy = statusCopy(listing.status, t);
     const isBusy = busyListingId === listing.id;
+    // PO feedback ("for the actions... just icons are enough"; "need a
+    // tooltip on the buttons, no border"): icon-only, matching
+    // UnitPricingAvailabilityForm's own toggle above — a Fluent `Tooltip`
+    // (`relationship='label'`) supplies both the hover/focus label and
+    // the accessible name, and `appearance='subtle'` removes the visible
+    // border. `CloudArrowUp20Regular` is "Publish", `CloudDismiss20Regular`
+    // is "Withdraw" (copy.command is the stable wire value driving this,
+    // never the translated `action` label).
     return (
-      <Button
-        appearance='secondary'
-        disabled={disabled || isBusy}
-        onClick={() => onPublishWithdraw(listing.id, copy.command)}
-      >
-        {isBusy ? <><Spinner size='tiny' /> {t('listing_publication.saving')}</> : copy.action}
-      </Button>
+      <Tooltip content={copy.action} relationship='label'>
+        <Button
+          appearance='subtle'
+          disabled={disabled || isBusy}
+          icon={isBusy ? <Spinner size='tiny' /> : copy.command === 'publish' ? <CloudArrowUp20Regular /> : <CloudDismiss20Regular />}
+          onClick={() => onPublishWithdraw(listing.id, copy.command)}
+        />
+      </Tooltip>
     );
   }
 
@@ -798,6 +846,81 @@ export function PropertyManagementPanel({
   const [messageTone, setMessageTone] = useState('');
   const [busyListingId, setBusyListingId] = useState('');
   const apiConfig = useMemo(() => resolveApiBaseUrl(), []);
+
+  // PO feedback ("need also pagination, filter, search on the table"):
+  // search/filter operate on individual unit rows (not whole properties),
+  // so the combined table is flattened to one row per unit — each
+  // carrying its own parent property — filtered, paginated, and only
+  // then re-grouped back under its property heading for rendering (see
+  // `visiblePropertyGroups` below), preserving the existing grouped
+  // layout for whichever rows survive the current page/filter/search.
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [listingStatusFilter, setListingStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const UNITS_PER_PAGE = 10;
+
+  const filteredUnitRows = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const rows = [];
+    for (const property of properties || []) {
+      for (const unit of property.units || []) {
+        const unitListing = (listings || []).find((listing) => listing.unitId === unit.id);
+        if (statusFilter !== 'all' && unit.availabilityStatus !== statusFilter) continue;
+        if (listingStatusFilter !== 'all') {
+          const listingStatusValue = unitListing ? unitListing.status : 'none';
+          if (listingStatusValue !== listingStatusFilter) continue;
+        }
+        if (term && !`${property.name} ${unit.label}`.toLowerCase().includes(term)) continue;
+        rows.push({ property, unit, unitListing });
+      }
+    }
+    return rows;
+  }, [properties, listings, searchTerm, statusFilter, listingStatusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUnitRows.length / UNITS_PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+
+  // Resetting to page 1 whenever the underlying filtered set changes
+  // (rather than only on searchTerm/statusFilter/listingStatusFilter
+  // changes directly) also keeps `currentPage` in bounds if the feed
+  // itself shrinks (e.g. a unit is removed) while on a later page.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, listingStatusFilter]);
+
+  const pageRows = filteredUnitRows.slice((currentPage - 1) * UNITS_PER_PAGE, currentPage * UNITS_PER_PAGE);
+  const hasActiveFilter = Boolean(searchTerm.trim()) || statusFilter !== 'all' || listingStatusFilter !== 'all';
+
+  const visiblePropertyGroups = useMemo(() => {
+    const groups = [];
+    const byId = new Map();
+    for (const row of pageRows) {
+      let group = byId.get(row.property.id);
+      if (!group) {
+        group = { property: row.property, rows: [] };
+        byId.set(row.property.id, group);
+        groups.push(group);
+      }
+      group.rows.push(row);
+    }
+    // A property with genuinely zero units contributes zero rows to
+    // `filteredUnitRows`/pagination, so it would otherwise disappear
+    // entirely from view — it isn't being filtered *out*, there was
+    // simply never anything to filter. With no active search/filter, and
+    // only on the first page (later pages are real unit pagination, not
+    // "show every property"), still render its (empty) group so the
+    // property itself — and its "Add unit" affordance — stays reachable,
+    // matching this table's pre-search/filter/pagination behavior.
+    if (!hasActiveFilter && currentPage === 1) {
+      for (const property of properties || []) {
+        if ((property.units || []).length === 0 && !byId.has(property.id)) {
+          groups.push({ property, rows: [] });
+        }
+      }
+    }
+    return groups;
+  }, [pageRows, hasActiveFilter, currentPage, properties]);
 
   useEffect(() => {
     let active = true;
@@ -1136,66 +1259,151 @@ export function PropertyManagementPanel({
         <p className='publication-empty'>{t('property_management.empty_state')}</p>
       ) : null}
       {!feedLoading && !feedError && properties.length > 0 ? (
-        <div className='rows' role='list' aria-label={t('property_management.portfolio')}>
-          {properties.map((property) => (
-            <div className='property-row' key={property.id} role='listitem'>
-              <strong>{property.name}</strong>
-              <span className='listing-meta'>{t(`property_management.property_type.${property.propertyType}`)}</span>
-              <Table aria-label={t('property_management.units_table_label')} className='unit-rows' noNativeElements>
-                <TableHeader>
-                  <TableRow className='unit-row unit-row-header'>
-                    <TableHeaderCell>{t('property_management.unit_table_column_unit')}</TableHeaderCell>
-                    <TableHeaderCell>{t('property_management.unit_table_column_type')}</TableHeaderCell>
-                    <TableHeaderCell>{t('property_management.unit_table_column_status')}</TableHeaderCell>
-                    <TableHeaderCell>{t('property_management.unit_table_column_listing_status')}</TableHeaderCell>
-                    <TableHeaderCell>{t('property_management.unit_table_column_media')}</TableHeaderCell>
-                    <TableHeaderCell>{t('property_management.unit_table_column_actions')}</TableHeaderCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {property.units.map((unit) => {
-                    const unitListing = (listings || []).find((listing) => listing.unitId === unit.id);
-                    return (
-                      <TableRow className='unit-row' key={unit.id}>
-                        <TableCell className='unit-row-name'>{unit.label}</TableCell>
-                        <TableCell className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</TableCell>
-                        <TableCell className='status'>{t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}</TableCell>
-                        <TableCell className='status listing-status'>
-                          {unitListing ? t(`property_management.listing_status.${unitListing.status}`) : t('property_management.unit_table_no_listing')}
-                        </TableCell>
-                        <TableCell className='listing-meta media-status'>
-                          {unitListing ? t(`property_management.media_review_status.${unitListing.mediaReviewStatus}`) : t('property_management.unit_table_no_listing')}
-                        </TableCell>
-                        <TableCell className='unit-row-actions'>
-                          <UnitPricingAvailabilityForm
-                            disabled={disableActions}
-                            onSetAvailability={submitSetAvailability}
-                            onSetPricing={submitSetPricing}
-                            t={t}
-                            unit={unit}
-                          />
-                          <PublicListingForm
-                            busyListingId={busyListingId}
-                            disabled={disableActions}
-                            enableListingActions={enableListingActions}
-                            listing={unitListing}
-                            onCreate={submitCreateListing}
-                            onPublishWithdraw={submitPublishWithdrawListing}
-                            onUpdateDraft={submitUpdateListingDraft}
-                            session={session}
-                            t={t}
-                            unitId={unit.id}
-                          />
-                        </TableCell>
+        <>
+          {/* PO feedback ("need also pagination, filter, search on the
+              table"): search matches unit label or property name;
+              status/listing-status filters reuse the same wire enums the
+              Badge colors above are keyed on (plus a synthetic 'none'
+              value for "no listing yet", since that's a real, filterable
+              state a unit can be in). */}
+          <div className='unit-table-controls'>
+            <Field label={t('property_management.search_label')}>
+              <Input
+                onChange={(_event, data) => setSearchTerm(data.value)}
+                placeholder={t('property_management.search_placeholder')}
+                value={searchTerm}
+              />
+            </Field>
+            <Field label={t('property_management.filter_status_label')}>
+              <Select onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}>
+                <option value='all'>{t('property_management.filter_status_all')}</option>
+                {unitAvailabilityStatuses.map((option) => (
+                  <option key={option} value={option}>{t(`property_management.unit_availability_status.${option}`)}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={t('property_management.filter_listing_status_label')}>
+              <Select onChange={(event) => setListingStatusFilter(event.target.value)} value={listingStatusFilter}>
+                <option value='all'>{t('property_management.filter_listing_status_all')}</option>
+                {publicListingStatuses.map((option) => (
+                  <option key={option} value={option}>{t(`property_management.listing_status.${option}`)}</option>
+                ))}
+                <option value='none'>{t('property_management.unit_table_no_listing')}</option>
+              </Select>
+            </Field>
+          </div>
+          {visiblePropertyGroups.length === 0 ? (
+            <p className='publication-empty'>{t('property_management.filter_no_results')}</p>
+          ) : (
+            <div className='rows' role='list' aria-label={t('property_management.portfolio')}>
+              {visiblePropertyGroups.map(({ property, rows }) => (
+                <div className='property-row' key={property.id} role='listitem'>
+                  {/* PO feedback ("have the add unit button on the same
+                      line as apartment building but at the right side"):
+                      the name/type header and the "Add a unit" toggle
+                      now share one row, the toggle right-aligned. When
+                      expanded into its full field form it still drops to
+                      its own full-width line below (same flex-basis:100%
+                      pattern already used for the Actions column's
+                      expandable cards), so it never squeezes the header
+                      text. */}
+                  <div className='property-row-header'>
+                    <div>
+                      <strong>{property.name}</strong>
+                      <span className='listing-meta'>{t(`property_management.property_type.${property.propertyType}`)}</span>
+                    </div>
+                    <AddUnitForm disabled={disableActions} onSubmit={submitAddUnit} propertyId={property.id} t={t} />
+                  </div>
+                  <Table aria-label={t('property_management.units_table_label')} className='unit-rows' noNativeElements>
+                    <TableHeader>
+                      <TableRow className='unit-row unit-row-header'>
+                        <TableHeaderCell>{t('property_management.unit_table_column_unit')}</TableHeaderCell>
+                        <TableHeaderCell>{t('property_management.unit_table_column_type')}</TableHeaderCell>
+                        <TableHeaderCell>{t('property_management.unit_table_column_status')}</TableHeaderCell>
+                        <TableHeaderCell>{t('property_management.unit_table_column_listing_status')}</TableHeaderCell>
+                        <TableHeaderCell>{t('property_management.unit_table_column_media')}</TableHeaderCell>
+                        <TableHeaderCell>{t('property_management.unit_table_column_actions')}</TableHeaderCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              <AddUnitForm disabled={disableActions} onSubmit={submitAddUnit} propertyId={property.id} t={t} />
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map(({ unit, unitListing }) => (
+                        <TableRow className='unit-row' key={unit.id}>
+                          <TableCell className='unit-row-name'>{unit.label}</TableCell>
+                          <TableCell className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</TableCell>
+                          <TableCell className='status'>
+                            <Badge appearance='tint' color={UNIT_AVAILABILITY_BADGE_COLOR[unit.availabilityStatus]} shape='rounded'>
+                              {t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className='status listing-status'>
+                            {unitListing ? (
+                              <Badge appearance='tint' color={LISTING_STATUS_BADGE_COLOR[unitListing.status]} shape='rounded'>
+                                {t(`property_management.listing_status.${unitListing.status}`)}
+                              </Badge>
+                            ) : t('property_management.unit_table_no_listing')}
+                          </TableCell>
+                          <TableCell className='listing-meta media-status'>
+                            {unitListing ? (
+                              <Badge appearance='tint' color={MEDIA_REVIEW_BADGE_COLOR[unitListing.mediaReviewStatus]} shape='rounded'>
+                                {t(`property_management.media_review_status.${unitListing.mediaReviewStatus}`)}
+                              </Badge>
+                            ) : t('property_management.unit_table_no_listing')}
+                          </TableCell>
+                          <TableCell className='unit-row-actions'>
+                            <UnitPricingAvailabilityForm
+                              disabled={disableActions}
+                              onSetAvailability={submitSetAvailability}
+                              onSetPricing={submitSetPricing}
+                              t={t}
+                              unit={unit}
+                            />
+                            <PublicListingForm
+                              busyListingId={busyListingId}
+                              disabled={disableActions}
+                              enableListingActions={enableListingActions}
+                              listing={unitListing}
+                              onCreate={submitCreateListing}
+                              onPublishWithdraw={submitPublishWithdrawListing}
+                              onUpdateDraft={submitUpdateListingDraft}
+                              session={session}
+                              t={t}
+                              unitId={unit.id}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+          {filteredUnitRows.length > 0 ? (
+            <nav aria-label={t('property_management.units_table_label')} className='unit-table-pagination'>
+              {/* PO feedback ("for pagination, just use icons, not words
+                  like previous ... next"): icon-only, Tooltip-labelled
+                  buttons, matching the same pattern already used for the
+                  pricing/availability and publish/withdraw controls. */}
+              <Tooltip content={t('property_management.pagination_previous')} relationship='label'>
+                <Button
+                  appearance='subtle'
+                  disabled={currentPage <= 1}
+                  icon={<ChevronLeft20Regular />}
+                  onClick={() => setPage((current) => current - 1)}
+                />
+              </Tooltip>
+              <span role='status'>{t('property_management.pagination_summary', { page: currentPage, totalPages })}</span>
+              <Tooltip content={t('property_management.pagination_next')} relationship='label'>
+                <Button
+                  appearance='subtle'
+                  disabled={currentPage >= totalPages}
+                  icon={<ChevronRight20Regular />}
+                  onClick={() => setPage((current) => current + 1)}
+                />
+              </Tooltip>
+            </nav>
+          ) : null}
+        </>
       ) : null}
       {message ? (
         <p className='publication-feedback' data-tone={messageTone} role={messageTone === 'error' ? 'alert' : 'status'}>

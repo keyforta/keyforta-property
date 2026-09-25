@@ -134,6 +134,16 @@
     "feed_error": "We couldn't load your properties. This does not mean you have none — try again.",
     "feed_retry": "Try again",
     "portfolio": "Your properties",
+    "search_label": "Search units",
+    "search_placeholder": "Search by unit or property name",
+    "filter_status_label": "Status",
+    "filter_status_all": "All statuses",
+    "filter_listing_status_label": "Listing status",
+    "filter_listing_status_all": "All listing statuses",
+    "filter_no_results": "No units match your search or filters.",
+    "pagination_previous": "Previous",
+    "pagination_next": "Next",
+    "pagination_summary": "Page {{page}} of {{totalPages}}",
     "units_table_label": "Units",
     "unit_table_column_unit": "Unit",
     "unit_table_column_type": "Type",
@@ -257,9 +267,9 @@
       "withdrawn": "Withdrawn"
     },
     "media_review_status": {
-      "pending": "Awaiting media review",
-      "approved": "Media approved",
-      "rejected": "Media rejected"
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
     },
     "room": {
       "exterior": "Exterior",

@@ -83,7 +83,7 @@ test.describe('Landlord redesign (flag-gated)', () => {
     const mediaStatus = page.locator('.unit-row > .media-status');
     await expect(unitStatus).toHaveText('Available');
     await expect(listingStatus).toHaveText('Withdrawn');
-    await expect(mediaStatus).toHaveText('Media approved');
+    await expect(mediaStatus).toHaveText('Approved');
 
     await page.screenshot({ path: 'e2e/redesign/__screenshots__/flag-on-landlord-properties-status-distinction.png', fullPage: true });
   });
@@ -102,8 +102,8 @@ test.describe('Landlord redesign (flag-gated)', () => {
     await expect(listingStatus).toHaveText('Withdrawn');
 
     const [unitColor, listingColor] = await Promise.all([
-      unitStatus.evaluate((el) => window.getComputedStyle(el).color),
-      listingStatus.evaluate((el) => window.getComputedStyle(el).color),
+      unitStatus.locator('.fui-Badge').evaluate((el) => window.getComputedStyle(el).color),
+      listingStatus.locator('.fui-Badge').evaluate((el) => window.getComputedStyle(el).color),
     ]);
     // The unit's "Available" badge keeps the base reused green (unchanged,
     // positive is correct here); the listing's "Withdrawn" badge must

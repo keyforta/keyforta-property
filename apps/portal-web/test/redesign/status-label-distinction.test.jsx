@@ -1,5 +1,5 @@
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import i18n from '../../src/i18n.js';
 import { LandlordShell } from '../../src/redesign/landlord/LandlordShell.jsx';
@@ -95,7 +95,7 @@ describe('unit-status vs listing-status caption distinction (PO regression fix)'
     const mediaStatus = container.querySelector('.unit-row > .media-status');
     expect(unitStatus.textContent).toBe('Available');
     expect(listingStatus.textContent).toBe('Withdrawn');
-    expect(mediaStatus.textContent).toBe('Media approved');
+    expect(mediaStatus.textContent).toBe('Approved');
   });
 
   // PO feedback ("combine Listing publication and Property portfolio in
@@ -107,7 +107,12 @@ describe('unit-status vs listing-status caption distinction (PO regression fix)'
     const { container } = renderShell();
     const actionsCell = container.querySelector('.unit-row > .unit-row-actions');
     expect(actionsCell).toBeTruthy();
-    expect(actionsCell.textContent).toContain('Publish');
+    // PO feedback ("for the actions... just icons are enough"): the
+    // Publish/Withdraw control is now icon-only, so its accessible name
+    // (still "Publish"/"Withdraw", from statusCopy) lives on `aria-label`
+    // rather than as visible textContent.
+    const publishButton = within(actionsCell).getByRole('button', { name: 'Publish' });
+    expect(publishButton).toBeTruthy();
   });
 
   // Copilot PR #134 review finding #2: the withdrawn listing's `.status`

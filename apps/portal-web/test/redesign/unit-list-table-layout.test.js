@@ -44,7 +44,7 @@ describe('redesign.css lays out the genuine Fluent Table unit list on a CSS Grid
     const gridRule = matches.find((m) => /display:\s*grid/.test(m[1]));
     expect(gridRule).not.toBeUndefined();
     expect(gridRule[1]).toMatch(
-      /grid-template-columns:\s*minmax\(140px, 1\.4fr\) minmax\(90px, 0\.8fr\) minmax\(120px, 0\.9fr\) minmax\(120px, 0\.9fr\) minmax\(120px, 0\.9fr\) minmax\(260px, 1\.6fr\)/,
+      /grid-template-columns:\s*minmax\(120px, 1\.4fr\) minmax\(80px, 0\.8fr\) minmax\(100px, 0\.9fr\) minmax\(100px, 0\.9fr\) minmax\(100px, 0\.9fr\) minmax\(220px, 1\.6fr\)/,
     );
   });
 
@@ -57,11 +57,11 @@ describe('redesign.css lays out the genuine Fluent Table unit list on a CSS Grid
     expect(hoverMatch[1]).toMatch(/background:\s*rgba\(36,\s*22,\s*46,\s*0\.04\)/);
   });
 
-  it('stacks the Actions column contents (reused pricing/availability + listing forms) vertically within their own cell, not spanning every column', () => {
+  it('lays out the Actions column contents (reused pricing/availability + listing forms) in a row within their own cell, not spanning every column', () => {
     const match = css.match(/\.kf-landlord-redesign \.unit-row-actions\s*\{([^}]*)\}/);
     expect(match).not.toBeNull();
     expect(match[1]).toMatch(/display:\s*flex/);
-    expect(match[1]).toMatch(/flex-direction:\s*column/);
+    expect(match[1]).toMatch(/flex-direction:\s*row/);
   });
 
   it('shades the genuine header row as a distinct band with a bolder divider beneath it (matching the Fluent Table reference)', () => {
@@ -87,7 +87,7 @@ describe('redesign.css lays out the genuine Fluent Table unit list on a CSS Grid
     expect(panelSource).toMatch(/<TableRow className='unit-row' key=\{unit\.id\}>/);
     expect(panelSource).toMatch(/<TableCell className='unit-row-name'>\{unit\.label\}<\/TableCell>/);
     expect(panelSource).toMatch(/<TableCell className='listing-meta'>\{t\(`property_management\.unit_type\.\$\{unit\.unitType\}`\)\}<\/TableCell>/);
-    expect(panelSource).toMatch(/<TableCell className='status'>\{t\(`property_management\.unit_availability_status\.\$\{unit\.availabilityStatus\}`\)\}<\/TableCell>/);
+    expect(panelSource).toMatch(/<TableCell className='status'>\s*<Badge appearance='tint' color=\{UNIT_AVAILABILITY_BADGE_COLOR\[unit\.availabilityStatus\]\} shape='rounded'>/);
     expect(panelSource).toMatch(/<TableCell className='status listing-status'>/);
     expect(panelSource).toMatch(/<TableCell className='listing-meta media-status'>/);
     expect(panelSource).toMatch(/<TableCell className='unit-row-actions'>/);

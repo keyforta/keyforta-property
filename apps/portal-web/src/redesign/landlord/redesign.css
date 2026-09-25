@@ -184,10 +184,23 @@
   color: var(--kf-aubergine);
   margin-top: var(--kf-space-3);
   margin-bottom: 0;
+  /* PO feedback ("must be one line", "as long as there is space at the
+     right"): the legacy shared `.topbar h1 { max-width: 770px }` rule
+     (styles.css) hard-caps the title's width regardless of how much
+     room the flex row actually has beside the user-chip on the right —
+     the longer French copy wrapped to two lines even with visible
+     whitespace to its right. `max-content` lets the title take exactly
+     the width its own text needs (still wrapping only if the flex row
+     genuinely runs out of space, e.g. narrow/mobile viewports). */
+  max-width: max-content;
 }
 .kf-landlord-redesign .kf-topbar .kf-body {
   margin-top: var(--kf-space-2);
   margin-bottom: 0;
+  /* Same reasoning as .kf-display-title above: the summary sentence
+     should only wrap once it runs out of actual available flex-row
+     width, not because of the legacy 770px cap. */
+  max-width: none;
 }
 .kf-landlord-redesign .kf-body { font-family: var(--kf-font-body); font-size: 15px; line-height: 1.5; }
 .kf-landlord-redesign .kf-body-strong { font-family: var(--kf-font-body); font-size: 15px; font-weight: 600; color: var(--kf-aubergine); }
@@ -469,27 +482,33 @@
    already-fetched properties/listings data — see checklist.js.
    ------------------------------------------------------------------- */
 .kf-landlord-redesign .kf-checklist-card { grid-column: 1 / -1; }
+/* PO feedback ("...taking so much space, can you find a better design
+   for it?"): a responsive multi-column grid (was a single stacked
+   column) plus the JSX change dropping the always-visible detail
+   sentence (now a Tooltip) together shrink this card from four tall,
+   full-width rows down to one or two short rows of compact chips. */
 .kf-landlord-redesign .kf-checklist-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: var(--kf-space-2);
 }
+.kf-landlord-redesign .kf-checklist-row { flex: 0 1 auto; }
 .kf-landlord-redesign .kf-checklist-row-button {
-  width: 100%;
   display: flex;
   align-items: center;
-  gap: var(--kf-space-3);
+  gap: var(--kf-space-2);
   text-align: left;
   background: var(--kf-soft-bone);
   border: 1px solid transparent;
   border-radius: var(--kf-radius-sm);
-  padding: var(--kf-space-3) var(--kf-space-4);
+  padding: var(--kf-space-2) var(--kf-space-3);
   font: inherit;
   color: var(--kf-aubergine);
   cursor: pointer;
+  white-space: nowrap;
 }
 .kf-landlord-redesign .kf-checklist-row-button:disabled { cursor: default; }
 .kf-landlord-redesign .kf-checklist-row-button:not(:disabled):hover,
@@ -510,20 +529,18 @@
 .kf-landlord-redesign .kf-checklist-row-done .kf-checklist-icon { color: var(--kf-mineral-teal); }
 .kf-landlord-redesign .kf-checklist-row-todo .kf-checklist-icon { color: var(--kf-burnished-copper); }
 .kf-landlord-redesign .kf-checklist-row-unknown .kf-checklist-icon { color: var(--kf-aubergine-muted-60); }
-.kf-landlord-redesign .kf-checklist-copy { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
-.kf-landlord-redesign .kf-checklist-label { font-weight: 600; }
-.kf-landlord-redesign .kf-checklist-status-badge {
-  flex: 0 0 auto;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: #fff;
+.kf-landlord-redesign .kf-checklist-label { flex: 1 1 auto; font-weight: 600; font-size: 0.9rem; }
+.kf-landlord-redesign .kf-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
-.kf-landlord-redesign .kf-checklist-status-badge[data-status='done'] { color: var(--kf-mineral-teal); }
-.kf-landlord-redesign .kf-checklist-status-badge[data-status='todo'] { color: var(--kf-burnished-copper); }
-.kf-landlord-redesign .kf-checklist-status-badge[data-status='unknown'] { color: var(--kf-aubergine-muted-60); }
 
 /* ---------------------------------------------------------------------
    §10.4 — Visual chunking of already-adjacent existing controls, applied
@@ -545,6 +562,68 @@
   margin-bottom: var(--kf-space-4);
   border: 1px solid var(--kf-aubergine-12);
 }
+/* PO feedback ("need also pagination, filter, search on the table"): a
+   compact row of controls above the grouped property/unit tables, and a
+   Previous/summary/Next bar below them (client-side pagination over the
+   flattened, filtered unit rows — see property-management-panel.jsx's
+   `filteredUnitRows`/`visiblePropertyGroups`). */
+.kf-landlord-redesign .unit-table-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kf-space-3);
+  align-items: flex-end;
+  margin-bottom: var(--kf-space-4);
+}
+.kf-landlord-redesign .unit-table-controls > * { flex: 0 1 220px; }
+.kf-landlord-redesign .unit-table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kf-space-3);
+  margin-top: var(--kf-space-4);
+}
+/* PO feedback ("have the add unit button on the same line as apartment
+   building but at the right side"): the property name/type block and
+   the "Add a unit" toggle now share one flex row, with the toggle
+   pushed to the right via `justify-content: space-between`. */
+.kf-landlord-redesign .property-row-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--kf-space-3);
+}
+/* The property name + type used to stack vertically "for free" because
+   both were direct children of `.property-row`'s own `display: grid`
+   (styles.css), which places each child on its own implicit row. Now
+   that they're wrapped in one `.property-row-header > div` (so the
+   "Add a unit" toggle can sit beside them instead of below), that free
+   stacking is gone — this restores it explicitly. */
+.kf-landlord-redesign .property-row-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kf-space-1);
+}
+/* PO feedback ("add unit does not need to be 100% width"): the "Add
+   unit" toggle/form is the one `.unit-form` in this file that sits
+   directly under `.property-row-header` (every other `.unit-form` —
+   pricing/availability, create/edit listing — is nested under
+   `.unit-row-actions` and keeps its own full-width rule a few sections
+   below). While collapsed it's just a Button (naturally sized), sitting
+   beside the name/type block; once expanded into its full field grid,
+   it drops to its own full-width line below both (same flex-basis:100%
+   pattern as the Actions column's expandable cards) rather than
+   squeezing into the remaining header space.
+   Block-level elements default to stretching to their containing
+   block's width, so without this the form spans the entire card even
+   though its own grid of fields is much narrower; `width: fit-content`
+   shrinks it back to its content's natural size while still allowing
+   the field grid inside to wrap normally. */
+.kf-landlord-redesign .property-row-header > form.unit-form {
+  flex-basis: 100%;
+  width: fit-content;
+  max-width: 100%;
+}
 /* Product feedback (post-#139): present unit lists as genuine Fluent
    Tables (Fluent's Table pattern), not stacked cards. `property-
    management-panel.jsx` renders a real `<Table noNativeElements>` (see
@@ -565,7 +644,22 @@
 }
 .kf-landlord-redesign .unit-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1.4fr) minmax(90px, 0.8fr) minmax(120px, 0.9fr) minmax(120px, 0.9fr) minmax(120px, 0.9fr) minmax(260px, 1.6fr);
+  /* PO feedback ("fix this too" — the "Create public listing" button
+     bled past the table's own right edge). The six tracks' MINIMUM
+     widths (140+90+120+120+120+260 = 850px) plus 5 column-gaps (12px
+     each = 60px) added up to 910px — already wider than this table's
+     own ~844px rendered width at common desktop viewports. CSS Grid
+     never shrinks a track below its declared minmax minimum (unlike
+     flexbox's shrink-to-fit), so once the container is narrower than
+     that combined floor, the grid simply overflows its own box instead
+     of compressing — invisible for short badge/icon content, but very
+     visible for a real-width button like "Create public listing". These
+     per-column floors are trimmed (name/type/status/actions) so the
+     combined minimum comfortably fits within the table's real rendered
+     width again, while still leaving each column enough room for its
+     actual content (badges, icons, and the two-line-safe action
+     buttons). */
+  grid-template-columns: minmax(120px, 1.4fr) minmax(80px, 0.8fr) minmax(100px, 0.9fr) minmax(100px, 0.9fr) minmax(100px, 0.9fr) minmax(220px, 1.6fr);
   align-items: start;
   column-gap: var(--kf-space-3);
   row-gap: var(--kf-space-2);
@@ -610,9 +704,22 @@
    column the way the pre-table CSS-only layout required. */
 .kf-landlord-redesign .unit-row-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: var(--kf-space-3);
-  align-items: flex-start;
+  align-items: center;
+}
+/* PO feedback ("action buttons must be on the same line"): the pricing
+   toggle and publish/withdraw controls are now icon-only buttons, so
+   they sit side by side in a row instead of the earlier column stack.
+   Their *expandable* content (the pricing/availability form card, and
+   PublicListingForm's own create/edit `.unit-form` when no listing
+   exists yet or a draft is being edited) still needs to drop to its own
+   full-width line below the button row rather than wrap awkwardly next
+   to it. */
+.kf-landlord-redesign .unit-row-actions > .unit-pricing-availability,
+.kf-landlord-redesign .unit-row-actions > form.unit-form {
+  flex-basis: 100%;
 }
 .kf-landlord-redesign .unit-pricing-availability {
   background: #fff;
@@ -861,22 +968,48 @@
   font-weight: 600;
 }
 
-/* Copilot PR #134 review finding #2: withdrawn listings / unavailable
-   units still rendered with the reused (protected) `.status` markup's
-   always-green background+text color (see styles.css, unchanged) — the
-   same flat "positive" look regardless of actual value, since that
-   markup carries no status-specific class/attribute. LandlordShell.jsx
-   annotates each `.status` badge from outside with `data-kf-tone`
-   (derived only from its own already-rendered translated text, via
-   statusTone.js) whenever it renders "Withdrawn"/"Unavailable"; this rule
-   gives that annotated state a distinct, non-green tone using Fluent's
-   semantic red palette tokens (with a literal hex fallback for the rare
-   case a consumer's theme doesn't define them), consistent with how
-   `.publication-feedback[data-tone='error']` already borrows the same
-   token family a few rules above. */
-.kf-landlord-redesign .status[data-kf-tone='negative'] {
-  background: var(--colorPaletteRedBackground2, #fdf3f4);
-  color: var(--colorPaletteRedForeground1, #b10e1c);
+/* Copilot PR #134 review finding #2 (superseded): withdrawn listings /
+   unavailable units used to render with the reused `.status` markup's
+   always-green background+text color (see styles.css) regardless of
+   actual value, since that markup carried no status-specific class of
+   its own — LandlordShell.jsx's `statusTone.js` had to re-tint it from
+   outside by sniffing rendered text. PropertyManagementPanel now renders
+   a genuine Fluent `Badge` (colored directly from the actual
+   availabilityStatus/listing status enum) inside these cells instead —
+   the `data-kf-tone` attribute `statusTone.js` still sets on `.status`
+   for test/legacy-selector compatibility no longer needs to carry any
+   color of its own, so this resets the legacy pill background/padding
+   that would otherwise double up behind the nested Badge. */
+.kf-landlord-redesign .unit-row > .status,
+.kf-landlord-redesign .unit-row > .status[data-kf-tone='negative'] {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+  font-size: inherit;
+}
+/* PO feedback ("fix this too" — the longer French "Aucune annonce pour
+   le moment" no-listing fallback text overflowed its own Listing
+   status/Media grid column and visually collided with the neighbouring
+   column). CSS Grid items default to `min-width: auto`, which is the
+   item's own max-content (unwrapped) width — for a plain text node
+   (no Badge to constrain it) that lets a long sentence force/overflow
+   past its `minmax(...)` track instead of wrapping inside it. Every
+   cell in this row already sits in a fixed-width grid track, so letting
+   them shrink below their own content's natural width (and wrap) is the
+   correct, table-appropriate behavior here. */
+.kf-landlord-redesign .unit-row > * {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+/* The legacy `.status` pill (styles.css) sets `white-space: nowrap`,
+   correct for the Badge-wrapped Status/Listing status values but wrong
+   for the plain-text "no listing yet" fallback rendered directly in
+   `.status.listing-status` when a unit has no listing at all (no Badge
+   to constrain it) — the longer French sentence then refused to wrap
+   and visually collided with the Media column next to it. */
+.kf-landlord-redesign .unit-row > .status.listing-status {
+  white-space: normal;
 }
 
 @media (prefers-reduced-motion: reduce) {
