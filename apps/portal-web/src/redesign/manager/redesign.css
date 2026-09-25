@@ -1,0 +1,405 @@
+/*
+ * KEYFORTA manager redesign — visual system implementing
+ * docs/product/MANAGER_REDESIGN_SPEC.md (which itself reuses
+ * docs/product/LANDLORD_REDESIGN_SPEC.md §3/§5/§11 verbatim — "one
+ * coherent KEYFORTA design system spans both roles", spec §2). Every
+ * selector below is scoped under `.kf-manager-redesign` so this
+ * stylesheet can never affect the existing (flag-off) rendering path, the
+ * unrelated `.kf-landlord-redesign` scope, or `apps/portal-web/src/
+ * styles.css` (unscoped, protected, unchanged).
+ *
+ * Design choice (documented per the task's instruction to record it):
+ * this is a NEW, separate stylesheet rather than an extension of
+ * `../landlord/redesign.css`, because CSS custom properties declared on
+ * `.kf-landlord-redesign` are not visible to a `.kf-manager-redesign`
+ * subtree (they are not global) — sharing them would require either
+ * hoisting the token declarations to `:root` (a change to already-merged,
+ * reviewed Phase 1 CSS, out of scope here per §8.1(a)'s "no refactor of
+ * merged code" default) or duplicating the token *values* here. The
+ * values themselves are copied verbatim from `../landlord/redesign.css`
+ * (same hex/px/rem literals, same names where the same concept applies)
+ * so there is exactly one design system, expressed in two additive,
+ * independently-loadable stylesheets — never two different visual
+ * languages.
+ */
+
+.kf-manager-redesign {
+  --kf-space-1: 4px;
+  --kf-space-2: 8px;
+  --kf-space-3: 12px;
+  --kf-space-4: 16px;
+  --kf-space-5: 24px;
+  --kf-space-6: 32px;
+  --kf-radius-sm: 8px;
+  --kf-radius-md: 12px;
+  --kf-radius-lg: 16px;
+  --kf-radius-card: 20px;
+  --kf-radius-pill: 999px;
+  --kf-aubergine: #24162E;
+  --kf-mineral-teal: #267C78;
+  --kf-burnished-copper: #C47A4A;
+  --kf-soft-bone: #F3EEE7;
+  --kf-aubergine-08: rgba(36, 22, 46, 0.08);
+  --kf-aubergine-12: rgba(36, 22, 46, 0.12);
+  --kf-font-display: 'Instrument Sans', 'Segoe UI', sans-serif;
+  --kf-font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
+  --kf-shadow-resting: 0 1px 2px rgba(36, 22, 46, 0.04), 0 12px 32px rgba(36, 22, 46, 0.10);
+  --kf-shadow-hover: 0 1px 2px rgba(36, 22, 46, 0.05), 0 20px 48px rgba(36, 22, 46, 0.14);
+
+  background: radial-gradient(ellipse 900px 420px at 15% -10%, rgba(38, 124, 120, 0.06), transparent 60%), var(--kf-soft-bone);
+  font-family: var(--kf-font-body);
+  color: var(--kf-aubergine);
+}
+
+/* Sidebar — same aubergine solid fill / softBone body text as Landlord
+   (spec §3.1.1 rule 4, reused verbatim, no Manager-specific variant). */
+.kf-manager-redesign .kf-sidebar {
+  background: var(--kf-aubergine);
+  color: var(--kf-soft-bone);
+}
+.kf-manager-redesign .kf-brand-header {
+  padding: 0 var(--kf-space-3) var(--kf-space-6);
+}
+.kf-manager-redesign .kf-brand-header-mark {
+  height: 22px;
+  width: auto;
+  display: block;
+}
+.kf-manager-redesign .kf-kicker-on-dark {
+  padding: 0 var(--kf-space-3) var(--kf-space-4);
+  color: var(--kf-soft-bone);
+  opacity: 0.75;
+  font-family: var(--kf-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.kf-manager-redesign .kf-nav-item,
+.kf-manager-redesign button.kf-nav-item {
+  border-radius: var(--kf-radius-md) !important;
+  color: var(--kf-soft-bone);
+  min-height: 40px;
+  font-family: var(--kf-font-body);
+  font-weight: 400;
+  opacity: 0.7;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+.kf-manager-redesign .kf-nav-item:hover,
+.kf-manager-redesign button.kf-nav-item:hover {
+  opacity: 0.9;
+  background: rgba(243, 238, 231, 0.08) !important;
+}
+.kf-manager-redesign .kf-nav-item-active,
+.kf-manager-redesign button.kf-nav-item-active {
+  background: rgba(38, 124, 120, 0.35) !important;
+  color: #fff;
+  font-weight: 600;
+  opacity: 1;
+}
+.kf-manager-redesign .kf-nav-item-active:hover,
+.kf-manager-redesign button.kf-nav-item-active:hover {
+  background: rgba(38, 124, 120, 0.4) !important;
+  opacity: 1;
+}
+
+/* Topbar */
+.kf-manager-redesign .kf-topbar { align-items: flex-start; position: relative; }
+.kf-manager-redesign .kf-topbar::before {
+  content: '';
+  position: absolute;
+  inset: -32px -32px auto -32px;
+  height: 180px;
+  background: radial-gradient(ellipse 640px 220px at 20% 0%, rgba(38, 124, 120, 0.07), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.kf-manager-redesign .kf-topbar > * { position: relative; z-index: 1; }
+
+/* Kickers — aubergine text (WCAG AA), copper-tinted pill background, same
+   fix already applied to Landlord (spec §3.1.1 binding contrast rule). */
+.kf-manager-redesign .kf-kicker {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--kf-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--kf-aubergine);
+  background: color-mix(in srgb, var(--kf-burnished-copper) 12%, white);
+  padding: var(--kf-space-1) var(--kf-space-3);
+  border-radius: var(--kf-radius-pill);
+  width: fit-content;
+}
+.kf-manager-redesign .kf-topbar-kicker {
+  color: var(--kf-aubergine);
+  margin-bottom: 0;
+}
+.kf-manager-redesign .kf-topbar-kicker::after {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 2px;
+  margin-top: var(--kf-space-2);
+  background: var(--kf-mineral-teal);
+  border-radius: var(--kf-radius-pill);
+}
+.kf-manager-redesign .kf-display-title {
+  font-family: var(--kf-font-display);
+  font-weight: 700;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.05;
+  color: var(--kf-aubergine);
+  margin-top: var(--kf-space-3);
+  margin-bottom: 0;
+}
+.kf-manager-redesign .kf-topbar .kf-body {
+  margin-top: var(--kf-space-2);
+  margin-bottom: 0;
+}
+.kf-manager-redesign .kf-body { font-family: var(--kf-font-body); font-size: 15px; line-height: 1.5; }
+.kf-manager-redesign .kf-body-strong { font-family: var(--kf-font-body); font-size: 15px; font-weight: 600; color: var(--kf-aubergine); }
+.kf-manager-redesign .kf-small { font-family: var(--kf-font-body); font-size: 13px; line-height: 1.4; color: var(--kf-aubergine); opacity: 0.75; }
+.kf-manager-redesign .kf-user-chip { color: var(--kf-aubergine); }
+
+/* §5.3 quiet neutral empty-state placeholder — never red/error-colored. */
+.kf-manager-redesign .kf-empty-card,
+.kf-manager-redesign .stats-empty-state {
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  background: var(--kf-soft-bone);
+  border: 1px dashed var(--kf-aubergine-12);
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-3) var(--kf-space-4);
+  min-height: 56px;
+  color: var(--kf-aubergine);
+  font-family: var(--kf-font-body);
+  margin: 0;
+}
+.kf-manager-redesign .kf-empty-card::before,
+.kf-manager-redesign .stats-empty-state::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kf-burnished-copper);
+}
+
+/* §4.2 grid: per spec §4.2 item 2, Manager's Overview/Portfolio grid is a
+   genuine two-column layout -- left column stacks `ListingPublicationPanel`
+   (plus its status-legend wrapper on Portfolio) above the "Needs
+   attention" panel; the right column (aside) holds Quick actions,
+   side-by-side with the left column, not stacked beneath it. Manager has
+   no landlord-only property-management panel sibling to reflow around
+   (§0/§1), so there is no need for the Landlord full-row/`kf-grid-full`
+   treatment here -- using it would incorrectly force Quick actions below
+   the listing panel instead of beside it (fixed after Copilot review on
+   PR #137 flagged this). `align-items: start` is kept defensively (spec
+   §4.2 item 2 — "no known live defect ... preventive carry-over") so the
+   right-column Quick actions card never stretches to match a taller left
+   column. */
+.kf-manager-redesign .content-grid {
+  align-items: start;
+}
+.kf-manager-redesign .kf-manager-primary-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.kf-manager-redesign .kf-listing-publication-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kf-space-3);
+}
+
+/* §3.4/§11.3 card/panel surfaces — two-layer elevation, 20px radius, 3px
+   category-colored top accent bar, reused verbatim. */
+.kf-manager-redesign .kf-panel,
+.kf-manager-redesign .panel {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(36, 22, 46, 0.06);
+  border-radius: var(--kf-radius-card);
+  box-shadow: var(--kf-shadow-resting);
+  padding: var(--kf-space-5);
+  transition: box-shadow 150ms ease;
+}
+.kf-manager-redesign .kf-panel:hover,
+.kf-manager-redesign .kf-panel:focus-within,
+.kf-manager-redesign .panel:hover,
+.kf-manager-redesign .panel:focus-within {
+  box-shadow: var(--kf-shadow-hover);
+}
+.kf-manager-redesign .kf-panel::before,
+.kf-manager-redesign .panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+/* Category mapping (spec §11/§4): mineralTeal = action/workflow
+   (Listing Publication is Manager's one action panel), burnishedCopper =
+   portfolio/inventory (quick actions), aubergine = informational/activity
+   (Needs attention). */
+.kf-manager-redesign .listing-panel::before {
+  background: var(--kf-mineral-teal);
+}
+.kf-manager-redesign .quick-panel::before {
+  background: var(--kf-burnished-copper);
+}
+.kf-manager-redesign .table-panel::before {
+  background: var(--kf-aubergine);
+}
+.kf-manager-redesign .table-panel {
+  background: linear-gradient(180deg, rgba(36, 22, 46, 0.035), rgba(36, 22, 46, 0) 140px), #fff;
+}
+.kf-manager-redesign .kf-section-heading,
+.kf-manager-redesign .panel h2,
+.kf-manager-redesign .panel h3,
+.kf-manager-redesign h3 {
+  font-family: var(--kf-font-display);
+  font-weight: 700;
+  color: var(--kf-aubergine);
+}
+.kf-manager-redesign .panel h2 { font-size: 22px; line-height: 1.2; }
+.kf-manager-redesign .panel h3 { font-size: 17px; line-height: 1.3; }
+
+/* §5.1 buttons */
+.kf-manager-redesign button {
+  border-radius: var(--kf-radius-md) !important;
+  min-height: 40px;
+  font-family: var(--kf-font-body);
+  font-weight: 600;
+  font-size: 15px;
+}
+.kf-manager-redesign button[type='submit'] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 8px rgba(36, 22, 46, 0.18);
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+.kf-manager-redesign button[type='submit']:active {
+  box-shadow: inset 0 1px 2px rgba(36, 22, 46, 0.2);
+  transform: translateY(1px);
+}
+.kf-manager-redesign button:focus-visible,
+.kf-manager-redesign input:focus-visible,
+.kf-manager-redesign select:focus-visible,
+.kf-manager-redesign textarea:focus-visible {
+  outline: 2px solid var(--kf-mineral-teal);
+  outline-offset: 2px;
+}
+
+/* §5.1 quick actions (outline + icon chip) */
+.kf-manager-redesign .kf-quick-actions { display: grid; gap: var(--kf-space-2); margin: var(--kf-space-4) 0; }
+.kf-manager-redesign .kf-quick-action {
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  justify-content: flex-start;
+  background: var(--kf-soft-bone);
+  border: 1px solid var(--kf-aubergine-12);
+  color: var(--kf-aubergine);
+  padding: var(--kf-space-3);
+}
+.kf-manager-redesign .kf-quick-action-chip {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: var(--kf-radius-sm);
+  background: var(--kf-burnished-copper);
+  color: var(--kf-aubergine);
+  font-weight: 700;
+  flex: none;
+}
+.kf-manager-redesign .kf-api-note {
+  margin-top: var(--kf-space-5);
+  padding-top: var(--kf-space-4);
+  border-top: 1px solid var(--kf-aubergine-08);
+  color: var(--kf-aubergine);
+}
+
+.kf-manager-redesign .listing-row {
+  border-bottom: 1px solid var(--kf-aubergine-08);
+}
+
+/* §5.5 badges — used both by the reused `.status` span (annotated with
+   `data-kf-tone` from outside, same mechanism as Landlord's
+   `statusTone.js`) and by the new `PortfolioStatusLegend` (which renders
+   the real, imported `StatusBadge` component — `.kf-badge*` classes are
+   that component's own, reused unmodified from
+   `../landlord/components/StatusBadge.jsx`). */
+.kf-manager-redesign .kf-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--kf-radius-pill);
+  padding: var(--kf-space-1) var(--kf-space-3);
+  font-family: var(--kf-font-body);
+  font-size: 13px;
+  font-weight: 600;
+}
+.kf-manager-redesign .kf-badge-neutral { background: var(--kf-soft-bone); color: var(--kf-aubergine); }
+.kf-manager-redesign .kf-badge-positive { background: var(--colorPaletteGreenBackground2, #e6f4ea); color: var(--colorPaletteGreenForeground1, #0e6027); }
+.kf-manager-redesign .kf-badge-attention { background: var(--kf-burnished-copper); color: var(--kf-aubergine); }
+.kf-manager-redesign .kf-badge-negative { background: var(--colorPaletteRedBackground2, #fdf3f4); color: var(--colorPaletteRedForeground1, #b10e1c); }
+.kf-manager-redesign .kf-badge-locked { background: rgba(36, 22, 46, 0.1); color: var(--kf-aubergine); }
+
+.kf-manager-redesign .kf-status-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-2);
+  flex-wrap: wrap;
+}
+
+/* §5.2 banners — existing `.publication-feedback` markup/conditions
+   unchanged, only the shell restyled (reused verbatim from Landlord). */
+.kf-manager-redesign .publication-feedback {
+  background: #fff;
+  color: var(--kf-aubergine);
+  border-radius: var(--kf-radius-sm);
+  padding: var(--kf-space-4);
+  border-left: 3px solid var(--kf-mineral-teal);
+  display: flex;
+  align-items: center;
+  gap: var(--kf-space-3);
+  flex-wrap: wrap;
+}
+.kf-manager-redesign .publication-feedback[data-tone='success'] {
+  background: #fff;
+  color: var(--kf-aubergine);
+  border-left-color: var(--kf-mineral-teal);
+}
+.kf-manager-redesign .publication-feedback[data-tone='error'] {
+  background: #fff;
+  color: var(--kf-aubergine);
+  border-left-color: var(--colorPaletteRedForeground1, #b10e1c);
+}
+.kf-manager-redesign .publication-feedback p { margin: 0; }
+
+/* Withdrawn-listing tone annotation (see ManagerShell.jsx's
+   `annotateStatusTone` effect, reused unmodified from
+   `../landlord/statusTone.js`) — identical rule already shipped for
+   Landlord's own `.status[data-kf-tone='negative']` badges. */
+.kf-manager-redesign .status[data-kf-tone='negative'] {
+  background: var(--colorPaletteRedBackground2, #fdf3f4);
+  color: var(--colorPaletteRedForeground1, #b10e1c);
+}
+/* Copilot review (PR #137) finding: a `draft` listing row previously kept
+   the base `.status` green "positive" background (styles.css), reading
+   identically to a genuinely `published` row. `draft` is neither
+   positive nor negative, so it gets the same neutral tone StatusBadge
+   already uses elsewhere (`kf-badge-neutral`'s token pairing). */
+.kf-manager-redesign .status[data-kf-tone='neutral'] {
+  background: var(--kf-soft-bone);
+  color: var(--kf-aubergine);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kf-manager-redesign * { transition: none !important; animation: none !important; }
+}
