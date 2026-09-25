@@ -268,13 +268,21 @@ test.describe('Landlord redesign (flag-gated)', () => {
     const cancelBorderColor = await cancelButton.evaluate((el) => window.getComputedStyle(el).borderTopColor);
     expect(cancelBorderColor).toMatch(/^rgba\([^)]*,\s*0\)$|^transparent$/);
 
-    // Copilot PR #135 review, cycle-3 finding: the `max-width: 520px`
-    // rule (added after the PO's "horrible ... large empty area" report)
-    // had no rendered-width regression coverage. Assert both forms
-    // shrink-wrap to the intended content width instead of stretching
-    // across the full (much wider, at this 1400px viewport) card.
-    for (const form of diagnostics) {
-      expect(form.formWidth).toBeLessThanOrEqual(520);
+    // PO feedback (PR #135, ergonomic polish pass): rather than shrink-
+    // wrapping the whole card/form to a fixed max-width (which relocated
+    // the "large dead area" complaint to a narrower floating card,
+    // inconsistent with the full-width "Create public listing" bar
+    // below it), the card/forms stay full width and instead the
+    // protected `.unit-form` grid's own column size is capped
+    // (`minmax(220px, 260px)`, see redesign.css) so individual real
+    // fields/buttons never stretch past a comfortable size. Assert the
+    // input fields themselves render at a comfortable, non-stretched
+    // width, not the whole form.
+    const fieldWidths = await panel.evaluate((panelEl) => Array.from(
+      panelEl.querySelectorAll('input, select'),
+    ).map((field) => field.getBoundingClientRect().width));
+    for (const width of fieldWidths) {
+      expect(width).toBeLessThanOrEqual(260);
     }
 
     await panel.screenshot({ path: 'e2e/redesign/__screenshots__/flag-on-unit-pricing-availability-caption-fix.png' });

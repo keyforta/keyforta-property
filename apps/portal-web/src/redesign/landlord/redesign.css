@@ -559,22 +559,24 @@
   margin-top: var(--kf-space-3);
   border: 1px solid var(--kf-aubergine-12);
 }
-/* PO feedback (screenshot, PR #135): once the caption/divider/button-width
-   grid bugs above were fixed, the panel still looked "horrible" — the
-   protected `.unit-form` grid (`repeat(auto-fill, minmax(220px, 1fr))`,
-   styles.css) creates as many 1fr columns as the *card's* full width
-   allows, then stretches the 2-3 real fields/buttons across only the
-   first couple of those columns, leaving a large dead empty area to
-   their right for the rest of the row's width. Constraining the form's
-   own max-width stops auto-fill from being handed more width than the
-   fields actually need, so the row visually shrink-wraps to its content
-   instead of stretching across the whole card. 520px comfortably fits
-   the pricing form's two fields (2 x 220px min-width + 14px gap, per
-   styles.css) plus the availability form's status/reason fields, without
-   constraining any individual Field/Input/Select below its own
-   minmax(220px, ...) floor. */
+/* PO feedback (PR #135, ergonomic polish pass): a `max-width` on the card
+   (an earlier revision of this fix) technically stopped the stretching,
+   but just relocated the "large dead area" complaint one level up — a
+   narrow white card floating disconnected in the middle of the much
+   wider row, inconsistent with the full-width "Create public listing"
+   bar directly below it. Ergonomically, a fixed-width card that doesn't
+   fill its row also reads as unfinished/broken, not intentional.
+   Instead: let both the card AND its inner forms stay full width
+   (matching their full-width sibling), but cap the protected `.unit-form`
+   grid's *column* size (`auto-fill, minmax(220px, 1fr)` → `minmax(220px,
+   260px)`) so a real field/button never stretches past a comfortable
+   reading/click width — the previously-huge single dead gap is instead
+   naturally distributed as normal grid gaps between reasonably-sized
+   fields, which is both more usable (shorter line lengths, larger,
+   evenly-spaced click targets) and visually consistent with the rest of
+   the panel. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form {
-  max-width: 520px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
 }
 /* Copilot PR #134 review, cycle-3/4 finding #5: no `::before` caption
    here — property-management-panel.jsx (protected, unmodified) already

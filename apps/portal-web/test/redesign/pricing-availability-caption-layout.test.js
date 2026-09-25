@@ -40,18 +40,24 @@ describe('redesign.css unit-pricing-availability section captions span the full 
     expect(match[1]).toMatch(/grid-column:\s*1\s*\/\s*-1/);
   });
 
-  it('constrains each unit-form to a shrink-wrapped max-width instead of stretching the auto-fill grid across the whole card', () => {
-    // Copilot PR #135 review, cycle-3 finding: the `max-width: 520px` rule
-    // (added after the PO's "horrible ... large empty area" report) had no
-    // regression coverage — a revert of just this line would still pass
-    // every other assertion in this file. Pin the exact selector/value so
-    // a regression is caught here, with the real-browser rendered-width
-    // assertion living in e2e/redesign/landlord.spec.ts.
+  it('caps each auto-fill column at a comfortable max width instead of a bare max-width on the whole form', () => {
+    // PO feedback (PR #135, ergonomic polish pass): an earlier revision
+    // capped the whole form/card at `max-width: 520px`, which stopped
+    // individual fields/buttons from stretching but relocated the
+    // "large dead area" complaint one level up — a narrow card floating
+    // disconnected in the middle of the much wider row, inconsistent
+    // with the full-width "Create public listing" bar directly below
+    // it. Instead, cap the protected `.unit-form` grid's own column
+    // size (`repeat(auto-fill, minmax(220px, 1fr))` -> `minmax(220px,
+    // 260px)`), so the card/form stay full width (visually consistent
+    // with their sibling) while individual fields/buttons still never
+    // stretch past a comfortable size — the leftover space becomes
+    // ordinary grid gaps, not one giant disconnected gap.
     const match = css.match(
       /\.kf-landlord-redesign \.unit-pricing-availability form\.unit-form\s*\{([^}]*)\}/,
     );
     expect(match).not.toBeNull();
-    expect(match[1]).toMatch(/max-width:\s*520px/);
+    expect(match[1]).toMatch(/grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(220px,\s*260px\)\)/);
   });
 
   it('also spans the submit buttons across the full row and pins a shared min-width wide enough for the longest approved fr/en label', () => {
