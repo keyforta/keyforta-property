@@ -859,6 +859,38 @@ describe('PropertyManagementPanel', () => {
       expect(await screen.findByText('No photos uploaded yet.')).toBeInTheDocument();
     });
 
+    // PO live-review polish pass ("Listing photos" dialog): the existing-
+    // images list used to be a bare `<ul><li>` of "<room>    Delete" text
+    // with no row separation, and Delete rendered as plain bold text
+    // despite being a real Fluent `Button`. This asserts the row now has
+    // its own structural hook (`.listing-image-row`) with the room name
+    // in a dedicated `.listing-image-room` element and an icon-only,
+    // accessible Delete button — a real Fluent icon, not just text —
+    // without changing any of the delete button's existing test hooks
+    // (accessible name, disabled/deleting states) asserted elsewhere in
+    // this file.
+    it('renders each existing image as a distinct, bordered row with an icon delete action (visual polish)', async () => {
+      list.mockReset();
+      list.mockResolvedValueOnce({
+        items: [{ imageId: 'eeeeeeee-3333-4333-8333-333333333333', room: 'kitchen', mediaType: 'image/jpeg', sizeBytes: 3, position: 0, createdAt: '2026-09-22T00:00:00.000Z' }],
+        meta: { requestId: 'req-image-list-row' },
+      });
+      renderPanel({ listings: [draftListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Listing photos' }));
+
+      const deleteButton = await screen.findByRole('button', { name: 'Delete' });
+      const row = deleteButton.closest('.listing-image-row');
+      expect(row).not.toBeNull();
+      expect(within(row).getByText('Kitchen')).toHaveClass('listing-image-room');
+      // Icon-only: no visible "Delete" text node sits next to the room
+      // name any more — the accessible name comes from the button's own
+      // aria-label/Tooltip, and the button renders a real icon element.
+      expect(deleteButton).toHaveAttribute('aria-label', 'Delete');
+      expect(deleteButton.querySelector('svg')).not.toBeNull();
+    });
+
     it('disables uploads once the listing has 10 images (REQ-037 cap)', async () => {
       list.mockReset();
       const items = Array.from({ length: 10 }, (_, index) => ({

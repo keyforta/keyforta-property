@@ -23,7 +23,7 @@ import {
   Textarea,
   Tooltip,
 } from '@fluentui/react-components';
-import { ChevronLeft20Regular, ChevronRight20Regular, CloudAdd20Regular, CloudArrowUp20Regular, CloudDismiss20Regular, ImageMultiple20Regular, Money20Regular } from '@fluentui/react-icons';
+import { ChevronLeft20Regular, ChevronRight20Regular, CloudAdd20Regular, CloudArrowUp20Regular, CloudDismiss20Regular, Delete20Regular, ImageMultiple20Regular, Money20Regular } from '@fluentui/react-icons';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
@@ -661,7 +661,12 @@ function ListingImageManager({ disabled, legacyImageCount = 0, listingId, sessio
   };
 
   return (
-    <Dialog open={open} onOpenChange={(_event, data) => setOpen(data.open)}>
+    // `surfaceMotion`/`backdropMotion` are disabled here (and only here) because this dialog's
+    // content height changes after mount (images load asynchronously via fetchImages()), which made
+    // the default ~250ms scale/fade entrance animation's transitional frames (undersized surface,
+    // partially-dimmed backdrop) visibly overlap the page content behind it. The other dialogs in
+    // this file have static content and keep their default Fluent entrance motion.
+    <Dialog open={open} onOpenChange={(_event, data) => setOpen(data.open)} surfaceMotion={null} backdropMotion={null}>
       <DialogTrigger disableButtonEnhancement>
         <Tooltip content={t('property_management.listing_images_title')} relationship='label'>
           <Button appearance='subtle' disabled={disabled} icon={<ImageMultiple20Regular />} ref={anchorRef} onClick={() => setOpen(true)} />
@@ -677,21 +682,27 @@ function ListingImageManager({ disabled, legacyImageCount = 0, listingId, sessio
             ) : null}
             {images.length > 0 ? (
               <ul className='listing-image-list'>
-                {images.map((image) => (
-                  <li key={image.imageId}>
-                    <span>{t(`property_management.room.${image.room}`)}</span>
-                    <Button
-                      appearance='subtle'
-                      disabled={disabled || deletingImageId === image.imageId}
-                      onClick={() => handleDelete(image.imageId)}
-                      type='button'
-                    >
-                      {deletingImageId === image.imageId
-                        ? <><Spinner size='tiny' /> {t('property_management.listing_image_deleting')}</>
-                        : t('property_management.listing_image_delete')}
-                    </Button>
-                  </li>
-                ))}
+                {images.map((image) => {
+                  const isDeleting = deletingImageId === image.imageId;
+                  const deleteLabel = isDeleting
+                    ? t('property_management.listing_image_deleting')
+                    : t('property_management.listing_image_delete');
+                  return (
+                    <li className='listing-image-row' key={image.imageId}>
+                      <span className='listing-image-room'>{t(`property_management.room.${image.room}`)}</span>
+                      <Tooltip content={deleteLabel} relationship='label'>
+                        <Button
+                          appearance='subtle'
+                          aria-label={deleteLabel}
+                          disabled={disabled || isDeleting}
+                          icon={isDeleting ? <Spinner size='tiny' /> : <Delete20Regular />}
+                          onClick={() => handleDelete(image.imageId)}
+                          type='button'
+                        />
+                      </Tooltip>
+                    </li>
+                  );
+                })}
               </ul>
             ) : null}
             <form className='listing-image-upload-form' noValidate onSubmit={handleUpload}>

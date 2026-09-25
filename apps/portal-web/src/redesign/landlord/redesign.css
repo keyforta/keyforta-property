@@ -1059,6 +1059,89 @@
    its own localized, visible `<h3>{t('listing_images_title')}</h3>`
    heading ("Listing photos") inside this exact element. */
 
+/* PO live-review finding (this session, "Listing photos" dialog polish
+   pass): the existing-images list was a bare `<ul><li>` of
+   "<room>    Delete" with no borders/row separation and Delete rendered
+   as plain bold text despite being a real Fluent `Button`. The list
+   markup itself is protected/unmodified (still a plain `<ul><li>`, see
+   property-management-panel.jsx) — only its chrome is restyled here,
+   the same "reused unmodified markup, chrome-only restyle" pattern used
+   for `.property-row`/`.unit-row` above. */
+/* PO follow-up ("what if we have a long list of images?"): REQ-038 caps
+   a listing at MAX_LISTING_IMAGES (10) combined images, so this list can
+   grow to 10 bordered rows. Without a height cap the dialog itself grows
+   with the list, which can push the upload sub-form and Cancel button
+   below the fold and force whole-page/dialog scrolling. Same internal-
+   scroll-region pattern already used for `.kf-sidebar` above (fixed-
+   height ancestor + `overflow-y: auto` on the scrollable region) — the
+   max-height below comfortably shows ~4-5 rows (each row is ~44px incl.
+   border) before the list scrolls internally, so the dialog's overall
+   height stays stable regardless of image count and the rest of the
+   dialog (title, upload form, Cancel) never needs to scroll off-screen. */
+.kf-landlord-redesign .listing-image-list {
+  border: 1px solid var(--kf-aubergine-08);
+  border-radius: var(--kf-radius-md);
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 224px;
+  background: #fff;
+}
+.kf-landlord-redesign .listing-image-row {
+  justify-content: space-between;
+  padding: var(--kf-space-2) var(--kf-space-3);
+  border-bottom: 1px solid var(--kf-aubergine-08);
+}
+.kf-landlord-redesign .listing-image-row:last-child {
+  border-bottom: none;
+}
+.kf-landlord-redesign .listing-image-room {
+  font-family: var(--kf-font-body);
+  font-weight: 600;
+  color: var(--kf-aubergine);
+}
+/* Delete is deliberately icon-only (Tooltip carries the accessible/visible
+   label on hover/focus; the Button's own `aria-label` keeps it announced
+   to assistive tech even without the tooltip open) so it reads as a
+   small row action rather than a second block of bold plain text sitting
+   next to the room name — consistent with how every other icon-only row
+   action button in this file (e.g. the `ImageMultiple20Regular` trigger
+   above) is styled: no border, brand-colored on hover only. */
+.kf-landlord-redesign .listing-image-row button {
+  min-height: 32px;
+  min-width: 32px;
+  color: var(--kf-aubergine);
+}
+.kf-landlord-redesign .listing-image-row button:hover {
+  color: var(--kf-burnished-copper);
+}
+
+/* The native `<input type='file'>` (kept as-is per REQ-038 test hooks —
+   `fileInputRef`/`fileInputId` — rather than swapped for a fake custom
+   widget) sat directly beside its label on one line
+   ("Photo file*| Choose File | No file chosen"), which read as unstyled
+   raw HTML next to the fully-Fluent `Field`/`Select` above it in the same
+   form. `styles.css` now stacks the label above the input for every
+   flag state (genuine layout bug, not a redesign-only opinion); this
+   scoped block only adds the Fluent-consistent border/radius/padding
+   treatment so the control itself doesn't look like bare browser chrome
+   next to the Room `Select`. */
+.kf-landlord-redesign .listing-image-file-field input[type='file'] {
+  width: 100%;
+  padding: var(--kf-space-2) var(--kf-space-3);
+  border: 1px solid var(--kf-aubergine-12);
+  border-radius: var(--kf-radius-sm);
+  background: var(--kf-soft-bone);
+  font-family: var(--kf-font-body);
+  font-size: 14px;
+  color: var(--kf-aubergine);
+}
+.kf-landlord-redesign .listing-image-file-field label {
+  font-family: var(--kf-font-body);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--kf-aubergine);
+}
+
 /* ---------------------------------------------------------------------
    Regression fix (PO live-review finding, since fully superseded): a
    unit's own "Available" badge sitting directly next to its listing's

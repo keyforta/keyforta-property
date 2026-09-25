@@ -1,6 +1,6 @@
 {
   "apps/portal-web/src/listing-publication-panel.jsx": "9ab28f97c3b6e4b10387ff918cc0ca65b12fbf42a17847435be6b87d6e37fd80",
-  "apps/portal-web/src/property-management-panel.jsx": "38154810f7b140ab899ce01fc53d0f3de16b67585cf31177b2b607c448be81cc",
+  "apps/portal-web/src/property-management-panel.jsx": "fffdc62f310ff083259bb8bd5d336cc09fecabc2b1f6082f429278c2c127b330",
   "apps/portal-web/src/redesign/landlord/LandlordShell.jsx": "0ff95ea5c08fac94e6413ec10e0705aec55bbb188f2fbe99e8a26c91227af886",
   "apps/portal-web/src/redesign/landlord/__fixtures__/ChecklistOpenPreview.jsx": "c0446bbe77b084609c2d0985ef409022dc0c203cc1a471961d19b73aa8dca8ab",
   "apps/portal-web/src/redesign/landlord/__fixtures__/PoRegressionPreview.jsx": "5f6a10530a97faa15376a4fae014ced72abf60597047beecb2dc885b326a3b9c",
@@ -17,7 +17,7 @@
   "apps/portal-web/src/redesign/landlord/index.jsx": "7bdd99a1f3ea0fa4442bf707808e2b6e843871a169e8100553212c17b1260ae0",
   "apps/portal-web/src/redesign/landlord/locales/en.json": "8e983ae62ac00cfda1cd56126f14721b6e8465b812639419a519369f92bc35e8",
   "apps/portal-web/src/redesign/landlord/locales/fr.json": "61925b0bf35c618199b61b5cfc484d66cef363cbee8bf5f7edb93fa3da5cf87b",
-  "apps/portal-web/src/redesign/landlord/redesign.css": "286ad22b58dff3ae117d9b8b1b429cafbf38283852a6b48899ccad68dbfc1f5c",
+  "apps/portal-web/src/redesign/landlord/redesign.css": "59434a76e65e5bb2a43ca9063e477d93f28f19c69da20bfd3a01a4b5194679fc",
   "apps/portal-web/src/redesign/landlord/statusTone.js": "95b41fd14add56b0899aa4461b58191077ff2235ec40d9f88dfb115a9d06d6f7",
   "apps/portal-web/src/redesign/landlord/theme.js": "48f74b382bfc55284a866364184367907a778fa22544497547b13d9e90ca774e",
   "apps/portal-web/src/redesign/landlord/unitManagement.js": "6834875ce3057cf365e2ba5506b25837c1493123ca27de81992909302b829958",
@@ -27,5 +27,5 @@
   "apps/portal-web/src/redesign/manager/index.jsx": "987d8047b249b4df679c85ca04e6b97dafbf60d7a5ba37efb02e06537e507880",
   "apps/portal-web/src/redesign/manager/redesign.css": "8ec24d3b1848530ebf8b22476eec19e406fb0661298f94c30cb8ffc50adf7d84",
   "apps/portal-web/src/redesign/manager/statusTone.js": "82aa4d847442c7aee17a6602c4938a3c68e89f381752c3b95d632e84b9dcb181",
-  "apps/portal-web/src/styles.css": "10733c6ac7215f943ef3e8ee0e9d961bd3fe7704beff7fedce4d5df8d6a2f57b"
+  "apps/portal-web/src/styles.css": "eda67d212406e9981b2580495f5e1a4561cd08b5aaf63ef02c60bcf4794f5f39"
 }
