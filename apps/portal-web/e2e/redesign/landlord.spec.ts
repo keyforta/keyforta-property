@@ -268,6 +268,15 @@ test.describe('Landlord redesign (flag-gated)', () => {
     const cancelBorderColor = await cancelButton.evaluate((el) => window.getComputedStyle(el).borderTopColor);
     expect(cancelBorderColor).toMatch(/^rgba\([^)]*,\s*0\)$|^transparent$/);
 
+    // Copilot PR #135 review, cycle-3 finding: the `max-width: 520px`
+    // rule (added after the PO's "horrible ... large empty area" report)
+    // had no rendered-width regression coverage. Assert both forms
+    // shrink-wrap to the intended content width instead of stretching
+    // across the full (much wider, at this 1400px viewport) card.
+    for (const form of diagnostics) {
+      expect(form.formWidth).toBeLessThanOrEqual(520);
+    }
+
     await panel.screenshot({ path: 'e2e/redesign/__screenshots__/flag-on-unit-pricing-availability-caption-fix.png' });
   });
 

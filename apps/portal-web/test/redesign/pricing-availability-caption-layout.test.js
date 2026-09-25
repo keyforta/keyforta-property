@@ -40,6 +40,20 @@ describe('redesign.css unit-pricing-availability section captions span the full 
     expect(match[1]).toMatch(/grid-column:\s*1\s*\/\s*-1/);
   });
 
+  it('constrains each unit-form to a shrink-wrapped max-width instead of stretching the auto-fill grid across the whole card', () => {
+    // Copilot PR #135 review, cycle-3 finding: the `max-width: 520px` rule
+    // (added after the PO's "horrible ... large empty area" report) had no
+    // regression coverage — a revert of just this line would still pass
+    // every other assertion in this file. Pin the exact selector/value so
+    // a regression is caught here, with the real-browser rendered-width
+    // assertion living in e2e/redesign/landlord.spec.ts.
+    const match = css.match(
+      /\.kf-landlord-redesign \.unit-pricing-availability form\.unit-form\s*\{([^}]*)\}/,
+    );
+    expect(match).not.toBeNull();
+    expect(match[1]).toMatch(/max-width:\s*520px/);
+  });
+
   it('also spans the submit buttons across the full row and pins a shared min-width wide enough for the longest approved fr/en label', () => {
     // Copilot PR #135 review, cycle-1 finding: a bare min-width is only a
     // lower bound with justify-self:start — it must be raised past the
