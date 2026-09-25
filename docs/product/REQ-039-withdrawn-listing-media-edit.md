@@ -63,6 +63,32 @@ reviewed in their edited form.
   receiving a `23514` rejection from the backend when the listing is
   `withdrawn`.
 
+## Amendment (2026-09-24, Copilot review on PR #136)
+
+The first implementation pass (migration `0034`) only widened the
+upload/delete guard, per the scope above. GitHub Copilot's automated
+review of PR #136 correctly flagged that this left a withdrawn listing's
+edited media **permanently unreviewable**: `app.review_public_listing_media`,
+`app.list_public_listings_pending_media_review`, and
+`app.get_public_listing_image_content_for_review` (all from REQ-037/038,
+migrations `0032`/`0033`) still hard-required `status = 'draft'`, so the
+reset-to-`pending` media from a withdrawn-listing edit would never surface
+to a reviewer, never be approvable, and the listing could never be
+republished — defeating the entire purpose of this requirement.
+
+Migration `0035` closes that gap: the three functions above now also
+accept `status = 'withdrawn'`. To avoid introducing a new "approve media on
+a withdrawn listing and it silently republishes itself" path, the
+pre-existing auto-publish side effect inside `review_public_listing_media`
+is explicitly restricted to `status = 'draft'` — approving a withdrawn
+listing's media leaves it `withdrawn` (now with `media_review_status =
+'approved'`), and republishing still requires the landlord/manager's
+explicit, separate `app.set_public_listing_publication(published => true)`
+call, which already requires `media_review_status = 'approved'`
+(unchanged). This preserves the "no new path to publish unreviewed media"
+guarantee stated in the Scope section above, end to end through the
+withdrawn-edit-review-republish cycle.
+
 ## Out of scope
 
 - No explicit `withdrawn → draft` transition function is added (the

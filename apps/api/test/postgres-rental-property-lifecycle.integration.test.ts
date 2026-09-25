@@ -2322,6 +2322,121 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       expect(deleted?.listingId).toBe(listing!.listingId);
     });
 
+    // REQ-039 follow-up (Copilot review finding on PR #136): editing a
+    // withdrawn listing's media is worthless if the reviewer-facing paths
+    // (pending queue, review-only image bytes, and the approve/reject
+    // decision itself) still only recognize `status = 'draft'` -- the
+    // edited media would be permanently stuck `pending` and never
+    // reviewable, so the listing could never be republished. This test
+    // exercises the full withdrawn-edit -> review -> republish path.
+    it("surfaces a withdrawn listing's edited media for review, approves it without auto-publishing, and allows a subsequent manual republish (REQ-039)", async () => {
+      const created = await createUnitForUpload("withdrawn-media-review");
+      const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: "corr-media-withdrawn-review-create",
+        idempotencyKey: "idem-media-withdrawn-review-create",
+        imageUrls: [],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Riverside apartment — Unit withdrawn-media-review",
+        unitId: created.unitId,
+      });
+      expect(listing?.listingId).toBeTruthy();
+
+      const pricing = await gateway().setUnitPricing({
+        amountMinor: 150_000,
+        correlationId: "corr-media-withdrawn-review-pricing",
+        idempotencyKey: "idem-media-withdrawn-review-pricing",
+        currency: "USD",
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion: listing!.unitVersion,
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        unitId: created.unitId,
+      });
+      await gateway().setUnitAvailability({
+        correlationId: "corr-media-withdrawn-review-availability",
+        idempotencyKey: "idem-media-withdrawn-review-availability",
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion: pricing!.unitVersion,
+        organizationId: organizationA,
+        source: "test",
+        status: "available",
+        subject: landlordSubject,
+        unitId: created.unitId,
+      });
+
+      const firstImage = await uploadImage(listing!.listingId, landlordSubject, { room: "kitchen" });
+      expect(firstImage?.imageId).toBeTruthy();
+
+      const firstApproval = await publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-media-withdrawn-review-first-approve",
+        decision: "approved",
+        listingId: listing!.listingId,
+        reviewerObjectId: "00000000-0000-4000-8000-000000000981",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      });
+      expect(firstApproval?.mediaReviewStatus).toBe("approved");
+
+      const withdrawn = await publicationGateway().setPublication({
+        correlationId: "corr-media-withdrawn-review-withdraw",
+        listingId: listing!.listingId,
+        organizationId: organizationA,
+        published: false,
+        subject: landlordSubject,
+      });
+      expect(withdrawn).toBe(true);
+
+      const editedImage = await uploadImage(listing!.listingId, landlordSubject, { room: "bedroom" });
+      expect(editedImage?.imageId).toBeTruthy();
+
+      // The withdrawn listing's newly-pending media must now surface in
+      // the reviewer-facing pending queue and be servable via the
+      // review-only route -- not silently invisible.
+      const pending = await publicationGateway().listPendingMediaReview();
+      expect(pending.some((review) => review.listingId === listing!.listingId)).toBe(true);
+      await expect(
+        mediaGateway().getReviewImageContent(listing!.listingId, editedImage!.imageId),
+      ).resolves.toBeDefined();
+
+      const secondApproval = await publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-media-withdrawn-review-second-approve",
+        decision: "approved",
+        listingId: listing!.listingId,
+        reviewerObjectId: "00000000-0000-4000-8000-000000000982",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      });
+      expect(secondApproval?.mediaReviewStatus).toBe("approved");
+
+      // Approving a withdrawn listing's media must not auto-publish it --
+      // republishing stays an explicit, separate decision.
+      const statusAfterApproval = await client.query(
+        "select status from app.public_listings where id = $1",
+        [listing!.listingId],
+      );
+      expect(statusAfterApproval.rows[0].status).toBe("withdrawn");
+
+      const republished = await publicationGateway().setPublication({
+        correlationId: "corr-media-withdrawn-review-republish",
+        listingId: listing!.listingId,
+        organizationId: organizationA,
+        published: true,
+        subject: landlordSubject,
+      });
+      expect(republished).toBe(true);
+
+      const statusAfterRepublish = await client.query(
+        "select status from app.public_listings where id = $1",
+        [listing!.listingId],
+      );
+      expect(statusAfterRepublish.rows[0].status).toBe("published");
+    });
+
     it("denies (nondisclosing) upload/delete attempts on a withdrawn listing from an actor without an active listing-manager assignment (REQ-039/PROP-027)", async () => {
       const created = await createUnitForUpload("withdrawn-media-cross-org");
       const listing = await gateway().createPublicListing({
