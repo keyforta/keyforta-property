@@ -78,28 +78,20 @@ describe('redesign.css unit-pricing-availability section captions span the full 
     expect(tintedRule[1]).toMatch(/border-color:\s*transparent/);
   });
 
-  it('merges the two tinted sub-forms into one continuous panel (no gap/radius between them) while keeping them as two distinguishable actions', () => {
-    // PO feedback (PR #135 further polish): the two rounded, gapped
-    // tinted boxes still read as two separate "cards." The two <form>
-    // elements stay separate (two independent, protected commands —
-    // merging actual submission behavior would mean editing the
-    // protected property-management-panel.jsx and is out of scope
-    // without explicit PO/spec sign-off), but their shared background
-    // now forms one continuous surface: no gap between them, and
-    // border-radius only at the very top/bottom of the pair.
+  it('gives each sub-form its own fully-rounded tinted surface (side-by-side layout, not a merged stack)', () => {
+    // PO feedback (this session, "re-arrange efficiently items on the
+    // form"): the two sub-forms now render side by side (a CSS Grid row
+    // on `.unit-pricing-availability`, see the "efficient" fix above)
+    // rather than stacked, so there is no shared top/bottom edge left to
+    // merge into one continuous panel — each card gets its own full
+    // border-radius instead.
     const matches = [...css.matchAll(
       /\.kf-landlord-redesign \.unit-pricing-availability form\.unit-form\s*\{([^}]*)\}/g,
     )];
     const tintedRule = matches.find((m) => /background:\s*var\(--kf-soft-bone\)/.test(m[1]));
     expect(tintedRule).not.toBeUndefined();
-    expect(tintedRule[1]).toMatch(/border-radius:\s*0/);
+    expect(tintedRule[1]).toMatch(/border-radius:\s*var\(--kf-radius-md\)/);
     expect(tintedRule[1]).toMatch(/margin-top:\s*0/);
-    expect(css).toMatch(
-      /\.unit-pricing-availability form\.unit-form:first-of-type\s*\{[^}]*border-top-left-radius:\s*var\(--kf-radius-md\)/,
-    );
-    expect(css).toMatch(
-      /\.unit-pricing-availability form\.unit-form:last-of-type\s*\{[^}]*border-bottom-left-radius:\s*var\(--kf-radius-md\)/,
-    );
   });
 
   it('also spans the submit buttons across the full row and pins a shared min-width wide enough for the longest approved fr/en label', () => {

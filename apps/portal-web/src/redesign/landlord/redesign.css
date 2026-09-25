@@ -745,19 +745,48 @@
 .kf-landlord-redesign .unit-row-actions > form.unit-form {
   flex-basis: 100%;
 }
+/* PO feedback (this session, "re-arrange efficiently items on the
+   form"): Fluent's default `DialogSurface` renders at a fixed ~510px
+   width regardless of viewport — not wide enough to hold the Pricing
+   and Availability cards side by side once each field/button is capped
+   at a comfortable 260px (2 × 260px + the shared gap needs ~530px+ of
+   content width, more than the ~460px this narrow default surface
+   leaves after its own padding). Rather than shrinking the field cap
+   (already tuned to fit the longest approved en/fr button label — see
+   the `min-width` comment on the submit-button rule below), this
+   specific dialog's surface is widened so the side-by-side layout has
+   the room it needs; every other Dialog in this file keeps Fluent's
+   default width unchanged. */
+.kf-landlord-redesign .unit-pricing-dialog-surface {
+  width: min(720px, 92vw);
+  max-width: 92vw;
+}
 .kf-landlord-redesign .unit-pricing-availability {
   background: #fff;
   border-radius: var(--kf-radius-sm);
   padding: var(--kf-space-3);
   margin-top: var(--kf-space-3);
   border: 1px solid var(--kf-aubergine-12);
-  /* PO feedback (this session, "polish this UI"): now that this group only
-     ever renders inside a Dialog, shrink it to its own (fit-content) sub-
-     cards too, for the same reason as the `form.unit-form` fix below —
-     otherwise the outer border still traces a wide box around two much
-     narrower cards. */
-  width: fit-content;
-  max-width: 100%;
+  /* PO feedback (this session, "re-arrange efficiently items on the
+     form"): once each sub-card shrank to fit-content (below), stacking
+     the two forms vertically inside this now-wider Dialog left a tall
+     column of unused space to the right of both cards. CSS Grid's
+     `auto-fit` reliably lays the two forms side by side whenever the
+     (now-widened, see `.unit-pricing-dialog-surface`) Dialog has room
+     for both 260px-capped cards plus the gap. A `minmax()` track's
+     lower bound is a hard floor, not a shrink target, so on a narrow
+     phone (where the widened surface itself falls back to its own
+     `92vw`) a single 300px-minimum track can still overflow a ~294px
+     viewport — the media query below explicitly collapses back to one
+     column at the same 900px breakpoint the protected base
+     `styles.css` already uses to collapse `.unit-form` itself, instead
+     of relying on `auto-fit` to save it. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: start;
+  gap: var(--kf-space-3);
+  width: 100%;
+  max-width: 660px;
 }
 /* PO feedback (PR #135, ergonomic polish pass): a `max-width` on the card
    (an earlier revision of this fix) technically stopped the stretching,
@@ -788,8 +817,14 @@
    actual field/button instead of stretching into empty modal padding. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form {
   grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
-  width: fit-content;
-  max-width: 100%;
+  /* PO feedback (this session, "re-arrange efficiently items on the
+     form"): now a grid *track* (of the outer `.unit-pricing-availability`
+     grid above) with a real, definite width, not a flex item — `width:
+     100%` fills that track (so each card's tinted background reaches
+     its own column's edges, matching the other card beside it) while
+     the inner `auto-fill, minmax(220px, 260px)` still caps how wide the
+     actual fields/buttons inside can stretch. */
+  width: 100%;
 }
 /* Design pass (UX/UI review, PR #135 further polish): the two sub-forms
    were both plain white on a white outer card, giving zero figure-ground
@@ -831,21 +866,21 @@
    surface (rounded only at the very top and bottom), while the existing
    caption + full-width divider above "AVAILABILITY" still marks the
    section boundary — one panel, two still-distinguishable actions. */
+/* PO feedback (this session, "re-arrange efficiently items on the
+   form") superseded the previous side-effect below: the two forms used
+   to share one continuous tinted surface only because they were
+   stacked vertically (radius removed between them, kept only at the
+   very top/bottom). Now that `.unit-pricing-availability` lays them out
+   side by side, there is no shared top/bottom edge between them to
+   merge — each card gets its own fully-rounded tinted surface instead,
+   which reads correctly as two adjacent, independent cards rather than
+   one card with a stray straight edge on its inner side. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form {
   background: var(--kf-soft-bone);
   border-color: transparent;
-  border-radius: 0;
+  border-radius: var(--kf-radius-md);
   padding: var(--kf-space-4);
   margin-top: 0;
-}
-.kf-landlord-redesign .unit-pricing-availability form.unit-form:first-of-type {
-  margin-top: var(--kf-space-2);
-  border-top-left-radius: var(--kf-radius-md);
-  border-top-right-radius: var(--kf-radius-md);
-}
-.kf-landlord-redesign .unit-pricing-availability form.unit-form:last-of-type {
-  border-bottom-left-radius: var(--kf-radius-md);
-  border-bottom-right-radius: var(--kf-radius-md);
 }
 /* Bring Fluent's default Field label/input chrome onto this file's own
    type scale/spacing rhythm instead of Fluent's plain defaults. Targets
@@ -961,6 +996,24 @@
   .kf-landlord-redesign .unit-pricing-availability form.unit-form button[type='submit'] {
     min-width: 0;
     width: 100%;
+  }
+  /* PO feedback (this session, "re-arrange efficiently items on the
+     form"): the side-by-side layout above needs real room (two
+     260px-capped cards + gap); a narrow phone doesn't have it, so the
+     two cards explicitly collapse back to a single column here — the
+     same breakpoint the protected base styles.css already uses to
+     collapse `.unit-form` itself, kept in sync rather than relying on
+     `auto-fit`'s own (narrower) fallback threshold. The widened dialog
+     surface also resets to Fluent's ordinary responsive width instead
+     of forcing its own `92vw` (which was still wide enough to make a
+     300px-minimum single column overflow a 320px viewport). */
+  .kf-landlord-redesign .unit-pricing-availability {
+    grid-template-columns: 1fr;
+    max-width: 100%;
+  }
+  .kf-landlord-redesign .unit-pricing-dialog-surface {
+    width: 100%;
+    max-width: 100%;
   }
 }
 /* Copilot PR #135 review, cycle-1 finding: the "Annuler"/Cancel button
