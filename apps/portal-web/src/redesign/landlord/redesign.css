@@ -428,6 +428,18 @@
   background: #fff;
 }
 
+/* PO feedback (this session, "polish this UI" — Create/Edit public
+   listing dialog): the attestation checkbox is a single grid item, so
+   without an explicit `grid-column` it only ever occupies the "Listing
+   title" column, leaving the whole "Listing summary" column blank
+   beneath it — the exact same "unused grid cell reads as dead space"
+   issue documented above for the pricing/availability sub-forms.
+   Spanning every column also lets its long consent sentence use the
+   card's full width instead of wrapping narrowly in a single column. */
+.kf-landlord-redesign .listing-attestation-field {
+  grid-column: 1 / -1;
+}
+
 /* §5.5 badges (used by the new shell chrome around the reused panels; see
    components/StatusBadge.jsx) */
 .kf-landlord-redesign .kf-badge {
@@ -739,6 +751,13 @@
   padding: var(--kf-space-3);
   margin-top: var(--kf-space-3);
   border: 1px solid var(--kf-aubergine-12);
+  /* PO feedback (this session, "polish this UI"): now that this group only
+     ever renders inside a Dialog, shrink it to its own (fit-content) sub-
+     cards too, for the same reason as the `form.unit-form` fix below —
+     otherwise the outer border still traces a wide box around two much
+     narrower cards. */
+  width: fit-content;
+  max-width: 100%;
 }
 /* PO feedback (PR #135, ergonomic polish pass): a `max-width` on the card
    (an earlier revision of this fix) technically stopped the stretching,
@@ -755,9 +774,22 @@
    naturally distributed as normal grid gaps between reasonably-sized
    fields, which is both more usable (shorter line lengths, larger,
    evenly-spaced click targets) and visually consistent with the rest of
-   the panel. */
+   the panel.
+
+   PO feedback (this session, "polish this UI" — the panel is now a
+   Fluent `Dialog`): the "full width to match a wider sibling row" premise
+   above no longer holds — there is no wider sibling inside a modal, so a
+   full-width card now just reproduces the exact dead-space bug this
+   comment describes fixing, one level down (a ~260px field/button
+   floating inside a much wider bordered box). `width: fit-content`
+   shrinks each sub-card back to its own capped grid content (matching
+   the same shrink-wrap idiom already used a few sections up for
+   `.property-row-header > form.unit-form`), so the border hugs the
+   actual field/button instead of stretching into empty modal padding. */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form {
   grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
+  width: fit-content;
+  max-width: 100%;
 }
 /* Design pass (UX/UI review, PR #135 further polish): the two sub-forms
    were both plain white on a white outer card, giving zero figure-ground

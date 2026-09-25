@@ -847,7 +847,7 @@ function PublicListingForm({
                   <Textarea disabled={busy} maxLength={4000} required resize='vertical' value={form.summary} onChange={set('summary')} />
                 </Field>
                 {!hasListing && (
-                  <Field validationMessage={attestationError || undefined}>
+                  <Field className='listing-attestation-field' validationMessage={attestationError || undefined}>
                     <Checkbox
                       disabled={busy}
                       checked={form.attestationAccepted}
