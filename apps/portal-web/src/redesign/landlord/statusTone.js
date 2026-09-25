@@ -55,17 +55,16 @@ export function annotateAccessibleStatusLabels(container, { unitStatusLabel, lis
   if (unitStatusLabel) {
     container.querySelectorAll('.unit-row > .status').forEach((element) => {
       const text = element.textContent.trim();
-      // Copilot PR #134 review, comment 4099299657 (cycle-4 finding): a
-      // bare `<span>` with only `aria-label` and no semantic role is not
-      // reliably exposed as a nameable accessibility node — some
-      // accessible-name computations only run for elements that already
-      // have a role (explicit or implicit). `role="status"` is the
-      // semantically-correct choice for this element (a small, live/
-      // dynamic status indicator — the exact category ARIA's own
-      // `status` role documents, which also gets a polite live-region
-      // announcement), giving the aria-label real structural backing
-      // instead of being an attribute with no accessible node behind it.
-      element.setAttribute('role', 'status');
+      // Genuine Fluent Table conversion (PO feedback, "use fluent
+      // table"): this element is now a real `<TableCell>` (ARIA
+      // `role="cell"`/`"gridcell"`) inside a genuine `role="row"`/
+      // `role="table"` structure, which already gives its `aria-label`
+      // real structural backing on its own — overriding that role to
+      // `"status"` (the earlier, pre-table fix, back when this was a
+      // bare `<span>` with no role at all) now fails axe's
+      // `aria-required-children` rule, since a table row's children must
+      // stay cell/columnheader roles. Only the label is set here;
+      // Fluent's own cell role is left untouched.
       element.setAttribute('aria-label', text ? `${unitStatusLabel}: ${text}` : unitStatusLabel);
     });
   }

@@ -371,32 +371,33 @@ button {
 }
 .unit-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(240px, 1.6fr);
   align-items: start;
   gap: 10px;
   padding: 9px 12px;
   background: #f3f8f4;
   border-radius: 10px;
 }
+.unit-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .unit-pricing-availability {
   display: grid;
   gap: 10px;
-  grid-column: 1 / -1;
   padding-top: 8px;
 }
 .unit-pricing-availability h3 {
   margin: 0;
 }
-/* PublicListingForm/ListingImageManager render as direct children of the
-   4-column `.unit-row` grid (issue: they previously had no explicit
-   grid-column, so grid auto-placement squeezed them into narrow columns
-   alongside each other instead of a full-width row, causing the listing
-   status/edit-form/photo-manager content to visually overlap). */
-.public-listing-status,
-.unit-row > .unit-form,
-.listing-image-manager {
-  grid-column: 1 / -1;
-}
+/* Genuine Fluent Table conversion (PO feedback, "use fluent table"):
+   PublicListingForm/ListingImageManager now render inside the row's own
+   dedicated `.unit-row-actions` table cell (see property-management-
+   panel.jsx), not as direct children of the 4-column `.unit-row` grid
+   itself, so they no longer need to span every column — the cell's own
+   width already gives them room; `.unit-row-actions`'s flex column stacks
+   them without overlap. */
 .public-listing-status {
   display: flex;
   align-items: center;

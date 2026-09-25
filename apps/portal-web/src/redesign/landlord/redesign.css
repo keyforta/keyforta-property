@@ -561,14 +561,14 @@
   gap: 0;
   margin-top: var(--kf-space-3);
   background: #fff;
-  border: 1px solid var(--kf-aubergine-12);
+  border: 1px solid var(--kf-aubergine-08);
   border-radius: var(--kf-radius-md);
   overflow: hidden;
 }
 .kf-landlord-redesign .unit-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1.4fr) minmax(90px, 0.8fr) minmax(150px, 1fr) auto;
-  align-items: center;
+  grid-template-columns: minmax(140px, 1.4fr) minmax(90px, 0.8fr) minmax(150px, 1fr) minmax(260px, 1.6fr);
+  align-items: start;
   column-gap: var(--kf-space-3);
   row-gap: var(--kf-space-2);
   background: #fff;
@@ -577,6 +577,22 @@
   margin-left: 0;
   border-bottom: 1px solid var(--kf-aubergine-08);
   transition: background 150ms ease;
+}
+/* Genuine Fluent Table conversion (PO feedback, "use fluent table" —
+   Fluent's own Table Storybook example): `property-management-panel.jsx`
+   now renders a real `<Table noNativeElements>` (ARIA `role="table"`/
+   `"row"`/`"columnheader"`/`"cell"`, still plain `<div>`s under the hood
+   so this file's existing CSS Grid layout keeps working unchanged) with
+   a genuine `<TableHeader>` row, so the header band below styles that
+   real header row directly instead of faking one via `::before` content
+   on the first body row (the previous, CSS-only approximation this
+   comment used to describe, back when the reused panel could not
+   receive any new child DOM). */
+.kf-landlord-redesign .unit-row-header {
+  background: #faf9f8;
+  border-bottom: 1px solid var(--kf-aubergine-12);
+  font-weight: 400;
+  color: #616161;
 }
 .kf-landlord-redesign .unit-row:last-child { border-bottom: none; }
 /* PO feedback (post-#140 polish): the earlier hover/focus fill used the
@@ -589,18 +605,16 @@
 .kf-landlord-redesign .unit-row:focus-within {
   background: rgba(36, 22, 46, 0.04);
 }
-/* Full-width rows: the reused pricing/availability toggle+form and the
-   reused listing-status/listing-form block always span every column,
-   whichever state they're currently in (collapsed button, expanded
-   form, or read-only status block) — CSS Grid auto-placement pushes any
-   `grid-column: 1 / -1` item onto its own new row once the 4 fixed-width
-   cells above are filled, with no explicit `grid-row` needed. */
-.kf-landlord-redesign .unit-row > .unit-pricing-availability,
-.kf-landlord-redesign .unit-row > .public-listing-status,
-.kf-landlord-redesign .unit-row > form.unit-form,
-.kf-landlord-redesign .unit-row > button:nth-of-type(2) {
-  grid-column: 1 / -1;
-  justify-self: start;
+/* The Actions column holds both reused, protected sub-components
+   (pricing/availability toggle+form and the listing-status/listing-form
+   block) stacked vertically within their own cell — now that a real
+   table column exists for them, they no longer need to span every
+   column the way the pre-table CSS-only layout required. */
+.kf-landlord-redesign .unit-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kf-space-3);
+  align-items: flex-start;
 }
 .kf-landlord-redesign .unit-pricing-availability {
   background: #fff;
@@ -864,43 +878,15 @@
    property's value to already include the surrounding quotes (set that
    way in JS), which is why these rules don't wrap the var() in quotes
    themselves. */
-.kf-landlord-redesign .unit-row > span:first-child,
-.kf-landlord-redesign .unit-row > span.listing-meta:nth-child(2) {
+.kf-landlord-redesign .unit-row > .unit-row-name,
+.kf-landlord-redesign .unit-row > .listing-meta {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
 }
-.kf-landlord-redesign .unit-row > span:first-child {
+.kf-landlord-redesign .unit-row > .unit-row-name {
   font-weight: 600;
-}
-/* PO feedback (post-#140 polish, "looks ugly" vs the Fluent Table
-   reference): repeating the NAME/TYPE captions on every single row read
-   as noisy clutter, unlike a real table's single header row. Since a
-   literal shared `<thead>` still isn't achievable here (see this
-   section's opening comment), these two captions are now scoped to only
-   the FIRST unit row of each property's list — visually standing in for
-   a one-time header the same way a real `<thead>` would, while every
-   later row shows just the clean value. (The unit/listing-status
-   captions below are intentionally left per-row — unlike name/type,
-   which is header. — that pairing is a distinct, already-tested
-   PO regression fix disambiguating two fields that can genuinely differ
-   row-to-row; see status-label-distinction.test.jsx.) */
-.kf-landlord-redesign .unit-row:first-child > span:first-child::before {
-  content: var(--kf-unit-name-label);
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.65;
-}
-.kf-landlord-redesign .unit-row:first-child > span.listing-meta:nth-child(2)::before {
-  content: var(--kf-unit-type-label);
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.65;
 }
 .kf-landlord-redesign .unit-row > .status {
   display: inline-flex;

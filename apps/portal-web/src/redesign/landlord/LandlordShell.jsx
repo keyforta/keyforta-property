@@ -225,18 +225,6 @@ export function LandlordShell({
               style={{
                 '--kf-unit-status-label': cssQuotedString(t('landlord_redesign.status_labels.unit_status')),
                 '--kf-listing-status-label': cssQuotedString(t('landlord_redesign.status_labels.listing_status')),
-                // Copilot PR #139-follow-up (product feedback: "present
-                // lists as tables", mirroring Fluent's Table docs): the
-                // unit/type columns had no distinguishing caption at all
-                // (only unit/listing status did). Same mechanism as those
-                // two labels — reused-panel markup this shell doesn't own
-                // (property-management-panel.jsx, checksum-protected)
-                // cannot receive new child DOM nodes, so a real shared
-                // `<thead>` row is not achievable; each row instead gets
-                // its own small caption via CSS `content`, same as the
-                // status columns already did.
-                '--kf-unit-name-label': cssQuotedString(t('landlord_redesign.column_labels.unit_name')),
-                '--kf-unit-type-label': cssQuotedString(t('landlord_redesign.column_labels.unit_type')),
                 // Copilot PR #134 review, cycle-3/4 finding #5: these two
                 // sub-form captions reuse the SAME existing i18n keys
                 // property-management-panel.jsx (protected, unmodified)

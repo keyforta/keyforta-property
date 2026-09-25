@@ -1,5 +1,19 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Button, Checkbox, Field, Input, Select, Spinner, Textarea } from '@fluentui/react-components';
+import {
+  Button,
+  Checkbox,
+  Field,
+  Input,
+  Select,
+  Spinner,
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  Textarea,
+} from '@fluentui/react-components';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
@@ -1031,34 +1045,46 @@ export function PropertyManagementPanel({
             <div className='property-row' key={property.id} role='listitem'>
               <strong>{property.name}</strong>
               <span className='listing-meta'>{t(`property_management.property_type.${property.propertyType}`)}</span>
-              <div className='unit-rows'>
-                {property.units.map((unit) => {
-                  const unitListing = (listings || []).find((listing) => listing.unitId === unit.id);
-                  return (
-                    <div className='unit-row' key={unit.id}>
-                      <span>{unit.label}</span>
-                      <span className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</span>
-                      <span className='status'>{t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}</span>
-                      <UnitPricingAvailabilityForm
-                        disabled={disableActions}
-                        onSetAvailability={submitSetAvailability}
-                        onSetPricing={submitSetPricing}
-                        t={t}
-                        unit={unit}
-                      />
-                      <PublicListingForm
-                        disabled={disableActions}
-                        listing={unitListing}
-                        onCreate={submitCreateListing}
-                        onUpdateDraft={submitUpdateListingDraft}
-                        session={session}
-                        t={t}
-                        unitId={unit.id}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+              <Table aria-label={t('property_management.units_table_label')} className='unit-rows' noNativeElements>
+                <TableHeader>
+                  <TableRow className='unit-row unit-row-header'>
+                    <TableHeaderCell>{t('property_management.unit_table_column_unit')}</TableHeaderCell>
+                    <TableHeaderCell>{t('property_management.unit_table_column_type')}</TableHeaderCell>
+                    <TableHeaderCell>{t('property_management.unit_table_column_status')}</TableHeaderCell>
+                    <TableHeaderCell>{t('property_management.unit_table_column_actions')}</TableHeaderCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {property.units.map((unit) => {
+                    const unitListing = (listings || []).find((listing) => listing.unitId === unit.id);
+                    return (
+                      <TableRow className='unit-row' key={unit.id}>
+                        <TableCell className='unit-row-name'>{unit.label}</TableCell>
+                        <TableCell className='listing-meta'>{t(`property_management.unit_type.${unit.unitType}`)}</TableCell>
+                        <TableCell className='status'>{t(`property_management.unit_availability_status.${unit.availabilityStatus}`)}</TableCell>
+                        <TableCell className='unit-row-actions'>
+                          <UnitPricingAvailabilityForm
+                            disabled={disableActions}
+                            onSetAvailability={submitSetAvailability}
+                            onSetPricing={submitSetPricing}
+                            t={t}
+                            unit={unit}
+                          />
+                          <PublicListingForm
+                            disabled={disableActions}
+                            listing={unitListing}
+                            onCreate={submitCreateListing}
+                            onUpdateDraft={submitUpdateListingDraft}
+                            session={session}
+                            t={t}
+                            unitId={unit.id}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
               <AddUnitForm disabled={disableActions} onSubmit={submitAddUnit} propertyId={property.id} t={t} />
             </div>
           ))}
