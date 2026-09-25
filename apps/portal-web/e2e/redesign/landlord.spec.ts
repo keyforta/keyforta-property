@@ -261,7 +261,13 @@ test.describe('Landlord redesign (flag-gated)', () => {
     // that is the intentional, approved treatment. Assert it stays that
     // way (no resting border) rather than reintroducing the reverted
     // override.
-    const cancelButton = panel.locator("> button[type='button']").last();
+    //
+    // PO feedback (this session, "open the form as a dialog"): the panel
+    // is now a real Fluent `Dialog`, so Cancel moved from a direct child
+    // of `.unit-pricing-availability` into the dialog's own
+    // `DialogActions` region (a sibling, not a descendant) — locate it by
+    // role/name within the dialog instead of the old DOM-position selector.
+    const cancelButton = page.getByRole('dialog').getByRole('button', { name: 'Cancel' });
     await expect(cancelButton).toHaveText(/Cancel/);
     // Fluent's own `subtle` Button already renders a 1px solid border by
     // default (kept transparent, purely for layout/box-model stability

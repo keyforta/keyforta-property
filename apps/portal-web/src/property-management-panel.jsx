@@ -3,6 +3,13 @@ import {
   Badge,
   Button,
   Checkbox,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
+  DialogTrigger,
   Field,
   Input,
   Select,
@@ -16,7 +23,7 @@ import {
   Textarea,
   Tooltip,
 } from '@fluentui/react-components';
-import { ChevronLeft20Regular, ChevronRight20Regular, CloudArrowUp20Regular, CloudDismiss20Regular, Money20Regular } from '@fluentui/react-icons';
+import { ChevronLeft20Regular, ChevronRight20Regular, CloudAdd20Regular, CloudArrowUp20Regular, CloudDismiss20Regular, Money20Regular } from '@fluentui/react-icons';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
@@ -283,19 +290,30 @@ function CreatePropertyForm({ disabled, onSubmit, t }) {
   );
 }
 
+// Fluent v9's Dialog portals its surface to `document.body` by default,
+// outside this panel's `.kf-landlord-redesign`/`.kf-manager-redesign`/
+// `.kf-tenant-redesign` scoped root — which silently breaks every
+// redesign.css rule written as `.kf-*-redesign <selector>` (they require
+// that ancestor class to actually be present in the DOM, not just
+// visually behind the dialog). Anchoring `mountNode` to the trigger's own
+// scoped ancestor keeps the dialog's portal inside the same subtree, so
+// the existing scoped rules (borders, grid layout, `::before` captions,
+// etc.) keep applying unchanged.
+function useRedesignDialogMountNode() {
+  const anchorRef = useRef(null);
+  const [mountNode, setMountNode] = useState(null);
+  useEffect(() => {
+    setMountNode(anchorRef.current?.closest('.kf-landlord-redesign, .kf-manager-redesign, .kf-tenant-redesign') ?? null);
+  }, []);
+  return [anchorRef, mountNode];
+}
+
 function AddUnitForm({ disabled, onSubmit, propertyId, t }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyUnitForm);
   const [busy, setBusy] = useState(false);
+  const [anchorRef, mountNode] = useRedesignDialogMountNode();
   const set = (field) => (_event, data) => setForm((current) => ({ ...current, [field]: data.value }));
-
-  if (!open) {
-    return (
-      <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
-        {t('property_management.add_unit_toggle')}
-      </Button>
-    );
-  }
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -311,40 +329,60 @@ function AddUnitForm({ disabled, onSubmit, propertyId, t }) {
     }
   };
 
+  // PO feedback ("for button actions like add unit, set pricing, create
+  // public listing... open the form as a dialog"): a real Fluent `Dialog`
+  // (modal) replaces the previous inline-expanding form, which used to
+  // push the rest of the unit row down while open.
   return (
-    <form aria-label={t('property_management.add_unit_title')} className='unit-form' onSubmit={handleSubmit}>
-      <Field label={t('property_management.field.unit_label')} required>
-        <Input required value={form.label} onChange={set('label')} />
-      </Field>
-      <Field label={t('property_management.field.unit_type')}>
-        <Select value={form.unitType} onChange={set('unitType')}>
-          {unitTypes.map((option) => (
-            <option key={option} value={option}>{t(`property_management.unit_type.${option}`)}</option>
-          ))}
-        </Select>
-      </Field>
-      <Field label={t('property_management.field.bedrooms')} required>
-        <Input min={0} required type='number' value={form.bedrooms} onChange={set('bedrooms')} />
-      </Field>
-      <Field label={t('property_management.field.bathrooms')} required>
-        <Input min={1} required type='number' value={form.bathrooms} onChange={set('bathrooms')} />
-      </Field>
-      <Field label={t('property_management.field.furnishing_status')}>
-        <Select value={form.furnishingStatus} onChange={set('furnishingStatus')}>
-          {furnishingStatuses.map((option) => (
-            <option key={option} value={option}>{t(`property_management.furnishing_status.${option}`)}</option>
-          ))}
-        </Select>
-      </Field>
-      <div className='unit-form-actions'>
-        <Button appearance='primary' disabled={busy} type='submit'>
-          {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.add_unit_submit')}
+    <Dialog open={open} onOpenChange={(_event, data) => setOpen(data.open)}>
+      <DialogTrigger disableButtonEnhancement>
+        <Button appearance='secondary' disabled={disabled} ref={anchorRef} onClick={() => setOpen(true)}>
+          {t('property_management.add_unit_toggle')}
         </Button>
-        <Button appearance='subtle' disabled={busy} onClick={() => setOpen(false)} type='button'>
-          {t('property_management.cancel')}
-        </Button>
-      </div>
-    </form>
+      </DialogTrigger>
+      <DialogSurface mountNode={mountNode}>
+        <form onSubmit={handleSubmit}>
+          <DialogBody>
+            <DialogTitle>{t('property_management.add_unit_title')}</DialogTitle>
+            <DialogContent className='unit-form'>
+              <Field label={t('property_management.field.unit_label')} required>
+                <Input required value={form.label} onChange={set('label')} />
+              </Field>
+              <Field label={t('property_management.field.unit_type')}>
+                <Select value={form.unitType} onChange={set('unitType')}>
+                  {unitTypes.map((option) => (
+                    <option key={option} value={option}>{t(`property_management.unit_type.${option}`)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('property_management.field.bedrooms')} required>
+                <Input min={0} required type='number' value={form.bedrooms} onChange={set('bedrooms')} />
+              </Field>
+              <Field label={t('property_management.field.bathrooms')} required>
+                <Input min={1} required type='number' value={form.bathrooms} onChange={set('bathrooms')} />
+              </Field>
+              <Field label={t('property_management.field.furnishing_status')}>
+                <Select value={form.furnishingStatus} onChange={set('furnishingStatus')}>
+                  {furnishingStatuses.map((option) => (
+                    <option key={option} value={option}>{t(`property_management.furnishing_status.${option}`)}</option>
+                  ))}
+                </Select>
+              </Field>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance='primary' disabled={busy} type='submit'>
+                {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.add_unit_submit')}
+              </Button>
+              <DialogTrigger disableButtonEnhancement>
+                <Button appearance='subtle' disabled={busy} type='button'>
+                  {t('property_management.cancel')}
+                </Button>
+              </DialogTrigger>
+            </DialogActions>
+          </DialogBody>
+        </form>
+      </DialogSurface>
+    </Dialog>
   );
 }
 
@@ -357,6 +395,7 @@ function initialAvailabilityForm(unit) {
 
 function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing, t, unit }) {
   const [open, setOpen] = useState(false);
+  const [anchorRef, mountNode] = useRedesignDialogMountNode();
   const [pricingForm, setPricingForm] = useState(emptyPricingForm);
   const [availabilityForm, setAvailabilityForm] = useState(() => initialAvailabilityForm(unit));
   const [pricingBusy, setPricingBusy] = useState(false);
@@ -384,30 +423,12 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
   // a now-stale expectedVersion.
   const anyBusy = pricingBusy || availabilityBusy;
 
-  if (!open) {
-    // PO feedback ("set pricing & availability can just be an
-    // appropriate icon"): now that the row has more columns competing
-    // for width (Listing status/Media, see PropertyManagementPanel
-    // below), this toggle is icon-only — `Money20Regular` for the
-    // pricing/availability command it opens. PO follow-up ("need a
-    // tooltip on the buttons, no border"): a Fluent `Tooltip` (with
-    // `relationship='label'`, so its content also supplies the
-    // control's accessible name — no separate `aria-label` needed) shows
-    // the same translated copy on hover/focus, and `appearance='subtle'`
-    // drops the visible button border/background so only the icon shows
-    // until hovered/pressed.
-    const label = t('property_management.manage_unit_toggle');
-    return (
-      <Tooltip content={label} relationship='label'>
-        <Button
-          appearance='subtle'
-          disabled={disabled}
-          icon={<Money20Regular />}
-          onClick={() => setOpen(true)}
-        />
-      </Tooltip>
-    );
-  }
+  // PO feedback ("for button actions like ... set pricing ... open the
+  // form as a dialog"): a real Fluent `Dialog` (modal) replaces the
+  // previous inline-expanding panel; the icon-only trigger button is
+  // unchanged (PO feedback: "set pricing & availability can just be an
+  // appropriate icon" / "need a tooltip on the buttons, no border").
+  const label = t('property_management.manage_unit_toggle');
 
   const handlePricingSubmit = async (event) => {
     event.preventDefault();
@@ -456,45 +477,66 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
   };
 
   return (
-    <div className='unit-pricing-availability'>
-      <h3>{t('property_management.manage_unit_title')}</h3>
-      <form aria-label={t('property_management.pricing_form_label')} className='unit-form' noValidate onSubmit={handlePricingSubmit}>
-        <Field label={t('property_management.field.monthly_rent_amount')} required validationMessage={pricingValidationError || undefined}>
-          <Input disabled={anyBusy} inputMode='decimal' required value={pricingForm.amount} onChange={setPricingField('amount')} />
-        </Field>
-        <Field label={t('property_management.field.currency')}>
-          <Select disabled={anyBusy} value={pricingForm.currency} onChange={setPricingField('currency')}>
-            {supportedCurrencies.map((option) => <option key={option} value={option}>{option}</option>)}
-          </Select>
-        </Field>
-        <Button appearance='primary' disabled={anyBusy} type='submit'>
-          {pricingBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_pricing_submit')}
-        </Button>
-      </form>
-      {isOccupied ? (
-        <p className='unit-availability-occupied-note'>{t('property_management.availability_locked_occupied')}</p>
-      ) : (
-        <form aria-label={t('property_management.availability_form_label')} className='unit-form' noValidate onSubmit={handleAvailabilitySubmit}>
-          <Field label={t('property_management.field.availability_status')}>
-            <Select disabled={anyBusy} value={availabilityForm.status} onChange={setAvailabilityField('status')}>
-              <option value='available'>{t('property_management.unit_availability_status.available')}</option>
-              <option value='unavailable'>{t('property_management.unit_availability_status.unavailable')}</option>
-            </Select>
-          </Field>
-          {availabilityForm.status === 'unavailable' ? (
-            <Field label={t('property_management.field.reason_code')} required validationMessage={availabilityValidationError || undefined}>
-              <Input disabled={anyBusy} required value={availabilityForm.reasonCode} onChange={setAvailabilityField('reasonCode')} />
-            </Field>
-          ) : null}
-          <Button appearance='primary' disabled={anyBusy} type='submit'>
-            {availabilityBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_availability_submit')}
-          </Button>
-        </form>
-      )}
-      <Button appearance='subtle' onClick={() => setOpen(false)} type='button'>
-        {t('property_management.cancel')}
-      </Button>
-    </div>
+    <Dialog open={open} onOpenChange={(_event, data) => setOpen(data.open)}>
+      <DialogTrigger disableButtonEnhancement>
+        <Tooltip content={label} relationship='label'>
+          <Button
+            appearance='subtle'
+            disabled={disabled}
+            icon={<Money20Regular />}
+            ref={anchorRef}
+            onClick={() => setOpen(true)}
+          />
+        </Tooltip>
+      </DialogTrigger>
+      <DialogSurface mountNode={mountNode}>
+        <DialogBody>
+          <DialogTitle>{t('property_management.manage_unit_title')}</DialogTitle>
+          <DialogContent className='unit-pricing-availability'>
+            <form aria-label={t('property_management.pricing_form_label')} className='unit-form' noValidate onSubmit={handlePricingSubmit}>
+              <Field label={t('property_management.field.monthly_rent_amount')} required validationMessage={pricingValidationError || undefined}>
+                <Input disabled={anyBusy} inputMode='decimal' required value={pricingForm.amount} onChange={setPricingField('amount')} />
+              </Field>
+              <Field label={t('property_management.field.currency')}>
+                <Select disabled={anyBusy} value={pricingForm.currency} onChange={setPricingField('currency')}>
+                  {supportedCurrencies.map((option) => <option key={option} value={option}>{option}</option>)}
+                </Select>
+              </Field>
+              <Button appearance='primary' disabled={anyBusy} type='submit'>
+                {pricingBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_pricing_submit')}
+              </Button>
+            </form>
+            {isOccupied ? (
+              <p className='unit-availability-occupied-note'>{t('property_management.availability_locked_occupied')}</p>
+            ) : (
+              <form aria-label={t('property_management.availability_form_label')} className='unit-form' noValidate onSubmit={handleAvailabilitySubmit}>
+                <Field label={t('property_management.field.availability_status')}>
+                  <Select disabled={anyBusy} value={availabilityForm.status} onChange={setAvailabilityField('status')}>
+                    <option value='available'>{t('property_management.unit_availability_status.available')}</option>
+                    <option value='unavailable'>{t('property_management.unit_availability_status.unavailable')}</option>
+                  </Select>
+                </Field>
+                {availabilityForm.status === 'unavailable' ? (
+                  <Field label={t('property_management.field.reason_code')} required validationMessage={availabilityValidationError || undefined}>
+                    <Input disabled={anyBusy} required value={availabilityForm.reasonCode} onChange={setAvailabilityField('reasonCode')} />
+                  </Field>
+                ) : null}
+                <Button appearance='primary' disabled={anyBusy} type='submit'>
+                  {availabilityBusy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t('property_management.set_availability_submit')}
+                </Button>
+              </form>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <DialogTrigger disableButtonEnhancement>
+              <Button appearance='subtle' type='button'>
+                {t('property_management.cancel')}
+              </Button>
+            </DialogTrigger>
+          </DialogActions>
+        </DialogBody>
+      </DialogSurface>
+    </Dialog>
   );
 }
 
@@ -703,6 +745,7 @@ function PublicListingForm({
   unitId,
 }) {
   const [open, setOpen] = useState(false);
+  const [anchorRef, mountNode] = useRedesignDialogMountNode();
   const [form, setForm] = useState(() => (listing ? listingFormFromSummary(listing) : emptyListingForm));
   const [busy, setBusy] = useState(false);
   const [attestationError, setAttestationError] = useState('');
@@ -712,14 +755,6 @@ function PublicListingForm({
   const set = (field) => (_event, data) => setForm((current) => ({ ...current, [field]: data.value }));
   const isDraft = listing?.status === 'draft';
   const hasListing = Boolean(listing);
-
-  if (!open && !hasListing) {
-    return (
-      <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
-        {t('property_management.create_listing_toggle')}
-      </Button>
-    );
-  }
 
   if (hasListing && !isDraft) {
     // PO feedback ("listing status, media should be also different
@@ -780,40 +815,63 @@ function PublicListingForm({
 
   return (
     <>
-      {hasListing && !open ? (
-        <Button appearance='secondary' disabled={disabled} onClick={() => setOpen(true)}>
-          {t('property_management.edit_listing_toggle')}
-        </Button>
-      ) : null}
-      {open ? (
-        <form aria-label={t(hasListing ? 'property_management.edit_listing_form_label' : 'property_management.create_listing_form_label')} className='unit-form' noValidate onSubmit={handleSubmit}>
-          <Field label={t('property_management.field.listing_title')} required>
-            <Input disabled={busy} maxLength={140} required value={form.title} onChange={set('title')} />
-          </Field>
-          <Field label={t('property_management.field.listing_summary')} required>
-            <Textarea disabled={busy} maxLength={4000} required resize='vertical' value={form.summary} onChange={set('summary')} />
-          </Field>
-          {!hasListing && (
-            <Field validationMessage={attestationError || undefined}>
-              <Checkbox
-                disabled={busy}
-                checked={form.attestationAccepted}
-                label={t('property_management.listing_attestation_label')}
-                onChange={(_event, data) => setForm((current) => ({ ...current, attestationAccepted: Boolean(data.checked) }))}
-                required
-              />
-            </Field>
+      {/* PO feedback ("for button actions like ... create public
+          listing... open the form as a dialog"): a real Fluent `Dialog`
+          (modal) replaces the previous inline-expanding form. The
+          trigger stays icon-only for "create" (PO feedback: "use an
+          icon for create public listing" — `CloudAdd20Regular` pairs
+          the same "cloud" glyph family with a "+" to read as
+          "create/add a listing") and text for "edit", matching each
+          control's prior appearance. */}
+      <Dialog open={open} onOpenChange={(_event, data) => setOpen(data.open)}>
+        <DialogTrigger disableButtonEnhancement>
+          {hasListing ? (
+            <Button appearance='secondary' disabled={disabled} ref={anchorRef} onClick={() => setOpen(true)}>
+              {t('property_management.edit_listing_toggle')}
+            </Button>
+          ) : (
+            <Tooltip content={t('property_management.create_listing_toggle')} relationship='label'>
+              <Button appearance='subtle' disabled={disabled} icon={<CloudAdd20Regular />} ref={anchorRef} onClick={() => setOpen(true)} />
+            </Tooltip>
           )}
-          <div className='unit-form-actions'>
-            <Button appearance='primary' disabled={disabled || busy} type='submit'>
-              {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t(hasListing ? 'property_management.edit_listing_submit' : 'property_management.create_listing_submit')}
-            </Button>
-            <Button appearance='subtle' disabled={busy} onClick={() => setOpen(false)} type='button'>
-              {t('property_management.cancel')}
-            </Button>
-          </div>
-        </form>
-      ) : null}
+        </DialogTrigger>
+        <DialogSurface mountNode={mountNode}>
+          <form noValidate onSubmit={handleSubmit}>
+            <DialogBody>
+              <DialogTitle>{t(hasListing ? 'property_management.edit_listing_form_label' : 'property_management.create_listing_form_label')}</DialogTitle>
+              <DialogContent className='unit-form'>
+                <Field label={t('property_management.field.listing_title')} required>
+                  <Input disabled={busy} maxLength={140} required value={form.title} onChange={set('title')} />
+                </Field>
+                <Field label={t('property_management.field.listing_summary')} required>
+                  <Textarea disabled={busy} maxLength={4000} required resize='vertical' value={form.summary} onChange={set('summary')} />
+                </Field>
+                {!hasListing && (
+                  <Field validationMessage={attestationError || undefined}>
+                    <Checkbox
+                      disabled={busy}
+                      checked={form.attestationAccepted}
+                      label={t('property_management.listing_attestation_label')}
+                      onChange={(_event, data) => setForm((current) => ({ ...current, attestationAccepted: Boolean(data.checked) }))}
+                      required
+                    />
+                  </Field>
+                )}
+              </DialogContent>
+              <DialogActions>
+                <Button appearance='primary' disabled={disabled || busy} type='submit'>
+                  {busy ? <><Spinner size='tiny' /> {t('property_management.saving')}</> : t(hasListing ? 'property_management.edit_listing_submit' : 'property_management.create_listing_submit')}
+                </Button>
+                <DialogTrigger disableButtonEnhancement>
+                  <Button appearance='subtle' disabled={busy} type='button'>
+                    {t('property_management.cancel')}
+                  </Button>
+                </DialogTrigger>
+              </DialogActions>
+            </DialogBody>
+          </form>
+        </DialogSurface>
+      </Dialog>
       {hasListing ? (
         <ListingImageManager
           disabled={disabled}

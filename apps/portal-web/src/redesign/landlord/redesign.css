@@ -63,10 +63,22 @@
 }
 
 /* §4.1 sidebar — aubergine solid fill (replaces today's unrelated dark
-   green), softBone/white body text only (§3.1.1 rule 4). */
+   green), softBone/white body text only (§3.1.1 rule 4).
+   PO feedback ("the left menu does not have to scroll up and down"):
+   the legacy `.app-shell { display: flex }` has no height constraint of
+   its own, so the whole page (sidebar included) scrolled together once
+   `.main`'s content grew taller than the viewport. Pinning the sidebar
+   to the viewport (`position: sticky; top: 0`) with its own height/
+   overflow keeps navigation always in view regardless of how long the
+   main content is; `overflow-y: auto` is a safety net for a viewport
+   short enough that the nav itself doesn't fit. */
 .kf-landlord-redesign .kf-sidebar {
   background: var(--kf-aubergine);
   color: var(--kf-soft-bone);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 .kf-landlord-redesign .kf-brand-header {
   padding: 0 var(--kf-space-3) var(--kf-space-6);

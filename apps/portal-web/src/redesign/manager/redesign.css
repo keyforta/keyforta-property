@@ -52,10 +52,17 @@
 }
 
 /* Sidebar — same aubergine solid fill / softBone body text as Landlord
-   (spec §3.1.1 rule 4, reused verbatim, no Manager-specific variant). */
+   (spec §3.1.1 rule 4, reused verbatim, no Manager-specific variant).
+   PO feedback ("the left menu does not have to scroll up and down" —
+   see landlord/redesign.css): pinned to the viewport so it never
+   scrolls with the main content. */
 .kf-manager-redesign .kf-sidebar {
   background: var(--kf-aubergine);
   color: var(--kf-soft-bone);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 .kf-manager-redesign .kf-brand-header {
   padding: 0 var(--kf-space-3) var(--kf-space-6);
