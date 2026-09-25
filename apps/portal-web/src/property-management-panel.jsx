@@ -540,11 +540,11 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
   );
 }
 
-// REQ-038: uploads/lists/deletes a draft PublicListing's images. Rendered
-// only for a `draft` listing (migration 0032's app.upload_public_listing_image
-// and app.delete_public_listing_image both reject a non-draft listing), so
-// this component is only ever mounted alongside PublicListingForm's
-// draft-status views, never for a published/withdrawn listing.
+// REQ-038/REQ-039: uploads/lists/deletes a `draft` or `withdrawn`
+// PublicListing's images (migrations 0032/0034 widen
+// app.upload_public_listing_image/app.delete_public_listing_image to
+// accept both statuses; only `published` rejects). This component is only
+// ever mounted alongside PublicListingForm's draft/withdrawn-status views.
 function ListingImageManager({ disabled, legacyImageCount = 0, listingId, session, t }) {
   const [images, setImages] = useState([]);
   const [imagesLoaded, setImagesLoaded] = useState(false);
@@ -724,13 +724,15 @@ function ListingImageManager({ disabled, legacyImageCount = 0, listingId, sessio
 // Builds/edits the PublicListing draft (REQ-037 / issue #116's final slice):
 // a unit without any listing gets a create form; a unit whose listing is
 // still `draft` gets an edit form pre-filled from the current draft;
-// `published`/`withdrawn` listings show read-only status only, since
-// content changes to a published listing must go through withdraw first
-// (ListingPublicationPanel), matching app.update_public_listing_draft's
-// draft-only precondition (migration 0030). Once a draft listing exists,
-// its images are managed independently by ListingImageManager (REQ-038):
+// `published` listings show read-only status only (title/summary edits
+// must go through withdraw first, via ListingPublicationPanel, matching
+// app.update_public_listing_draft's draft-only precondition, migration
+// 0030); `withdrawn` listings also show read-only title/summary status,
+// but — per REQ-039 — keep editing their images the same way a `draft`
+// listing does. Once a `draft` or `withdrawn` listing exists, its images
+// are managed independently by ListingImageManager (REQ-038/REQ-039):
 // title/summary edits and photo uploads are separate concerns, so the
-// image manager renders whenever a draft listing exists regardless of
+// image manager renders whenever such a listing exists regardless of
 // whether the title/summary edit form is open.
 function PublicListingForm({
   busyListingId,
@@ -754,6 +756,12 @@ function PublicListingForm({
   }, [listing]);
   const set = (field) => (_event, data) => setForm((current) => ({ ...current, [field]: data.value }));
   const isDraft = listing?.status === 'draft';
+  // REQ-039: a `withdrawn` listing's media follows the exact same
+  // upload/replace/delete rules a `draft` listing already does
+  // (migrations 0034/0035 widened the backend guard accordingly), so
+  // ListingImageManager must keep rendering for `withdrawn`, not just
+  // `draft`. Only `published` truly has nothing left to edit here.
+  const isWithdrawn = listing?.status === 'withdrawn';
   const hasListing = Boolean(listing);
 
   if (hasListing && !isDraft) {
@@ -761,37 +769,53 @@ function PublicListingForm({
     // columns"): a published/withdrawn listing's own read-only
     // status/media-review badges now live in the row's own dedicated
     // "Listing status"/"Media" columns (see PropertyManagementPanel
-    // below) instead of here, and REQ-038's ListingImageManager only
-    // ever mounts for a `draft` listing (migration 0032's upload/delete
-    // commands both reject a non-draft listing) — so there is genuinely
-    // nothing left for the Actions column to render for a
-    // published/withdrawn listing, UNLESS the combined Landlord view
+    // below) instead of here — so the Actions column itself has nothing
+    // left to render for a published/withdrawn listing beyond the
+    // Publish/Withdraw command, UNLESS the combined Landlord view
     // (PO feedback: "combine Listing publication and Property portfolio
-    // in the same table") also delegates the Publish/Withdraw command
-    // here via `enableListingActions`. Legacy consumers (portal-app.jsx's
+    // in the same table") also delegates that command here via
+    // `enableListingActions`. Legacy consumers (portal-app.jsx's
     // flag-off view, which still renders the separate
     // ListingPublicationPanel) never pass this prop, so they keep
-    // returning null exactly as before.
-    if (!enableListingActions) return null;
-    const copy = statusCopy(listing.status, t);
-    const isBusy = busyListingId === listing.id;
-    // PO feedback ("for the actions... just icons are enough"; "need a
-    // tooltip on the buttons, no border"): icon-only, matching
-    // UnitPricingAvailabilityForm's own toggle above — a Fluent `Tooltip`
-    // (`relationship='label'`) supplies both the hover/focus label and
-    // the accessible name, and `appearance='subtle'` removes the visible
-    // border. `CloudArrowUp20Regular` is "Publish", `CloudDismiss20Regular`
-    // is "Withdraw" (copy.command is the stable wire value driving this,
-    // never the translated `action` label).
+    // returning null exactly as before (for `withdrawn`, they still
+    // reach ListingImageManager below).
+    const actionButton = enableListingActions
+      ? (() => {
+          const copy = statusCopy(listing.status, t);
+          const isBusy = busyListingId === listing.id;
+          // PO feedback ("for the actions... just icons are enough";
+          // "need a tooltip on the buttons, no border"): icon-only,
+          // matching UnitPricingAvailabilityForm's own toggle above — a
+          // Fluent `Tooltip` (`relationship='label'`) supplies both the
+          // hover/focus label and the accessible name, and
+          // `appearance='subtle'` removes the visible border.
+          // `CloudArrowUp20Regular` is "Publish", `CloudDismiss20Regular`
+          // is "Withdraw" (copy.command is the stable wire value driving
+          // this, never the translated `action` label).
+          return (
+            <Tooltip content={copy.action} relationship='label'>
+              <Button
+                appearance='subtle'
+                disabled={disabled || isBusy}
+                icon={isBusy ? <Spinner size='tiny' /> : copy.command === 'publish' ? <CloudArrowUp20Regular /> : <CloudDismiss20Regular />}
+                onClick={() => onPublishWithdraw(listing.id, copy.command)}
+              />
+            </Tooltip>
+          );
+        })()
+      : null;
+    if (!isWithdrawn) return actionButton;
     return (
-      <Tooltip content={copy.action} relationship='label'>
-        <Button
-          appearance='subtle'
-          disabled={disabled || isBusy}
-          icon={isBusy ? <Spinner size='tiny' /> : copy.command === 'publish' ? <CloudArrowUp20Regular /> : <CloudDismiss20Regular />}
-          onClick={() => onPublishWithdraw(listing.id, copy.command)}
+      <>
+        {actionButton}
+        <ListingImageManager
+          disabled={disabled}
+          legacyImageCount={listing.imageUrls?.length ?? 0}
+          listingId={listing.id}
+          session={session}
+          t={t}
         />
-      </Tooltip>
+      </>
     );
   }
 

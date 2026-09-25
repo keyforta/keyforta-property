@@ -1,6 +1,6 @@
 {
   "apps/portal-web/src/listing-publication-panel.jsx": "9ab28f97c3b6e4b10387ff918cc0ca65b12fbf42a17847435be6b87d6e37fd80",
-  "apps/portal-web/src/property-management-panel.jsx": "f9cd90811869d9a0cd4c84bb97631ff14eaf98ae9a0bf5e6769e38a0c465f8e4",
+  "apps/portal-web/src/property-management-panel.jsx": "b3925f40bce57237abdc1924727d392882ba9a876d959208292a39df5e6d655a",
   "apps/portal-web/src/redesign/landlord/LandlordShell.jsx": "0ff95ea5c08fac94e6413ec10e0705aec55bbb188f2fbe99e8a26c91227af886",
   "apps/portal-web/src/redesign/landlord/__fixtures__/ChecklistOpenPreview.jsx": "c0446bbe77b084609c2d0985ef409022dc0c203cc1a471961d19b73aa8dca8ab",
   "apps/portal-web/src/redesign/landlord/__fixtures__/PoRegressionPreview.jsx": "5f6a10530a97faa15376a4fae014ced72abf60597047beecb2dc885b326a3b9c",

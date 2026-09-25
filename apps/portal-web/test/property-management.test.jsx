@@ -667,6 +667,23 @@ describe('PropertyManagementPanel', () => {
       renderPanel({ enableListingActions: true, listingsFeedError: true, listings: [] });
       expect(screen.getByText('We couldn\'t load your assigned listings. This does not mean you have no listings — try again.')).toBeInTheDocument();
     });
+
+    // REQ-039: the Product Owner reported "I have withdrawn unit but I
+    // can't add new images to them" — migrations 0034/0035 already widen
+    // the backend guard to accept `withdrawn` alongside `draft`, so the
+    // portal UI must keep rendering the image manager for a withdrawn
+    // listing (unlike a published one, which stays fully read-only).
+    it('still renders the image manager for a withdrawn listing (REQ-039), unlike a published listing', async () => {
+      const withdrawnListing = { ...publishedListing, status: 'withdrawn' };
+      renderPanel({ enableListingActions: true, listings: [withdrawnListing] });
+      expect(await screen.findByText('Listing photos')).toBeInTheDocument();
+      await waitFor(() => expect(list).toHaveBeenCalledWith(`public-listings/${withdrawnListing.id}/images`));
+    });
+
+    it('does not render the image manager for a published listing', () => {
+      renderPanel({ enableListingActions: true, listings: [publishedListing] });
+      expect(screen.queryByText('Listing photos')).not.toBeInTheDocument();
+    });
   });
 
   describe('listing image upload (REQ-038)', () => {
