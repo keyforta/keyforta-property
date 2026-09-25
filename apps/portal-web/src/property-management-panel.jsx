@@ -27,6 +27,7 @@ import {
   propertyTypes,
   publicListingImageListEnvelopeSchema,
   publicListingImageRooms,
+  publicListingPublicationEnvelopeSchema,
   rentalPropertyCreationEnvelopeSchema,
   rentableUnitCreationEnvelopeSchema,
   supportedCurrencies,
@@ -34,7 +35,7 @@ import {
   updatePublicListingDraftEnvelopeSchema,
   uploadPublicListingImageEnvelopeSchema,
 } from '@keyforta/contracts';
-import { resolveApiBaseUrl } from './listing-publication-panel.jsx';
+import { resolveApiBaseUrl, statusCopy } from './listing-publication-panel.jsx';
 
 const emptyPropertyForm = {
   name: '',
@@ -650,7 +651,18 @@ function ListingImageManager({ disabled, legacyImageCount = 0, listingId, sessio
 // title/summary edits and photo uploads are separate concerns, so the
 // image manager renders whenever a draft listing exists regardless of
 // whether the title/summary edit form is open.
-function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session, t, unitId }) {
+function PublicListingForm({
+  busyListingId,
+  disabled,
+  enableListingActions,
+  listing,
+  onCreate,
+  onPublishWithdraw,
+  onUpdateDraft,
+  session,
+  t,
+  unitId,
+}) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => (listing ? listingFormFromSummary(listing) : emptyListingForm));
   const [busy, setBusy] = useState(false);
@@ -679,8 +691,25 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session
     // ever mounts for a `draft` listing (migration 0032's upload/delete
     // commands both reject a non-draft listing) — so there is genuinely
     // nothing left for the Actions column to render for a
-    // published/withdrawn listing.
-    return null;
+    // published/withdrawn listing, UNLESS the combined Landlord view
+    // (PO feedback: "combine Listing publication and Property portfolio
+    // in the same table") also delegates the Publish/Withdraw command
+    // here via `enableListingActions`. Legacy consumers (portal-app.jsx's
+    // flag-off view, which still renders the separate
+    // ListingPublicationPanel) never pass this prop, so they keep
+    // returning null exactly as before.
+    if (!enableListingActions) return null;
+    const copy = statusCopy(listing.status, t);
+    const isBusy = busyListingId === listing.id;
+    return (
+      <Button
+        appearance='secondary'
+        disabled={disabled || isBusy}
+        onClick={() => onPublishWithdraw(listing.id, copy.command)}
+      >
+        {isBusy ? <><Spinner size='tiny' /> {t('listing_publication.saving')}</> : copy.action}
+      </Button>
+    );
   }
 
   const handleSubmit = async (event) => {
@@ -751,9 +780,12 @@ function PublicListingForm({ disabled, listing, onCreate, onUpdateDraft, session
 }
 
 export function PropertyManagementPanel({
+  enableListingActions,
   feedError,
   feedLoading,
   listings,
+  listingsFeedError,
+  listingsFeedLoading,
   onRetryFeed,
   onRetryListingsFeed,
   properties,
@@ -764,6 +796,7 @@ export function PropertyManagementPanel({
   const [tokenStatus, setTokenStatus] = useState(session?.sessionMode === 'demo' ? 'demo' : !hasOrganizationContext ? 'organization-unavailable' : session?.getAccessToken ? 'sign-in-required' : 'unavailable');
   const [message, setMessage] = useState('');
   const [messageTone, setMessageTone] = useState('');
+  const [busyListingId, setBusyListingId] = useState('');
   const apiConfig = useMemo(() => resolveApiBaseUrl(), []);
 
   useEffect(() => {
@@ -1008,6 +1041,40 @@ export function PropertyManagementPanel({
     }
   };
 
+  // Mirrors listing-publication-panel.jsx's runCommand: same API client,
+  // command shape, and envelope schema, reused here (PO feedback:
+  // "combine Listing publication and Property portfolio in the same
+  // table") so a unit's Publish/Withdraw action lives in the row's own
+  // Actions column instead of a separate list of the same listings.
+  const submitPublishWithdrawListing = async (listingId, nextCommand) => {
+    if (disableActions) return;
+    setBusyListingId(listingId);
+    setMessage('');
+    setMessageTone('');
+    try {
+      const accessToken = await resolveCommandAccessToken(session);
+      const apiClient = await createPropertyManagementClient(session, accessToken);
+      const payload = await apiClient.command('public-listings', listingId, nextCommand);
+      const parsed = publicListingPublicationEnvelopeSchema.parse(payload);
+      setMessage(
+        parsed.data.status === 'published'
+          ? t('listing_publication.published_success')
+          : t('listing_publication.withdrawn_success'),
+      );
+      setMessageTone('success');
+      if (onRetryListingsFeed) onRetryListingsFeed();
+    } catch (error) {
+      setMessage(
+        error?.code === 'NOT_FOUND'
+          ? t('listing_publication.not_found')
+          : error instanceof Error ? error.message : t('listing_publication.update_failed'),
+      );
+      setMessageTone('error');
+    } finally {
+      setBusyListingId('');
+    }
+  };
+
   return (
     <section aria-labelledby='property-management-title' className='panel property-panel'>
       <div className='panel-head'>
@@ -1046,6 +1113,23 @@ export function PropertyManagementPanel({
         <div className='publication-feedback' data-tone='error' role='alert'>
           <p>{t('property_management.feed_error')}</p>
           {onRetryFeed ? <Button appearance='secondary' onClick={onRetryFeed}>{t('property_management.feed_retry')}</Button> : null}
+        </div>
+      ) : null}
+      {/* useManagerListings resolves a fetch failure to [] just like "no
+          listings assigned yet" (see its own doc comment), so when this
+          combined view is the only place listing status renders
+          (enableListingActions), the listings-feed error/loading must be
+          surfaced explicitly here too — otherwise a real fetch failure
+          would be indistinguishable from every unit genuinely having no
+          listing. Reuses ListingPublicationPanel's own copy keys since
+          this is the exact same feed. */}
+      {enableListingActions && listingsFeedLoading ? (
+        <p className='publication-feedback' data-tone='success' role='status'>{t('listing_publication.feed_loading')}</p>
+      ) : null}
+      {enableListingActions && listingsFeedError ? (
+        <div className='publication-feedback' data-tone='error' role='alert'>
+          <p>{t('listing_publication.feed_error')}</p>
+          {onRetryListingsFeed ? <Button appearance='secondary' onClick={onRetryListingsFeed}>{t('listing_publication.feed_retry')}</Button> : null}
         </div>
       ) : null}
       {!feedLoading && !feedError && properties.length === 0 ? (
@@ -1091,9 +1175,12 @@ export function PropertyManagementPanel({
                             unit={unit}
                           />
                           <PublicListingForm
+                            busyListingId={busyListingId}
                             disabled={disableActions}
+                            enableListingActions={enableListingActions}
                             listing={unitListing}
                             onCreate={submitCreateListing}
+                            onPublishWithdraw={submitPublishWithdrawListing}
                             onUpdateDraft={submitUpdateListingDraft}
                             session={session}
                             t={t}

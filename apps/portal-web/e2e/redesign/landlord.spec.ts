@@ -27,8 +27,11 @@ test.describe('Landlord redesign (flag-gated)', () => {
     const shell = page.locator('.kf-landlord-redesign');
     await expect(shell).toHaveCount(1);
     await expect(page.getByRole('heading', { name: 'A clear view of your property portfolio.' })).toBeVisible();
-    // Same reused panels/copy, only the shell chrome differs (§6 of the spec).
-    await expect(page.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toBeVisible();
+    // PO feedback ("combine Listing publication and Property portfolio in
+    // the same table"): the redesigned shell no longer renders the
+    // separate "Publish or withdraw assigned listings" panel — the same
+    // reused property-management panel now covers both.
+    await expect(page.getByRole('heading', { name: 'Publish or withdraw assigned listings' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Add a property' })).toBeVisible();
     // Addendum §10.2: next-best-action checklist, computed from already-
     // fetched data only (no new fetch/endpoint).
@@ -351,22 +354,11 @@ test.describe('Landlord redesign (flag-gated)', () => {
     expect(buttonOverflowsPanel).toBe(false);
   });
 
-  // renders as a separate DOM copy inside ListingPublicationPanel, a
-  // sibling of the property-management anchor rather than a descendant
-  // of it. That copy must get the same non-green treatment, not just the
-  // one nested inside PropertyManagementPanel's read-only view.
-  test('flag on: the withdrawn listing\'s badge inside the separate Listing Publication panel is also tinted negative, not left green', async ({ page }) => {
-    await page.goto(`${FLAG_ON_URL}/landlord-redesign-preview.html`);
-    const unitStatus = page.locator('.unit-row > .status:not(.listing-status)');
-    const publicationPanelStatus = page.locator('.listing-row .status');
-    await expect(unitStatus).toHaveText('Available');
-    await expect(publicationPanelStatus).toHaveText('Withdrawn');
-
-    const [unitColor, publicationPanelColor] = await Promise.all([
-      unitStatus.evaluate((el) => window.getComputedStyle(el).color),
-      publicationPanelStatus.evaluate((el) => window.getComputedStyle(el).color),
-    ]);
-    expect(publicationPanelColor).not.toBe(unitColor);
-    await expect(publicationPanelStatus).toHaveAttribute('data-kf-tone', 'negative');
-  });
+  // Copilot PR #134 review, remediation cycle 2, finding #1 — superseded:
+  // PO feedback ("combine Listing publication and Property portfolio in
+  // the same table") removed the separate ListingPublicationPanel
+  // entirely from the redesigned Landlord shell, so the withdrawn
+  // listing's badge now renders in exactly one place (asserted by the
+  // "flag on: a withdrawn listing's status badge..." test above) — there
+  // is no second, separate panel copy left to check here.
 });

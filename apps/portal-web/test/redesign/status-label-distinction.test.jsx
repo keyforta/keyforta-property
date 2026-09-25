@@ -98,6 +98,18 @@ describe('unit-status vs listing-status caption distinction (PO regression fix)'
     expect(mediaStatus.textContent).toBe('Media approved');
   });
 
+  // PO feedback ("combine Listing publication and Property portfolio in
+  // the same table"): a withdrawn listing's own Actions cell now renders
+  // the Publish command inline, reusing listing-publication-panel.jsx's
+  // `statusCopy` mapping/i18n keys, instead of requiring a separate
+  // "Publish or withdraw assigned listings" table for the same listing.
+  it('renders an inline "Publish" action for the withdrawn listing in its own row\'s Actions cell', () => {
+    const { container } = renderShell();
+    const actionsCell = container.querySelector('.unit-row > .unit-row-actions');
+    expect(actionsCell).toBeTruthy();
+    expect(actionsCell.textContent).toContain('Publish');
+  });
+
   // Copilot PR #134 review finding #2: the withdrawn listing's `.status`
   // badge in this exact fixture must be annotated `data-kf-tone="negative"`
   // (so redesign.css can give it a non-green tone), while the unit's own
@@ -113,17 +125,10 @@ describe('unit-status vs listing-status caption distinction (PO regression fix)'
     expect(listingStatus.getAttribute('data-kf-tone')).toBe('negative');
   });
 
-  // Copilot PR #134 review, remediation cycle 2, finding #1: the same
-  // withdrawn listing is ALSO rendered (as its own, separate DOM copy) by
-  // `ListingPublicationPanel`, a sibling of the property-management
-  // anchor rather than a descendant of it — the annotation must cover
-  // that copy too, not just the one nested inside
-  // PropertyManagementPanel's read-only PublicListingForm.
-  it('also annotates the withdrawn listing\'s badge as rendered by the separate, sibling ListingPublicationPanel', () => {
-    const { container } = renderShell();
-    const publicationPanelStatus = container.querySelector('.listing-row .status');
-    expect(publicationPanelStatus).toBeTruthy();
-    expect(publicationPanelStatus.textContent).toBe('Withdrawn');
-    expect(publicationPanelStatus.getAttribute('data-kf-tone')).toBe('negative');
-  });
+  // Copilot PR #134 review, remediation cycle 2, finding #1 — superseded:
+  // PO feedback ("combine Listing publication and Property portfolio in
+  // the same table") removed the separate `ListingPublicationPanel`
+  // sibling entirely, so the withdrawn listing's badge now renders in
+  // exactly one place (this table's own "Listing status" column,
+  // asserted above) — there is no second DOM copy left to annotate.
 });

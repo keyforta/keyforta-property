@@ -12,10 +12,11 @@ const create = vi.hoisted(() => vi.fn());
 const update = vi.hoisted(() => vi.fn());
 const list = vi.hoisted(() => vi.fn());
 const remove = vi.hoisted(() => vi.fn());
+const command = vi.hoisted(() => vi.fn());
 const createApiClientOptions = vi.hoisted(() => []);
 const createApiClientMock = vi.hoisted(() => vi.fn((options) => {
   createApiClientOptions.push(options);
-  return { create, update, list, remove };
+  return { create, update, list, remove, command };
 }));
 vi.mock('@keyforta/api-client', () => ({
   createApiClient: createApiClientMock,
@@ -98,6 +99,7 @@ describe('PropertyManagementPanel', () => {
     update.mockReset();
     list.mockReset();
     remove.mockReset();
+    command.mockReset();
     list.mockResolvedValue({ items: [], meta: { requestId: 'req-images-default' } });
     createApiClientMock.mockClear();
     createApiClientOptions.length = 0;
@@ -594,6 +596,69 @@ describe('PropertyManagementPanel', () => {
       // A published listing cannot receive/remove images (draft-only
       // invariant, migration 0032), so no image manager is rendered for it.
       expect(screen.queryByText('Listing photos')).not.toBeInTheDocument();
+    });
+  });
+
+  // PO feedback ("combine Listing publication and Property portfolio in
+  // the same table"): with `enableListingActions`, a published/withdrawn
+  // listing's row gets an inline Publish/Withdraw action instead of the
+  // legacy read-only-only rendering; without the prop (the legacy
+  // portal-app.jsx consumer), behavior is unchanged.
+  describe('combined listing publication actions (enableListingActions)', () => {
+    const publishedListing = {
+      id: '33333333-3333-4333-8333-333333333333',
+      imageUrls: ['https://images.test/a.jpg'],
+      mediaReviewNotes: null,
+      mediaReviewStatus: 'approved',
+      note: '',
+      status: 'published',
+      summary: 'A bright two-bedroom unit close to transit.',
+      title: 'Riverside apartment — Unit 2A',
+      unitId: properties[0].units[0].id,
+      version: 3,
+    };
+
+    it('does not render a Publish/Withdraw action when enableListingActions is not set (legacy behavior preserved)', () => {
+      renderPanel({ listings: [publishedListing] });
+      expect(screen.queryByRole('button', { name: 'Withdraw' })).not.toBeInTheDocument();
+    });
+
+    it('withdraws a published listing and refreshes the listings feed', async () => {
+      command.mockResolvedValueOnce({
+        data: { listingId: publishedListing.id, status: 'withdrawn' },
+        meta: { requestId: 'req-listing-withdraw' },
+      });
+      const onRetryListingsFeed = vi.fn();
+      renderPanel({ enableListingActions: true, listings: [publishedListing], onRetryListingsFeed });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Withdraw' })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: 'Withdraw' }));
+
+      await waitFor(() => expect(command).toHaveBeenCalledWith('public-listings', publishedListing.id, 'withdraw'));
+      expect(await screen.findByText('Listing withdrawn successfully.')).toBeInTheDocument();
+      expect(onRetryListingsFeed).toHaveBeenCalledTimes(1);
+    });
+
+    it('publishes a withdrawn listing', async () => {
+      const withdrawnListing = { ...publishedListing, status: 'withdrawn' };
+      command.mockResolvedValueOnce({
+        data: { listingId: withdrawnListing.id, status: 'published' },
+        meta: { requestId: 'req-listing-publish' },
+      });
+      renderPanel({ enableListingActions: true, listings: [withdrawnListing] });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in to continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Publish' })).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+      await waitFor(() => expect(command).toHaveBeenCalledWith('public-listings', withdrawnListing.id, 'publish'));
+      expect(await screen.findByText('Listing published successfully.')).toBeInTheDocument();
+    });
+
+    it('surfaces the listings-feed loading/error state distinctly from the properties feed when enableListingActions is set', () => {
+      renderPanel({ enableListingActions: true, listingsFeedError: true, listings: [] });
+      expect(screen.getByText('We couldn\'t load your assigned listings. This does not mean you have no listings — try again.')).toBeInTheDocument();
     });
   });
 
