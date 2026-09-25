@@ -7,6 +7,7 @@ WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/admin-web/package.json apps/admin-web/package.json
+COPY packages/brand/package.json packages/brand/package.json
 COPY packages/browser-auth/package.json packages/browser-auth/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/types/package.json packages/types/package.json
@@ -23,6 +24,7 @@ ENV VITE_ENTRA_CLIENT_ID=$VITE_ENTRA_CLIENT_ID
 ENV VITE_KEYFORTA_API_BASE_URL=$VITE_KEYFORTA_API_BASE_URL
 
 COPY apps/admin-web apps/admin-web
+COPY packages/brand packages/brand
 COPY packages/browser-auth packages/browser-auth
 COPY packages/contracts packages/contracts
 COPY packages/types packages/types

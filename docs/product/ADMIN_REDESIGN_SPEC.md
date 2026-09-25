@@ -1,9 +1,14 @@
 # Admin Console Redesign — UX/Visual Design Spec (Phase 4, final phase)
 
-Status: **Design spec only — not yet implemented.** No code exists under
-any `apps/admin-web/src/redesign/`-style directory today. This is the
-Phase 4 (final phase) design artifact called for by
-`docs/engineering/REQUIREMENTS_GAPS.md` →
+Status: **Implemented (flag-gated).** Code now exists under
+`apps/admin-web/src/redesign/admin/` (`AdminShell.jsx`, `index.jsx`,
+`theme.js`, `redesign.css`), mounted behind `VITE_REDESIGN_ENABLED` in
+`apps/admin-web/src/OnboardingAdmin.jsx`, per PR #139. This document
+remains the authoritative design record for that implementation — it
+originated as a pre-implementation design artifact and is retained
+unmodified in substance, with only this status line updated to reflect
+the completed build. This is the Phase 4 (final phase) design artifact
+called for by `docs/engineering/REQUIREMENTS_GAPS.md` →
 "Redesigned per-role UI/UX with KEYFORTA branding," whose recorded phasing
 is "Landlord first ... then Manager, then Tenant, then Admin." Phase 1
 (Landlord) is implemented and merged (PR #134/#135,
@@ -11,21 +16,20 @@ is "Landlord first ... then Manager, then Tenant, then Admin." Phase 1
 implemented and merged (PR #137, `docs/product/MANAGER_REDESIGN_SPEC.md`),
 and Phase 3 (Tenant) is implemented and merged (PR #138,
 `docs/product/TENANT_REDESIGN_SPEC.md`), all three under the same
-Solution-Architect-approved bounded/additive/flag-gated exception. This
-document proposes the identical exception for Admin, the fourth and final
-phase, inside `apps/admin-web` (not `apps/portal-web` — see §0/§1). Full
-Product Owner sign-off on the broader "Redesigned per-role UI/UX"
-initiative remains pending (`docs/engineering/REQUIREMENTS_GAPS.md`); that
-row's status is unchanged by this document. **Implementation is a
-separate, later delegated task** — this document is design-only, produced
-by the UX Designer, and hands off to a Frontend Engineer exactly as the
-three prior phases' specs did.
+Solution-Architect-approved bounded/additive/flag-gated exception. Phase 4
+(Admin), the fourth and final phase, is now implemented under that
+identical exception (PR #139), inside `apps/admin-web` (not
+`apps/portal-web` — see §0/§1), mirroring the sequencing already followed
+for Landlord, Manager, and Tenant. Full Product Owner sign-off on the
+broader "Redesigned per-role UI/UX" initiative remains pending
+(`docs/engineering/REQUIREMENTS_GAPS.md`); that row's status is unchanged
+by this document.
 
 Scope owner: UX Designer (this document). Implementation ownership for
-this spec, when authorized, is the Frontend Engineer, inside a new,
-isolated directory under `apps/admin-web/src/` (see §3.2/§8 for why its
-exact location and provenance are a genuinely new question for this phase,
-unlike Manager/Tenant), following the additive boundary already proven for
+this spec is the Frontend Engineer, inside a new, isolated directory
+under `apps/admin-web/src/` (see §3.2/§8 for why its exact location and
+provenance are a genuinely new question for this phase, unlike
+Manager/Tenant), following the additive boundary already proven for
 Landlord, Manager, and Tenant (§9 below, mirroring
 `TENANT_REDESIGN_SPEC.md` §9, which itself mirrors
 `MANAGER_REDESIGN_SPEC.md` §9 and `LANDLORD_REDESIGN_SPEC.md` §9).
