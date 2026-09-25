@@ -2224,5 +2224,168 @@ describePostgres("PostgreSQL rental property and unit lifecycle integration", ()
       const noLongerPending = await publicationGateway().listPendingMediaReview();
       expect(noLongerPending.some((review) => review.listingId === listing.listingId)).toBe(false);
     });
+
+    // REQ-039: a landlord who withdraws a published listing must still be
+    // able to add/replace/remove images before republishing (the Product
+    // Owner reported being permanently stuck with the images approved at
+    // first publish). Republish still requires media re-review, exactly
+    // like a first-time draft publish (media_review_status resets to
+    // 'pending' on every successful upload/delete, unchanged from draft).
+    it("allows uploading and deleting images on a withdrawn listing, resetting media review to pending before republish (REQ-039)", async () => {
+      const created = await createUnitForUpload("withdrawn-media-edit");
+      const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: "corr-media-withdrawn-listing-create",
+        idempotencyKey: "idem-media-withdrawn-listing-create",
+        imageUrls: [],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Riverside apartment — Unit withdrawn-media-edit",
+        unitId: created.unitId,
+      });
+      expect(listing?.listingId).toBeTruthy();
+
+      const pricing = await gateway().setUnitPricing({
+        amountMinor: 150_000,
+        correlationId: "corr-media-withdrawn-pricing",
+        idempotencyKey: "idem-media-withdrawn-pricing",
+        currency: "USD",
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion: listing!.unitVersion,
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        unitId: created.unitId,
+      });
+      await gateway().setUnitAvailability({
+        correlationId: "corr-media-withdrawn-availability",
+        idempotencyKey: "idem-media-withdrawn-availability",
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion: pricing!.unitVersion,
+        organizationId: organizationA,
+        source: "test",
+        status: "available",
+        subject: landlordSubject,
+        unitId: created.unitId,
+      });
+
+      // Auto-publish-on-approval (REQ-037) additionally requires at least
+      // one image already present at approval time.
+      const firstImage = await uploadImage(listing!.listingId, landlordSubject, { room: "kitchen" });
+      expect(firstImage?.imageId).toBeTruthy();
+
+      // Approving media review auto-publishes the listing (REQ-037).
+      const approved = await publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-media-withdrawn-approve",
+        decision: "approved",
+        listingId: listing!.listingId,
+        reviewerObjectId: "00000000-0000-4000-8000-000000000980",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      });
+      expect(approved?.mediaReviewStatus).toBe("approved");
+
+      const withdrawn = await publicationGateway().setPublication({
+        correlationId: "corr-media-withdrawn-withdraw",
+        listingId: listing!.listingId,
+        organizationId: organizationA,
+        published: false,
+        subject: landlordSubject,
+      });
+      expect(withdrawn).toBe(true);
+
+      const statusRow = await client.query(
+        "select status from app.public_listings where id = $1",
+        [listing!.listingId],
+      );
+      expect(statusRow.rows[0].status).toBe("withdrawn");
+
+      const uploaded = await uploadImage(listing!.listingId, landlordSubject, { room: "bedroom" });
+      expect(uploaded?.imageId).toBeTruthy();
+
+      const afterUpload = await client.query(
+        "select media_review_status from app.public_listings where id = $1",
+        [listing!.listingId],
+      );
+      expect(afterUpload.rows[0].media_review_status).toBe("pending");
+
+      const deleted = await mediaGateway().deleteImage({
+        correlationId: "corr-media-withdrawn-delete",
+        imageId: uploaded!.imageId,
+        listingId: listing!.listingId,
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+      });
+      expect(deleted?.listingId).toBe(listing!.listingId);
+    });
+
+    it("denies (nondisclosing) upload/delete attempts on a withdrawn listing from an actor without an active listing-manager assignment (REQ-039/PROP-027)", async () => {
+      const created = await createUnitForUpload("withdrawn-media-cross-org");
+      const listing = await gateway().createPublicListing({
+        attestationAccepted: true,
+        correlationId: "corr-media-withdrawn-cross-org-create",
+        idempotencyKey: "idem-media-withdrawn-cross-org-create",
+        imageUrls: [],
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        summary: "A bright two-bedroom unit close to transit.",
+        title: "Riverside apartment — Unit withdrawn-media-cross-org",
+        unitId: created.unitId,
+      });
+      const pricing = await gateway().setUnitPricing({
+        amountMinor: 150_000,
+        correlationId: "corr-media-withdrawn-cross-org-pricing",
+        idempotencyKey: "idem-media-withdrawn-cross-org-pricing",
+        currency: "USD",
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion: listing!.unitVersion,
+        organizationId: organizationA,
+        source: "test",
+        subject: landlordSubject,
+        unitId: created.unitId,
+      });
+      await gateway().setUnitAvailability({
+        correlationId: "corr-media-withdrawn-cross-org-availability",
+        idempotencyKey: "idem-media-withdrawn-cross-org-availability",
+        effectiveFrom: new Date().toISOString(),
+        expectedVersion: pricing!.unitVersion,
+        organizationId: organizationA,
+        source: "test",
+        status: "available",
+        subject: landlordSubject,
+        unitId: created.unitId,
+      });
+      const firstImage = await uploadImage(listing!.listingId, landlordSubject, { room: "kitchen" });
+      expect(firstImage?.imageId).toBeTruthy();
+      await publicationGateway().reviewPublicListingMedia({
+        correlationId: "corr-media-withdrawn-cross-org-approve",
+        decision: "approved",
+        listingId: listing!.listingId,
+        reviewerObjectId: "00000000-0000-4000-8000-000000000981",
+        reviewerSubject: "synthetic-platform-admin",
+        source: "test",
+      });
+      const withdrawn = await publicationGateway().setPublication({
+        correlationId: "corr-media-withdrawn-cross-org-withdraw",
+        listingId: listing!.listingId,
+        organizationId: organizationA,
+        published: false,
+        subject: landlordSubject,
+      });
+      expect(withdrawn).toBe(true);
+
+      await expect(uploadImage(listing!.listingId, unassignedManagerSubject, { room: "bedroom" }))
+        .rejects.toThrow(RentalInventoryAuthorizationError);
+
+      const rows = await client.query(
+        "select count(*)::int as count from app.public_listing_images where public_listing_id = $1",
+        [listing!.listingId],
+      );
+      expect(rows.rows[0].count).toBe(1);
+    });
   });
 });
