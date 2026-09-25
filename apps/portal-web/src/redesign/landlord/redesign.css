@@ -80,6 +80,23 @@
   height: 100vh;
   overflow-y: auto;
 }
+/* PO feedback ("why this horrible empty space at the right?"): the
+   legacy `.main { width: min(1240px, 100%) }` (apps/portal-web/src/
+   styles.css) is a flex item of `.app-shell` with no flex-grow, so on
+   any viewport wider than 1240px + the sidebar's 248px, the leftover
+   space simply sits empty instead of the content growing to fill it —
+   fine for the legacy narrow prose-style page, but this redesign's wide
+   Fluent tables (unit rows, columns) are meant to use the full
+   available width (LANDLORD_REDESIGN_SPEC.md's repeated "full-width
+   card" pattern). Letting `.main` grow as a flex item removes the dead
+   gutter without touching the unscoped legacy rule other consumers
+   still rely on. Capped at 1600px so an ultra-wide monitor doesn't
+   stretch table rows/dialogs into an unreadably long single line. */
+.kf-landlord-redesign .main {
+  width: auto;
+  max-width: 1600px;
+  flex: 1;
+}
 .kf-landlord-redesign .kf-brand-header {
   padding: 0 var(--kf-space-3) var(--kf-space-6);
 }

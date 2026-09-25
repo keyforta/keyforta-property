@@ -23,7 +23,7 @@ import {
   Textarea,
   Tooltip,
 } from '@fluentui/react-components';
-import { ChevronLeft20Regular, ChevronRight20Regular, CloudAdd20Regular, CloudArrowUp20Regular, CloudDismiss20Regular, Money20Regular } from '@fluentui/react-icons';
+import { ChevronLeft20Regular, ChevronRight20Regular, CloudAdd20Regular, CloudArrowUp20Regular, CloudDismiss20Regular, ImageMultiple20Regular, Money20Regular } from '@fluentui/react-icons';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n.js';
 import { createApiClient } from '@keyforta/api-client';
@@ -546,6 +546,8 @@ function UnitPricingAvailabilityForm({ disabled, onSetAvailability, onSetPricing
 // accept both statuses; only `published` rejects). This component is only
 // ever mounted alongside PublicListingForm's draft/withdrawn-status views.
 function ListingImageManager({ disabled, legacyImageCount = 0, listingId, session, t }) {
+  const [open, setOpen] = useState(false);
+  const [anchorRef, mountNode] = useRedesignDialogMountNode();
   const [images, setImages] = useState([]);
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const [imagesError, setImagesError] = useState('');
@@ -574,11 +576,16 @@ function ListingImageManager({ disabled, legacyImageCount = 0, listingId, sessio
   };
 
   useEffect(() => {
+    // Lazily loads only once the dialog is actually open — this component
+    // is now always mounted (its trigger button lives in the table row),
+    // so fetching unconditionally on mount would hit the API for every
+    // draft/withdrawn row's images before the landlord ever opens one.
+    if (!open) return;
     setImages([]);
     setImagesLoaded(false);
     fetchImages();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listingId]);
+  }, [listingId, open]);
 
   // REQ-038's 10-image cap is combined across legacy imageUrls and
   // uploaded images (both are rendered together in the public gallery), so
@@ -654,70 +661,88 @@ function ListingImageManager({ disabled, legacyImageCount = 0, listingId, sessio
   };
 
   return (
-    <div className='listing-image-manager'>
-      <h3>{t('property_management.listing_images_title')}</h3>
-      {imagesError ? <p className='field-error' role='alert'>{imagesError}</p> : null}
-      {imagesLoaded && images.length === 0 && !imagesError ? (
-        <p>{t('property_management.listing_images_empty')}</p>
-      ) : null}
-      {images.length > 0 ? (
-        <ul className='listing-image-list'>
-          {images.map((image) => (
-            <li key={image.imageId}>
-              <span>{t(`property_management.room.${image.room}`)}</span>
-              <Button
-                appearance='subtle'
-                disabled={disabled || deletingImageId === image.imageId}
-                onClick={() => handleDelete(image.imageId)}
-                type='button'
-              >
-                {deletingImageId === image.imageId
-                  ? <><Spinner size='tiny' /> {t('property_management.listing_image_deleting')}</>
-                  : t('property_management.listing_image_delete')}
+    <Dialog open={open} onOpenChange={(_event, data) => setOpen(data.open)}>
+      <DialogTrigger disableButtonEnhancement>
+        <Tooltip content={t('property_management.listing_images_title')} relationship='label'>
+          <Button appearance='subtle' disabled={disabled} icon={<ImageMultiple20Regular />} ref={anchorRef} onClick={() => setOpen(true)} />
+        </Tooltip>
+      </DialogTrigger>
+      <DialogSurface mountNode={mountNode}>
+        <DialogBody>
+          <DialogTitle>{t('property_management.listing_images_title')}</DialogTitle>
+          <DialogContent className='listing-image-manager'>
+            {imagesError ? <p className='field-error' role='alert'>{imagesError}</p> : null}
+            {imagesLoaded && images.length === 0 && !imagesError ? (
+              <p>{t('property_management.listing_images_empty')}</p>
+            ) : null}
+            {images.length > 0 ? (
+              <ul className='listing-image-list'>
+                {images.map((image) => (
+                  <li key={image.imageId}>
+                    <span>{t(`property_management.room.${image.room}`)}</span>
+                    <Button
+                      appearance='subtle'
+                      disabled={disabled || deletingImageId === image.imageId}
+                      onClick={() => handleDelete(image.imageId)}
+                      type='button'
+                    >
+                      {deletingImageId === image.imageId
+                        ? <><Spinner size='tiny' /> {t('property_management.listing_image_deleting')}</>
+                        : t('property_management.listing_image_delete')}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <form className='listing-image-upload-form' noValidate onSubmit={handleUpload}>
+              <Field label={t('property_management.field.listing_image_room')} required>
+                <Select disabled={disabled || uploading || capReached} onChange={(_event, data) => setRoom(data.value)} value={room}>
+                  <option value=''>{t('property_management.listing_image_room_placeholder')}</option>
+                  {publicListingImageRooms.map((option) => (
+                    <option key={option} value={option}>{t(`property_management.room.${option}`)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <div className='listing-image-file-field'>
+                <label htmlFor={fileInputId}>{t('property_management.field.listing_image_file')}<span aria-hidden='true'>*</span></label>
+                <input
+                  accept='image/jpeg,image/png'
+                  disabled={disabled || uploading || capReached}
+                  id={fileInputId}
+                  ref={fileInputRef}
+                  required
+                  type='file'
+                />
+              </div>
+              <Field>
+                <Checkbox
+                  checked={attestationAccepted}
+                  disabled={disabled || uploading || capReached}
+                  id={attestationId}
+                  label={t('property_management.listing_image_attestation_label')}
+                  onChange={(_event, data) => setAttestationAccepted(Boolean(data.checked))}
+                  required
+                />
+              </Field>
+              {formError ? <p className='field-error' role='alert'>{formError}</p> : null}
+              {capReached ? <p>{t('property_management.listing_image_cap_reached')}</p> : null}
+              <Button appearance='secondary' disabled={disabled || uploading || capReached || !attestationAccepted} type='submit'>
+                {uploading
+                  ? <><Spinner size='tiny' /> {t('property_management.listing_image_uploading')}</>
+                  : t('property_management.listing_image_upload_submit')}
               </Button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <form className='listing-image-upload-form' noValidate onSubmit={handleUpload}>
-        <Field label={t('property_management.field.listing_image_room')} required>
-          <Select disabled={disabled || uploading || capReached} onChange={(_event, data) => setRoom(data.value)} value={room}>
-            <option value=''>{t('property_management.listing_image_room_placeholder')}</option>
-            {publicListingImageRooms.map((option) => (
-              <option key={option} value={option}>{t(`property_management.room.${option}`)}</option>
-            ))}
-          </Select>
-        </Field>
-        <div className='listing-image-file-field'>
-          <label htmlFor={fileInputId}>{t('property_management.field.listing_image_file')}<span aria-hidden='true'>*</span></label>
-          <input
-            accept='image/jpeg,image/png'
-            disabled={disabled || uploading || capReached}
-            id={fileInputId}
-            ref={fileInputRef}
-            required
-            type='file'
-          />
-        </div>
-        <Field>
-          <Checkbox
-            checked={attestationAccepted}
-            disabled={disabled || uploading || capReached}
-            id={attestationId}
-            label={t('property_management.listing_image_attestation_label')}
-            onChange={(_event, data) => setAttestationAccepted(Boolean(data.checked))}
-            required
-          />
-        </Field>
-        {formError ? <p className='field-error' role='alert'>{formError}</p> : null}
-        {capReached ? <p>{t('property_management.listing_image_cap_reached')}</p> : null}
-        <Button appearance='secondary' disabled={disabled || uploading || capReached || !attestationAccepted} type='submit'>
-          {uploading
-            ? <><Spinner size='tiny' /> {t('property_management.listing_image_uploading')}</>
-            : t('property_management.listing_image_upload_submit')}
-        </Button>
-      </form>
-    </div>
+            </form>
+          </DialogContent>
+          <DialogActions>
+            <DialogTrigger disableButtonEnhancement>
+              <Button appearance='subtle' type='button'>
+                {t('property_management.cancel')}
+              </Button>
+            </DialogTrigger>
+          </DialogActions>
+        </DialogBody>
+      </DialogSurface>
+    </Dialog>
   );
 }
 
