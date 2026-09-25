@@ -250,15 +250,57 @@ test.describe('Landlord redesign (flag-gated)', () => {
     expect(buttonWidths).toHaveLength(2);
     expect(Math.abs(buttonWidths[0] - buttonWidths[1])).toBeLessThanOrEqual(2);
 
-    // The Cancel button must have a real, visible affordance (a resting
-    // border), not the bare/borderless "plain text" look reported by the
-    // PO.
+    // Copilot PR #135 review, cycle-1 finding: an earlier version of this
+    // fix added a visible border to the Cancel button, but the approved
+    // spec (LANDLORD_REDESIGN_SPEC.md §5.1) explicitly documents `subtle`
+    // (Cancel/nav/sign-out/language toggle) as transparent/borderless —
+    // that is the intentional, approved treatment. Assert it stays that
+    // way (no resting border) rather than reintroducing the reverted
+    // override.
     const cancelButton = panel.locator("> button[type='button']").last();
     await expect(cancelButton).toHaveText(/Cancel/);
-    const cancelBorder = await cancelButton.evaluate((el) => window.getComputedStyle(el).borderTopStyle);
-    expect(cancelBorder).toBe('solid');
+    // Fluent's own `subtle` Button already renders a 1px solid border by
+    // default (kept transparent, purely for layout/box-model stability
+    // across appearances) — so `borderTopStyle` alone can't distinguish
+    // "spec-compliant borderless subtle" from "a real visible border was
+    // added". Assert the border stays invisible (transparent), which is
+    // what the spec's "no border" actually means visually.
+    const cancelBorderColor = await cancelButton.evaluate((el) => window.getComputedStyle(el).borderTopColor);
+    expect(cancelBorderColor).toMatch(/^rgba\([^)]*,\s*0\)$|^transparent$/);
 
     await panel.screenshot({ path: 'e2e/redesign/__screenshots__/flag-on-unit-pricing-availability-caption-fix.png' });
+  });
+
+  // Copilot PR #135 review, cycle-1 finding: a bare `min-width` on the
+  // submit buttons is only a lower bound — with `justify-self: start` the
+  // button still shrinks to fit its own label, so the English-only
+  // assertion above passed while the French labels (fr: "Définir le
+  // prix" 15 chars vs. "Mettre à jour la disponibilité" 30 chars) could
+  // still render at visibly different widths. Switch the app's stored
+  // language (see `src/i18n.js`'s `kf-language` localStorage key) to
+  // French and re-run the same width-parity assertion in that locale.
+  test('flag on: the pricing/availability submit buttons stay width-consistent in French (longest currently approved label)', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('kf-language', 'fr'));
+    await page.goto(`${FLAG_ON_URL}/landlord-redesign-checklist-preview.html`);
+    const checklistRow = page.getByTestId('next-best-action-checklist').getByRole('button', { name: /prix et (la )?disponibilité/i });
+    await checklistRow.click();
+
+    const panel = page.locator('.unit-pricing-availability');
+    await expect(panel).toBeVisible();
+
+    const buttonWidths = await panel.evaluate((panelEl) => Array.from(
+      panelEl.querySelectorAll("button[type='submit']"),
+    ).map((button) => button.getBoundingClientRect().width));
+    expect(buttonWidths).toHaveLength(2);
+    expect(Math.abs(buttonWidths[0] - buttonWidths[1])).toBeLessThanOrEqual(2);
+
+    // Neither button's label should overflow its own box at the shared
+    // min-width (would indicate the min-width is still too small for a
+    // real translation, not just an English-only guess).
+    const overflow = await panel.evaluate((panelEl) => Array.from(
+      panelEl.querySelectorAll("button[type='submit']"),
+    ).map((button) => button.scrollWidth > button.clientWidth + 1));
+    expect(overflow).toEqual([false, false]);
   });
 
   // renders as a separate DOM copy inside ListingPublicationPanel, a

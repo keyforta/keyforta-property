@@ -40,15 +40,31 @@ describe('redesign.css unit-pricing-availability section captions span the full 
     expect(match[1]).toMatch(/grid-column:\s*1\s*\/\s*-1/);
   });
 
-  it('also spans the submit buttons across the full row and pins a shared min-width so both buttons render at a consistent size', () => {
-    expect(css).toMatch(
-      /\.unit-pricing-availability form\.unit-form button\[type='submit'\]\s*\{[^}]*grid-column:\s*1\s*\/\s*-1[^}]*min-width:\s*180px/,
+  it('also spans the submit buttons across the full row and pins a shared min-width wide enough for the longest approved fr/en label', () => {
+    // Copilot PR #135 review, cycle-1 finding: a bare min-width is only a
+    // lower bound with justify-self:start — it must be raised past the
+    // English-only guess to actually accommodate the longest currently
+    // approved translation ("Mettre à jour la disponibilité", fr), not
+    // just the shorter English labels.
+    const match = css.match(
+      /\.unit-pricing-availability form\.unit-form button\[type='submit'\]\s*\{([^}]*)\}/,
     );
+    expect(match).not.toBeNull();
+    expect(match[1]).toMatch(/grid-column:\s*1\s*\/\s*-1/);
+    const minWidthMatch = match[1].match(/min-width:\s*(\d+)px/);
+    expect(minWidthMatch).not.toBeNull();
+    expect(Number(minWidthMatch[1])).toBeGreaterThanOrEqual(260);
   });
 
-  it('gives the trailing Cancel button (last button[type="button"] child of .unit-pricing-availability) a visible border/padding affordance', () => {
-    expect(css).toMatch(
-      /\.unit-pricing-availability > button\[type='button'\]:last-child\s*\{[^}]*border:\s*1px solid var\(--kf-aubergine-12\)/,
+  it('does not add a border/background to the Cancel button, preserving the approved borderless "subtle" spec (LANDLORD_REDESIGN_SPEC.md §5.1)', () => {
+    // Copilot PR #135 review, cycle-1 finding: an earlier version of this
+    // fix added a visible border to the Cancel button, but the approved
+    // redesign spec explicitly documents `subtle` (Cancel/nav/sign-out/
+    // language toggle) as "Transparent fill ... no border" — that is
+    // intentional, not a bug, so this fix must not override it without a
+    // separate, explicit spec change and product-owner approval.
+    expect(css).not.toMatch(
+      /\.unit-pricing-availability[^{]*button\[type='button'\][^{]*\{[^}]*border:\s*1px solid/,
     );
   });
 });

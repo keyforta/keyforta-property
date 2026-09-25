@@ -559,6 +559,23 @@
   margin-top: var(--kf-space-3);
   border: 1px solid var(--kf-aubergine-12);
 }
+/* PO feedback (screenshot, PR #135): once the caption/divider/button-width
+   grid bugs above were fixed, the panel still looked "horrible" — the
+   protected `.unit-form` grid (`repeat(auto-fill, minmax(220px, 1fr))`,
+   styles.css) creates as many 1fr columns as the *card's* full width
+   allows, then stretches the 2-3 real fields/buttons across only the
+   first couple of those columns, leaving a large dead empty area to
+   their right for the rest of the row's width. Constraining the form's
+   own max-width stops auto-fill from being handed more width than the
+   fields actually need, so the row visually shrink-wraps to its content
+   instead of stretching across the whole card. 520px comfortably fits
+   the pricing form's two fields (2 x 220px min-width + 14px gap, per
+   styles.css) plus the availability form's status/reason fields, without
+   constraining any individual Field/Input/Select below its own
+   minmax(220px, ...) floor. */
+.kf-landlord-redesign .unit-pricing-availability form.unit-form {
+  max-width: 520px;
+}
 /* Copilot PR #134 review, cycle-3/4 finding #5: no `::before` caption
    here — property-management-panel.jsx (protected, unmodified) already
    renders its own localized, visible `<h3>{t('manage_unit_title')}</h3>`
@@ -612,32 +629,35 @@
    comfortable minimum and let them size to content/left-align, rather
    than stretching to fill whatever column width auto-fill happens to
    compute, so they read as visually consistent regardless of sibling
-   field count. */
+   field count.
+   Copilot PR #135 review, cycle-1 finding: a bare `min-width` is only a
+   lower bound — with `justify-self: start` the button still shrinks to
+   fit its own label, so a longer translation (fr: "Mettre à jour la
+   disponibilité", 30 chars) still renders wider than a shorter one (fr:
+   "Définir le prix", 15 chars) even though the English labels happen to
+   be closer in length. `min-width` is raised to comfortably fit the
+   longest currently-approved label across en/fr (measured with the
+   redesign's 15px/600-weight button font) instead of an English-only
+   guess, and both locales now have Playwright coverage (see
+   e2e/redesign/landlord.spec.ts). */
 .kf-landlord-redesign .unit-pricing-availability form.unit-form button[type='submit'] {
   grid-column: 1 / -1;
   justify-self: start;
-  min-width: 180px;
+  min-width: 260px;
 }
-/* The "Annuler"/Cancel button (Fluent `appearance='subtle'`, rendered as
-   the last child of `.unit-pricing-availability`, a sibling of the two
-   `form.unit-form` elements above — not itself a form control) is
-   intentionally borderless/transparent by Fluent's own "subtle"
-   appearance, which reads as bare unstyled text next to the two solid
-   submit buttons above it. Layered on here purely via a stable,
-   pre-existing structural selector (last `button[type='button']` child
-   of the unchanged `.unit-pricing-availability` wrapper) using only
-   already-approved brand tokens — no new DOM, no hex colors. */
-.kf-landlord-redesign .unit-pricing-availability > button[type='button']:last-child {
-  border: 1px solid var(--kf-aubergine-12);
-  border-radius: var(--kf-radius-sm);
-  padding: var(--kf-space-2) var(--kf-space-4);
-  background: #fff;
-  transition: background-color 150ms ease, border-color 150ms ease;
-}
-.kf-landlord-redesign .unit-pricing-availability > button[type='button']:last-child:hover {
-  background: var(--kf-soft-bone);
-  border-color: var(--kf-aubergine-08);
-}
+/* Copilot PR #135 review, cycle-1 finding: the "Annuler"/Cancel button
+   (Fluent `appearance='subtle'`) was given a visible border/background
+   here in the first pass of this fix, but
+   docs/product/LANDLORD_REDESIGN_SPEC.md §5.1 explicitly documents
+   `subtle` (used for Cancel/nav/sign-out/language toggle) as
+   "Transparent fill, aubergine text ... no border" — that is the
+   approved, intentional treatment, not a bug. Overriding it here would
+   silently change an approved spec without product-owner sign-off,
+   which this repository's working agreement does not permit. Reverted:
+   the Cancel button is intentionally left with Fluent's default
+   `subtle` appearance (no added border/background) so this fix stays
+   scoped to the two genuine layout bugs (caption placement, submit
+   button width) that this PR's evidence actually demonstrates. */
 .kf-landlord-redesign .listing-image-manager {
   background: #fff;
   border-radius: var(--kf-radius-sm);
