@@ -1,8 +1,13 @@
 # Tenant Portal Redesign — UX/Visual Design Spec (Phase 3)
 
-Status: **Design spec only — not yet implemented.** No code exists under
-`apps/portal-web/src/redesign/tenant/` at the time of writing. This is the
-Phase 3 design artifact called for by
+Status: **Implemented (flag-gated).** Code now exists under
+`apps/portal-web/src/redesign/tenant/` (`TenantShell.jsx`, `index.jsx`,
+`redesign.css`), mounted behind `VITE_REDESIGN_ENABLED` in
+`apps/portal-web/src/portal-app.jsx`, per PR #138. This document remains
+the authoritative design record for that implementation — it originated
+as a pre-implementation design artifact and is retained unmodified in
+substance, with only this status line updated to reflect the completed
+build. This is the Phase 3 design artifact called for by
 `docs/engineering/REQUIREMENTS_GAPS.md` →
 "Redesigned per-role UI/UX with KEYFORTA branding," whose recorded phasing
 is "Landlord first ... then Manager, then Tenant, then Admin." Phase 1
@@ -10,13 +15,12 @@ is "Landlord first ... then Manager, then Tenant, then Admin." Phase 1
 `docs/product/LANDLORD_REDESIGN_SPEC.md`) and Phase 2 (Manager) is
 implemented and merged (PR #137, `docs/product/MANAGER_REDESIGN_SPEC.md`),
 both under the same Solution-Architect-approved bounded/additive/
-flag-gated exception. This document proceeds under that identical
-exception, in advance of implementation, so that a Frontend Engineer has
-an approved design artifact before writing any Tenant redesign code —
-mirroring the sequencing already followed for Landlord and Manager. Full
-Product Owner sign-off on the broader "Redesigned per-role UI/UX"
-initiative remains pending (`docs/engineering/REQUIREMENTS_GAPS.md`); that
-row's status is unchanged by this document.
+flag-gated exception. Phase 3 (Tenant) is now implemented under that
+identical exception (PR #138), mirroring the sequencing already followed
+for Landlord and Manager. Full Product Owner sign-off on the broader
+"Redesigned per-role UI/UX" initiative remains pending
+(`docs/engineering/REQUIREMENTS_GAPS.md`); that row's status is unchanged
+by this document.
 
 Scope owner: UX Designer (this document). Implementation ownership for
 this spec is the Frontend Engineer, inside a new, isolated
