@@ -20,22 +20,12 @@
 // on the element — only the one custom `data-kf-tone` attribute this
 // module owns exclusively — so it cannot interfere with
 // PropertyManagementPanel's own behavior.
-//
-// `neutralTexts` (optional, backward-compatible addition made for the
-// Manager redesign after Copilot's review on PR #137 found that a
-// `draft` listing row rendered with the same flat green "positive" color
-// as a `published` row, since only `negative` was ever distinguished
-// from the base style): any text matching this second set is annotated
-// `data-kf-tone='neutral'` instead. Landlord's existing calls omit this
-// argument entirely and are unaffected.
-export function annotateStatusTone(container, negativeTexts, neutralTexts) {
+export function annotateStatusTone(container, negativeTexts) {
   if (!container || !negativeTexts) return;
   container.querySelectorAll('.status').forEach((element) => {
     const text = element.textContent.trim();
     if (negativeTexts.has(text)) {
       element.setAttribute('data-kf-tone', 'negative');
-    } else if (neutralTexts && neutralTexts.has(text)) {
-      element.setAttribute('data-kf-tone', 'neutral');
     } else if (element.hasAttribute('data-kf-tone')) {
       element.removeAttribute('data-kf-tone');
     }

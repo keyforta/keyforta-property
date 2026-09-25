@@ -5,6 +5,7 @@ import { ListingPublicationPanel } from '../../listing-publication-panel.jsx';
 import { LandlordBrandHeader } from '../landlord/components/BrandHeader.jsx';
 import { annotateStatusTone } from '../landlord/statusTone.js';
 import { PortfolioStatusLegend } from './components/PortfolioStatusLegend.jsx';
+import { annotateNeutralStatusTone } from './statusTone.js';
 
 // docs/product/MANAGER_REDESIGN_SPEC.md §8.1(a): `BrandHeader` and the
 // tone-annotation helper are imported directly from
@@ -54,17 +55,28 @@ export function ManagerShell({
   // status-specific class/attribute of its own, so each row's badge is
   // annotated purely by comparing its own already-rendered text against
   // the known status strings Manager's surface can show (`withdrawn` ->
-  // negative/red, `draft` -> neutral/gray, `published` left at the base
+  // negative/red via the unmodified, shared Landlord helper; `draft` ->
+  // neutral/gray via this directory's own local sibling helper,
+  // `./statusTone.js` — kept local rather than extending the shared
+  // Landlord file, per the spec's §9 acceptance boundary limiting
+  // changes outside `redesign/manager/`; `published` is left at the base
   // green) — no domain logic is reimplemented, only a presentational
-  // read of already-rendered output (see statusTone.js's own comment for
-  // the full rationale, which applies identically here).
+  // read of already-rendered output (see each helper's own comment for
+  // the full rationale, which applies identically here). Order matters:
+  // the negative pass runs first and clears any stale tone on
+  // non-negative rows, so the neutral pass (which only ever touches
+  // `draft` rows) always runs last and wins for them.
   useEffect(() => {
     const container = rootRef.current;
     if (!container) return undefined;
     const negativeTexts = new Set([t('listing_publication.status.withdrawn.badge')]);
     const neutralTexts = new Set([t('listing_publication.status.draft.badge')]);
-    annotateStatusTone(container, negativeTexts, neutralTexts);
-    const observer = new MutationObserver(() => annotateStatusTone(container, negativeTexts, neutralTexts));
+    const annotate = () => {
+      annotateStatusTone(container, negativeTexts);
+      annotateNeutralStatusTone(container, neutralTexts);
+    };
+    annotate();
+    const observer = new MutationObserver(annotate);
     observer.observe(container, { characterData: true, childList: true, subtree: true });
     return () => observer.disconnect();
   }, [t, managerListings, showListingPublication]);
