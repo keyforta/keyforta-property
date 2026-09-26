@@ -668,6 +668,11 @@ if [[ "$*" == *"acr repository show "* && "$*" == *"--image"* ]]; then
       exit 1
     fi
   done
+  for repository in \${NOISY_STDERR_REPOS//,/ }; do
+    if [[ "$*" == *"--image $repository:"* ]]; then
+      echo "WARNING: some unrelated Azure CLI notice on stderr." >&2
+    fi
+  done
   if [ -n "\${FLAKY_DIGEST_REPO:-}" ] && [[ "$*" == *"--image \$FLAKY_DIGEST_REPO:"* ]]; then
     counter_file="\$TEST_STATE/digest-attempts-\$FLAKY_DIGEST_REPO"
     count=0
@@ -813,7 +818,7 @@ test("deploy builds and publishes a repository that has never been pushed before
   assert.ok(result.events.includes("publish:admin"));
 });
 
-test("deploy ignores an unrelated stderr warning on a successful tag lookup", () => {
+test("deploy ignores unrelated stderr warnings on successful tag and digest lookups", () => {
   const result = runScenario("deploy", "", "admin-web", "", "", "keyforta-admin-web");
   assert.equal(result.status, 0, result.stderr);
   assert.ok(result.events.includes("build:admin"));
