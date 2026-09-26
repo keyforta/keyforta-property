@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS build
+FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS build
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -21,14 +21,28 @@ COPY packages/authorization packages/authorization
 COPY packages/types packages/types
 RUN pnpm --filter @keyforta/api... build
 
-FROM node:24-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS runtime
+FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS runtime
 ENV NODE_ENV=production
 ENV API_HOST=0.0.0.0
 ENV API_PORT=4000
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
 WORKDIR /workspace
+
+# The runtime container only ever runs `node apps/api/dist/server.js`; it never
+# invokes npm, npx, yarn, corepack, or pnpm. Removing these bundled CLIs (and
+# their vendored dependency trees, which carry their own CVEs independent of
+# this workspace's pnpm-lock.yaml) shrinks the attack surface and keeps the
+# image out of unrelated upstream CLI vulnerability scans.
+RUN rm -rf \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/lib/node_modules/corepack \
+      /opt/yarn-v1.22.22 \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx \
+      /usr/local/bin/yarn \
+      /usr/local/bin/yarnpkg \
+      /usr/local/bin/pnpm \
+      /usr/local/bin/pnpx \
+      /usr/local/bin/corepack
 
 COPY --from=build --chown=node:node /workspace/package.json /workspace/pnpm-lock.yaml /workspace/pnpm-workspace.yaml ./
 COPY --from=build --chown=node:node /workspace/node_modules node_modules
