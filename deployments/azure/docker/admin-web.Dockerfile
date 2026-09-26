@@ -31,7 +31,15 @@ COPY packages/types packages/types
 COPY packages/ui packages/ui
 RUN pnpm --filter @keyforta/admin-web build
 
-FROM nginxinc/nginx-unprivileged:1.29.4-alpine@sha256:a6c4f61f456b85b8fdf7ec7ab28cc3e299440e6fb4a9dea520e5fd8fd440025e AS runtime
+FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:4714e0b1b2577eaa1a6131d07c958b67f0eb68e6d0521e90c6e5287db8cf0bc5 AS runtime
+# Apply available Alpine security patches at build time so this image isn't
+# stuck with whatever packages were current when the upstream base image was
+# last published; keeps the deploy workflow's Trivy gate green as new fixes
+# land in Alpine's repos between upstream nginx-unprivileged image builds.
+# The base image already runs as the unprivileged "nginx" user, so switch to
+# root for the upgrade and back to nginx afterwards.
+USER root
+RUN apk update && apk upgrade --no-cache && rm -rf /var/cache/apk/*
 COPY deployments/azure/docker/admin-web.nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build --chown=nginx:nginx /workspace/apps/admin-web/dist /usr/share/nginx/html
 USER nginx
