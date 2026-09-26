@@ -526,7 +526,7 @@ jobs:
               if [ "$attempt" -lt "$max_attempts" ]; then
                 # A repository's first-ever push can briefly lag ACR's read path;
                 # retry before treating this as a real failure.
-                sleep "${RESOLVE_DIGEST_RETRY_DELAY_SECONDS:-5}"
+                sleep "${ACR_RETRY_DELAY_SECONDS:-5}"
               fi
               attempt=$((attempt + 1))
             done
@@ -549,7 +549,23 @@ jobs:
           lock_image() {
             image="$1:$DEPLOYMENT_SHA"
             az acr repository update --name "$REGISTRY_NAME" --image "$image" --write-enabled false >/dev/null
-            test "$(az acr repository show --name "$REGISTRY_NAME" --image "$image" --query writeEnabled -o tsv)" = "false"
+            attempt=1
+            max_attempts=5
+            last_write_enabled=""
+            while [ "$attempt" -le "$max_attempts" ]; do
+              last_write_enabled=$(az acr repository show --name "$REGISTRY_NAME" --image "$image" --query writeEnabled -o tsv)
+              if [ "$last_write_enabled" = "false" ]; then
+                return 0
+              fi
+              if [ "$attempt" -lt "$max_attempts" ]; then
+                # ACR can briefly report the pre-update writeEnabled value
+                # right after the update call; retry before failing.
+                sleep "${ACR_RETRY_DELAY_SECONDS:-5}"
+              fi
+              attempt=$((attempt + 1))
+            done
+            echo "Could not confirm $image is locked (immutable) after $max_attempts attempts: last observed writeEnabled=$last_write_enabled" >&2
+            exit 1
           }
           if [ -n "$api_pid" ]; then lock_image keyforta-api; fi
           if [ -n "$web_pid" ]; then lock_image keyforta-public-web; fi
