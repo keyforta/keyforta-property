@@ -632,6 +632,12 @@ function runScenario(
   flakyDigestFailCount = "0",
   alwaysFailDigestRepos = "",
   authFailureShowTagsRepos = "",
+  flakyLockRepo = "",
+  flakyLockFailCount = "0",
+  stuckLockRepos = "",
+  flakyLockReadFailRepo = "",
+  flakyLockReadFailCount = "0",
+  alwaysFailLockReadRepos = "",
 ) {
   const directory = mkdtempSync(join(tmpdir(), "keyforta-workflow-test-"));
   try {
@@ -643,6 +649,40 @@ function runScenario(
 set -eu
 echo az >> "$EVENTS_FILE"
 if [[ "$*" == *"acr repository show "* && "$*" == *"--query writeEnabled"* ]]; then
+  for repository in \${STUCK_LOCK_REPOS//,/ }; do
+    if [[ "$*" == *"--image $repository:"* ]]; then
+      printf 'true\n'
+      exit 0
+    fi
+  done
+  for repository in \${ALWAYS_FAIL_LOCK_READ_REPOS//,/ }; do
+    if [[ "$*" == *"--image $repository:"* ]]; then
+      echo "ERROR: persistent registry read failure for $repository" >&2
+      exit 1
+    fi
+  done
+  if [ -n "\${FLAKY_LOCK_READ_FAIL_REPO:-}" ] && [[ "$*" == *"--image \$FLAKY_LOCK_READ_FAIL_REPO:"* ]]; then
+    counter_file="\$TEST_STATE/lock-read-attempts-\$FLAKY_LOCK_READ_FAIL_REPO"
+    count=0
+    if [ -f "$counter_file" ]; then count=$(cat "$counter_file"); fi
+    count=$((count + 1))
+    echo "$count" > "$counter_file"
+    if [ "$count" -le "\${FLAKY_LOCK_READ_FAIL_COUNT:-0}" ]; then
+      echo "ERROR: transient registry read failure for \$FLAKY_LOCK_READ_FAIL_REPO" >&2
+      exit 1
+    fi
+  fi
+  if [ -n "\${FLAKY_LOCK_REPO:-}" ] && [[ "$*" == *"--image \$FLAKY_LOCK_REPO:"* ]]; then
+    counter_file="\$TEST_STATE/lock-attempts-\$FLAKY_LOCK_REPO"
+    count=0
+    if [ -f "$counter_file" ]; then count=$(cat "$counter_file"); fi
+    count=$((count + 1))
+    echo "$count" > "$counter_file"
+    if [ "$count" -le "\${FLAKY_LOCK_FAIL_COUNT:-0}" ]; then
+      printf 'true\n'
+      exit 0
+    fi
+  fi
   printf 'false\n'
   exit 0
 fi
@@ -738,7 +778,9 @@ exit "$result"
         env: {
           ...process.env,
           API_PUBLIC_BASE_URL: "https://api.example.test/api/v1",
+          ACR_RETRY_DELAY_SECONDS: "0",
           ALWAYS_FAIL_DIGEST_REPOS: alwaysFailDigestRepos,
+          ALWAYS_FAIL_LOCK_READ_REPOS: alwaysFailLockReadRepos,
           AUTH_FAILURE_SHOW_TAGS_REPOS: authFailureShowTagsRepos,
           DEPLOYMENT_SHA: "test-sha",
           DEPLOYMENT_SCOPE: scope,
@@ -747,13 +789,17 @@ exit "$result"
           FAILURES: failures,
           FLAKY_DIGEST_FAIL_COUNT: flakyDigestFailCount,
           FLAKY_DIGEST_REPO: flakyDigestRepo,
+          FLAKY_LOCK_FAIL_COUNT: flakyLockFailCount,
+          FLAKY_LOCK_REPO: flakyLockRepo,
+          FLAKY_LOCK_READ_FAIL_COUNT: flakyLockReadFailCount,
+          FLAKY_LOCK_READ_FAIL_REPO: flakyLockReadFailRepo,
           GITHUB_ENV: join(directory, "github-env"),
           NEVER_PUSHED_REPOS: neverPushedRepos,
           NOISY_STDERR_REPOS: noisyStderrRepos,
           PATH: `${directory}:${process.env.PATH}`,
           REGISTRY_NAME: "test-registry",
           REGISTRY_SERVER: "registry.example.test",
-          RESOLVE_DIGEST_RETRY_DELAY_SECONDS: "0",
+          STUCK_LOCK_REPOS: stuckLockRepos,
           TEST_STATE: directory,
         },
       },
@@ -882,6 +928,96 @@ test("deploy fails with the last error after exhausting digest lookup retries", 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Could not resolve digest for keyforta-admin-web:test-sha after 5 attempts/);
   assert.match(result.stderr, /transient registry failure for keyforta-admin-web/);
+});
+
+test("deploy retries locking an image through transient writeEnabled read-after-write lag", () => {
+  const result = runScenario(
+    "deploy",
+    "",
+    "admin-web",
+    "",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "",
+    "keyforta-admin-web",
+    "2",
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.events.includes("publish:admin"));
+});
+
+test("deploy fails with a diagnostic message when an image never reports locked", () => {
+  const result = runScenario(
+    "deploy",
+    "",
+    "admin-web",
+    "",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "",
+    "",
+    "0",
+    "keyforta-admin-web",
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /Could not confirm keyforta-admin-web:test-sha is locked \(immutable\) after 5 attempts: Observed writeEnabled=true/,
+  );
+});
+
+test("deploy retries locking an image through a transient writeEnabled read failure", () => {
+  const result = runScenario(
+    "deploy",
+    "",
+    "admin-web",
+    "",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "keyforta-admin-web",
+    "2",
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.events.includes("publish:admin"));
+});
+
+test("deploy fails with the last error after exhausting writeEnabled read retries", () => {
+  const result = runScenario(
+    "deploy",
+    "",
+    "admin-web",
+    "",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "",
+    "0",
+    "keyforta-admin-web",
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /Could not confirm keyforta-admin-web:test-sha is locked \(immutable\) after 5 attempts: .*persistent registry read failure for keyforta-admin-web/s,
+  );
 });
 
 for (const [scope, expectedComponent] of [
