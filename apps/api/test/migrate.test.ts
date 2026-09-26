@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PoolClient } from "pg";
 
-import { applyMigration, mapRuntimePrincipal } from "../src/migrate.js";
+import {
+  applyMigration,
+  mapRuntimePrincipal,
+  provisionMediaReviewAdminRole,
+} from "../src/migrate.js";
 
 describe("applyMigration", () => {
   it("blocks 0017 before its transaction when active assignments are ambiguous", async () => {
@@ -22,6 +26,28 @@ describe("applyMigration", () => {
     );
     expect(query).toHaveBeenCalledTimes(2);
     expect(query).not.toHaveBeenCalledWith("begin");
+  });
+});
+
+describe("provisionMediaReviewAdminRole", () => {
+  it("creates keyforta_media_review_admin without BYPASSRLS", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const client = { query } as unknown as PoolClient;
+
+    await provisionMediaReviewAdminRole(client);
+
+    expect(query).toHaveBeenCalledTimes(3);
+    const createStatement = query.mock.calls[0]?.[0] as string;
+    expect(createStatement).toContain("keyforta_media_review_admin");
+    expect(createStatement).not.toContain("bypassrls");
+    expect(createStatement).toContain("duplicate_object");
+
+    const membershipStatement = query.mock.calls[1]?.[0] as string;
+    expect(membershipStatement).toContain("grant keyforta_media_review_admin to");
+    expect(membershipStatement).toContain("with inherit true");
+
+    const schemaCreateStatement = query.mock.calls[2]?.[0] as string;
+    expect(schemaCreateStatement).toContain("grant create on schema app to keyforta_media_review_admin");
   });
 });
 

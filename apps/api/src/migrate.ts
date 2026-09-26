@@ -11,7 +11,7 @@ const migrationDirectory = fileURLToPath(
   new URL("../../../infra/postgres/migrations", import.meta.url),
 );
 const migrationLockKey = 4_514_670_274;
-const runtimeMigrationBoundary = "0035_withdrawn_listing_media_review.sql";
+const runtimeMigrationBoundary = "0036_media_review_admin_rls_policies.sql";
 
 function checksum(content: string): string {
   return createHash("sha256").update(content).digest("hex");
@@ -106,8 +106,81 @@ export async function applyMigration(
   }
 }
 
+// Migration 0030 creates `keyforta_media_review_admin` with BYPASSRLS the
+// first time it runs (idempotently skipping re-creation if the role
+// already exists). Azure Database for PostgreSQL Flexible Server never
+// grants BYPASSRLS to a Microsoft Entra (managed-identity) admin -- only
+// Microsoft's internal `azuresu` role ever has it -- so this connection
+// can never itself satisfy "only roles with BYPASSRLS may create a role
+// with BYPASSRLS" and 0030's own create-role statement always fails with
+// a permission-denied error on Azure, regardless of privileges granted to
+// the connecting identity. Since migrations are immutable, pre-create the
+// role here (without BYPASSRLS) before the migration loop runs, so 0030's
+// existence check finds it already present and skips straight to the
+// grants. Migration 0036 replaces the lost BYPASSRLS with narrowly scoped,
+// additive RLS policies granted `to keyforta_media_review_admin` on each
+// table the media-review admin functions touch, preserving the same
+// cross-organization visibility the role previously got via BYPASSRLS.
+export async function provisionMediaReviewAdminRole(client: PoolClient): Promise<void> {
+  // Mirrors 0030's own race-safe existence check: parallel test suites (or
+  // concurrent deploys) may race to create this cluster-wide role for the
+  // first time, so catch duplicate_object/unique_violation rather than
+  // relying solely on the "if not exists" check.
+  await client.query(`
+    do $$
+    begin
+      if not exists (select 1 from pg_roles where rolname = 'keyforta_media_review_admin') then
+        create role keyforta_media_review_admin nologin nosuperuser nocreatedb nocreaterole noinherit;
+      end if;
+    exception
+      when duplicate_object or unique_violation then
+        null;
+    end
+    $$;
+  `);
+  // 0030/0032/0033 also `alter function ... owner to
+  // keyforta_media_review_admin`, which PostgreSQL only allows when the
+  // connecting role is itself a member of the target role (superuser
+  // exempted, which no Azure customer connection ever is). Grant
+  // membership to whichever role is actually running migrations in this
+  // environment -- this varies per environment (a differently named
+  // managed identity in each), so it must be resolved dynamically via
+  // current_user rather than hardcoded. Azure's Entra admin role is
+  // NOINHERIT, so later `create or replace function` statements against
+  // the now-`keyforta_media_review_admin`-owned functions would still fail
+  // ("must be owner of function ...") on plain membership alone --
+  // PostgreSQL 16's per-grant `with inherit true` overrides the grantee's
+  // own NOINHERIT default for this specific membership, without changing
+  // the connecting role's attributes.
+  await client.query(`
+    do $$
+    begin
+      execute format('grant keyforta_media_review_admin to %I with inherit true', current_user);
+    exception
+      when duplicate_object then
+        null;
+    end
+    $$;
+  `);
+  // ALTER ... OWNER TO additionally requires the *new* owner to hold
+  // CREATE privilege on the object's schema (not just USAGE, which 0030's
+  // own grant below provides) -- otherwise "permission denied for schema
+  // app". Schema "app" must already exist for this grant to succeed, so
+  // this call is deliberately placed after applyMigrations creates it.
+  await client.query(`
+    do $$
+    begin
+      if exists (select 1 from pg_namespace where nspname = 'app') then
+        grant create on schema app to keyforta_media_review_admin;
+      end if;
+    end
+    $$;
+  `);
+}
+
 export async function applyMigrations(client: PoolClient): Promise<void> {
   await client.query("create schema if not exists app");
+  await provisionMediaReviewAdminRole(client);
   await client.query(`
     create table if not exists app.schema_migrations (
       version text primary key,
