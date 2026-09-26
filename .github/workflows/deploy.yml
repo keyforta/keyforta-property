@@ -508,7 +508,9 @@ jobs:
           resolve_digest() {
             repository="$1"
             attempt=1
-            while [ "$attempt" -le 5 ]; do
+            max_attempts=5
+            last_error=""
+            while [ "$attempt" -le "$max_attempts" ]; do
               digest_stderr_file=$(mktemp)
               if digest=$(az acr repository show --name "$REGISTRY_NAME" --image "$repository:$DEPLOYMENT_SHA" --query digest -o tsv 2>"$digest_stderr_file"); then
                 rm -f "$digest_stderr_file"
@@ -516,15 +518,19 @@ jobs:
                   echo "$digest"
                   return 0
                 fi
+                last_error="Unexpected digest output: $digest"
               else
+                last_error=$(cat "$digest_stderr_file")
                 rm -f "$digest_stderr_file"
               fi
-              # A repository's first-ever push can briefly lag ACR's read path;
-              # retry before treating this as a real failure.
+              if [ "$attempt" -lt "$max_attempts" ]; then
+                # A repository's first-ever push can briefly lag ACR's read path;
+                # retry before treating this as a real failure.
+                sleep "${RESOLVE_DIGEST_RETRY_DELAY_SECONDS:-5}"
+              fi
               attempt=$((attempt + 1))
-              sleep 5
             done
-            echo "Could not resolve digest for $repository:$DEPLOYMENT_SHA after $attempt attempts" >&2
+            echo "Could not resolve digest for $repository:$DEPLOYMENT_SHA after $max_attempts attempts: $last_error" >&2
             exit 1
           }
           if [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "postgres" ]; then
