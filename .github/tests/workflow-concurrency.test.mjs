@@ -637,6 +637,7 @@ function runScenario(
   stuckLockRepos = "",
   flakyLockReadFailRepo = "",
   flakyLockReadFailCount = "0",
+  alwaysFailLockReadRepos = "",
 ) {
   const directory = mkdtempSync(join(tmpdir(), "keyforta-workflow-test-"));
   try {
@@ -652,6 +653,12 @@ if [[ "$*" == *"acr repository show "* && "$*" == *"--query writeEnabled"* ]]; t
     if [[ "$*" == *"--image $repository:"* ]]; then
       printf 'true\n'
       exit 0
+    fi
+  done
+  for repository in \${ALWAYS_FAIL_LOCK_READ_REPOS//,/ }; do
+    if [[ "$*" == *"--image $repository:"* ]]; then
+      echo "ERROR: persistent registry read failure for $repository" >&2
+      exit 1
     fi
   done
   if [ -n "\${FLAKY_LOCK_READ_FAIL_REPO:-}" ] && [[ "$*" == *"--image \$FLAKY_LOCK_READ_FAIL_REPO:"* ]]; then
@@ -773,6 +780,7 @@ exit "$result"
           API_PUBLIC_BASE_URL: "https://api.example.test/api/v1",
           ACR_RETRY_DELAY_SECONDS: "0",
           ALWAYS_FAIL_DIGEST_REPOS: alwaysFailDigestRepos,
+          ALWAYS_FAIL_LOCK_READ_REPOS: alwaysFailLockReadRepos,
           AUTH_FAILURE_SHOW_TAGS_REPOS: authFailureShowTagsRepos,
           DEPLOYMENT_SHA: "test-sha",
           DEPLOYMENT_SCOPE: scope,
@@ -984,6 +992,32 @@ test("deploy retries locking an image through a transient writeEnabled read fail
   );
   assert.equal(result.status, 0, result.stderr);
   assert.ok(result.events.includes("publish:admin"));
+});
+
+test("deploy fails with the last error after exhausting writeEnabled read retries", () => {
+  const result = runScenario(
+    "deploy",
+    "",
+    "admin-web",
+    "",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "",
+    "0",
+    "keyforta-admin-web",
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /Could not confirm keyforta-admin-web:test-sha is locked \(immutable\) after 5 attempts: .*persistent registry read failure for keyforta-admin-web/s,
+  );
 });
 
 for (const [scope, expectedComponent] of [
