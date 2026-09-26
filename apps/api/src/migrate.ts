@@ -176,6 +176,32 @@ export async function provisionMediaReviewAdminRole(client: PoolClient): Promise
     end
     $$;
   `);
+  // Upgrade path: an environment that ran 0030 *before* this fix shipped
+  // (never possible on Azure, since only a BYPASSRLS-holding connection can
+  // create a BYPASSRLS role there -- but possible on a local/CI Postgres
+  // where migrations run as a superuser) would already have
+  // keyforta_media_review_admin with BYPASSRLS set. Migration 0036's
+  // additive policies only replace what BYPASSRLS *needs* to be true; the
+  // attribute itself is a strictly broader, blanket RLS bypass that must be
+  // revoked so the scoped policies are actually the sole source of the
+  // role's cross-organization visibility. Only a role that itself holds
+  // BYPASSRLS (superuser always does, functionally) may strip it from
+  // another role, so this is a no-op -- not an error -- everywhere it can't
+  // apply, including every real Azure connection.
+  await client.query(`
+    do $$
+    begin
+      if exists (
+        select 1 from pg_roles where rolname = 'keyforta_media_review_admin' and rolbypassrls
+      ) then
+        alter role keyforta_media_review_admin nobypassrls;
+      end if;
+    exception
+      when insufficient_privilege then
+        null;
+    end
+    $$;
+  `);
 }
 
 export async function applyMigrations(client: PoolClient): Promise<void> {

@@ -41,6 +41,16 @@ describePostgres("PostgreSQL media-review-admin privilege redesign", () => {
   const superuserSeedDatabaseUrl = databaseUrl ? new URL(testDatabaseUrl!) : undefined;
   if (superuserSeedDatabaseUrl) superuserSeedDatabaseUrl.pathname = `/${databaseName}`;
   const superuserSeedPool = new Pool({ connectionString: superuserSeedDatabaseUrl?.toString() });
+  const organizationA = "00000000-0000-4000-8000-0000000ba00a";
+  const organizationB = "00000000-0000-4000-8000-0000000ba00b";
+  const propertyA = "00000000-0000-4000-8000-0000000ba10a";
+  const propertyB = "00000000-0000-4000-8000-0000000ba10b";
+  const unitA = "00000000-0000-4000-8000-0000000ba20a";
+  const unitB = "00000000-0000-4000-8000-0000000ba20b";
+  const listingA = "00000000-0000-4000-8000-0000000ba30a";
+  const listingB = "00000000-0000-4000-8000-0000000ba30b";
+  const imageA = "00000000-0000-4000-8000-0000000ba40a";
+  const imageB = "00000000-0000-4000-8000-0000000ba40b";
   let restrictedClient: PoolClient;
   let runtimeClient: PoolClient;
   let superuserSeedClient: PoolClient;
@@ -101,6 +111,52 @@ describePostgres("PostgreSQL media-review-admin privilege redesign", () => {
 
     runtimeClient = await runtimePool.connect();
     superuserSeedClient = await superuserSeedPool.connect();
+
+    // node-postgres rejects multiple statements in one parameterized query,
+    // so each insert runs as its own single-statement call. Seeding via the
+    // superuser connection (rather than restrictedClient) is required
+    // because FORCE ROW LEVEL SECURITY blocks even the table owner from
+    // inserting fixture rows without BYPASSRLS.
+    await superuserSeedClient.query(
+      "insert into app.organizations (id, name) values ($1, 'Media review org A'), ($2, 'Media review org B')",
+      [organizationA, organizationB],
+    );
+    await superuserSeedClient.query(
+      `insert into app.properties (
+         id, organization_id, name, property_type, address, time_zone, verification_status, publication_status
+       ) values
+         ($1, $3, 'Property A', 'apartment_building', '{"avenueOrStreet":"A","number":"1","quartier":"Q","commune":"C","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft'),
+         ($2, $4, 'Property B', 'apartment_building', '{"avenueOrStreet":"B","number":"2","quartier":"Q","commune":"C","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft')`,
+      [propertyA, propertyB, organizationA, organizationB],
+    );
+    await superuserSeedClient.query(
+      `insert into app.units (
+         id, organization_id, property_id, label, canonical_label, unit_type, bedrooms, bathrooms, furnishing_status, publication_status, availability_status
+       ) values
+         ($1, $3, $5, 'Unit A', 'unit-a', 'apartment', 1, 1, 'unfurnished', 'published', 'available'),
+         ($2, $4, $6, 'Unit B', 'unit-b', 'apartment', 1, 1, 'unfurnished', 'published', 'available')`,
+      [unitA, unitB, organizationA, organizationB, propertyA, propertyB],
+    );
+    await superuserSeedClient.query(
+      `insert into app.public_listings (
+         id, organization_id, property_id, unit_id, status, snapshot, created_at, media_review_status
+       ) values
+         ($1, $3, $5, $7, 'draft', '{"projection":{"summary":"pending review A"}}', now(), 'pending'),
+         ($2, $4, $6, $8, 'draft', '{"projection":{"summary":"pending review B"}}', now(), 'pending')`,
+      [listingA, listingB, organizationA, organizationB, propertyA, propertyB, unitA, unitB],
+    );
+    // One image on each organization's listing, so both the
+    // same-organization and cross-organization image-read paths
+    // (get_public_listing_image_content_for_review) have something
+    // concrete to fetch as the runtime role below.
+    await superuserSeedClient.query(
+      `insert into app.public_listing_images (
+         id, organization_id, public_listing_id, room, media_type, size_bytes, content, content_hash, position
+       ) values
+         ($1, $3, $5, 'living', 'image/png', 4, '\\x89504e47', '${"0".repeat(64)}', 0),
+         ($2, $4, $6, 'living', 'image/png', 4, '\\x89504e47', '${"0".repeat(64)}', 0)`,
+      [imageA, imageB, organizationA, organizationB, listingA, listingB],
+    );
   });
 
   afterAll(async () => {
@@ -144,46 +200,6 @@ describePostgres("PostgreSQL media-review-admin privilege redesign", () => {
   });
 
   it("still lets the platform-admin console see pending-review listings across every organization", async () => {
-    const organizationA = "00000000-0000-4000-8000-0000000ba00a";
-    const organizationB = "00000000-0000-4000-8000-0000000ba00b";
-    const propertyA = "00000000-0000-4000-8000-0000000ba10a";
-    const propertyB = "00000000-0000-4000-8000-0000000ba10b";
-    const unitA = "00000000-0000-4000-8000-0000000ba20a";
-    const unitB = "00000000-0000-4000-8000-0000000ba20b";
-    const listingA = "00000000-0000-4000-8000-0000000ba30a";
-    const listingB = "00000000-0000-4000-8000-0000000ba30b";
-
-    // node-postgres rejects multiple statements in one parameterized query,
-    // so each insert runs as its own single-statement call.
-    await superuserSeedClient.query(
-      "insert into app.organizations (id, name) values ($1, 'Media review org A'), ($2, 'Media review org B')",
-      [organizationA, organizationB],
-    );
-    await superuserSeedClient.query(
-      `insert into app.properties (
-         id, organization_id, name, property_type, address, time_zone, verification_status, publication_status
-       ) values
-         ($1, $3, 'Property A', 'apartment_building', '{"avenueOrStreet":"A","number":"1","quartier":"Q","commune":"C","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft'),
-         ($2, $4, 'Property B', 'apartment_building', '{"avenueOrStreet":"B","number":"2","quartier":"Q","commune":"C","city":"Kinshasa","province":"Kinshasa","countryCode":"CD"}', 'Africa/Kinshasa', 'pending', 'draft')`,
-      [propertyA, propertyB, organizationA, organizationB],
-    );
-    await superuserSeedClient.query(
-      `insert into app.units (
-         id, organization_id, property_id, label, canonical_label, unit_type, bedrooms, bathrooms, furnishing_status, publication_status, availability_status
-       ) values
-         ($1, $3, $5, 'Unit A', 'unit-a', 'apartment', 1, 1, 'unfurnished', 'published', 'available'),
-         ($2, $4, $6, 'Unit B', 'unit-b', 'apartment', 1, 1, 'unfurnished', 'published', 'available')`,
-      [unitA, unitB, organizationA, organizationB, propertyA, propertyB],
-    );
-    await superuserSeedClient.query(
-      `insert into app.public_listings (
-         id, organization_id, property_id, unit_id, status, snapshot, created_at, media_review_status
-       ) values
-         ($1, $3, $5, $7, 'draft', '{"projection":{"summary":"pending review A"}}', now(), 'pending'),
-         ($2, $4, $6, $8, 'draft', '{"projection":{"summary":"pending review B"}}', now(), 'pending')`,
-      [listingA, listingB, organizationA, organizationB, propertyA, propertyB, unitA, unitB],
-    );
-
     await runtimeClient.query("begin");
     try {
       await runtimeClient.query("set local role keyforta_runtime");
@@ -193,6 +209,71 @@ describePostgres("PostgreSQL media-review-admin privilege redesign", () => {
       const pendingIds = pending.rows.map((row) => row.listing_id);
       expect(pendingIds).toContain(listingA);
       expect(pendingIds).toContain(listingB);
+    } finally {
+      await runtimeClient.query("commit");
+    }
+  });
+
+  it("lets the review mutation path decide on a pending listing in a different organization than the caller's own", async () => {
+    await runtimeClient.query("begin");
+    try {
+      await runtimeClient.query("set local role keyforta_runtime");
+      // The caller's own organization context is set to A, but the
+      // decision targets listingB (organization B) -- exercising the
+      // review mutation exactly as the platform-admin console does
+      // (deciding on any organization's pending listing), which only
+      // works because app.review_public_listing_media is SECURITY
+      // DEFINER, owned by keyforta_media_review_admin, and covered by the
+      // 0036 policies rather than the caller's own organization-scoped
+      // isolation policies.
+      await runtimeClient.query(
+        "select set_config('app.organization_id', $1, true)",
+        [organizationA],
+      );
+      const decision = await runtimeClient.query<{
+        listing_id: string;
+        media_review_status: string;
+      }>(
+        `select * from app.review_public_listing_media($1, 'rejected', 'reviewer@keyforta.test', $2, 'synthetic rejection notes', 'corr-media-review-test', 'test-suite')`,
+        [listingB, organizationB],
+      );
+      expect(decision.rows).toHaveLength(1);
+      expect(decision.rows[0]?.listing_id).toBe(listingB);
+      expect(decision.rows[0]?.media_review_status).toBe("rejected");
+    } finally {
+      await runtimeClient.query("commit");
+    }
+
+    // Verified via the superuser seed connection (which bypasses RLS
+    // entirely) rather than another runtimeClient query, since ordinary
+    // runtime sessions can only read listing rows through organization-
+    // scoped policies/functions, not this test's cross-organization
+    // assertion.
+    const persisted = await superuserSeedClient.query<{ media_review_status: string }>(
+      "select media_review_status from app.public_listings where id = $1",
+      [listingB],
+    );
+    expect(persisted.rows[0]?.media_review_status).toBe("rejected");
+  });
+
+  it("lets the image-read path fetch a pending image in a different organization than the caller's own", async () => {
+    await runtimeClient.query("begin");
+    try {
+      await runtimeClient.query("set local role keyforta_runtime");
+      await runtimeClient.query(
+        "select set_config('app.organization_id', $1, true)",
+        [organizationB],
+      );
+      // listingA/imageA (organization A) is used here -- not listingB,
+      // which the previous test already moved out of 'pending' review
+      // status -- while the caller's own organization context is B, so
+      // this still exercises the cross-organization image-read path.
+      const content = await runtimeClient.query<{ media_type: string; content: Buffer }>(
+        "select media_type, content from app.get_public_listing_image_content_for_review($1, $2)",
+        [listingA, imageA],
+      );
+      expect(content.rows).toHaveLength(1);
+      expect(content.rows[0]?.media_type).toBe("image/png");
     } finally {
       await runtimeClient.query("commit");
     }
@@ -221,6 +302,71 @@ describePostgres("PostgreSQL media-review-admin privilege redesign", () => {
     } catch (error) {
       await runtimeClient.query("rollback");
       throw error;
+    }
+  });
+
+  it("still blocks a role with direct table grants but no media-review-admin membership from seeing another organization's pending listing", async () => {
+    // This is the actual RLS boundary the 0036 policies establish: they
+    // are scoped `to keyforta_media_review_admin` specifically, not to
+    // PUBLIC or every role with a raw table grant. A role that has direct
+    // SELECT on app.public_listings but is *not* a member of
+    // keyforta_media_review_admin must still be denied visibility by
+    // FORCE ROW LEVEL SECURITY, proving the new policies don't
+    // accidentally widen access beyond the one role they name.
+    const directGrantRoleName = `keyforta_direct_grant_${process.pid}`;
+    await adminPool.query(`
+      drop role if exists ${directGrantRoleName};
+      create role ${directGrantRoleName} login password 'synthetic-direct-grant-password'
+        nosuperuser nocreatedb nocreaterole noinherit;
+    `);
+    // The role above is cluster-wide (created via adminPool, which
+    // connects to the base test database), but the GRANT below must run
+    // against this test's own per-test database/schema, so it goes
+    // through superuserSeedClient instead.
+    await superuserSeedClient.query(
+      `grant usage on schema app to ${directGrantRoleName}`,
+    );
+    await superuserSeedClient.query(
+      `grant select on app.public_listings to ${directGrantRoleName}`,
+    );
+    const directGrantDatabaseUrl = databaseUrl ? new URL(databaseUrl) : undefined;
+    if (directGrantDatabaseUrl) {
+      directGrantDatabaseUrl.username = directGrantRoleName;
+      directGrantDatabaseUrl.password = "synthetic-direct-grant-password";
+    }
+    const directGrantPool = new Pool({ connectionString: directGrantDatabaseUrl?.toString() });
+    try {
+      const directGrantClient = await directGrantPool.connect();
+      try {
+        // Even a raw SELECT grant on the table is not enough to see any
+        // rows here: PostgreSQL evaluates every RLS policy's USING clause
+        // (including the ordinary organization-scoped isolation policy,
+        // which calls a helper function this role has no EXECUTE grant
+        // on) before returning anything, so the query is denied outright
+        // rather than silently returning zero rows -- an even stronger
+        // guarantee that this role gains no visibility from the new 0036
+        // policies, which are scoped `to keyforta_media_review_admin` and
+        // never evaluated for it at all.
+        await expect(
+          directGrantClient.query("select id from app.public_listings where id = $1", [
+            listingB,
+          ]),
+        ).rejects.toThrow(/permission denied/);
+      } finally {
+        directGrantClient.release();
+      }
+    } finally {
+      await directGrantPool.end();
+      // The GRANT above is an object dependency in this test's own
+      // database, so it must be revoked there (via superuserSeedClient)
+      // before the cluster-wide role can be dropped (via adminPool).
+      await superuserSeedClient.query(
+        `revoke select on app.public_listings from ${directGrantRoleName}`,
+      );
+      await superuserSeedClient.query(
+        `revoke usage on schema app from ${directGrantRoleName}`,
+      );
+      await adminPool.query(`drop role if exists ${directGrantRoleName}`);
     }
   });
 });

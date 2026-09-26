@@ -36,7 +36,7 @@ describe("provisionMediaReviewAdminRole", () => {
 
     await provisionMediaReviewAdminRole(client);
 
-    expect(query).toHaveBeenCalledTimes(3);
+    expect(query).toHaveBeenCalledTimes(4);
     const createStatement = query.mock.calls[0]?.[0] as string;
     expect(createStatement).toContain("keyforta_media_review_admin");
     expect(createStatement).not.toContain("bypassrls");
@@ -48,6 +48,11 @@ describe("provisionMediaReviewAdminRole", () => {
 
     const schemaCreateStatement = query.mock.calls[2]?.[0] as string;
     expect(schemaCreateStatement).toContain("grant create on schema app to keyforta_media_review_admin");
+
+    const revokeBypassrlsStatement = query.mock.calls[3]?.[0] as string;
+    expect(revokeBypassrlsStatement).toContain("rolbypassrls");
+    expect(revokeBypassrlsStatement).toContain("alter role keyforta_media_review_admin nobypassrls");
+    expect(revokeBypassrlsStatement).toContain("insufficient_privilege");
   });
 });
 
