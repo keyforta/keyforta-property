@@ -520,15 +520,15 @@ jobs:
             exit 1
           }
           if [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "postgres" ]; then
-            api_digest=$(resolve_digest keyforta-api)
+            api_digest=$(resolve_digest keyforta-api); [[ "$api_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
             echo "API_IMAGE=$REGISTRY_SERVER/keyforta-api@$api_digest" >> "$GITHUB_ENV"
           fi
           if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "public-web" ]; then
-            web_digest=$(resolve_digest keyforta-public-web)
+            web_digest=$(resolve_digest keyforta-public-web); [[ "$web_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
             echo "WEB_IMAGE=$REGISTRY_SERVER/keyforta-public-web@$web_digest" >> "$GITHUB_ENV"
           fi
           if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
-            admin_digest=$(resolve_digest keyforta-admin-web)
+            admin_digest=$(resolve_digest keyforta-admin-web); [[ "$admin_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
             echo "ADMIN_IMAGE=$REGISTRY_SERVER/keyforta-admin-web@$admin_digest" >> "$GITHUB_ENV"
           fi
 
