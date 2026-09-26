@@ -414,17 +414,21 @@ jobs:
 
           reject_existing_tag() {
             repository="$1"
+            show_tags_stderr_file=$(mktemp)
             if ! show_tags_output=$(az acr repository show-tags \
               --name "$REGISTRY_NAME" \
               --repository "$repository" \
-              --query "[?@=='$DEPLOYMENT_SHA'] | [0]" -o tsv 2>&1); then
-              if echo "$show_tags_output" | grep -q "repository \"$repository\" is not found"; then
+              --query "[?@=='$DEPLOYMENT_SHA'] | [0]" -o tsv 2>"$show_tags_stderr_file"); then
+              show_tags_error=$(cat "$show_tags_stderr_file")
+              rm -f "$show_tags_stderr_file"
+              if echo "$show_tags_error" | grep -q "repository \"$repository\" is not found"; then
                 # First-ever push for this repository: nothing to conflict with.
                 return 0
               fi
-              echo "$show_tags_output" >&2
+              echo "$show_tags_error" >&2
               exit 1
             fi
+            rm -f "$show_tags_stderr_file"
             if [ -n "$show_tags_output" ]; then
               echo "Immutable image tag $repository:$DEPLOYMENT_SHA already exists; use its original reviewed plan." >&2
               exit 1
@@ -505,11 +509,15 @@ jobs:
             repository="$1"
             attempt=1
             while [ "$attempt" -le 5 ]; do
-              if digest=$(az acr repository show --name "$REGISTRY_NAME" --image "$repository:$DEPLOYMENT_SHA" --query digest -o tsv 2>&1); then
+              digest_stderr_file=$(mktemp)
+              if digest=$(az acr repository show --name "$REGISTRY_NAME" --image "$repository:$DEPLOYMENT_SHA" --query digest -o tsv 2>"$digest_stderr_file"); then
+                rm -f "$digest_stderr_file"
                 if [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
                   echo "$digest"
                   return 0
                 fi
+              else
+                rm -f "$digest_stderr_file"
               fi
               # A repository's first-ever push can briefly lag ACR's read path;
               # retry before treating this as a real failure.

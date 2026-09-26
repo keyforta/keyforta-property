@@ -627,6 +627,7 @@ function runScenario(
   scope = "full",
   existingTags = "",
   neverPushedRepos = "",
+  noisyStderrRepos = "",
 ) {
   const directory = mkdtempSync(join(tmpdir(), "keyforta-workflow-test-"));
   try {
@@ -646,6 +647,11 @@ if [[ "$*" == *"acr repository show-tags"* ]]; then
     if [[ "$*" == *"--repository $repository"* ]]; then
       echo "ERROR: Error: repository \\"$repository\\" is not found. Correlation ID: test." >&2
       exit 1
+    fi
+  done
+  for repository in \${NOISY_STDERR_REPOS//,/ }; do
+    if [[ "$*" == *"--repository $repository"* ]]; then
+      echo "WARNING: some unrelated Azure CLI notice on stderr." >&2
     fi
   done
   for repository in \${EXISTING_TAGS//,/ }; do
@@ -707,6 +713,7 @@ exit "$result"
           FAILURES: failures,
           GITHUB_ENV: join(directory, "github-env"),
           NEVER_PUSHED_REPOS: neverPushedRepos,
+          NOISY_STDERR_REPOS: noisyStderrRepos,
           PATH: `${directory}:${process.env.PATH}`,
           REGISTRY_NAME: "test-registry",
           REGISTRY_SERVER: "registry.example.test",
@@ -777,6 +784,13 @@ test("deploy rejects an existing immutable image tag before building", () => {
 
 test("deploy builds and publishes a repository that has never been pushed before", () => {
   const result = runScenario("deploy", "", "admin-web", "", "keyforta-admin-web");
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.events.includes("build:admin"));
+  assert.ok(result.events.includes("publish:admin"));
+});
+
+test("deploy ignores an unrelated stderr warning on a successful tag lookup", () => {
+  const result = runScenario("deploy", "", "admin-web", "", "", "keyforta-admin-web");
   assert.equal(result.status, 0, result.stderr);
   assert.ok(result.events.includes("build:admin"));
   assert.ok(result.events.includes("publish:admin"));
