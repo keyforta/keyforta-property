@@ -951,7 +951,7 @@ test("deploy retries locking an image through transient writeEnabled read-after-
 
 test("deploy retries locking an image through a prolonged writeEnabled read-after-write lag", () => {
   // Reproduces a real deploy failure: ACR reported a stale writeEnabled value
-  // for 8 consecutive reads (~70s) after pushing keyforta-api, which exceeded
+  // for 9 consecutive reads (~70s) after pushing keyforta-api, which exceeded
   // the previous 5-attempt retry budget and aborted the deploy even though
   // the lock eventually succeeded. The budget must be large enough to ride
   // out this observed lag.
