@@ -550,7 +550,13 @@ jobs:
             image="$1:$DEPLOYMENT_SHA"
             az acr repository update --name "$REGISTRY_NAME" --image "$image" --write-enabled false >/dev/null
             attempt=1
-            max_attempts=5
+            # ACR has been observed to report a stale writeEnabled value for
+            # ~71s (well past a 12-attempt/~55s budget) immediately after a
+            # heavy multi-image push. 20 attempts at the default 5s delay
+            # yields ~95s of sleep -- comfortable margin above the measured
+            # incident duration -- so the deploy isn't false-failed while
+            # ACR catches up.
+            max_attempts=20
             last_error=""
             while [ "$attempt" -le "$max_attempts" ]; do
               lock_stderr_file=$(mktemp)

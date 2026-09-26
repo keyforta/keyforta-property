@@ -949,6 +949,32 @@ test("deploy retries locking an image through transient writeEnabled read-after-
   assert.ok(result.events.includes("publish:admin"));
 });
 
+test("deploy retries locking an image through a prolonged writeEnabled read-after-write lag", () => {
+  // Reproduces a real deploy failure: ACR reported a stale writeEnabled value
+  // for ~71s after pushing keyforta-api, which exceeded the 5-attempt (and
+  // later 12-attempt) retry budget and aborted the deploy even though the
+  // lock eventually succeeded. This scenario simulates 19 consecutive stale
+  // reads -- the full width of the new 20-attempt budget -- to prove the
+  // budget covers the measured incident duration with margin, not just up
+  // to its previous (insufficient) size.
+  const result = runScenario(
+    "deploy",
+    "",
+    "admin-web",
+    "",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "",
+    "keyforta-admin-web",
+    "19",
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.events.includes("publish:admin"));
+});
+
 test("deploy fails with a diagnostic message when an image never reports locked", () => {
   const result = runScenario(
     "deploy",
@@ -968,7 +994,7 @@ test("deploy fails with a diagnostic message when an image never reports locked"
   assert.notEqual(result.status, 0);
   assert.match(
     result.stderr,
-    /Could not confirm keyforta-admin-web:test-sha is locked \(immutable\) after 5 attempts: Observed writeEnabled=true/,
+    /Could not confirm keyforta-admin-web:test-sha is locked \(immutable\) after 20 attempts: Observed writeEnabled=true/,
   );
 });
 
@@ -1016,7 +1042,7 @@ test("deploy fails with the last error after exhausting writeEnabled read retrie
   assert.notEqual(result.status, 0);
   assert.match(
     result.stderr,
-    /Could not confirm keyforta-admin-web:test-sha is locked \(immutable\) after 5 attempts: .*persistent registry read failure for keyforta-admin-web/s,
+    /Could not confirm keyforta-admin-web:test-sha is locked \(immutable\) after 20 attempts: .*persistent registry read failure for keyforta-admin-web/s,
   );
 });
 
