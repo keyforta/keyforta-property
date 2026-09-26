@@ -621,7 +621,13 @@ function executable(directory, name, source) {
   chmodSync(file, 0o755);
 }
 
-function runScenario(workflow, failures = "", scope = "full", existingTags = "") {
+function runScenario(
+  workflow,
+  failures = "",
+  scope = "full",
+  existingTags = "",
+  neverPushedRepos = "",
+) {
   const directory = mkdtempSync(join(tmpdir(), "keyforta-workflow-test-"));
   try {
     const events = join(directory, "events");
@@ -636,6 +642,12 @@ if [[ "$*" == *"acr repository show "* && "$*" == *"--query writeEnabled"* ]]; t
   exit 0
 fi
 if [[ "$*" == *"acr repository show-tags"* ]]; then
+  for repository in \${NEVER_PUSHED_REPOS//,/ }; do
+    if [[ "$*" == *"--repository $repository"* ]]; then
+      echo "ERROR: Error: repository \\"$repository\\" is not found. Correlation ID: test." >&2
+      exit 1
+    fi
+  done
   for repository in \${EXISTING_TAGS//,/ }; do
     if [[ "$*" == *"--repository $repository"* ]]; then printf '%s\n' "$DEPLOYMENT_SHA"; fi
   done
@@ -694,6 +706,7 @@ exit "$result"
           EXISTING_TAGS: existingTags,
           FAILURES: failures,
           GITHUB_ENV: join(directory, "github-env"),
+          NEVER_PUSHED_REPOS: neverPushedRepos,
           PATH: `${directory}:${process.env.PATH}`,
           REGISTRY_NAME: "test-registry",
           REGISTRY_SERVER: "registry.example.test",
@@ -760,6 +773,13 @@ test("deploy rejects an existing immutable image tag before building", () => {
   assert.match(result.stderr, /Immutable image tag keyforta-api:test-sha already exists/);
   assert.equal(result.events.some((event) => event.startsWith("build:")), false);
   assert.equal(result.events.some((event) => event.startsWith("publish:")), false);
+});
+
+test("deploy builds and publishes a repository that has never been pushed before", () => {
+  const result = runScenario("deploy", "", "admin-web", "", "keyforta-admin-web");
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.events.includes("build:admin"));
+  assert.ok(result.events.includes("publish:admin"));
 });
 
 for (const [scope, expectedComponent] of [
