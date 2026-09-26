@@ -631,6 +631,7 @@ function runScenario(
   flakyDigestRepo = "",
   flakyDigestFailCount = "0",
   alwaysFailDigestRepos = "",
+  authFailureShowTagsRepos = "",
 ) {
   const directory = mkdtempSync(join(tmpdir(), "keyforta-workflow-test-"));
   try {
@@ -649,6 +650,12 @@ if [[ "$*" == *"acr repository show-tags"* ]]; then
   for repository in \${NEVER_PUSHED_REPOS//,/ }; do
     if [[ "$*" == *"--repository $repository"* ]]; then
       echo "ERROR: Error: repository \\"$repository\\" is not found. Correlation ID: test." >&2
+      exit 1
+    fi
+  done
+  for repository in \${AUTH_FAILURE_SHOW_TAGS_REPOS//,/ }; do
+    if [[ "$*" == *"--repository $repository"* ]]; then
+      echo "ERROR: Please run 'az login' to setup account. Correlation ID: test." >&2
       exit 1
     fi
   done
@@ -732,6 +739,7 @@ exit "$result"
           ...process.env,
           API_PUBLIC_BASE_URL: "https://api.example.test/api/v1",
           ALWAYS_FAIL_DIGEST_REPOS: alwaysFailDigestRepos,
+          AUTH_FAILURE_SHOW_TAGS_REPOS: authFailureShowTagsRepos,
           DEPLOYMENT_SHA: "test-sha",
           DEPLOYMENT_SCOPE: scope,
           EVENTS_FILE: events,
@@ -807,6 +815,25 @@ test("deploy rejects an existing immutable image tag before building", () => {
   const result = runScenario("deploy", "", "api", "keyforta-api");
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Immutable image tag keyforta-api:test-sha already exists/);
+  assert.equal(result.events.some((event) => event.startsWith("build:")), false);
+  assert.equal(result.events.some((event) => event.startsWith("publish:")), false);
+});
+
+test("deploy fails closed on an unrelated show-tags failure instead of proceeding", () => {
+  const result = runScenario(
+    "deploy",
+    "",
+    "api",
+    "",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "keyforta-api",
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Please run 'az login'/);
   assert.equal(result.events.some((event) => event.startsWith("build:")), false);
   assert.equal(result.events.some((event) => event.startsWith("publish:")), false);
 });
