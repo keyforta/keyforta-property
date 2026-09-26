@@ -195,13 +195,15 @@ describe("mapRuntimePrincipal", () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValue({ rows: [] });
 
     await mapRuntimePrincipal({ query } as never);
 
-    expect(query.mock.calls[0]?.[0]).toContain("pg_catalog.pg_seclabel");
-    expect(query.mock.calls[0]?.[0]).not.toContain("pgaadauth_list_principals");
-    expect(query.mock.calls[0]?.[0]).toContain("where rolname = $1");
+    expect(query.mock.calls[0]?.[0]).toContain("pg_advisory_lock");
+    expect(query.mock.calls[1]?.[0]).toContain("pg_catalog.pg_seclabel");
+    expect(query.mock.calls[1]?.[0]).not.toContain("pgaadauth_list_principals");
+    expect(query.mock.calls[1]?.[0]).toContain("where rolname = $1");
   });
 
   it("creates and labels a missing runtime role without optional pgaadauth helpers", async () => {
@@ -215,12 +217,14 @@ describe("mapRuntimePrincipal", () => {
     await mapRuntimePrincipal({ query } as never);
 
     expect(query.mock.calls.map((call) => call[0])).toEqual([
+      expect.stringContaining("pg_advisory_lock"),
       expect.stringContaining("pg_catalog.pg_seclabel"),
       expect.stringContaining("pg_catalog.pg_roles"),
       "begin",
       'create role "keyforta-api" login',
       'security label for "pgaadauth" on role "keyforta-api" is \'aadauth,oid=00000000-0000-0000-0000-000000000001,type=service\'',
       "commit",
+      expect.stringContaining("pg_advisory_unlock"),
       'alter role "keyforta-api" noinherit',
       'grant keyforta_runtime to "keyforta-api"',
     ]);
@@ -234,7 +238,8 @@ describe("mapRuntimePrincipal", () => {
     process.env.DATABASE_RUNTIME_PRINCIPAL_ID = "00000000-0000-0000-0000-000000000001";
     const query = vi
       .fn()
-      .mockResolvedValueOnce({ rows: [] }) // no pgaadauth label yet
+      .mockResolvedValueOnce({ rows: [] }) // pg_advisory_lock
+      .mockResolvedValueOnce({ rows: [] }) // seclabel select: no pgaadauth label yet
       .mockResolvedValueOnce({ rows: [{ exists: true }] }) // role already exists (e.g. Azure-provisioned)
       .mockResolvedValue({ rows: [] });
 
@@ -242,11 +247,13 @@ describe("mapRuntimePrincipal", () => {
 
     const calls = query.mock.calls.map((call) => call[0]);
     expect(calls).toEqual([
+      expect.stringContaining("pg_advisory_lock"),
       expect.stringContaining("pg_catalog.pg_seclabel"),
       expect.stringContaining("pg_catalog.pg_roles"),
       "begin",
       'security label for "pgaadauth" on role "keyforta-api" is \'aadauth,oid=00000000-0000-0000-0000-000000000001,type=service\'',
       "commit",
+      expect.stringContaining("pg_advisory_unlock"),
       'alter role "keyforta-api" noinherit',
       'grant keyforta_runtime to "keyforta-api"',
     ]);
@@ -264,27 +271,30 @@ describe("mapRuntimePrincipal", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("rolls back runtime role creation when security labeling fails", async () => {
+  it("rolls back runtime role creation when security labeling fails, releasing the advisory lock", async () => {
     process.env.DATABASE_RUNTIME_PRINCIPAL = "keyforta-api";
     process.env.DATABASE_RUNTIME_PRINCIPAL_ID = "00000000-0000-0000-0000-000000000001";
     const labelError = new Error("security label failed");
     const query = vi
       .fn()
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockRejectedValueOnce(labelError)
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] }) // pg_advisory_lock
+      .mockResolvedValueOnce({ rows: [] }) // seclabel select
+      .mockResolvedValueOnce({ rows: [] }) // pg_roles exists check
+      .mockResolvedValueOnce({ rows: [] }) // begin
+      .mockResolvedValueOnce({ rows: [] }) // create role
+      .mockRejectedValueOnce(labelError) // security label
+      .mockResolvedValue({ rows: [] }); // rollback, pg_advisory_unlock
 
     await expect(mapRuntimePrincipal({ query } as never)).rejects.toBe(labelError);
     expect(query.mock.calls.map((call) => call[0])).toEqual([
+      expect.stringContaining("pg_advisory_lock"),
       expect.stringContaining("pg_catalog.pg_seclabel"),
       expect.stringContaining("pg_catalog.pg_roles"),
       "begin",
       'create role "keyforta-api" login',
       expect.stringContaining('security label for "pgaadauth"'),
       "rollback",
+      expect.stringContaining("pg_advisory_unlock"),
     ]);
   });
 
@@ -293,6 +303,7 @@ describe("mapRuntimePrincipal", () => {
     process.env.DATABASE_RUNTIME_PRINCIPAL_ID = "00000000-0000-0000-0000-000000000001";
     const query = vi
       .fn()
+      .mockResolvedValueOnce({ rows: [] }) // pg_advisory_lock
       .mockResolvedValueOnce({
         rows: [
           {
@@ -305,27 +316,32 @@ describe("mapRuntimePrincipal", () => {
 
     await mapRuntimePrincipal({ query } as never);
 
-    expect(query).toHaveBeenCalledTimes(3);
+    expect(query).toHaveBeenCalledTimes(5);
     expect(query.mock.calls.flatMap((call) => call[0])).not.toContain(
       "pgaadauth_create_principal_with_oid",
     );
   });
 
-  it("rejects an existing security label for a different principal", async () => {
+  it("rejects an existing security label for a different principal, releasing the advisory lock", async () => {
     process.env.DATABASE_RUNTIME_PRINCIPAL = "keyforta-api";
     process.env.DATABASE_RUNTIME_PRINCIPAL_ID = "00000000-0000-0000-0000-000000000001";
-    const query = vi.fn().mockResolvedValueOnce({
-      rows: [
-        {
-          label:
-            "aadauth,oid=00000000-0000-0000-0000-000000000002,type=service",
-        },
-      ],
-    });
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] }) // pg_advisory_lock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            label:
+              "aadauth,oid=00000000-0000-0000-0000-000000000002,type=service",
+          },
+        ],
+      })
+      .mockResolvedValue({ rows: [] }); // pg_advisory_unlock
 
     await expect(mapRuntimePrincipal({ query } as never)).rejects.toThrow(
       "does not match the configured managed identity",
     );
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query.mock.calls[2]?.[0]).toContain("pg_advisory_unlock");
   });
 });
