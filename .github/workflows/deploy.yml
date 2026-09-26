@@ -418,7 +418,7 @@ jobs:
               --name "$REGISTRY_NAME" \
               --repository "$repository" \
               --query "[?@=='$DEPLOYMENT_SHA'] | [0]" -o tsv 2>&1); then
-              if echo "$show_tags_output" | grep -q "is not found"; then
+              if echo "$show_tags_output" | grep -q "repository \"$repository\" is not found"; then
                 # First-ever push for this repository: nothing to conflict with.
                 return 0
               fi
