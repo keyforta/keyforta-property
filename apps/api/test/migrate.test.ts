@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PoolClient } from "pg";
 
-import { applyMigration, mapRuntimePrincipal } from "../src/migrate.js";
+import {
+  applyMigration,
+  mapRuntimePrincipal,
+  provisionMediaReviewAdminRole,
+} from "../src/migrate.js";
 
 describe("applyMigration", () => {
   it("blocks 0017 before its transaction when active assignments are ambiguous", async () => {
@@ -22,6 +26,160 @@ describe("applyMigration", () => {
     );
     expect(query).toHaveBeenCalledTimes(2);
     expect(query).not.toHaveBeenCalledWith("begin");
+  });
+
+  it("scopes 0032's re-creation of the already-owned review function with a transaction-local role switch", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const client = { query } as unknown as PoolClient;
+    const content = [
+      "begin;",
+      "create or replace function app.review_public_listing_media(",
+      "  x uuid",
+      ") returns void",
+      "language plpgsql",
+      "as $$",
+      "begin",
+      "end",
+      "$$;",
+      "alter function app.review_public_listing_media(uuid) owner to keyforta_media_review_admin;",
+      "commit;",
+    ].join("\n");
+
+    await applyMigration(client, "0032_public_listing_media_upload.sql", content);
+
+    const executedSql = query.mock.calls
+      .map((call) => call[0] as string)
+      .find((sql) => sql.includes("create or replace function"));
+    expect(executedSql).toEqual(
+      [
+        "set local role keyforta_media_review_admin;",
+        "create or replace function app.review_public_listing_media(",
+        "  x uuid",
+        ") returns void",
+        "language plpgsql",
+        "as $$",
+        "begin",
+        "end",
+        "$$;",
+        "reset role;",
+        "alter function app.review_public_listing_media(uuid) owner to keyforta_media_review_admin;",
+      ].join("\n"),
+    );
+    // The role switch must wrap only this one statement, not leak into
+    // begin/commit or the schema_migrations bookkeeping around it.
+    expect(query.mock.calls.map((call) => call[0])).not.toContain(
+      "set local role keyforta_media_review_admin",
+    );
+  });
+
+  it("scopes 0033's drop of the already-owned pending-review-queue function the same way", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const client = { query } as unknown as PoolClient;
+    const content = [
+      "begin;",
+      "drop function app.list_public_listings_pending_media_review();",
+      "create function app.list_public_listings_pending_media_review() returns void language sql as $$ select $$;",
+      "commit;",
+    ].join("\n");
+
+    await applyMigration(client, "0033_public_listing_media_review_content.sql", content);
+
+    const executedSql = query.mock.calls
+      .map((call) => call[0] as string)
+      .find((sql) => sql.includes("drop function"));
+    expect(executedSql).toEqual(
+      [
+        "set local role keyforta_media_review_admin;",
+        "drop function app.list_public_listings_pending_media_review();",
+        "reset role;",
+        "create function app.list_public_listings_pending_media_review() returns void language sql as $$ select $$;",
+      ].join("\n"),
+    );
+  });
+
+  it("fails loudly rather than silently skipping the role switch if 0033's expected statement is missing", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const client = { query } as unknown as PoolClient;
+    const content = "begin;\nselect 1;\ncommit;";
+
+    await expect(
+      applyMigration(client, "0033_public_listing_media_review_content.sql", content),
+    ).rejects.toThrow("Expected media-review-admin ownership statement not found");
+  });
+
+  it("scopes all three of 0035's re-created review functions independently", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const client = { query } as unknown as PoolClient;
+    const content = [
+      "begin;",
+      "create or replace function app.review_public_listing_media(",
+      "  x uuid",
+      ") returns void",
+      "language plpgsql",
+      "as $$",
+      "begin",
+      "end",
+      "$$;",
+      "",
+      "create or replace function app.list_public_listings_pending_media_review()",
+      "returns void",
+      "language sql",
+      "as $$",
+      "  select",
+      "$$;",
+      "",
+      "create or replace function app.get_public_listing_image_content_for_review(",
+      "  x uuid",
+      ") returns void",
+      "language sql",
+      "as $$",
+      "  select",
+      "$$;",
+      "alter function app.get_public_listing_image_content_for_review(uuid) owner to keyforta_media_review_admin;",
+      "commit;",
+    ].join("\n");
+
+    await applyMigration(client, "0035_withdrawn_listing_media_review.sql", content);
+
+    const executedSql = query.mock.calls
+      .map((call) => call[0] as string)
+      .find((sql) => sql.includes("create or replace function"));
+    const scopedStatementCount = (
+      executedSql?.match(/set local role keyforta_media_review_admin;/g) ?? []
+    ).length;
+    expect(scopedStatementCount).toBe(3);
+    expect((executedSql?.match(/reset role;/g) ?? []).length).toBe(3);
+    // Each function's own dollar-quoted body must survive intact.
+    expect(executedSql).toContain("app.review_public_listing_media(");
+    expect(executedSql).toContain("app.list_public_listings_pending_media_review()");
+    expect(executedSql).toContain("app.get_public_listing_image_content_for_review(");
+  });
+});
+
+describe("provisionMediaReviewAdminRole", () => {
+  it("creates keyforta_media_review_admin without BYPASSRLS", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const client = { query } as unknown as PoolClient;
+
+    await provisionMediaReviewAdminRole(client);
+
+    expect(query).toHaveBeenCalledTimes(4);
+    const createStatement = query.mock.calls[0]?.[0] as string;
+    expect(createStatement).toContain("keyforta_media_review_admin");
+    expect(createStatement).not.toContain("bypassrls");
+    expect(createStatement).toContain("duplicate_object");
+
+    const membershipStatement = query.mock.calls[1]?.[0] as string;
+    expect(membershipStatement).toContain("grant keyforta_media_review_admin to");
+    expect(membershipStatement).not.toContain("with inherit true");
+
+    const schemaCreateStatement = query.mock.calls[2]?.[0] as string;
+    expect(schemaCreateStatement).toContain("grant create on schema app to keyforta_media_review_admin");
+
+    const revokeBypassrlsStatement = query.mock.calls[3]?.[0] as string;
+    expect(revokeBypassrlsStatement).toContain("rolbypassrls");
+    expect(revokeBypassrlsStatement).toContain("alter role keyforta_media_review_admin nobypassrls");
+    expect(revokeBypassrlsStatement).toContain("insufficient_privilege");
   });
 });
 

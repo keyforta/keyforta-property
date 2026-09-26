@@ -33,5 +33,6 @@
   "0032_public_listing_media_upload.sql": "f603a099bda87547b3f6c0efbd70bef19dc5942ad3c543472dd40eb499e139dc",
   "0033_public_listing_media_review_content.sql": "d9bb3cd81278c40f66f7e172114dfc227f031633ddf4abe767f4d6f36039317f",
   "0034_withdrawn_listing_media_edit.sql": "21f24a5fe52dd0031933764087752fbd4c65af932938124f86e4989bcec8d47a",
-  "0035_withdrawn_listing_media_review.sql": "e9a2d5369ebc04619ddc5f0d762afb4d0a99a12223bae8047ee5a35f160f553d"
+  "0035_withdrawn_listing_media_review.sql": "e9a2d5369ebc04619ddc5f0d762afb4d0a99a12223bae8047ee5a35f160f553d",
+  "0036_media_review_admin_rls_policies.sql": "12b2e5c0fc8f23d9a8e26a42eee153c30d9a66a180c35f97983ca4063723438d"
 }
