@@ -635,6 +635,8 @@ function runScenario(
   flakyLockRepo = "",
   flakyLockFailCount = "0",
   stuckLockRepos = "",
+  flakyLockReadFailRepo = "",
+  flakyLockReadFailCount = "0",
 ) {
   const directory = mkdtempSync(join(tmpdir(), "keyforta-workflow-test-"));
   try {
@@ -652,6 +654,17 @@ if [[ "$*" == *"acr repository show "* && "$*" == *"--query writeEnabled"* ]]; t
       exit 0
     fi
   done
+  if [ -n "\${FLAKY_LOCK_READ_FAIL_REPO:-}" ] && [[ "$*" == *"--image \$FLAKY_LOCK_READ_FAIL_REPO:"* ]]; then
+    counter_file="\$TEST_STATE/lock-read-attempts-\$FLAKY_LOCK_READ_FAIL_REPO"
+    count=0
+    if [ -f "$counter_file" ]; then count=$(cat "$counter_file"); fi
+    count=$((count + 1))
+    echo "$count" > "$counter_file"
+    if [ "$count" -le "\${FLAKY_LOCK_READ_FAIL_COUNT:-0}" ]; then
+      echo "ERROR: transient registry read failure for \$FLAKY_LOCK_READ_FAIL_REPO" >&2
+      exit 1
+    fi
+  fi
   if [ -n "\${FLAKY_LOCK_REPO:-}" ] && [[ "$*" == *"--image \$FLAKY_LOCK_REPO:"* ]]; then
     counter_file="\$TEST_STATE/lock-attempts-\$FLAKY_LOCK_REPO"
     count=0
@@ -770,6 +783,8 @@ exit "$result"
           FLAKY_DIGEST_REPO: flakyDigestRepo,
           FLAKY_LOCK_FAIL_COUNT: flakyLockFailCount,
           FLAKY_LOCK_REPO: flakyLockRepo,
+          FLAKY_LOCK_READ_FAIL_COUNT: flakyLockReadFailCount,
+          FLAKY_LOCK_READ_FAIL_REPO: flakyLockReadFailRepo,
           GITHUB_ENV: join(directory, "github-env"),
           NEVER_PUSHED_REPOS: neverPushedRepos,
           NOISY_STDERR_REPOS: noisyStderrRepos,
@@ -945,8 +960,30 @@ test("deploy fails with a diagnostic message when an image never reports locked"
   assert.notEqual(result.status, 0);
   assert.match(
     result.stderr,
-    /Could not confirm keyforta-admin-web:test-sha is locked \(immutable\) after 5 attempts: last observed writeEnabled=true/,
+    /Could not confirm keyforta-admin-web:test-sha is locked \(immutable\) after 5 attempts: Observed writeEnabled=true/,
   );
+});
+
+test("deploy retries locking an image through a transient writeEnabled read failure", () => {
+  const result = runScenario(
+    "deploy",
+    "",
+    "admin-web",
+    "",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "keyforta-admin-web",
+    "2",
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.events.includes("publish:admin"));
 });
 
 for (const [scope, expectedComponent] of [

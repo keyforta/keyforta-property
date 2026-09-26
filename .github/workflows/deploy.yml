@@ -551,20 +551,28 @@ jobs:
             az acr repository update --name "$REGISTRY_NAME" --image "$image" --write-enabled false >/dev/null
             attempt=1
             max_attempts=5
-            last_write_enabled=""
+            last_error=""
             while [ "$attempt" -le "$max_attempts" ]; do
-              last_write_enabled=$(az acr repository show --name "$REGISTRY_NAME" --image "$image" --query writeEnabled -o tsv)
-              if [ "$last_write_enabled" = "false" ]; then
-                return 0
+              lock_stderr_file=$(mktemp)
+              if last_write_enabled=$(az acr repository show --name "$REGISTRY_NAME" --image "$image" --query writeEnabled -o tsv 2>"$lock_stderr_file"); then
+                rm -f "$lock_stderr_file"
+                if [ "$last_write_enabled" = "false" ]; then
+                  return 0
+                fi
+                last_error="Observed writeEnabled=$last_write_enabled"
+              else
+                last_error=$(cat "$lock_stderr_file")
+                rm -f "$lock_stderr_file"
               fi
               if [ "$attempt" -lt "$max_attempts" ]; then
-                # ACR can briefly report the pre-update writeEnabled value
-                # right after the update call; retry before failing.
+                # ACR can briefly report the pre-update writeEnabled value,
+                # or the read itself can transiently fail, right after the
+                # update call; retry before failing.
                 sleep "${ACR_RETRY_DELAY_SECONDS:-5}"
               fi
               attempt=$((attempt + 1))
             done
-            echo "Could not confirm $image is locked (immutable) after $max_attempts attempts: last observed writeEnabled=$last_write_enabled" >&2
+            echo "Could not confirm $image is locked (immutable) after $max_attempts attempts: $last_error" >&2
             exit 1
           }
           if [ -n "$api_pid" ]; then lock_image keyforta-api; fi
