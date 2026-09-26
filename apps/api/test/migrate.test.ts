@@ -216,6 +216,7 @@ describe("mapRuntimePrincipal", () => {
 
     expect(query.mock.calls.map((call) => call[0])).toEqual([
       expect.stringContaining("pg_catalog.pg_seclabel"),
+      expect.stringContaining("pg_catalog.pg_roles"),
       "begin",
       'create role "keyforta-api" login',
       'security label for "pgaadauth" on role "keyforta-api" is \'aadauth,oid=00000000-0000-0000-0000-000000000001,type=service\'',
@@ -226,6 +227,30 @@ describe("mapRuntimePrincipal", () => {
     expect(query.mock.calls.flatMap((call) => call[0])).not.toContain(
       "pgaadauth_create_principal_with_oid",
     );
+  });
+
+  it("labels an already-existing runtime role instead of failing with 'already exists'", async () => {
+    process.env.DATABASE_RUNTIME_PRINCIPAL = "keyforta-api";
+    process.env.DATABASE_RUNTIME_PRINCIPAL_ID = "00000000-0000-0000-0000-000000000001";
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] }) // no pgaadauth label yet
+      .mockResolvedValueOnce({ rows: [{ exists: true }] }) // role already exists (e.g. Azure-provisioned)
+      .mockResolvedValue({ rows: [] });
+
+    await mapRuntimePrincipal({ query } as never);
+
+    const calls = query.mock.calls.map((call) => call[0]);
+    expect(calls).toEqual([
+      expect.stringContaining("pg_catalog.pg_seclabel"),
+      expect.stringContaining("pg_catalog.pg_roles"),
+      "begin",
+      'security label for "pgaadauth" on role "keyforta-api" is \'aadauth,oid=00000000-0000-0000-0000-000000000001,type=service\'',
+      "commit",
+      'alter role "keyforta-api" noinherit',
+      'grant keyforta_runtime to "keyforta-api"',
+    ]);
+    expect(calls).not.toContain('create role "keyforta-api" login');
   });
 
   it("rejects a malformed runtime principal ID before querying PostgreSQL", async () => {
@@ -248,12 +273,14 @@ describe("mapRuntimePrincipal", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockRejectedValueOnce(labelError)
       .mockResolvedValueOnce({ rows: [] });
 
     await expect(mapRuntimePrincipal({ query } as never)).rejects.toBe(labelError);
     expect(query.mock.calls.map((call) => call[0])).toEqual([
       expect.stringContaining("pg_catalog.pg_seclabel"),
+      expect.stringContaining("pg_catalog.pg_roles"),
       "begin",
       'create role "keyforta-api" login',
       expect.stringContaining('security label for "pgaadauth"'),

@@ -333,9 +333,21 @@ export async function mapRuntimePrincipal(client: PoolClient): Promise<void> {
     }
   } else {
     const roleName = quoteIdentifier(principalName);
+    // A role with this name can already exist without our pgaadauth label
+    // (for example, Azure's own Entra-admin provisioning creates the login
+    // role directly). Treat that as "not yet labeled" rather than assuming
+    // absence, so labeling is idempotent instead of failing with
+    // "role already exists" (SQLSTATE 42710).
+    const existingRole = await client.query<{ exists: boolean }>(
+      "select exists(select 1 from pg_catalog.pg_roles where rolname = $1) as exists",
+      [principalName],
+    );
+    const roleAlreadyExists = existingRole.rows[0]?.exists === true;
     await client.query("begin");
     try {
-      await client.query(`create role ${roleName} login`);
+      if (!roleAlreadyExists) {
+        await client.query(`create role ${roleName} login`);
+      }
       await client.query(
         `security label for "pgaadauth" on role ${roleName} is 'aadauth,oid=${principalId},type=service'`,
       );
