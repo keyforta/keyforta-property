@@ -648,7 +648,15 @@ function runScenario(
       `#!/usr/bin/env bash
 set -eu
 echo az >> "$EVENTS_FILE"
-if [[ "$*" == *"acr repository show "* && "$*" == *"--query writeEnabled"* ]]; then
+if [[ "$*" == *"acr repository show "* && "$*" == *"writeEnabled"* ]]; then
+  if [[ "$*" != *"--query changeableAttributes.writeEnabled"* ]]; then
+    # Real ACR/az CLI: writeEnabled lives under changeableAttributes, not at
+    # the top level. A JMESPath query for the bare (wrong) top-level field
+    # resolves to null and prints as an empty line -- it never errors and it
+    # never converges, no matter how many times it is retried.
+    printf '\n'
+    exit 0
+  fi
   for repository in \${STUCK_LOCK_REPOS//,/ }; do
     if [[ "$*" == *"--image $repository:"* ]]; then
       printf 'true\n'
@@ -928,6 +936,20 @@ test("deploy fails with the last error after exhausting digest lookup retries", 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Could not resolve digest for keyforta-admin-web:test-sha after 5 attempts/);
   assert.match(result.stderr, /transient registry failure for keyforta-admin-web/);
+});
+
+test("deploy locks an image using the correct writeEnabled JMESPath field", () => {
+  // Regression for a real production defect: two full-scope deploy runs
+  // (36208850858, 36210171924) failed because lock_image() queried the bare
+  // "writeEnabled" field, which does not exist at the top level of `az acr
+  // repository show`'s JSON (it is nested under `changeableAttributes`).
+  // That query always resolves to an empty string -- it can never converge,
+  // no matter the retry budget, unlike a genuine transient lag. This stub
+  // simulates real az CLI behavior: the wrong query always returns empty;
+  // only the correct nested query reflects the simulated lock state.
+  const result = runScenario("deploy", "", "admin-web");
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.events.includes("publish:admin"));
 });
 
 test("deploy retries locking an image through transient writeEnabled read-after-write lag", () => {

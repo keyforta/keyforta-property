@@ -170,7 +170,7 @@ test("application delivery deploys only reviewed digest-addressed images", () =>
   assert.match(publish?.run ?? "", /acr repository show-tags/);
   assert.match(publish?.run ?? "", /Immutable image tag/);
   assert.match(publish?.run ?? "", /--write-enabled false/);
-  assert.match(publish?.run ?? "", /--query writeEnabled/);
+  assert.match(publish?.run ?? "", /--query changeableAttributes\.writeEnabled/);
   assert.match(publish?.run ?? "", /--sbom=true/);
   assert.match(publish?.run ?? "", /--provenance=mode=max/);
   assert.match(publish?.run ?? "", /--push/);
