@@ -621,7 +621,18 @@ function executable(directory, name, source) {
   chmodSync(file, 0o755);
 }
 
-function runScenario(workflow, failures = "", scope = "full", existingTags = "") {
+function runScenario(
+  workflow,
+  failures = "",
+  scope = "full",
+  existingTags = "",
+  neverPushedRepos = "",
+  noisyStderrRepos = "",
+  flakyDigestRepo = "",
+  flakyDigestFailCount = "0",
+  alwaysFailDigestRepos = "",
+  authFailureShowTagsRepos = "",
+) {
   const directory = mkdtempSync(join(tmpdir(), "keyforta-workflow-test-"));
   try {
     const events = join(directory, "events");
@@ -636,11 +647,50 @@ if [[ "$*" == *"acr repository show "* && "$*" == *"--query writeEnabled"* ]]; t
   exit 0
 fi
 if [[ "$*" == *"acr repository show-tags"* ]]; then
+  for repository in \${NEVER_PUSHED_REPOS//,/ }; do
+    if [[ "$*" == *"--repository $repository"* ]]; then
+      echo "ERROR: Error: repository \\"$repository\\" is not found. Correlation ID: test." >&2
+      exit 1
+    fi
+  done
+  for repository in \${AUTH_FAILURE_SHOW_TAGS_REPOS//,/ }; do
+    if [[ "$*" == *"--repository $repository"* ]]; then
+      echo "ERROR: Please run 'az login' to setup account. Correlation ID: test." >&2
+      exit 1
+    fi
+  done
+  for repository in \${NOISY_STDERR_REPOS//,/ }; do
+    if [[ "$*" == *"--repository $repository"* ]]; then
+      echo "WARNING: some unrelated Azure CLI notice on stderr." >&2
+    fi
+  done
   for repository in \${EXISTING_TAGS//,/ }; do
     if [[ "$*" == *"--repository $repository"* ]]; then printf '%s\n' "$DEPLOYMENT_SHA"; fi
   done
 fi
 if [[ "$*" == *"acr repository show "* && "$*" == *"--image"* ]]; then
+  for repository in \${ALWAYS_FAIL_DIGEST_REPOS//,/ }; do
+    if [[ "$*" == *"--image $repository:"* ]]; then
+      echo "ERROR: transient registry failure for $repository" >&2
+      exit 1
+    fi
+  done
+  for repository in \${NOISY_STDERR_REPOS//,/ }; do
+    if [[ "$*" == *"--image $repository:"* ]]; then
+      echo "WARNING: some unrelated Azure CLI notice on stderr." >&2
+    fi
+  done
+  if [ -n "\${FLAKY_DIGEST_REPO:-}" ] && [[ "$*" == *"--image \$FLAKY_DIGEST_REPO:"* ]]; then
+    counter_file="\$TEST_STATE/digest-attempts-\$FLAKY_DIGEST_REPO"
+    count=0
+    if [ -f "$counter_file" ]; then count=$(cat "$counter_file"); fi
+    count=$((count + 1))
+    echo "$count" > "$counter_file"
+    if [ "$count" -le "\${FLAKY_DIGEST_FAIL_COUNT:-0}" ]; then
+      echo "ERROR: repository \\"\$FLAKY_DIGEST_REPO\\" is not found. Correlation ID: test." >&2
+      exit 1
+    fi
+  fi
   printf 'sha256:%064d\n' 1
 fi
 `,
@@ -688,15 +738,22 @@ exit "$result"
         env: {
           ...process.env,
           API_PUBLIC_BASE_URL: "https://api.example.test/api/v1",
+          ALWAYS_FAIL_DIGEST_REPOS: alwaysFailDigestRepos,
+          AUTH_FAILURE_SHOW_TAGS_REPOS: authFailureShowTagsRepos,
           DEPLOYMENT_SHA: "test-sha",
           DEPLOYMENT_SCOPE: scope,
           EVENTS_FILE: events,
           EXISTING_TAGS: existingTags,
           FAILURES: failures,
+          FLAKY_DIGEST_FAIL_COUNT: flakyDigestFailCount,
+          FLAKY_DIGEST_REPO: flakyDigestRepo,
           GITHUB_ENV: join(directory, "github-env"),
+          NEVER_PUSHED_REPOS: neverPushedRepos,
+          NOISY_STDERR_REPOS: noisyStderrRepos,
           PATH: `${directory}:${process.env.PATH}`,
           REGISTRY_NAME: "test-registry",
           REGISTRY_SERVER: "registry.example.test",
+          RESOLVE_DIGEST_RETRY_DELAY_SECONDS: "0",
           TEST_STATE: directory,
         },
       },
@@ -760,6 +817,71 @@ test("deploy rejects an existing immutable image tag before building", () => {
   assert.match(result.stderr, /Immutable image tag keyforta-api:test-sha already exists/);
   assert.equal(result.events.some((event) => event.startsWith("build:")), false);
   assert.equal(result.events.some((event) => event.startsWith("publish:")), false);
+});
+
+test("deploy fails closed on an unrelated show-tags failure instead of proceeding", () => {
+  const result = runScenario(
+    "deploy",
+    "",
+    "api",
+    "",
+    "",
+    "",
+    "",
+    "0",
+    "",
+    "keyforta-api",
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Please run 'az login'/);
+  assert.equal(result.events.some((event) => event.startsWith("build:")), false);
+  assert.equal(result.events.some((event) => event.startsWith("publish:")), false);
+});
+
+test("deploy builds and publishes a repository that has never been pushed before", () => {
+  const result = runScenario("deploy", "", "admin-web", "", "keyforta-admin-web");
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.events.includes("build:admin"));
+  assert.ok(result.events.includes("publish:admin"));
+});
+
+test("deploy ignores unrelated stderr warnings on successful tag and digest lookups", () => {
+  const result = runScenario("deploy", "", "admin-web", "", "", "keyforta-admin-web");
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.events.includes("build:admin"));
+  assert.ok(result.events.includes("publish:admin"));
+});
+
+test("deploy retries the digest lookup through transient ACR read-after-write lag", () => {
+  const result = runScenario(
+    "deploy",
+    "",
+    "admin-web",
+    "",
+    "",
+    "",
+    "keyforta-admin-web",
+    "2",
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.events.includes("publish:admin"));
+});
+
+test("deploy fails with the last error after exhausting digest lookup retries", () => {
+  const result = runScenario(
+    "deploy",
+    "",
+    "admin-web",
+    "",
+    "",
+    "",
+    "",
+    "0",
+    "keyforta-admin-web",
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Could not resolve digest for keyforta-admin-web:test-sha after 5 attempts/);
+  assert.match(result.stderr, /transient registry failure for keyforta-admin-web/);
 });
 
 for (const [scope, expectedComponent] of [

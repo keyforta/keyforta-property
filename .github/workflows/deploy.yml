@@ -414,11 +414,22 @@ jobs:
 
           reject_existing_tag() {
             repository="$1"
-            existing=$(az acr repository show-tags \
+            show_tags_stderr_file=$(mktemp)
+            if ! show_tags_output=$(az acr repository show-tags \
               --name "$REGISTRY_NAME" \
               --repository "$repository" \
-              --query "[?@=='$DEPLOYMENT_SHA'] | [0]" -o tsv)
-            if [ -n "$existing" ]; then
+              --query "[?@=='$DEPLOYMENT_SHA'] | [0]" -o tsv 2>"$show_tags_stderr_file"); then
+              show_tags_error=$(cat "$show_tags_stderr_file")
+              rm -f "$show_tags_stderr_file"
+              if echo "$show_tags_error" | grep -q "repository \"$repository\" is not found"; then
+                # First-ever push for this repository: nothing to conflict with.
+                return 0
+              fi
+              echo "$show_tags_error" >&2
+              exit 1
+            fi
+            rm -f "$show_tags_stderr_file"
+            if [ -n "$show_tags_output" ]; then
               echo "Immutable image tag $repository:$DEPLOYMENT_SHA already exists; use its original reviewed plan." >&2
               exit 1
             fi
@@ -494,19 +505,44 @@ jobs:
           test "$web_status" -eq 0
           test "$admin_status" -eq 0
 
+          resolve_digest() {
+            repository="$1"
+            attempt=1
+            max_attempts=5
+            last_error=""
+            while [ "$attempt" -le "$max_attempts" ]; do
+              digest_stderr_file=$(mktemp)
+              if digest=$(az acr repository show --name "$REGISTRY_NAME" --image "$repository:$DEPLOYMENT_SHA" --query digest -o tsv 2>"$digest_stderr_file"); then
+                rm -f "$digest_stderr_file"
+                if [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                  echo "$digest"
+                  return 0
+                fi
+                last_error="Unexpected digest output: $digest"
+              else
+                last_error=$(cat "$digest_stderr_file")
+                rm -f "$digest_stderr_file"
+              fi
+              if [ "$attempt" -lt "$max_attempts" ]; then
+                # A repository's first-ever push can briefly lag ACR's read path;
+                # retry before treating this as a real failure.
+                sleep "${RESOLVE_DIGEST_RETRY_DELAY_SECONDS:-5}"
+              fi
+              attempt=$((attempt + 1))
+            done
+            echo "Could not resolve digest for $repository:$DEPLOYMENT_SHA after $max_attempts attempts: $last_error" >&2
+            exit 1
+          }
           if [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "postgres" ]; then
-            api_digest=$(az acr repository show --name "$REGISTRY_NAME" --image "keyforta-api:$DEPLOYMENT_SHA" --query digest -o tsv)
-            [[ "$api_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            api_digest=$(resolve_digest keyforta-api); [[ "$api_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
             echo "API_IMAGE=$REGISTRY_SERVER/keyforta-api@$api_digest" >> "$GITHUB_ENV"
           fi
           if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "public-web" ]; then
-            web_digest=$(az acr repository show --name "$REGISTRY_NAME" --image "keyforta-public-web:$DEPLOYMENT_SHA" --query digest -o tsv)
-            [[ "$web_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            web_digest=$(resolve_digest keyforta-public-web); [[ "$web_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
             echo "WEB_IMAGE=$REGISTRY_SERVER/keyforta-public-web@$web_digest" >> "$GITHUB_ENV"
           fi
           if [ "$DEPLOYMENT_SCOPE" = "full" ] || [ "$DEPLOYMENT_SCOPE" = "admin-web" ]; then
-            admin_digest=$(az acr repository show --name "$REGISTRY_NAME" --image "keyforta-admin-web:$DEPLOYMENT_SHA" --query digest -o tsv)
-            [[ "$admin_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            admin_digest=$(resolve_digest keyforta-admin-web); [[ "$admin_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
             echo "ADMIN_IMAGE=$REGISTRY_SERVER/keyforta-admin-web@$admin_digest" >> "$GITHUB_ENV"
           fi
 
