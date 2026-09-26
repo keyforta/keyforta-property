@@ -199,6 +199,76 @@ describePostgres("PostgreSQL media-review-admin privilege redesign", () => {
     }
   });
 
+  it("does not let an unrelated function owned by the migration identity itself gain the same cross-organization visibility", async () => {
+    // The migration identity (restrictedRoleName here; a differently named
+    // Entra managed identity in each real environment) owns several other
+    // SECURITY DEFINER functions beyond the three intended admin ones (for
+    // example app.create_public_listing). This is the actual HIGH-severity
+    // risk provisionMediaReviewAdminRole's plain (non-inheriting) grant
+    // exists to close off: if that grant were instead persistent inherited
+    // membership (`with inherit true`), *every* function the migration
+    // identity owns -- not just the three named in 0036 -- would also
+    // satisfy those policies' `to keyforta_media_review_admin` clause for
+    // as long as the grant exists. Simulating one such unrelated function
+    // here (owned by restrictedRoleName, never elevated by
+    // scopeMediaReviewAdminOwnershipStatements) and confirming it still
+    // can't see another organization's listing proves the plain-membership
+    // grant doesn't leak.
+    await restrictedClient.query(`
+      create function app.kf_test_unrelated_migration_identity_function()
+      returns setof uuid
+      language sql
+      security definer
+      set search_path = pg_catalog, app
+      as $$
+        select id from app.public_listings
+      $$;
+    `);
+    try {
+      await runtimeClient.query("begin");
+      try {
+        await runtimeClient.query("set local role keyforta_runtime");
+        await runtimeClient.query(
+          "select set_config('app.organization_id', $1, true)",
+          [organizationA],
+        );
+        const visible = await runtimeClient.query<{ id: string }>(
+          "select id from app.kf_test_unrelated_migration_identity_function() as id",
+        );
+        const visibleIds = visible.rows.map((row) => row.id);
+        expect(visibleIds).not.toContain(listingB);
+      } finally {
+        await runtimeClient.query("rollback");
+      }
+    } finally {
+      await restrictedClient.query(
+        "drop function app.kf_test_unrelated_migration_identity_function()",
+      );
+    }
+  });
+
+  it("grants the migration identity only plain, non-inheriting membership in keyforta_media_review_admin", async () => {
+    // provisionMediaReviewAdminRole must never grant `with inherit true`
+    // here: that specific attribute is what would make the previous test's
+    // leak scenario real. This asserts the structural guarantee directly
+    // against the catalog, independent of any particular probe function.
+    const membership = await adminPool.query<{ inherit_option: boolean }>(
+      `
+        select m.inherit_option
+        from pg_auth_members as m
+        join pg_roles as role_ on role_.oid = m.roleid
+        join pg_roles as member_ on member_.oid = m.member
+        where role_.rolname = 'keyforta_media_review_admin'
+          and member_.rolname = $1
+      `,
+      [restrictedRoleName],
+    );
+    expect(membership.rows.length).toBeGreaterThan(0);
+    for (const row of membership.rows) {
+      expect(row.inherit_option).toBe(false);
+    }
+  });
+
   it("still lets the platform-admin console see pending-review listings across every organization", async () => {
     await runtimeClient.query("begin");
     try {

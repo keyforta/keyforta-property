@@ -35,6 +35,59 @@ function unwrapMigration(content: string, fileName: string): string {
   return match[1];
 }
 
+// These are the *only* places any migration re-creates, replaces, or drops
+// an object already owned by `keyforta_media_review_admin` (everything
+// else either needs only plain membership, for `alter ... owner to`, or
+// creates a fresh object later reassigned by its own `alter ... owner to`
+// statement). PostgreSQL's ownership-equivalence check for `create or
+// replace function`/`drop function` (`has_privs_of_role`) requires actual
+// *inherited* privilege, not just membership -- but granting the migration
+// identity persistent `with inherit true` membership would let *every*
+// other SECURITY DEFINER function it owns (there are several, e.g.
+// create_public_listing) also satisfy the 0036 policies' `to
+// keyforta_media_review_admin` clause for the rest of that identity's
+// lifetime, silently widening cross-organization visibility far beyond
+// the three intended admin functions. Scoping a `set local role` to
+// exactly these statements (transaction-scoped, so it's undone at
+// commit/rollback regardless) gets the same ownership-equivalence without
+// ever granting inherited privilege at all. Each file lists every such
+// statement it contains, applied in order; a file's absence from this map
+// means it needs none.
+const ownershipElevationStatements: Partial<Record<string, RegExp[]>> = {
+  "0032_public_listing_media_upload.sql": [
+    /^create or replace function app\.review_public_listing_media\([\s\S]*?\n\$\$;\n/m,
+  ],
+  "0033_public_listing_media_review_content.sql": [
+    /^drop function app\.list_public_listings_pending_media_review\(\);\n/m,
+  ],
+  "0035_withdrawn_listing_media_review.sql": [
+    /^create or replace function app\.review_public_listing_media\([\s\S]*?\n\$\$;\n/m,
+    /^create or replace function app\.list_public_listings_pending_media_review\([\s\S]*?\n\$\$;\n/m,
+    /^create or replace function app\.get_public_listing_image_content_for_review\([\s\S]*?\n\$\$;\n/m,
+  ],
+};
+
+function scopeMediaReviewAdminOwnershipStatements(content: string, fileName: string): string {
+  const patterns = ownershipElevationStatements[fileName];
+  if (!patterns) return content;
+  return patterns.reduce((scoped, pattern) => {
+    const match = pattern.exec(scoped);
+    if (!match) {
+      throw new Error(
+        `Expected media-review-admin ownership statement not found in ${fileName}; migration content may have changed.`,
+      );
+    }
+    // Must use a replacer *function*, not a replacement string: a string
+    // argument to String.replace treats "$$" specially (collapsing it to a
+    // literal single "$"), which would corrupt every dollar-quoted function
+    // body ("$$ ... $$") in match[0].
+    return scoped.replace(
+      pattern,
+      () => `set local role keyforta_media_review_admin;\n${match[0]}reset role;\n`,
+    );
+  }, content);
+}
+
 async function assertMigrationPreconditions(
   client: PoolClient,
   fileName: string,
@@ -93,7 +146,9 @@ export async function applyMigration(
   await assertMigrationPreconditions(client, fileName);
   await client.query("begin");
   try {
-    await client.query(unwrapMigration(content, fileName));
+    await client.query(
+      scopeMediaReviewAdminOwnershipStatements(unwrapMigration(content, fileName), fileName),
+    );
     await client.query(
       "insert into app.schema_migrations (version, checksum) values ($1, $2)",
       [fileName, contentChecksum],
@@ -141,21 +196,25 @@ export async function provisionMediaReviewAdminRole(client: PoolClient): Promise
   // 0030/0032/0033 also `alter function ... owner to
   // keyforta_media_review_admin`, which PostgreSQL only allows when the
   // connecting role is itself a member of the target role (superuser
-  // exempted, which no Azure customer connection ever is). Grant
-  // membership to whichever role is actually running migrations in this
-  // environment -- this varies per environment (a differently named
-  // managed identity in each), so it must be resolved dynamically via
-  // current_user rather than hardcoded. Azure's Entra admin role is
-  // NOINHERIT, so later `create or replace function` statements against
-  // the now-`keyforta_media_review_admin`-owned functions would still fail
-  // ("must be owner of function ...") on plain membership alone --
-  // PostgreSQL 16's per-grant `with inherit true` overrides the grantee's
-  // own NOINHERIT default for this specific membership, without changing
-  // the connecting role's attributes.
+  // exempted, which no Azure customer connection ever is). Grant plain
+  // membership (not `with inherit true`) to whichever role is actually
+  // running migrations in this environment -- this varies per environment
+  // (a differently named managed identity in each), so it must be
+  // resolved dynamically via current_user rather than hardcoded. Plain
+  // membership is deliberately *not* inherited: `alter ... owner to` only
+  // ever needs membership, and granting persistent inherited privilege
+  // here would let every other SECURITY DEFINER function this identity
+  // owns also satisfy the 0036 policies' `to keyforta_media_review_admin`
+  // clause for as long as the grant exists, far beyond the three intended
+  // admin functions. The statements (in 0032/0033/0035) that actually
+  // need ownership-equivalent privilege -- not just membership -- instead
+  // use a `set local role` scoped to just those statements (see
+  // scopeMediaReviewAdminOwnershipStatements above), which only requires
+  // this same plain membership.
   await client.query(`
     do $$
     begin
-      execute format('grant keyforta_media_review_admin to %I with inherit true', current_user);
+      execute format('grant keyforta_media_review_admin to %I', current_user);
     exception
       when duplicate_object then
         null;
