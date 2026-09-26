@@ -550,17 +550,20 @@ jobs:
             image="$1:$DEPLOYMENT_SHA"
             az acr repository update --name "$REGISTRY_NAME" --image "$image" --write-enabled false >/dev/null
             attempt=1
-            # ACR has been observed to report a stale writeEnabled value for
-            # ~71s (well past a 12-attempt/~55s budget) immediately after a
-            # heavy multi-image push. 20 attempts at the default 5s delay
-            # yields ~95s of sleep -- comfortable margin above the measured
-            # incident duration -- so the deploy isn't false-failed while
-            # ACR catches up.
+            # This previously queried the bare "writeEnabled" JMESPath field,
+            # which does not exist at the top level of `az acr repository
+            # show`'s output (it lives under `changeableAttributes`); that
+            # always resolved to an empty string and could never converge,
+            # regardless of retry budget -- the real cause of two full-scope
+            # deploy failures (runs 36208850858, 36210171924). The retry
+            # budget below is kept as a safety margin for genuine ACR
+            # read-after-write lag (observed up to ~71s in the wild), not as
+            # the primary fix.
             max_attempts=20
             last_error=""
             while [ "$attempt" -le "$max_attempts" ]; do
               lock_stderr_file=$(mktemp)
-              if last_write_enabled=$(az acr repository show --name "$REGISTRY_NAME" --image "$image" --query writeEnabled -o tsv 2>"$lock_stderr_file"); then
+              if last_write_enabled=$(az acr repository show --name "$REGISTRY_NAME" --image "$image" --query changeableAttributes.writeEnabled -o tsv 2>"$lock_stderr_file"); then
                 rm -f "$lock_stderr_file"
                 if [ "$last_write_enabled" = "false" ]; then
                   return 0
