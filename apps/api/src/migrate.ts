@@ -303,47 +303,69 @@ export async function mapRuntimePrincipal(client: PoolClient): Promise<void> {
   }
   assertUuid(principalId, "DATABASE_RUNTIME_PRINCIPAL_ID");
 
-  const existing = await client.query<{ label: string }>(
-    `select labels.label
-     from pg_catalog.pg_roles roles
-     join pg_catalog.pg_seclabel labels
-       on labels.objoid = roles.oid
-      and labels.classoid = 'pg_catalog.pg_authid'::regclass
-      and labels.objsubid = 0
-     where rolname = $1
-       and labels.provider = 'pgaadauth'`,
-    [principalName],
-  );
-  const existingLabel = existing.rows[0]?.label;
-  if (existingLabel) {
-    const attributes = Object.fromEntries(
-      existingLabel.split(",").flatMap((entry) => {
-        const separator = entry.indexOf("=");
-        return separator === -1
-          ? []
-          : [[entry.slice(0, separator), entry.slice(separator + 1)]];
-      }),
+  // Hold the same advisory lock applyMigrations() uses so that two
+  // concurrent deploy attempts can't both observe "role/label missing" and
+  // race to create it: without this, the label check-then-act below would
+  // be a TOCTOU gap between separate migration job executions/replicas,
+  // not just within a single one.
+  await client.query("select pg_advisory_lock($1)", [migrationLockKey]);
+  try {
+    const existing = await client.query<{ label: string }>(
+      `select labels.label
+       from pg_catalog.pg_roles roles
+       join pg_catalog.pg_seclabel labels
+         on labels.objoid = roles.oid
+        and labels.classoid = 'pg_catalog.pg_authid'::regclass
+        and labels.objsubid = 0
+       where rolname = $1
+         and labels.provider = 'pgaadauth'`,
+      [principalName],
     );
-    const existingObjectId = attributes.oid;
-    const existingObjectType = attributes.type;
-    if (existingObjectId !== principalId || existingObjectType !== "service") {
-      throw new Error(
-        "The existing PostgreSQL runtime principal does not match the configured managed identity.",
+    const existingLabel = existing.rows[0]?.label;
+    if (existingLabel) {
+      const attributes = Object.fromEntries(
+        existingLabel.split(",").flatMap((entry) => {
+          const separator = entry.indexOf("=");
+          return separator === -1
+            ? []
+            : [[entry.slice(0, separator), entry.slice(separator + 1)]];
+        }),
       );
-    }
-  } else {
-    const roleName = quoteIdentifier(principalName);
-    await client.query("begin");
-    try {
-      await client.query(`create role ${roleName} login`);
-      await client.query(
-        `security label for "pgaadauth" on role ${roleName} is 'aadauth,oid=${principalId},type=service'`,
+      const existingObjectId = attributes.oid;
+      const existingObjectType = attributes.type;
+      if (existingObjectId !== principalId || existingObjectType !== "service") {
+        throw new Error(
+          "The existing PostgreSQL runtime principal does not match the configured managed identity.",
+        );
+      }
+    } else {
+      const roleName = quoteIdentifier(principalName);
+      // A role with this name can already exist without our pgaadauth label
+      // (for example, Azure's own Entra-admin provisioning creates the login
+      // role directly). Treat that as "not yet labeled" rather than assuming
+      // absence, so labeling is idempotent instead of failing with
+      // "role already exists" (SQLSTATE 42710).
+      const existingRole = await client.query<{ exists: boolean }>(
+        "select exists(select 1 from pg_catalog.pg_roles where rolname = $1) as exists",
+        [principalName],
       );
-      await client.query("commit");
-    } catch (error) {
-      await client.query("rollback");
-      throw error;
+      const roleAlreadyExists = existingRole.rows[0]?.exists === true;
+      await client.query("begin");
+      try {
+        if (!roleAlreadyExists) {
+          await client.query(`create role ${roleName} login`);
+        }
+        await client.query(
+          `security label for "pgaadauth" on role ${roleName} is 'aadauth,oid=${principalId},type=service'`,
+        );
+        await client.query("commit");
+      } catch (error) {
+        await client.query("rollback");
+        throw error;
+      }
     }
+  } finally {
+    await client.query("select pg_advisory_unlock($1)", [migrationLockKey]);
   }
   await client.query(`alter role ${quoteIdentifier(principalName)} noinherit`);
   await client.query(
