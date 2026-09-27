@@ -38,6 +38,16 @@ begin
   ) then
     alter role keyforta_runtime nobypassrls;
   end if;
+exception
+  -- Altering another role's BYPASSRLS attribute requires the connecting
+  -- role to itself be a superuser or already hold BYPASSRLS -- true for a
+  -- local/CI superuser, but never true for Azure's restricted Entra-admin
+  -- migration identity (see the comment on keyforta_media_review_admin
+  -- below). Warn loudly instead of failing every future re-application of
+  -- this migration on Azure; a stale attribute there requires a one-time
+  -- manual `alter role` by an operator with sufficient privilege.
+  when insufficient_privilege then
+    raise warning 'Could not correct keyforta_runtime.rolbypassrls: insufficient privilege. Manual intervention required.';
 end
 $$;
 
@@ -71,6 +81,10 @@ begin
   ) then
     alter role keyforta_media_review_admin nobypassrls;
   end if;
+exception
+  -- Same Azure-identity privilege constraint as keyforta_runtime above.
+  when insufficient_privilege then
+    raise warning 'Could not correct keyforta_media_review_admin.rolbypassrls: insufficient privilege. Manual intervention required.';
 end
 $$;
 

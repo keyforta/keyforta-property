@@ -263,6 +263,30 @@ test("security workflow rejects edits to existing migrations but allows the one-
       0,
       "a squash accompanied by any modification to a surviving file must be rejected",
     );
+
+    // Partial squash: deletes two files and adds one "*_baseline.sql"
+    // file, satisfying the delete-count and add-shape checks in
+    // isolation, but leaves a third historical file behind. Rejected --
+    // the exception must require a full-lineage consolidation, not just
+    // "at least two deletions".
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    for (const name of ["0001_initial.sql", "0002_second.sql"]) {
+      git("rm", "-q", `infra/postgres/migrations/${name}`);
+    }
+    mkdirSync(migrationsDir, { recursive: true });
+    writeFileSync(
+      path.join(migrationsDir, "0001_baseline.sql"),
+      "begin;\nselect 'partial baseline leaving 0003 behind';\ncommit;\n",
+    );
+    git("add", "-A");
+    git("commit", "-q", "-m", "partial squash leaving a file behind");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(
+      runGuard(baseSha, headSha),
+      0,
+      "a partial squash that leaves historical migration files behind must be rejected",
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
