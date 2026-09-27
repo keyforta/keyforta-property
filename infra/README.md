@@ -199,6 +199,61 @@ Rollback restores the preserved Cloudflare records. Remove certificate and
 hostname bindings only through another reviewed Bicep plan; do not make
 unrecorded Azure portal changes.
 
+## Per-service custom domain cutover (ADR-015)
+
+`api.keyforta.com`, `admin.keyforta.com`, and `portal.keyforta.com` each need
+one Cloudflare DNS-only CNAME record plus one `asuid.<subdomain>` TXT
+validation record, following the same single-hostname CNAME pattern already
+used for `mcp.keyforta.com` (see `docs/operations/MCP_DEV_RUNBOOK.md`) rather
+than the apex+`www` pattern above. `mcp.keyforta.com` is already deployed and
+is not part of this cutover; do not change its records here.
+
+For each of `api`, `admin`, and `portal`, capture the live validation ID and
+Container App FQDN immediately before adding records — do not reuse a prior
+snapshot:
+
+```bash
+az containerapp env show --name "$APP_ENVIRONMENT" --resource-group "$RESOURCE_GROUP" \
+  --query 'properties.customDomainConfiguration.customDomainVerificationId' -o tsv
+az containerapp show --name "ca-keyforta-${ENVIRONMENT}-<service>" --resource-group "$RESOURCE_GROUP" \
+  --query properties.configuration.ingress.fqdn -o tsv
+```
+
+Add, per hostname (`<service>` is `api`, `admin`, or `portal`):
+
+| Type  | Name             | Value                                         | Proxy    |
+| ----- | ---------------- | ---------------------------------------------- | -------- |
+| TXT   | `asuid.<service>` | the `customDomainVerificationId` captured above | DNS only |
+| CNAME | `<service>`       | the `ca-keyforta-<env>-<service>` ingress FQDN captured above | DNS only |
+
+Keep every record DNS-only (unproxied) — Azure managed certificate issuance
+and renewal require CNAME validation to resolve directly to the Container App,
+the same requirement as the existing `www` record.
+
+Cut over in this order, matching ADR-015's staged rollout so the API keeps
+accepting the existing origins while each new hostname comes up:
+
+1. Add the three TXT validation records without changing traffic.
+2. Merge and deploy the reviewed `api` scope with `bindApiCertificates=false`
+   so `CORS_ALLOWED_ORIGIN` is updated to include the new admin/portal
+   origins alongside the existing ones (no origin is removed yet).
+3. Add the three CNAME records.
+4. Confirm public DNS for all three hostnames, then deploy the reviewed
+   `api`, `admin`, and `portal` plans with their `bind*Certificates` flags
+   enabled to issue and bind each managed certificate.
+5. Verify each hostname serves traffic and that the API accepts requests from
+   the new admin/portal origins.
+6. Once the new hostnames are confirmed stable, deploy a follow-up `api`
+   scope that removes the old origins from `CORS_ALLOWED_ORIGIN`, per ADR-015.
+7. Register `https://admin.keyforta.com/auth/callback` and
+   `https://portal.keyforta.com/auth/callback` as Entra SPA redirect URIs.
+   This is a manual Entra/Graph step outside this repository — it is not
+   automated by Bicep or `deploy.yml`.
+
+Rollback restores the preserved Cloudflare records for each hostname and
+removes the corresponding certificate/hostname binding only through another
+reviewed Bicep plan.
+
 No click-created production resource is considered complete without its
 equivalent reviewed infrastructure code and recovery documentation.
 
