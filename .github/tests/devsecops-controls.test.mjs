@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 import YAML from "yaml";
 
@@ -135,21 +137,134 @@ test("migration checksum manifest protects the complete forward history", () => 
   }
 });
 
-test("security workflow rejects edits to existing migrations", () => {
+test("security workflow rejects edits to existing migrations but allows the one-time pre-launch squash", () => {
   const workflow = readWorkflow("security.yml");
   const guard = workflow.jobs.scan.steps.find(
     (step) => step.name === "Reject historical migration rewrites",
   );
-  assert.match(guard?.run ?? "", /git diff --name-status/);
-  assert.match(guard?.run ?? "", /NF && \$1 !~ \/\^A\//);
-  assert.match(guard?.run ?? "", /add a forward migration instead/);
+  const script = guard?.run ?? "";
+  assert.match(script, /git diff --name-status/);
+  assert.match(script, /add a forward migration instead/);
+  assert.match(script, /_baseline\\\.sql\$/);
 
-  const awkProgram = "NF && $1 !~ /^A/ { found=1 } END { exit found ? 0 : 1 }";
-  for (const allowed of ["", "A\tinfra/postgres/migrations/0021_example.sql"]){
-    assert.notEqual(spawnSync("awk", [awkProgram], { input: `${allowed}\n` }).status, 0);
-  }
-  for (const rejected of ["M\t0010.sql", "D\t0010.sql", "R100\t0010.sql\t0010_renamed.sql"]){
-    assert.equal(spawnSync("awk", [awkProgram], { input: `${rejected}\n` }).status, 0);
+  
+  
+  
+  const dir = mkdtempSync(path.join(tmpdir(), "migration-guard-"));
+  const git = (...args) =>
+    spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+  const runGuard = (baseSha, headSha) => {
+    const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
+      cwd: dir,
+      env: { ...process.env, BASE_SHA: baseSha, HEAD_SHA: headSha },
+      encoding: "utf8",
+    });
+    return result.status;
+  };
+
+  try {
+    git("init", "-q");
+    git("config", "user.email", "test@example.com");
+    git("config", "user.name", "Test");
+    const migrationsDir = path.join(dir, "infra", "postgres", "migrations");
+    mkdirSync(migrationsDir, { recursive: true });
+    for (const name of ["0001_initial.sql", "0002_second.sql", "0003_third.sql"]) {
+      writeFileSync(path.join(migrationsDir, name), "begin;\nselect 1;\ncommit;\n");
+    }
+    git("add", "-A");
+    git("commit", "-q", "-m", "baseline history");
+    const baseSha = git("rev-parse", "HEAD").stdout.trim();
+
+    // Ordinary forward-only addition: allowed.
+    writeFileSync(path.join(migrationsDir, "0004_fourth.sql"), "begin;\nselect 1;\ncommit;\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "add 0004");
+    let headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.equal(runGuard(baseSha, headSha), 0, "ordinary new migration must be allowed");
+
+    // Editing an existing file in place: rejected.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    writeFileSync(path.join(migrationsDir, "0002_second.sql"), "begin;\nselect 2;\ncommit;\n");
+    git("commit", "-q", "-a", "-m", "edit 0002");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(runGuard(baseSha, headSha), 0, "editing an existing migration must be rejected");
+
+    // Renaming a single existing file: rejected.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    git("mv", "infra/postgres/migrations/0002_second.sql", "infra/postgres/migrations/0002_renamed.sql");
+    git("commit", "-q", "-m", "rename 0002");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(runGuard(baseSha, headSha), 0, "renaming an existing migration must be rejected");
+
+    // Deleting a single file with no replacement: rejected.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    git("rm", "-q", "infra/postgres/migrations/0003_third.sql");
+    git("commit", "-q", "-m", "delete 0003");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(runGuard(baseSha, headSha), 0, "deleting a single migration must be rejected");
+
+    // Deleting one file and adding one non-baseline file (disguised
+    // rename): rejected -- must not satisfy the squash exception.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    git("rm", "-q", "infra/postgres/migrations/0003_third.sql");
+    writeFileSync(path.join(migrationsDir, "0003_replacement.sql"), "begin;\nselect 1;\ncommit;\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "swap 0003");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(
+      runGuard(baseSha, headSha),
+      0,
+      "a single delete plus a single non-baseline add must be rejected",
+    );
+
+    // The one-time full-lineage squash: every existing file deleted,
+    // exactly one new "*_baseline.sql" file added, no modifications.
+    // Allowed.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    for (const name of ["0001_initial.sql", "0002_second.sql", "0003_third.sql"]) {
+      git("rm", "-q", `infra/postgres/migrations/${name}`);
+    }
+    // git rm removes the now-empty parent directory along with the last
+    // tracked file in it, so it must be recreated before writing the
+    // replacement baseline file.
+    mkdirSync(migrationsDir, { recursive: true });
+    writeFileSync(
+      path.join(migrationsDir, "0001_baseline.sql"),
+      "begin;\nselect 'baseline schema consolidated from full lineage';\ncommit;\n",
+    );
+    git("add", "-A");
+    git("commit", "-q", "-m", "squash into baseline");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.equal(
+      runGuard(baseSha, headSha),
+      0,
+      "a full-lineage squash into a single baseline file must be allowed",
+    );
+
+    // Same squash shape, but also editing an unrelated migration in the
+    // same commit: rejected -- the exception must not launder edits.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    for (const name of ["0001_initial.sql", "0002_second.sql"]) {
+      git("rm", "-q", `infra/postgres/migrations/${name}`);
+    }
+    writeFileSync(path.join(migrationsDir, "0003_third.sql"), "begin;\nselect 99;\ncommit;\n");
+    writeFileSync(path.join(migrationsDir, "0001_baseline.sql"), "begin;\nselect 1;\ncommit;\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "squash plus a sneaky edit");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(
+      runGuard(baseSha, headSha),
+      0,
+      "a squash accompanied by any modification to a surviving file must be rejected",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

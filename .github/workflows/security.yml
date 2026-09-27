@@ -38,11 +38,42 @@ jobs:
             BASE_SHA=$(git rev-list --max-parents=0 "$HEAD_SHA")
           fi
           changes=$(git diff --name-status "$BASE_SHA" "$HEAD_SHA" -- infra/postgres/migrations)
-          if awk 'NF && $1 !~ /^A/ { found=1 } END { exit found ? 0 : 1 }' <<< "$changes"; then
-            echo "Existing migrations are immutable; add a forward migration instead." >&2
-            echo "$changes" >&2
-            exit 1
+          if [[ -z "$changes" ]]; then
+            exit 0
           fi
+
+          # Ordinary case: every changed line is a pure addition (new
+          # forward-only migration files). Always allowed.
+          if ! awk 'NF && $1 !~ /^A/ { found=1 } END { exit found ? 0 : 1 }' <<< "$changes"; then
+            exit 0
+          fi
+
+          # One-time, fully auditable pre-launch consolidation exception
+          # (see ADR-013's 2026-09-27 amendment): before any environment
+          # holds production tenant data, the entire lineage may be
+          # replaced with a single new baseline file in one commit. This
+          # is narrowly scoped so it can never permit rewriting or
+          # renaming a single existing file: every changed line must be a
+          # pure delete or a pure add (no modifies/renames), exactly one
+          # file may be added, it must match the baseline naming
+          # convention, and at least two files must be deleted (a genuine
+          # full-lineage consolidation, not a 1-for-1 replacement).
+          modified=$(awk '$1 !~ /^A/ && $1 !~ /^D/' <<< "$changes")
+          added=$(awk '$1 ~ /^A/ { print $2 }' <<< "$changes")
+          added_count=$(grep -c . <<< "$added" || true)
+          deleted_count=$(awk '$1 ~ /^D/' <<< "$changes" | grep -c . || true)
+          if [[ -z "$modified" ]] \
+            && [[ "$added_count" -eq 1 ]] \
+            && [[ "$deleted_count" -ge 2 ]] \
+            && grep -qE '_baseline\.sql$' <<< "$added"; then
+            echo "One-time pre-launch migration consolidation detected (ADR-013 amendment):" >&2
+            echo "$changes" >&2
+            exit 0
+          fi
+
+          echo "Existing migrations are immutable; add a forward migration instead." >&2
+          echo "$changes" >&2
+          exit 1
 
       - name: Run Semgrep SAST
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
