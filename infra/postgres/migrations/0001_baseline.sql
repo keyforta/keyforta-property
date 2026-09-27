@@ -22,6 +22,25 @@ exception
 end
 $$;
 
+-- Roles are cluster-level, not database-level, so a documented reset that
+-- only drops and recreates the database (rather than the role itself)
+-- would otherwise leave a pre-existing role's attributes -- including a
+-- stale `rolbypassrls = true` from the pre-ADR-013 lineage this baseline
+-- replaces -- untouched by the `if not exists` guard above. Only issue the
+-- `alter role` when the attribute actually needs correcting (a freshly
+-- created role is already `nobypassrls` by default): this keeps the
+-- common case a no-op, avoiding concurrent catalog-row updates when
+-- multiple sessions apply this migration to the same cluster at once.
+do $$
+begin
+  if exists (
+    select 1 from pg_roles where rolname = 'keyforta_runtime' and rolbypassrls
+  ) then
+    alter role keyforta_runtime nobypassrls;
+  end if;
+end
+$$;
+
 -- keyforta_media_review_admin owns three SECURITY DEFINER functions that
 -- need cross-organization visibility for moderation (see the RLS policies
 -- and grants below). It intentionally has no BYPASSRLS: Azure Database for
@@ -37,6 +56,21 @@ begin
 exception
   when duplicate_object or unique_violation then
     null;
+end
+$$;
+
+-- Same rationale as keyforta_runtime above: only correct a stale
+-- pre-existing role's attribute, keeping fresh creation a no-op so
+-- concurrent applications of this migration don't race on the same
+-- catalog row.
+do $$
+begin
+  if exists (
+    select 1 from pg_roles
+    where rolname = 'keyforta_media_review_admin' and rolbypassrls
+  ) then
+    alter role keyforta_media_review_admin nobypassrls;
+  end if;
 end
 $$;
 
