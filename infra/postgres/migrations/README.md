@@ -32,9 +32,15 @@ It contains, in one file:
   example `resolve_actor`, `current_organization_id`,
   `actor_can_manage_property`), and immutability guards on financial and
   governance history (the `reject_*_mutation` trigger functions).
-- Row-level security policies and grants scoping every table to the
-  correct organization/actor, generated from the pre-squash lineage's
-  final RLS state.
+- Row-level security policies and grants scoping the 25 tables that
+  require actor/organization isolation (properties/units, leases,
+  payments/ledger, public listings and their media, tenant applications,
+  memberships, and related history/event tables). The remaining 10 tables
+  (for example `app.organizations`, `app.users`, the landlord-onboarding
+  and jurisdiction-policy tables, and the replay-idempotency tables) have
+  no `ENABLE ROW LEVEL SECURITY` statement, matching the pre-squash
+  lineage's final state -- do not assume every table in this schema is
+  RLS-scoped.
 
 Because this is a schema-only `pg_dump` snapshot rather than a sequence of
 incremental diffs, the file is dense (~5,000 lines) but is not larger than
@@ -51,3 +57,13 @@ additive, forward-only files named `0002_..._description.sql`,
 `begin; ... commit;` transaction envelope (`migrate.ts` enforces this) and
 each proving clean installation, forward upgrade, rerun, RLS, and
 cross-organization isolation before merging.
+
+Adding the file alone is not enough for it to run: `applyMigrations()` in
+`apps/api/src/migrate.ts` only applies files up to and including its
+hardcoded `runtimeMigrationBoundary` constant (currently
+`"0001_baseline.sql"`) and stops (`if (fileName > runtimeMigrationBoundary)
+break`) at the first file sorting after it -- otherwise a partially
+deployed migration file could run before it's actually ready. Every PR
+that adds a new migration file must also bump `runtimeMigrationBoundary`
+to that file's exact name in the same change, with a test proving the new
+file is applied and nothing after it runs prematurely.
