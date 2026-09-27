@@ -95,7 +95,10 @@ $$;
 -- non-inheriting membership to whichever role is actually running this
 -- migration -- this varies per environment (a differently named managed
 -- identity in each), so it must be resolved dynamically via current_user
--- rather than hardcoded. Membership is deliberately *not* inherited:
+-- rather than hardcoded. Membership is deliberately *not* inherited (the
+-- grant below is explicit `WITH INHERIT FALSE`; PostgreSQL 16's default
+-- for a plain `GRANT role TO member` is inherited membership, so omitting
+-- this would silently grant the opposite of what's intended):
 -- `alter ... owner to` only ever needs membership, not inherited
 -- privilege, and granting inherited privilege here would let every other
 -- SECURITY DEFINER function this identity owns also satisfy the RLS
@@ -103,7 +106,7 @@ $$;
 -- grant exists, far beyond the three functions actually reassigned here.
 do $$
 begin
-  execute format('grant keyforta_media_review_admin to %I', current_user);
+  execute format('grant keyforta_media_review_admin to %I with inherit false', current_user);
 exception
   when duplicate_object then
     null;
