@@ -112,16 +112,21 @@ decision record rather than silent implementation:
   1. **api**: add the Entra redirect URIs above where applicable, then apply
      the same "plan → apply with bindings disabled → apply with managed
      certs and SNI-enabled bindings" phases ADR-014 used for public-web.
-     `CORS_ALLOWED_ORIGIN` gains `https://api.keyforta.com`'s dependents'
-     origins as they cut over, but the still-live `admin-web` and
-     `public-web` Azure-generated origins stay in `CORS_ALLOWED_ORIGIN`
-     until each of those services has redeployed against
-     `https://api.keyforta.com` and been smoke-tested — removing an origin
-     before its consumer has moved would immediately break that consumer
+     `CORS_ALLOWED_ORIGIN` gains new custom-domain origins as their owning
+     services cut over (stages 3-4 below), but `https://keyforta.com`
+     (public-web's origin, which never changes — see stage 2) and the
+     still-live `admin-web` Azure-generated origin both stay in
+     `CORS_ALLOWED_ORIGIN` — the latter until admin-web has redeployed
+     against `https://api.keyforta.com` and been smoke-tested; removing it
+     first would immediately break the still-live admin app
      (`infra/bicep/apps.bicep:33,101`).
   2. **public-web**: redeploy with `KEYFORTA_API_BASE_URL` pointed at
-     `https://api.keyforta.com` and smoke-test before removing its old
-     origin from `CORS_ALLOWED_ORIGIN`.
+     `https://api.keyforta.com` and smoke-test. Unlike admin-web/portal-web,
+     public-web's own browser origin never changes — it is still served
+     from `https://keyforta.com` regardless of which API endpoint it calls
+     — so `https://keyforta.com` stays in `CORS_ALLOWED_ORIGIN`
+     permanently; only its API base URL changes in this stage, not its CORS
+     origin.
   3. **admin-web**: add its Entra redirect URI, bind `admin.keyforta.com`
      following the same disabled-then-SNI-enabled phases, redeploy pointed
      at `https://api.keyforta.com`, smoke-test, then remove its old origin
