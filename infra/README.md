@@ -87,11 +87,11 @@ managed certificates secure `keyforta.com` and `www.keyforta.com`; the `www`
 host redirects permanently to the canonical apex host. Cloudflare remains the
 authoritative DNS provider, but these traffic records must remain DNS-only so
 Azure can issue and renew the certificates.
-The deployment workflow builds the API, public-web, and admin-web Dockerfiles
-under `deployments/azure/docker/` only during `operation=plan`. It publishes
-BuildKit SBOM/provenance, blocks on High/Critical image findings, resolves ACR
-digests, locks each SHA-tagged manifest against later writes, and stores those
-references with normalized `what-if` evidence. The
+The deployment workflow builds the API, public-web, admin-web, and portal-web
+Dockerfiles under `deployments/azure/docker/` only during `operation=plan`. It
+publishes BuildKit SBOM/provenance, blocks on High/Critical image findings,
+resolves ACR digests, locks each SHA-tagged manifest against later writes, and
+stores those references with normalized `what-if` evidence. The
 deploy operation imports the reviewed digests, rebuilds nothing, rejects drift,
 and passes only digest-addressed images to Bicep. The empty
 `deployments/azure/workflows/` directory
@@ -108,11 +108,21 @@ The deployment workflow uses a SHA-bound, scope-bound plan:
 | `api`        | API image and Container App only |
 | `public-web` | Public-web image and Container App only |
 | `admin-web`  | Admin-web image and Container App only |
-| `full`       | PostgreSQL, API, public web, admin web, and dormant development seed-job definition |
+| `portal-web` | Portal-web image and Container App only |
+| `full`       | PostgreSQL, API, public web, admin web, portal web, and dormant development seed-job definition |
 
-The `portal-web` and `mcp` names are reserved in the workflow but
-fail before Azure sign-in because those applications do not yet have approved
-container images and Azure resource definitions. A `postgres` deployment uses
+`portal-web` deploys to its default Azure Container Apps domain today; it does
+not yet bind `portal.keyforta.com`. `admin-web` and `api` likewise remain on
+their default domains. `infra/bicep/apps.bicep` already defines the dormant
+`apiCanonicalHostName`/`adminCanonicalHostName`/`portalCanonicalHostName` and
+`bindApiCertificates`/`bindAdminCertificates`/`bindPortalCertificates`
+parameters for ADR-015 (each defaults to disabled/empty, so this does not
+change current behavior); wiring those into `deploy.yml` inputs and driving
+the staged cutover below is a follow-up change, gated on the Cloudflare DNS
+records existing first. The `mcp` name is reserved in this workflow and fails
+before Azure sign-in — it is deployed independently through
+`.github/workflows/deploy-mcp.yml` per ADR-012 and is out of scope here. A
+`postgres` deployment uses
 the API image as its checksummed migration runner but does not deploy the API
 Container App. PostgreSQL server provisioning remains part of the foundation;
 the component scope does not create another server.
@@ -475,6 +485,7 @@ flowchart TB
     API["API Container App: external ingress, scale to zero"]
     Public["Public web Container App: external ingress, scale to zero"]
     Admin["Admin Container App: external ingress, scale to zero"]
+    Portal["Portal Container App: external ingress, scale to zero"]
     MCP["MCP Container App: approved and inactive, multiple revisions"]
     Migration["Migration Container Apps job: forward-only runner"]
     PG[("PostgreSQL 16 B1ms: public network, Azure-services firewall, no HA, no geo backup")]
@@ -483,23 +494,25 @@ flowchart TB
     Certs["Managed certificates: apex HTTP and www CNAME"]
     McpCert["MCP managed certificate: optional CNAME binding"]
     ApiId["API managed identity: ACR pull, Blob contributor, PostgreSQL runtime"]
-    WebId["Shared web identity: ACR pull for public and admin"]
+    WebId["Shared web identity: ACR pull for public, admin, and portal"]
     MigrationId["Migration identity: ACR pull and PostgreSQL administrator"]
     McpId["MCP identity: approved and inactive, ACR pull only"]
   end
 
-  Deferred["Deferred or absent: portal app, worker app, private endpoints, VNet integration, HA, geo backup"]
+  Deferred["Deferred or absent: api.keyforta.com/admin.keyforta.com/portal.keyforta.com custom domain binding, worker app, private endpoints, VNet integration, HA, geo backup"]
 
   Actor -->|"plan pushes SHA tags and deploys reviewed digests"| ACR
   Actor -->|"reviewed Bicep mutations"| CAE
   ACR --> API
   ACR --> Public
   ACR --> Admin
+  ACR --> Portal
   ACR -.-> MCP
   ACR --> Migration
   CAE --> API
   CAE --> Public
   CAE --> Admin
+  CAE --> Portal
   CAE -.-> MCP
   CAE --> Migration
   CAE -->|"platform and application logs"| LA
@@ -510,6 +523,7 @@ flowchart TB
   ApiId --> API
   WebId --> Public
   WebId --> Admin
+  WebId --> Portal
   MigrationId --> Migration
   McpId -.-> MCP
   DNS --> Public
@@ -521,7 +535,7 @@ flowchart TB
   classDef capable fill:#e8f5e9,stroke:#2e7d32,color:#102a13
   classDef inactive fill:#fff8e1,stroke:#b26a00,color:#3d2900,stroke-dasharray:6 4
   classDef deferred fill:#f3f4f6,stroke:#6b7280,color:#374151,stroke-dasharray:2 4
-  class ACR,LA,CAE,API,Public,Admin,Migration,PG,Blob,Defender,Certs,ApiId,WebId,MigrationId capable
+  class ACR,LA,CAE,API,Public,Admin,Portal,Migration,PG,Blob,Defender,Certs,ApiId,WebId,MigrationId capable
   class MCP,McpDNS,McpCert,McpId inactive
   class Deferred deferred
 ```

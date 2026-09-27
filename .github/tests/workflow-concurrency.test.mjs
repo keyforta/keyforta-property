@@ -596,8 +596,26 @@ test("admin deployment remains secretless and independently authorized", () => {
   );
   assert.match(template, /resource admin 'Microsoft\.App\/containerApps/);
   assert.match(template, /name: 'PLATFORM_ADMIN_OBJECT_IDS', value: platformAdminObjectIds/);
-  assert.match(template, /\$\{webPublicBaseUrl\},\$\{adminPublicBaseUrl\}/);
+  assert.match(template, /var corsAllowedOrigins = filter\(/);
+  assert.match(
+    template,
+    /\[webPublicBaseUrl, adminDefaultDomainBaseUrl, adminCanonicalBaseUrl, portalDefaultDomainBaseUrl, portalCanonicalBaseUrl\]/,
+  );
+  assert.match(template, /value: join\(corsAllowedOrigins, ','\)/);
   assert.match(template, /output adminFqdn string/);
+  assert.match(dockerfile, /USER nginx/);
+  assert.match(dockerfile, /ARG VITE_ENTRA_CLIENT_ID/);
+  assert.doesNotMatch(dockerfile, /CLIENT_SECRET|PASSWORD|TOKEN=/i);
+});
+
+test("portal deployment remains secretless and independently authorized", () => {
+  const template = readFileSync("infra/bicep/apps.bicep", "utf8");
+  const dockerfile = readFileSync(
+    "deployments/azure/docker/portal-web.Dockerfile",
+    "utf8",
+  );
+  assert.match(template, /resource portal 'Microsoft\.App\/containerApps/);
+  assert.match(template, /output portalFqdn string/);
   assert.match(dockerfile, /USER nginx/);
   assert.match(dockerfile, /ARG VITE_ENTRA_CLIENT_ID/);
   assert.doesNotMatch(dockerfile, /CLIENT_SECRET|PASSWORD|TOKEN=/i);
@@ -756,12 +774,13 @@ for argument in "$@"; do
     *deployments/azure/docker/api.Dockerfile*) component=api ;;
     *deployments/azure/docker/public-web.Dockerfile*) component=web ;;
     *deployments/azure/docker/admin-web.Dockerfile*) component=admin ;;
+    *deployments/azure/docker/portal-web.Dockerfile*) component=portal ;;
   esac
 done
 if [ "$component" = unknown ]; then exit 19; fi
 touch "$TEST_STATE/$component.started"
 if [ "$DEPLOYMENT_SCOPE" = full ]; then
-  while [ "$(find "$TEST_STATE" -name '*.started' | wc -l | tr -d ' ')" -lt 3 ]; do
+  while [ "$(find "$TEST_STATE" -name '*.started' | wc -l | tr -d ' ')" -lt 4 ]; do
     sleep 0.01
   done
 fi
@@ -830,9 +849,10 @@ for (const workflow of Object.keys(workflows)) {
     assert.ok(result.events.includes("build:api"));
     assert.ok(result.events.includes("build:web"));
     assert.ok(result.events.includes("build:admin"));
+    assert.ok(result.events.includes("build:portal"));
   });
 
-  for (const failures of ["api", "web", "admin", "api,web,admin"]) {
+  for (const failures of ["api", "web", "admin", "portal", "api,web,admin,portal"]) {
     test(`${workflow} blocks after ${failures} build failure`, () => {
       const result = runScenario(workflow, failures);
       assert.notEqual(result.status, 0);
@@ -845,8 +865,18 @@ for (const workflow of Object.keys(workflows)) {
       assert.ok(
         result.events.some((event) => event.startsWith("complete:admin:")),
       );
+      assert.ok(
+        result.events.some((event) => event.startsWith("complete:portal:")),
+      );
       for (const component of failures.split(",")) {
-        const title = component === "api" ? "API" : component === "web" ? "Web" : "Admin";
+        const title =
+          component === "api"
+            ? "API"
+            : component === "web"
+              ? "Web"
+              : component === "admin"
+                ? "Admin"
+                : "Portal";
         assert.match(
           `${result.stdout}\n${result.stderr}`,
           new RegExp(`${title} container build failed`),
@@ -861,7 +891,7 @@ test("deploy plan publishes every successfully built image", () => {
   assert.equal(result.status, 0);
   assert.equal(
     result.events.filter((event) => event.startsWith("publish:")).length,
-    3,
+    4,
   );
 });
 
@@ -1073,6 +1103,7 @@ for (const [scope, expectedComponent] of [
   ["postgres", "api"],
   ["public-web", "web"],
   ["admin-web", "admin"],
+  ["portal-web", "portal"],
 ]) {
   test(`deploy ${scope} scope publishes only its required image`, () => {
     const result = runScenario("deploy", "", scope);
@@ -1120,6 +1151,19 @@ test("deploy exposes exact component scopes and binds deploys to plan scope", ()
     steps.indexOf(step("Verify admin API dependency")) <
       steps.indexOf(step("Deploy applications")),
   );
+  assert.match(step("Verify portal API dependency")?.if ?? "", /portal-web/);
+  assert.match(
+    step("Verify portal API dependency")?.run ?? "",
+    /access-control-allow-origin: \$\{PORTAL_PUBLIC_BASE_URL\}/,
+  );
+  assert.match(
+    step("Verify portal API dependency")?.run ?? "",
+    /Deploy the API or use full scope before portal-web/,
+  );
+  assert.ok(
+    steps.indexOf(step("Verify portal API dependency")) <
+      steps.indexOf(step("Deploy applications")),
+  );
   assert.ok(
     steps.indexOf(step("Verify reviewed hostname bootstrap plan still applies")) <
       steps.indexOf(step("Bootstrap public-web hostnames")),
@@ -1145,9 +1189,12 @@ test("deploy exposes exact component scopes and binds deploys to plan scope", ()
     const script = step(name)?.with?.inlineScript ?? "";
     assert.match(script, /platformAdminObjectIds="\$PLATFORM_ADMIN_OBJECT_IDS"/);
     assert.match(script, /adminImage="\$ADMIN_IMAGE"/);
+    assert.match(script, /portalImage="\$PORTAL_IMAGE"/);
   }
   const publish = step("Build and push immutable images")?.run ?? "";
   assert.match(publish, /NEXT_PUBLIC_ENTRA_CLIENT_ID/);
   assert.match(publish, /VITE_ENTRA_CLIENT_ID/);
   assert.match(publish, /keyforta-admin-web:\$DEPLOYMENT_SHA/);
+  assert.match(publish, /keyforta-portal-web:\$DEPLOYMENT_SHA/);
+  assert.match(publish, /PORTAL_ENTRA_CLIENT_ID/);
 });
