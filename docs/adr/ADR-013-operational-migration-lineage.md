@@ -81,9 +81,13 @@ the lineage at the time (`0001_initial.sql` through
 scratch database and taking a schema-only dump (extensions, roles, and RLS
 policies included; verified to reproduce an equivalent schema, role set, and
 RLS policy inventory to the pre-squash lineage -- the only `pg_dump` diff is
-14 lines of cosmetic CHECK-constraint parenthesization, not a functional
-difference). This was a one-time consolidation, authorized because no real
-tenant data existed yet in any environment. It is not a precedent: the
+in three `CHECK` constraints (`properties_name_check`,
+`units_canonical_label_check`/`units_floor_label_check`,
+`units_label_check`) that gained redundant parenthesization when their
+clauses were combined into the baseline; the evaluated boolean condition is
+unchanged, so this is not a functional difference). This was a one-time
+consolidation, authorized because no real tenant data existed yet in any
+environment. It is not a precedent: the
 "existing migration files and checksums are never rewritten" rule above
 applies in full, without exception, from `0001_baseline.sql` forward.
 
@@ -116,3 +120,22 @@ Consequences of this amendment:
   removed from `apps/api/src/migrate.ts`, since a freshly authored baseline
   can create roles and grant final ownership directly instead of replaying
   historical workarounds.
+- The "every increment proves clean installation, forward upgrade, rerun,
+  RLS, and cross-organization isolation" requirement above applies
+  prospectively, to migrations added after `0001_baseline.sql`. Two
+  integration test files that replayed a specific pre-squash migration's
+  forward-upgrade behavior against a partially-applied historical sequence
+  (`postgres-upgrade.integration.test.ts` for `0015`'s legacy display-name
+  repair, `postgres-integrity-upgrade.integration.test.ts` for `0021`'s
+  organization-reference-integrity block-then-repair path) were removed
+  with the squash, since they applied files that no longer exist. This is
+  not a coverage regression of the underlying guarantees: the transactional
+  block-without-partial-DDL behavior they exercised is a property of
+  `applyMigration()` itself, covered generically in
+  `apps/api/test/migrate.test.ts`; the resulting schema's RLS and
+  cross-organization isolation are covered against the current baseline by
+  `postgres.integration.test.ts`,
+  `postgres-rental-property-lifecycle.integration.test.ts`, and
+  `postgres-media-review-admin-privilege.integration.test.ts`. The next
+  migration added after the baseline must still add its own forward-upgrade
+  test, per the requirement above.
