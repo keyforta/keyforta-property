@@ -84,6 +84,35 @@ export async function applyMigrations(client: PoolClient): Promise<void> {
       .filter((fileName) => /^\d{4}_[a-z0-9_]+\.sql$/.test(fileName))
       .sort();
 
+    // The pre-launch squash (ADR-013) replaced the entire pre-baseline
+    // migration history with one non-idempotent baseline file. A database
+    // that was already migrated under the old per-migration history has
+    // ledger rows whose versions predate the squash and will never include
+    // the baseline's own filename, since it never existed before. Applying
+    // the baseline's CREATE TABLE/CREATE TYPE DDL against that
+    // already-provisioned schema fails with confusing "already exists"
+    // errors partway through a transaction. Detect this up front and fail
+    // fast with an actionable message instead: the operator must reset
+    // (drop and recreate) the database before deploying this baseline,
+    // exactly as ADR-013 requires.
+    if (migrationFiles.includes(runtimeMigrationBoundary)) {
+      const appliedVersions = await client.query<{ version: string }>(
+        "select version from app.schema_migrations",
+      );
+      const baselineAlreadyApplied = appliedVersions.rows.some(
+        (row) => row.version === runtimeMigrationBoundary,
+      );
+      if (!baselineAlreadyApplied && appliedVersions.rows.length > 0) {
+        throw new Error(
+          `Refusing to apply ${runtimeMigrationBoundary}: this database already has ` +
+            `${appliedVersions.rows.length} migration(s) recorded from before the pre-launch ` +
+            `squash, and none of them is ${runtimeMigrationBoundary}. The baseline's DDL is not ` +
+            "idempotent against an already-provisioned schema. Reset (drop and recreate) this " +
+            "database before deploying, per ADR-013 -- do not let this migration job run against it.",
+        );
+      }
+    }
+
     for (const fileName of migrationFiles) {
       if (fileName > runtimeMigrationBoundary) break;
       const content = await readFile(`${migrationDirectory}/${fileName}`, "utf8");

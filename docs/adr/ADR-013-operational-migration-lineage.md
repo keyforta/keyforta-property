@@ -96,6 +96,14 @@ Consequences of this amendment:
   statements are not idempotent, so reapplying it against a database whose
   schema objects already exist (with the ledger cleared but the objects
   still present) fails outright.
+- The migration runner (`apps/api/src/migrate.ts`) does not rely on operator
+  discipline alone to enforce the reset above: `applyMigrations()` checks the
+  ledger before running any SQL, and refuses to apply `0001_baseline.sql` --
+  failing the deploy's migration job closed with an actionable error --
+  whenever the ledger already has rows recorded but none of them is
+  `0001_baseline.sql` itself. This turns a confusing mid-transaction
+  "already exists" failure into a clear, fail-fast signal that the target
+  database still needs the drop-and-recreate reset described above.
 - Historical documentation (for example `docs/engineering/REQUIREMENTS_GAPS.md`
   and `docs/contracts/keyforta-production-data-model.md`) may still cite the
   pre-squash migration filenames as a record of when a decision or capability

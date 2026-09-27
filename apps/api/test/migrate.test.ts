@@ -1,7 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PoolClient } from "pg";
 
-import { applyMigration, mapRuntimePrincipal } from "../src/migrate.js";
+vi.mock("node:fs/promises", async () => {
+  const actual = await vi.importActual<typeof import("node:fs/promises")>(
+    "node:fs/promises",
+  );
+  return {
+    ...actual,
+    readdir: vi.fn(),
+    readFile: vi.fn(),
+  };
+});
+
+import { readdir, readFile } from "node:fs/promises";
+
+import { applyMigration, applyMigrations, mapRuntimePrincipal } from "../src/migrate.js";
+
+const mockReaddir = vi.mocked(readdir);
+const mockReadFile = vi.mocked(readFile);
 
 describe("applyMigration", () => {
   it("skips a migration already recorded with a matching checksum", async () => {
@@ -76,6 +92,77 @@ describe("applyMigration", () => {
     await expect(
       applyMigration(client, "0001_baseline.sql", "select 1;"),
     ).rejects.toThrow("Migration must use the required transaction envelope: 0001_baseline.sql");
+  });
+});
+
+describe("applyMigrations", () => {
+  afterEach(() => {
+    mockReaddir.mockReset();
+    mockReadFile.mockReset();
+  });
+
+  it("refuses to apply the baseline against a database with a pre-squash ledger", async () => {
+    mockReaddir.mockResolvedValue(["0001_baseline.sql"] as unknown as Awaited<
+      ReturnType<typeof readdir>
+    >);
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] }) // create schema
+      .mockResolvedValueOnce({ rows: [] }) // create table
+      .mockResolvedValueOnce({ rows: [] }) // pg_advisory_lock
+      .mockResolvedValueOnce({
+        rows: [
+          { version: "0012_some_pre_squash_migration.sql" },
+          { version: "0036_media_review_admin_rls_policies.sql" },
+        ],
+      }) // select version from app.schema_migrations
+      .mockResolvedValue({ rows: [] }); // pg_advisory_unlock in finally
+    const client = { query } as unknown as PoolClient;
+
+    await expect(applyMigrations(client)).rejects.toThrow(
+      "Refusing to apply 0001_baseline.sql: this database already has 2 migration(s) recorded",
+    );
+    expect(mockReadFile).not.toHaveBeenCalled();
+    expect(query.mock.calls.at(-1)?.[0]).toContain("pg_advisory_unlock");
+  });
+
+  it("applies the baseline normally when the ledger is empty (fresh database)", async () => {
+    mockReaddir.mockResolvedValue(["0001_baseline.sql"] as unknown as Awaited<
+      ReturnType<typeof readdir>
+    >);
+    mockReadFile.mockResolvedValue("begin;\nselect 1;\ncommit;");
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const client = { query } as unknown as PoolClient;
+
+    await expect(applyMigrations(client)).resolves.toBeUndefined();
+    expect(mockReadFile).toHaveBeenCalledWith(
+      expect.stringContaining("0001_baseline.sql"),
+      "utf8",
+    );
+  });
+
+  it("applies the baseline normally when the ledger already records it (rerun/upgrade)", async () => {
+    mockReaddir.mockResolvedValue(["0001_baseline.sql"] as unknown as Awaited<
+      ReturnType<typeof readdir>
+    >);
+    mockReadFile.mockResolvedValue("begin;\nselect 1;\ncommit;");
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] }) // create schema
+      .mockResolvedValueOnce({ rows: [] }) // create table
+      .mockResolvedValueOnce({ rows: [] }) // pg_advisory_lock
+      .mockResolvedValueOnce({ rows: [{ version: "0001_baseline.sql" }] }) // ledger select
+      .mockResolvedValue({
+        rows: [
+          {
+            checksum:
+              "f4a525df3250aa1aeae9daba925646d8d2e626b8a31e92ee986a8cb1f7f6a425",
+          },
+        ],
+      });
+    const client = { query } as unknown as PoolClient;
+
+    await expect(applyMigrations(client)).resolves.toBeUndefined();
   });
 });
 
