@@ -58,7 +58,7 @@ decision record rather than silent implementation:
    authorization, not by hostname secrecy — but it is called out explicitly
    so the trade is a recorded decision, not an oversight.
 
-## Decision (proposed)
+## Decision
 
 - `https://keyforta.com` remains the canonical public origin (unchanged from
   ADR-014).
