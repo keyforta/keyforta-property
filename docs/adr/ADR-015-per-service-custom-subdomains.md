@@ -127,14 +127,22 @@ decision record rather than silent implementation:
      — so `https://keyforta.com` stays in `CORS_ALLOWED_ORIGIN`
      permanently; only its API base URL changes in this stage, not its CORS
      origin.
-  3. **admin-web**: add its Entra redirect URI, bind `admin.keyforta.com`
-     following the same disabled-then-SNI-enabled phases, redeploy pointed
-     at `https://api.keyforta.com`, smoke-test, then remove its old origin
-     from `CORS_ALLOWED_ORIGIN`.
+  3. **admin-web**: add its Entra redirect URI; redeploy `api` with
+     `https://admin.keyforta.com` added to `CORS_ALLOWED_ORIGIN` alongside
+     the still-live Azure-generated admin origin (`CORS_ALLOWED_ORIGIN` is
+     an API container env var, so adding an origin requires an API
+     redeploy — see `infra/bicep/apps.bicep:101`,
+     `apps/api/src/server.ts:26`); bind `admin.keyforta.com` following the
+     same disabled-then-SNI-enabled phases; redeploy admin-web pointed at
+     `https://api.keyforta.com`; smoke-test against the new custom domain;
+     then redeploy `api` again to remove the old Azure-generated admin
+     origin from `CORS_ALLOWED_ORIGIN` now that it is verified unused.
   4. **portal-web**: stand up the Container App, add its Entra redirect
-     URI, bind `portal.keyforta.com`, deploy pointed at
-     `https://api.keyforta.com`, then add its origin to
-     `CORS_ALLOWED_ORIGIN` and smoke-test.
+     URI; redeploy `api` with `https://portal.keyforta.com` added to
+     `CORS_ALLOWED_ORIGIN` (portal-web has no prior origin to remove, since
+     it isn't deployed today); bind `portal.keyforta.com` following the
+     same phases; deploy portal-web pointed at `https://api.keyforta.com`;
+     smoke-test.
 
   Each stage's certificate/binding phase mirrors ADR-014's fail-closed
   bootstrap. For `public-web`'s apex+www pair, that means a one-of-two
