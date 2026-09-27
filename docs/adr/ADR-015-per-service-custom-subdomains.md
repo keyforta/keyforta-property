@@ -22,6 +22,14 @@ The product owner has requested a consistent per-service domain scheme:
 | portal-web | `portal.keyforta.com` |
 | admin-web | `admin.keyforta.com` |
 | api | `api.keyforta.com` |
+| mcp | `mcp.keyforta.com` |
+
+`mcp` is already an approved deployable service (ADR-012: standalone MCP App
+SDK platform, required to be independently deployed and reachable over HTTPS
+for cloud connectors) but, like `portal-web`, is currently only a reserved
+name in `deploy.yml`'s scope allowlist with no Bicep resource or DNS record
+yet — it does not need a new deployable-service justification here, only the
+custom-domain decision below.
 
 Two things are new relative to ADR-014's scope and therefore need their own
 decision record rather than silent implementation:
@@ -52,11 +60,11 @@ decision record rather than silent implementation:
 
 - `https://keyforta.com` remains the canonical public origin (unchanged from
   ADR-014).
-- `https://portal.keyforta.com`, `https://admin.keyforta.com`, and
-  `https://api.keyforta.com` become the canonical origins for portal-web,
-  admin-web, and the API, respectively, in the `dev` pilot environment.
-  Production remains out of scope until a separate production launch
-  decision (see ADR-009).
+- `https://portal.keyforta.com`, `https://admin.keyforta.com`,
+  `https://api.keyforta.com`, and `https://mcp.keyforta.com` become the
+  canonical origins for portal-web, admin-web, the API, and the MCP service,
+  respectively, in the `dev` pilot environment. Production remains out of
+  scope until a separate production launch decision (see ADR-009).
 - `portal-web` becomes an approved deployable service: it gets a
   `deployments/azure/docker/portal-web.Dockerfile` (static Vite build served
   by `nginx-unprivileged`, mirroring `admin-web.Dockerfile`) and a
@@ -116,26 +124,34 @@ decision record rather than silent implementation:
      URI, bind `portal.keyforta.com`, deploy pointed at
      `https://api.keyforta.com`, then add its origin to
      `CORS_ALLOWED_ORIGIN` and smoke-test.
+  5. **mcp**: stand up the Container App resource (per ADR-012, already
+     approved as a standalone service), bind `mcp.keyforta.com` following
+     the same disabled-then-SNI-enabled phases, and smoke-test. `mcp`
+     exposes no tenant data and calls no other KEYFORTA service, so it has
+     no `CORS_ALLOWED_ORIGIN`/API-base-URL dependency to sequence around;
+     it can move independently of the other four stages.
 
   Each certificate/binding phase fails closed on a partial one-hostname
   state, per ADR-014's pattern.
 
 ## Consequences
 
-- Three new Azure managed certificates and hostname bindings (`portal`,
-  `admin`, `api` — ADR-014's two `public-web` certificates are unchanged),
-  and three new Cloudflare DNS-only CNAME records for the same hostnames,
-  need to be created and coordinated with the deploy workflow's staged
-  bootstrap — the same operational discipline ADR-014 introduced, applied
-  three more times.
+- Four new Azure managed certificates and hostname bindings (`portal`,
+  `admin`, `api`, `mcp` — ADR-014's two `public-web` certificates are
+  unchanged), and four new Cloudflare DNS-only CNAME records for the same
+  hostnames, need to be created and coordinated with the deploy workflow's
+  staged bootstrap — the same operational discipline ADR-014 introduced,
+  applied four more times.
 - `admin.keyforta.com` becoming a public, predictable hostname is a
   deliberate trade of obscurity for operability; it does not change or
   weaken authentication/authorization, which remains the actual access
   control.
 - Introducing `portal-web` as a deployable service adds a fourth Container
   App to the shared environment (additional scale-to-zero compute cost, one
-  of the three new managed certificates above, and a fourth image to
-  build/scan/patch in CI).
+  of the four new managed certificates above, and a fourth image to
+  build/scan/patch in CI). `mcp` similarly adds a fifth Container App and
+  the fourth new managed certificate; it is already an approved deployable
+  service (ADR-012), so only its custom domain is new here.
 - This does not declare any of these hostnames production-ready or authorize
   real tenant data; that remains gated by ADR-009's open decisions register.
 - Rollback for any single hostname mirrors ADR-014: restore the prior
