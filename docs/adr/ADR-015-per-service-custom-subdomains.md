@@ -22,14 +22,15 @@ The product owner has requested a consistent per-service domain scheme:
 | portal-web | `portal.keyforta.com` |
 | admin-web | `admin.keyforta.com` |
 | api | `api.keyforta.com` |
-| mcp | `mcp.keyforta.com` |
 
-`mcp` is already an approved deployable service (ADR-012: standalone MCP App
-SDK platform, required to be independently deployed and reachable over HTTPS
-for cloud connectors) but, like `portal-web`, is currently only a reserved
-name in `deploy.yml`'s scope allowlist with no Bicep resource or DNS record
-yet — it does not need a new deployable-service justification here, only the
-custom-domain decision below.
+`mcp` was also requested at `mcp.keyforta.com`, but that is **out of scope
+for this ADR**: `mcp` already has its own dedicated `infra/bicep/mcp.bicep`
+resource, its own `deploy-mcp.yml` workflow, and `mcp.keyforta.com` is
+already the hardcoded target hostname in that workflow, per ADR-012 and
+`docs/operations/MCP_DEV_RUNBOOK.md` / `docs/engineering/
+MCP_DEV_DEPLOYMENT_PLAN.md`. Standing it up is a matter of running the
+existing `deploy-mcp.yml` bootstrap (DNS CNAME + `bindMcpCertificate`) — no
+new ADR, Bicep, or deploy-workflow change is required.
 
 Two things are new relative to ADR-014's scope and therefore need their own
 decision record rather than silent implementation:
@@ -60,11 +61,12 @@ decision record rather than silent implementation:
 
 - `https://keyforta.com` remains the canonical public origin (unchanged from
   ADR-014).
-- `https://portal.keyforta.com`, `https://admin.keyforta.com`,
-  `https://api.keyforta.com`, and `https://mcp.keyforta.com` become the
-  canonical origins for portal-web, admin-web, the API, and the MCP service,
-  respectively, in the `dev` pilot environment. Production remains out of
-  scope until a separate production launch decision (see ADR-009).
+- `https://portal.keyforta.com`, `https://admin.keyforta.com`, and
+  `https://api.keyforta.com` become the canonical origins for portal-web,
+  admin-web, and the API, respectively, in the `dev` pilot environment.
+  Production remains out of scope until a separate production launch
+  decision (see ADR-009). `mcp.keyforta.com` is excluded from this decision
+  (see Context) and follows its own already-approved `deploy-mcp.yml` path.
 - `portal-web` becomes an approved deployable service: it gets a
   `deployments/azure/docker/portal-web.Dockerfile` (static Vite build served
   by `nginx-unprivileged`, mirroring `admin-web.Dockerfile`) and a
@@ -79,9 +81,13 @@ decision record rather than silent implementation:
   authoritative DNS and each new record stays DNS-only (unproxied) so Azure
   can issue and renew certificates.
 - `api`'s `CORS_ALLOWED_ORIGIN` is extended to include
-  `https://portal.keyforta.com` (it already carries the web and admin
-  origins as parameters; those parameters move from Azure-generated
-  hostnames to the new custom domains).
+  `https://portal.keyforta.com`, `https://admin.keyforta.com`, and the API's
+  own custom domain does not itself appear in CORS (CORS lists browser
+  origins, not the API's own hostname). The web/admin parameters currently
+  hold Azure-generated hostnames; the staged rollout below adds each new
+  custom-domain origin alongside the existing one and removes the old
+  origin only after that service has redeployed and been smoke-tested — see
+  the per-stage sequencing, not an atomic swap.
 - Each frontend's configured API base URL moves from the API's
   Azure-generated hostname to `https://api.keyforta.com`. `public-web` is
   included in this: it currently receives `KEYFORTA_API_BASE_URL` derived
@@ -124,34 +130,33 @@ decision record rather than silent implementation:
      URI, bind `portal.keyforta.com`, deploy pointed at
      `https://api.keyforta.com`, then add its origin to
      `CORS_ALLOWED_ORIGIN` and smoke-test.
-  5. **mcp**: stand up the Container App resource (per ADR-012, already
-     approved as a standalone service), bind `mcp.keyforta.com` following
-     the same disabled-then-SNI-enabled phases, and smoke-test. `mcp`
-     exposes no tenant data and calls no other KEYFORTA service, so it has
-     no `CORS_ALLOWED_ORIGIN`/API-base-URL dependency to sequence around;
-     it can move independently of the other four stages.
 
-  Each certificate/binding phase fails closed on a partial one-hostname
-  state, per ADR-014's pattern.
+  Each stage's certificate/binding phase mirrors ADR-014's fail-closed
+  bootstrap. For `public-web`'s apex+www pair, that means a one-of-two
+  hostname state fails closed for review, as ADR-014 already established.
+  Each of `admin`, `api`, and `portal` is a single custom hostname (no
+  pair), so its bootstrap is a simple binary sequence — Disabled binding
+  applied and verified, then managed certificate and SNI-enabled binding
+  applied and verified — with no partial multi-hostname state to reason
+  about.
 
 ## Consequences
 
-- Four new Azure managed certificates and hostname bindings (`portal`,
-  `admin`, `api`, `mcp` — ADR-014's two `public-web` certificates are
-  unchanged), and four new Cloudflare DNS-only CNAME records for the same
-  hostnames, need to be created and coordinated with the deploy workflow's
-  staged bootstrap — the same operational discipline ADR-014 introduced,
-  applied four more times.
+- Three new Azure managed certificates and hostname bindings (`portal`,
+  `admin`, `api` — ADR-014's two `public-web` certificates are unchanged,
+  and `mcp`'s certificate is already covered by its own `deploy-mcp.yml`),
+  and three new Cloudflare DNS-only CNAME records for the same hostnames,
+  need to be created and coordinated with the deploy workflow's staged
+  bootstrap — the same operational discipline ADR-014 introduced, applied
+  three more times.
 - `admin.keyforta.com` becoming a public, predictable hostname is a
   deliberate trade of obscurity for operability; it does not change or
   weaken authentication/authorization, which remains the actual access
   control.
 - Introducing `portal-web` as a deployable service adds a fourth Container
   App to the shared environment (additional scale-to-zero compute cost, one
-  of the four new managed certificates above, and a fourth image to
-  build/scan/patch in CI). `mcp` similarly adds a fifth Container App and
-  the fourth new managed certificate; it is already an approved deployable
-  service (ADR-012), so only its custom domain is new here.
+  of the three new managed certificates above, and a fourth image to
+  build/scan/patch in CI).
 - This does not declare any of these hostnames production-ready or authorize
   real tenant data; that remains gated by ADR-009's open decisions register.
 - Rollback for any single hostname mirrors ADR-014: restore the prior
