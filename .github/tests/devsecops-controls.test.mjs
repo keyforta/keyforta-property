@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 import YAML from "yaml";
 
@@ -135,21 +137,251 @@ test("migration checksum manifest protects the complete forward history", () => 
   }
 });
 
-test("security workflow rejects edits to existing migrations", () => {
+test("security workflow rejects edits to existing migrations but allows the one-time pre-launch squash", () => {
   const workflow = readWorkflow("security.yml");
   const guard = workflow.jobs.scan.steps.find(
     (step) => step.name === "Reject historical migration rewrites",
   );
-  assert.match(guard?.run ?? "", /git diff --name-status/);
-  assert.match(guard?.run ?? "", /NF && \$1 !~ \/\^A\//);
-  assert.match(guard?.run ?? "", /add a forward migration instead/);
+  const script = guard?.run ?? "";
+  assert.match(script, /git diff --name-status/);
+  assert.match(script, /add a forward migration instead/);
+  assert.match(script, /0001_baseline\.sql/);
 
-  const awkProgram = "NF && $1 !~ /^A/ { found=1 } END { exit found ? 0 : 1 }";
-  for (const allowed of ["", "A\tinfra/postgres/migrations/0021_example.sql"]){
-    assert.notEqual(spawnSync("awk", [awkProgram], { input: `${allowed}\n` }).status, 0);
-  }
-  for (const rejected of ["M\t0010.sql", "D\t0010.sql", "R100\t0010.sql\t0010_renamed.sql"]){
-    assert.equal(spawnSync("awk", [awkProgram], { input: `${rejected}\n` }).status, 0);
+  
+  
+  
+  const dir = mkdtempSync(path.join(tmpdir(), "migration-guard-"));
+  const git = (...args) =>
+    spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+  const runGuard = (baseSha, headSha) => {
+    const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
+      cwd: dir,
+      env: { ...process.env, BASE_SHA: baseSha, HEAD_SHA: headSha },
+      encoding: "utf8",
+    });
+    return result.status;
+  };
+
+  try {
+    git("init", "-q");
+    git("config", "user.email", "test@example.com");
+    git("config", "user.name", "Test");
+    const migrationsDir = path.join(dir, "infra", "postgres", "migrations");
+    mkdirSync(migrationsDir, { recursive: true });
+    for (const name of ["0001_initial.sql", "0002_second.sql", "0003_third.sql"]) {
+      writeFileSync(path.join(migrationsDir, name), "begin;\nselect 1;\ncommit;\n");
+    }
+    git("add", "-A");
+    git("commit", "-q", "-m", "baseline history");
+    const baseSha = git("rev-parse", "HEAD").stdout.trim();
+
+    // Ordinary forward-only addition: allowed.
+    writeFileSync(path.join(migrationsDir, "0004_fourth.sql"), "begin;\nselect 1;\ncommit;\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "add 0004");
+    let headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.equal(runGuard(baseSha, headSha), 0, "ordinary new migration must be allowed");
+
+    // Adding only the canonical baseline filename, with zero deletions:
+    // rejected. This must not slip through the ordinary pure-addition
+    // fast path -- the runtime boundary in migrate.ts sorts
+    // "0001_baseline.sql" before every historical 000N_*.sql file, so an
+    // injected baseline with none of the real files removed would
+    // silently disable the rest of the lineage on a fresh apply.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    writeFileSync(
+      path.join(migrationsDir, "0001_baseline.sql"),
+      "begin;\nselect 'sneaked in, no deletions';\ncommit;\n",
+    );
+    git("add", "-A");
+    git("commit", "-q", "-m", "add a baseline file with no deletions");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(
+      runGuard(baseSha, headSha),
+      0,
+      "adding 0001_baseline.sql alongside untouched historical files must be rejected",
+    );
+
+    // Editing an existing file in place: rejected.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    writeFileSync(path.join(migrationsDir, "0002_second.sql"), "begin;\nselect 2;\ncommit;\n");
+    git("commit", "-q", "-a", "-m", "edit 0002");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(runGuard(baseSha, headSha), 0, "editing an existing migration must be rejected");
+
+    // Renaming a single existing file: rejected.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    git("mv", "infra/postgres/migrations/0002_second.sql", "infra/postgres/migrations/0002_renamed.sql");
+    git("commit", "-q", "-m", "rename 0002");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(runGuard(baseSha, headSha), 0, "renaming an existing migration must be rejected");
+
+    // Deleting a single file with no replacement: rejected.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    git("rm", "-q", "infra/postgres/migrations/0003_third.sql");
+    git("commit", "-q", "-m", "delete 0003");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(runGuard(baseSha, headSha), 0, "deleting a single migration must be rejected");
+
+    // Deleting one file and adding one non-baseline file (disguised
+    // rename): rejected -- must not satisfy the squash exception.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    git("rm", "-q", "infra/postgres/migrations/0003_third.sql");
+    writeFileSync(path.join(migrationsDir, "0003_replacement.sql"), "begin;\nselect 1;\ncommit;\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "swap 0003");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(
+      runGuard(baseSha, headSha),
+      0,
+      "a single delete plus a single non-baseline add must be rejected",
+    );
+
+    // The one-time full-lineage squash: every existing file deleted,
+    // exactly one new "*_baseline.sql" file added, no modifications.
+    // Allowed.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    for (const name of ["0001_initial.sql", "0002_second.sql", "0003_third.sql"]) {
+      git("rm", "-q", `infra/postgres/migrations/${name}`);
+    }
+    // git rm removes the now-empty parent directory along with the last
+    // tracked file in it, so it must be recreated before writing the
+    // replacement baseline file.
+    mkdirSync(migrationsDir, { recursive: true });
+    writeFileSync(
+      path.join(migrationsDir, "0001_baseline.sql"),
+      "begin;\nselect 'baseline schema consolidated from full lineage';\ncommit;\n",
+    );
+    git("add", "-A");
+    git("commit", "-q", "-m", "squash into baseline");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.equal(
+      runGuard(baseSha, headSha),
+      0,
+      "a full-lineage squash into a single baseline file must be allowed",
+    );
+
+    // Same squash shape, but also editing an unrelated migration in the
+    // same commit: rejected -- the exception must not launder edits.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    for (const name of ["0001_initial.sql", "0002_second.sql"]) {
+      git("rm", "-q", `infra/postgres/migrations/${name}`);
+    }
+    writeFileSync(path.join(migrationsDir, "0003_third.sql"), "begin;\nselect 99;\ncommit;\n");
+    writeFileSync(path.join(migrationsDir, "0001_baseline.sql"), "begin;\nselect 1;\ncommit;\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "squash plus a sneaky edit");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(
+      runGuard(baseSha, headSha),
+      0,
+      "a squash accompanied by any modification to a surviving file must be rejected",
+    );
+
+    // Partial squash: deletes two files and adds one "*_baseline.sql"
+    // file, satisfying the delete-count and add-shape checks in
+    // isolation, but leaves a third historical file behind. Rejected --
+    // the exception must require a full-lineage consolidation, not just
+    // "at least two deletions".
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    for (const name of ["0001_initial.sql", "0002_second.sql"]) {
+      git("rm", "-q", `infra/postgres/migrations/${name}`);
+    }
+    mkdirSync(migrationsDir, { recursive: true });
+    writeFileSync(
+      path.join(migrationsDir, "0001_baseline.sql"),
+      "begin;\nselect 'partial baseline leaving 0003 behind';\ncommit;\n",
+    );
+    git("add", "-A");
+    git("commit", "-q", "-m", "partial squash leaving a file behind");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(
+      runGuard(baseSha, headSha),
+      0,
+      "a partial squash that leaves historical migration files behind must be rejected",
+    );
+
+    // Wrong baseline name: a full-lineage squash shape, but the added
+    // file doesn't match the exact canonical name the runtime hardcodes
+    // (apps/api/src/migrate.ts's runtimeMigrationBoundary). Rejected --
+    // the runner would silently never apply a differently named file
+    // anyway, so the gate must not treat it as a valid consolidation.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    for (const name of ["0001_initial.sql", "0002_second.sql", "0003_third.sql"]) {
+      git("rm", "-q", `infra/postgres/migrations/${name}`);
+    }
+    mkdirSync(migrationsDir, { recursive: true });
+    writeFileSync(
+      path.join(migrationsDir, "9999_baseline.sql"),
+      "begin;\nselect 'wrong name';\ncommit;\n",
+    );
+    git("add", "-A");
+    git("commit", "-q", "-m", "squash with a non-canonical baseline name");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(
+      runGuard(baseSha, headSha),
+      0,
+      "a squash whose added file isn't named exactly 0001_baseline.sql must be rejected",
+    );
+
+    // Second squash attempt: after a genuine first squash has already
+    // landed (0001_baseline.sql exists at BASE_SHA), a later commit
+    // deletes it plus a subsequent migration and adds a fresh
+    // "0001_baseline.sql" again. Rejected -- ADR-013 states the squash is
+    // "not a precedent"; the exception must only ever satisfy the very
+    // first consolidation, not a repeat rewrite of an established one.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    for (const name of ["0001_initial.sql", "0002_second.sql", "0003_third.sql"]) {
+      git("rm", "-q", `infra/postgres/migrations/${name}`);
+    }
+    mkdirSync(migrationsDir, { recursive: true });
+    writeFileSync(
+      path.join(migrationsDir, "0001_baseline.sql"),
+      "begin;\nselect 'first genuine squash';\ncommit;\n",
+    );
+    git("add", "-A");
+    git("commit", "-q", "-m", "first genuine squash");
+    const firstSquashSha = git("rev-parse", "HEAD").stdout.trim();
+
+    writeFileSync(path.join(migrationsDir, "0002_fourth.sql"), "begin;\nselect 4;\ncommit;\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "add 0002 after the squash");
+    const afterSecondMigrationSha = git("rev-parse", "HEAD").stdout.trim();
+
+    git("rm", "-q", "infra/postgres/migrations/0001_baseline.sql");
+    git("rm", "-q", "infra/postgres/migrations/0002_fourth.sql");
+    mkdirSync(migrationsDir, { recursive: true });
+    writeFileSync(
+      path.join(migrationsDir, "0001_baseline.sql"),
+      "begin;\nselect 'rewritten baseline, must never be allowed';\ncommit;\n",
+    );
+    git("add", "-A");
+    git("commit", "-q", "-m", "attempted second squash");
+    const secondSquashSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(
+      runGuard(firstSquashSha, secondSquashSha),
+      0,
+      "a second squash rewriting an already-established baseline must be rejected",
+    );
+    // Sanity check: the intermediate commit on its own is an ordinary
+    // forward-only addition and must still be allowed.
+    assert.equal(
+      runGuard(firstSquashSha, afterSecondMigrationSha),
+      0,
+      "an ordinary forward migration added after the squash must still be allowed",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

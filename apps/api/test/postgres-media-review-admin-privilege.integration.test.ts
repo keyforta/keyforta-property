@@ -72,28 +72,46 @@ describePostgres("PostgreSQL media-review-admin privilege redesign", () => {
     // though, other integration test files that apply migrations through
     // the ordinary superuser pool may race to create those roles first,
     // leaving this restricted role without ADMIN OPTION on roles it didn't
-    // create. Bootstrapping that membership here (as the superuser)
-    // mirrors what a one-time manual fix would look like for that
-    // non-representative edge case, without changing anything
-    // `provisionMediaReviewAdminRole` itself does.
+    // create. Deterministically pre-creating both roles here (idempotently,
+    // via the superuser connection) before granting admin option removes
+    // that race entirely, rather than only bootstrapping membership "if
+    // exists" and hoping this file runs before any concurrent one creates
+    // them first. This mirrors what a one-time manual fix would look like
+    // for that non-representative edge case, without changing anything
+    // `the baseline's role-provisioning preamble` itself does.
     await adminPool.query(`
       do $$
       begin
-        if exists (select 1 from pg_roles where rolname = 'keyforta_media_review_admin') then
-          execute format('grant keyforta_media_review_admin to %I with admin option', '${restrictedRoleName}');
+        if not exists (select 1 from pg_roles where rolname = 'keyforta_media_review_admin') then
+          create role keyforta_media_review_admin nologin nosuperuser nocreatedb nocreaterole noinherit;
         end if;
-        if exists (select 1 from pg_roles where rolname = 'keyforta_runtime') then
-          execute format('grant keyforta_runtime to %I with admin option', '${restrictedRoleName}');
+        if not exists (select 1 from pg_roles where rolname = 'keyforta_runtime') then
+          create role keyforta_runtime nologin nosuperuser nocreatedb nocreaterole noinherit;
         end if;
+      exception
+        when duplicate_object or unique_violation then
+          null;
+      end
+      $$;
+    `);
+    await adminPool.query(`
+      do $$
+      begin
+        execute format('grant keyforta_media_review_admin to %I with admin option', '${restrictedRoleName}');
+        execute format('grant keyforta_runtime to %I with admin option', '${restrictedRoleName}');
+      exception
+        when duplicate_object then
+          null;
       end
       $$;
     `);
 
-    // Applying every migration -- including 0030's un-editable, immutable
-    // `create role ... bypassrls` statement -- through this Azure-shaped
-    // restricted role is the actual regression: it failed in production
-    // (SQLSTATE 42501) before `provisionMediaReviewAdminRole` and migration
-    // 0036 existed.
+    // Applying the baseline migration -- including its role-provisioning
+    // preamble and the additive RLS policies scoped to
+    // keyforta_media_review_admin -- through this Azure-shaped restricted
+    // role is the actual regression: an unguarded `create role ...
+    // bypassrls` statement failed in production (SQLSTATE 42501) before
+    // this role-provisioning and RLS-policy redesign existed.
     restrictedClient = await restrictedPool.connect();
     await applyMigrations(restrictedClient);
 
@@ -176,11 +194,11 @@ describePostgres("PostgreSQL media-review-admin privilege redesign", () => {
   });
 
 
-  it("applies every migration under Azure's exact restricted Entra-admin role attributes", async () => {
+  it("applies the baseline migration under Azure's exact restricted Entra-admin role attributes", async () => {
     const migrationCount = await restrictedClient.query<{ count: string }>(
       "select count(*)::text as count from app.schema_migrations",
     );
-    expect(Number(migrationCount.rows[0]?.count)).toBeGreaterThanOrEqual(36);
+    expect(Number(migrationCount.rows[0]?.count)).toBeGreaterThanOrEqual(1);
   });
 
   it("transfers ownership of every media-review admin function to keyforta_media_review_admin", async () => {
@@ -204,14 +222,14 @@ describePostgres("PostgreSQL media-review-admin privilege redesign", () => {
     // Entra managed identity in each real environment) owns several other
     // SECURITY DEFINER functions beyond the three intended admin ones (for
     // example app.create_public_listing). This is the actual HIGH-severity
-    // risk provisionMediaReviewAdminRole's plain (non-inheriting) grant
+    // risk the baseline's role-provisioning preamble's plain (non-inheriting) grant
     // exists to close off: if that grant were instead persistent inherited
     // membership (`with inherit true`), *every* function the migration
     // identity owns -- not just the three named in 0036 -- would also
     // satisfy those policies' `to keyforta_media_review_admin` clause for
     // as long as the grant exists. Simulating one such unrelated function
     // here (owned by restrictedRoleName, never elevated by
-    // scopeMediaReviewAdminOwnershipStatements) and confirming it still
+    // the baseline's inline role-switch statements) and confirming it still
     // can't see another organization's listing proves the plain-membership
     // grant doesn't leak.
     await restrictedClient.query(`
@@ -248,7 +266,7 @@ describePostgres("PostgreSQL media-review-admin privilege redesign", () => {
   });
 
   it("grants the migration identity only plain, non-inheriting membership in keyforta_media_review_admin", async () => {
-    // provisionMediaReviewAdminRole must never grant `with inherit true`
+    // the baseline's role-provisioning preamble must never grant `with inherit true`
     // here: that specific attribute is what would make the previous test's
     // leak scenario real. This asserts the structural guarantee directly
     // against the catalog, independent of any particular probe function.

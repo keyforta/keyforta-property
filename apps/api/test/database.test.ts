@@ -11,7 +11,7 @@ import {
 
 const migrationPath = fileURLToPath(
   new URL(
-    "../../../infra/postgres/migrations/0028_rental_property_and_unit_commands.sql",
+    "../../../infra/postgres/migrations/0001_baseline.sql",
     import.meta.url,
   ),
 );
@@ -20,11 +20,11 @@ const databaseSourcePath = fileURLToPath(new URL("../src/database.ts", import.me
 function extractCreateRentalPropertyParameterTypes(): string[] {
   const migration = readFileSync(migrationPath, "utf8");
   const match = migration.match(
-    /create function app\.create_rental_property\(([\s\S]*?)\)\s*returns/,
+    /create function app\.create_rental_property\(([\s\S]*?)\)\s*returns/i,
   );
   if (!match) {
     throw new Error(
-      "Could not locate the app.create_rental_property declaration in migration 0028.",
+      "Could not locate the app.create_rental_property declaration in the baseline migration.",
     );
   }
   return (match[1] ?? "")
@@ -49,12 +49,12 @@ function extractFallbackSignatureParameterTypes(): string[] {
 function extractFunctionBody(functionName: string): string {
   const migration = readFileSync(migrationPath, "utf8");
   const startMatch = migration.match(
-    new RegExp(`create function app\\.${functionName}\\(`),
+    new RegExp(`create function app\\.${functionName}\\(`, "i"),
   );
   if (!startMatch || startMatch.index === undefined) {
-    throw new Error(`Could not locate app.${functionName} in migration 0028.`);
+    throw new Error(`Could not locate app.${functionName} in the baseline migration.`);
   }
-  const bodyStart = migration.indexOf("as $$", startMatch.index);
+  const bodyStart = migration.toLowerCase().indexOf("as $$", startMatch.index);
   const bodyEnd = migration.indexOf("$$;", bodyStart);
   if (bodyStart === -1 || bodyEnd === -1) {
     throw new Error(`Could not locate the $$ body for app.${functionName}.`);
@@ -133,7 +133,7 @@ describe("assertRuntimeDatabaseReady", () => {
   });
 });
 
-describe("migration 0028 archive lock ordering", () => {
+describe("the baseline migration archive lock ordering", () => {
   it("locks app.properties before app.units in both archive_rental_unit and archive_rental_property", () => {
     // Regression test: archive_rental_unit previously locked its Unit row
     // before locking the parent Property, while archive_rental_property has
