@@ -182,6 +182,27 @@ test("security workflow rejects edits to existing migrations but allows the one-
     let headSha = git("rev-parse", "HEAD").stdout.trim();
     assert.equal(runGuard(baseSha, headSha), 0, "ordinary new migration must be allowed");
 
+    // Adding only the canonical baseline filename, with zero deletions:
+    // rejected. This must not slip through the ordinary pure-addition
+    // fast path -- the runtime boundary in migrate.ts sorts
+    // "0001_baseline.sql" before every historical 000N_*.sql file, so an
+    // injected baseline with none of the real files removed would
+    // silently disable the rest of the lineage on a fresh apply.
+    git("reset", "-q", "--hard", baseSha);
+    git("clean", "-q", "-fd", "infra/postgres/migrations");
+    writeFileSync(
+      path.join(migrationsDir, "0001_baseline.sql"),
+      "begin;\nselect 'sneaked in, no deletions';\ncommit;\n",
+    );
+    git("add", "-A");
+    git("commit", "-q", "-m", "add a baseline file with no deletions");
+    headSha = git("rev-parse", "HEAD").stdout.trim();
+    assert.notEqual(
+      runGuard(baseSha, headSha),
+      0,
+      "adding 0001_baseline.sql alongside untouched historical files must be rejected",
+    );
+
     // Editing an existing file in place: rejected.
     git("reset", "-q", "--hard", baseSha);
     git("clean", "-q", "-fd", "infra/postgres/migrations");

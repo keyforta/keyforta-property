@@ -43,8 +43,18 @@ jobs:
           fi
 
           # Ordinary case: every changed line is a pure addition (new
-          # forward-only migration files). Always allowed.
-          if ! awk 'NF && $1 !~ /^A/ { found=1 } END { exit found ? 0 : 1 }' <<< "$changes"; then
+          # forward-only migration files). Always allowed -- except for
+          # the canonical baseline filename itself, which must always go
+          # through the full squash validation below even when it's the
+          # only changed line (a pure "add 0001_baseline.sql" commit with
+          # zero deletions would otherwise slip through this fast path
+          # while every historical file remains in place; the runtime
+          # boundary in apps/api/src/migrate.ts would then silently stop
+          # applying all of them, since 0001_baseline.sql sorts before
+          # every 000N_*.sql file that isn't itself named "baseline").
+          canonical_baseline="infra/postgres/migrations/0001_baseline.sql"
+          if ! grep -qF "	$canonical_baseline" <<< "$changes" \
+            && ! awk 'NF && $1 !~ /^A/ { found=1 } END { exit found ? 0 : 1 }' <<< "$changes"; then
             exit 0
           fi
 
@@ -75,7 +85,6 @@ jobs:
           deleted_count=$(awk '$1 ~ /^D/' <<< "$changes" | grep -c . || true)
           remaining=$(git ls-tree -r --name-only "$HEAD_SHA" -- infra/postgres/migrations)
           remaining_count=$(grep -c . <<< "$remaining" || true)
-          canonical_baseline="infra/postgres/migrations/0001_baseline.sql"
           preexisting_baseline=$(git ls-tree -r --name-only "$BASE_SHA" -- "$canonical_baseline")
           if [[ -z "$modified" ]] \
             && [[ "$added_count" -eq 1 ]] \
