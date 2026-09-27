@@ -42,8 +42,8 @@ var portalAppName = 'ca-keyforta-${environment}-portal'
 var webPublicBaseUrl = 'https://${webCanonicalHostName}'
 var adminDefaultDomainBaseUrl = 'https://${adminAppName}.${appEnvironment.properties.defaultDomain}'
 var portalDefaultDomainBaseUrl = 'https://${portalAppName}.${appEnvironment.properties.defaultDomain}'
-var adminCanonicalBaseUrl = !empty(adminCanonicalHostName) && bindAdminCertificates ? 'https://${adminCanonicalHostName}' : ''
-var portalCanonicalBaseUrl = !empty(portalCanonicalHostName) && bindPortalCertificates ? 'https://${portalCanonicalHostName}' : ''
+var adminCanonicalBaseUrl = !empty(adminCanonicalHostName) ? 'https://${adminCanonicalHostName}' : ''
+var portalCanonicalBaseUrl = !empty(portalCanonicalHostName) ? 'https://${portalCanonicalHostName}' : ''
 // ADR-015 staged CORS cutover: keep each service's existing default-domain
 // origin allowed alongside its new custom-domain origin until the cutover is
 // confirmed stable, then remove the default-domain origin in a follow-up

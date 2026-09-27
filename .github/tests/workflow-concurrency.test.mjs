@@ -602,6 +602,14 @@ test("admin deployment remains secretless and independently authorized", () => {
     /\[webPublicBaseUrl, adminDefaultDomainBaseUrl, adminCanonicalBaseUrl, portalDefaultDomainBaseUrl, portalCanonicalBaseUrl\]/,
   );
   assert.match(template, /value: join\(corsAllowedOrigins, ','\)/);
+  // Regression: the canonical origin must be allowed as soon as the hostname
+  // is configured, independent of certificate binding, so CORS keeps working
+  // during the staged cutover window (bindAdminCertificates=false).
+  assert.match(
+    template,
+    /var adminCanonicalBaseUrl = !empty\(adminCanonicalHostName\) \? 'https:\/\/\$\{adminCanonicalHostName\}' : ''/,
+  );
+  assert.doesNotMatch(template, /var adminCanonicalBaseUrl = !empty\(adminCanonicalHostName\) && bindAdminCertificates/);
   assert.match(template, /output adminFqdn string/);
   assert.match(dockerfile, /USER nginx/);
   assert.match(dockerfile, /ARG VITE_ENTRA_CLIENT_ID/);
@@ -616,10 +624,16 @@ test("portal deployment remains secretless and independently authorized", () => 
   );
   assert.match(template, /resource portal 'Microsoft\.App\/containerApps/);
   assert.match(template, /output portalFqdn string/);
+  assert.match(
+    template,
+    /var portalCanonicalBaseUrl = !empty\(portalCanonicalHostName\) \? 'https:\/\/\$\{portalCanonicalHostName\}' : ''/,
+  );
+  assert.doesNotMatch(template, /var portalCanonicalBaseUrl = !empty\(portalCanonicalHostName\) && bindPortalCertificates/);
   assert.match(dockerfile, /USER nginx/);
   assert.match(dockerfile, /ARG VITE_ENTRA_CLIENT_ID/);
   assert.doesNotMatch(dockerfile, /CLIENT_SECRET|PASSWORD|TOKEN=/i);
 });
+
 
 function workflowScript(name) {
   const workflow = workflows[name];
@@ -1170,6 +1184,13 @@ test("deploy exposes exact component scopes and binds deploys to plan scope", ()
   );
   assert.match(step("Verify deployment intent")?.run ?? "", /expected_scope="\$DEPLOYMENT_SCOPE"/);
   assert.match(step("Verify deployment intent")?.run ?? "", /grep -Fx "scope=\$expected_scope"/);
+  // Regression: admin-web/portal-web plans report hostname_bootstrap=not-applicable
+  // (same as api/postgres), so operation=deploy must accept that combination
+  // instead of rejecting it before Azure deployment ever runs.
+  assert.match(
+    step("Verify deployment intent")?.run ?? "",
+    /admin-web:not-applicable\|portal-web:not-applicable\) ;;/,
+  );
   assert.match(step("Preview database and job changes")?.if ?? "", /inputs\.operation != 'deploy-foundation'/);
   assert.match(step("Preview database and job changes")?.run ?? "", /apiImage="\$API_IMAGE"/);
   assert.match(step("Verify reviewed database and job plans still apply")?.run ?? "", /compare_plan database-access/);

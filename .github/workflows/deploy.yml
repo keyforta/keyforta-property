@@ -124,6 +124,7 @@ jobs:
           case "$expected_scope:$planned_hostname_bootstrap" in
             full:true|full:false|public-web:true|public-web:false) ;;
             foundation:not-applicable|api:not-applicable|postgres:not-applicable) ;;
+            admin-web:not-applicable|portal-web:not-applicable) ;;
             *) echo "Plan evidence has an invalid hostname_bootstrap value for scope '$expected_scope'." >&2; exit 1 ;;
           esac
           echo "EXPECTED_HOSTNAME_BOOTSTRAP=$planned_hostname_bootstrap" >> "$GITHUB_ENV"
