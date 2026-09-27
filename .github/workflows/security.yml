@@ -53,25 +53,36 @@ jobs:
           # holds production tenant data, the entire lineage may be
           # replaced with a single new baseline file in one commit. This
           # is narrowly scoped so it can never permit rewriting or
-          # renaming a single existing file, and can never permit a
-          # partial squash that leaves some historical files behind:
-          # every changed line must be a pure delete or a pure add (no
-          # modifies/renames), exactly one file may be added, it must
-          # match the baseline naming convention, at least two files
-          # must be deleted (a genuine full-lineage consolidation, not a
-          # 1-for-1 replacement), and the migrations directory at HEAD
-          # must contain that one added file and nothing else.
+          # renaming a single existing file, can never permit a partial
+          # squash that leaves some historical files behind, and can
+          # never fire more than once (which would violate ADR-013's
+          # explicit "not a precedent" language): every changed line must
+          # be a pure delete or a pure add (no modifies/renames), exactly
+          # one file may be added and it must be exactly
+          # "infra/postgres/migrations/0001_baseline.sql" -- the literal
+          # name apps/api/src/migrate.ts hardcodes as its runtime
+          # boundary, not any "*_baseline.sql" match a runner would
+          # silently ignore -- at least two files must be deleted (a
+          # genuine full-lineage consolidation, not a 1-for-1
+          # replacement), the migrations directory at HEAD must contain
+          # that one added file and nothing else, and no file by that
+          # exact name may already have existed at BASE_SHA (so this
+          # exception can only ever satisfy the very first squash, never
+          # a later one replacing an already-established baseline).
           modified=$(awk '$1 !~ /^A/ && $1 !~ /^D/' <<< "$changes")
           added=$(awk '$1 ~ /^A/ { print $2 }' <<< "$changes")
           added_count=$(grep -c . <<< "$added" || true)
           deleted_count=$(awk '$1 ~ /^D/' <<< "$changes" | grep -c . || true)
           remaining=$(git ls-tree -r --name-only "$HEAD_SHA" -- infra/postgres/migrations)
           remaining_count=$(grep -c . <<< "$remaining" || true)
+          canonical_baseline="infra/postgres/migrations/0001_baseline.sql"
+          preexisting_baseline=$(git ls-tree -r --name-only "$BASE_SHA" -- "$canonical_baseline")
           if [[ -z "$modified" ]] \
             && [[ "$added_count" -eq 1 ]] \
             && [[ "$deleted_count" -ge 2 ]] \
             && [[ "$remaining_count" -eq 1 ]] \
-            && grep -qE '_baseline\.sql$' <<< "$added"; then
+            && [[ -z "$preexisting_baseline" ]] \
+            && [[ "$added" == "$canonical_baseline" ]]; then
             echo "One-time pre-launch migration consolidation detected (ADR-013 amendment):" >&2
             echo "$changes" >&2
             exit 0
