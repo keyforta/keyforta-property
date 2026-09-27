@@ -192,13 +192,13 @@ test("deploy binds and verifies the canonical public web domains", () => {
   const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
   const steps = document.jobs.deploy.steps;
   const intent = steps.find((step) => step.name === "Verify deployment intent");
-  const hostnameState = steps.find((step) => step.name === "Inspect public-web hostname state");
+  const hostnameState = steps.find((step) => step.name === "Inspect application hostname state");
   const previewBootstrap = steps.find(
-    (step) => step.name === "Preview public-web hostname bootstrap",
+    (step) => step.name === "Preview web hostname bootstrap",
   );
   const preview = steps.find((step) => step.name === "Preview application changes");
   const preconditions = steps.find((step) => step.name === "Verify public-web domain preconditions");
-  const bootstrap = steps.find((step) => step.name === "Bootstrap public-web hostnames");
+  const bootstrap = steps.find((step) => step.name === "Bootstrap web hostnames");
   const deploy = steps.find((step) => step.name === "Deploy applications");
   const firstMutation = steps.find(
     (step) => step.name === "Configure PostgreSQL Entra administrator",
@@ -211,11 +211,11 @@ test("deploy binds and verifies the canonical public web domains", () => {
     assert.match(step?.with?.inlineScript ?? "", /webCanonicalHostName="\$WEB_CANONICAL_HOST"/);
     assert.match(step?.with?.inlineScript ?? "", /webWwwHostName="\$WEB_WWW_HOST"/);
   }
-  assert.match(intent?.run ?? "", /hostname_bootstrap=/);
+  assert.match(intent?.run ?? "", /verify_bootstrap_field hostname_bootstrap public-web/);
   assert.match(intent?.run ?? "", /EXPECTED_HOSTNAME_BOOTSTRAP/);
-  assert.match(hostnameState?.if ?? "", /env\.DEPLOYMENT_SCOPE == 'full'/);
+  assert.match(hostnameState?.if ?? "", /env\.DEPLOYMENT_SCOPE != 'postgres'/);
   assert.match(hostnameState?.run ?? "", /az containerapp hostname list/);
-  assert.match(hostnameState?.run ?? "", /bootstrap_required=true/);
+  assert.match(hostnameState?.run ?? "", /web_bootstrap_required=true/);
   assert.match(hostnameState?.run ?? "", /Planned hostname bootstrap state/);
   assert.match(hostnameState?.run ?? "", /Expected either zero or both public-web hostnames/);
   for (const step of [previewBootstrap, bootstrap]) {
@@ -246,10 +246,68 @@ test("deploy binds and verifies the canonical public web domains", () => {
   assert.match(evidence?.run ?? "", /hostname_bootstrap=/);
 });
 
-test("public-web hostname inspection handles zero, both, partial, and drift states", () => {
+test("deploy binds and verifies the api/admin-web/portal-web canonical subdomains", () => {
+  const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
+  const steps = document.jobs.deploy.steps;
+  const step = (name) => steps.find((candidate) => candidate.name === name);
+
+  assert.equal(document.jobs.deploy.env.API_CANONICAL_HOST, "api.keyforta.com");
+  assert.equal(document.jobs.deploy.env.ADMIN_CANONICAL_HOST, "admin.keyforta.com");
+  assert.equal(document.jobs.deploy.env.PORTAL_CANONICAL_HOST, "portal.keyforta.com");
+
+  for (const [service, ownScope] of [
+    ["api", "api"],
+    ["admin-web", "admin-web"],
+    ["portal-web", "portal-web"],
+  ]) {
+    const label = service === "api" ? "api" : service === "admin-web" ? "admin" : "portal";
+    const previewBootstrap = step(`Preview ${service} hostname bootstrap`);
+    const bootstrap = step(
+      service === "api" ? "Bootstrap api hostname" : `Bootstrap ${service} hostname`,
+    );
+    const verifyPlan = step(`Verify reviewed ${service} hostname bootstrap plan still applies`);
+    assert.ok(previewBootstrap, `missing preview step for ${service}`);
+    assert.ok(bootstrap, `missing bootstrap step for ${service}`);
+    assert.ok(verifyPlan, `missing verify-plan step for ${service}`);
+    assert.match(previewBootstrap.if, new RegExp(`env\\.DEPLOYMENT_SCOPE == '${ownScope}'`));
+    assert.match(previewBootstrap.if, /env\.DEPLOYMENT_SCOPE == 'full'/);
+    assert.match(previewBootstrap.if, new RegExp(`steps\\.hostname-state\\.outputs\\.${label}-bootstrap-required == 'true'`));
+    assert.match(bootstrap.if, new RegExp(`steps\\.hostname-state\\.outputs\\.${label}-bootstrap-required == 'true'`));
+    assert.match(
+      previewBootstrap.with.inlineScript,
+      new RegExp(`bind${label === "api" ? "Api" : label === "admin" ? "Admin" : "Portal"}Certificates=false`),
+    );
+    assert.ok(steps.indexOf(previewBootstrap) < steps.indexOf(step("Deploy applications")));
+    assert.ok(steps.indexOf(bootstrap) < steps.indexOf(step("Deploy applications")));
+  }
+
+  const preconditions = step("Verify subdomain domain preconditions");
+  assert.match(preconditions.if, /env\.DEPLOYMENT_SCOPE == 'api'/);
+  assert.match(preconditions.if, /env\.DEPLOYMENT_SCOPE == 'admin-web'/);
+  assert.match(preconditions.if, /env\.DEPLOYMENT_SCOPE == 'portal-web'/);
+  assert.match(preconditions.run, /dig \+short CNAME "\$canonical_host"/);
+  assert.match(preconditions.run, /asuid\.\$\{canonical_host\}/);
+
+  for (const service of ["Preview application changes", "Deploy applications"]) {
+    const inlineScript = step(service).with.inlineScript;
+    assert.match(inlineScript, /apiCanonicalHostName="\$API_CANONICAL_HOST"/);
+    assert.match(inlineScript, /adminCanonicalHostName="\$ADMIN_CANONICAL_HOST"/);
+    assert.match(inlineScript, /portalCanonicalHostName="\$PORTAL_CANONICAL_HOST"/);
+    assert.match(inlineScript, /bindApiCertificates=true/);
+    assert.match(inlineScript, /bindAdminCertificates=true/);
+    assert.match(inlineScript, /bindPortalCertificates=true/);
+  }
+
+  const evidence = step("Preserve SHA-bound deployment plan evidence");
+  assert.match(evidence.run, /api_hostname_bootstrap=/);
+  assert.match(evidence.run, /admin_hostname_bootstrap=/);
+  assert.match(evidence.run, /portal_hostname_bootstrap=/);
+});
+
+test("application hostname inspection handles zero, both, partial, and drift states", () => {
   const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
   const script = document.jobs.deploy.steps.find(
-    (step) => step.name === "Inspect public-web hostname state",
+    (step) => step.name === "Inspect application hostname state",
   )?.run;
   assert.ok(script);
 
@@ -263,7 +321,11 @@ test("public-web hostname inspection handles zero, both, partial, and drift stat
         env: {
           ...process.env,
           APP_ENVIRONMENT: "test-environment",
+          DEPLOYMENT_SCOPE: "public-web",
           EXPECTED_HOSTNAME_BOOTSTRAP: expected,
+          EXPECTED_API_HOSTNAME_BOOTSTRAP: "not-applicable",
+          EXPECTED_ADMIN_HOSTNAME_BOOTSTRAP: "not-applicable",
+          EXPECTED_PORTAL_HOSTNAME_BOOTSTRAP: "not-applicable",
           GITHUB_OUTPUT: output,
           HOSTNAMES: hostnames,
           OPERATION: operation,
@@ -271,6 +333,9 @@ test("public-web hostname inspection handles zero, both, partial, and drift stat
           RESOURCE_GROUP: "test-resource-group",
           WEB_CANONICAL_HOST: "keyforta.com",
           WEB_WWW_HOST: "www.keyforta.com",
+          API_CANONICAL_HOST: "api.keyforta.com",
+          ADMIN_CANONICAL_HOST: "admin.keyforta.com",
+          PORTAL_CANONICAL_HOST: "portal.keyforta.com",
         },
       });
       return {
@@ -1179,18 +1244,21 @@ test("deploy exposes exact component scopes and binds deploys to plan scope", ()
       steps.indexOf(step("Deploy applications")),
   );
   assert.ok(
-    steps.indexOf(step("Verify reviewed hostname bootstrap plan still applies")) <
-      steps.indexOf(step("Bootstrap public-web hostnames")),
+    steps.indexOf(step("Verify reviewed web hostname bootstrap plan still applies")) <
+      steps.indexOf(step("Bootstrap web hostnames")),
   );
   assert.match(step("Verify deployment intent")?.run ?? "", /expected_scope="\$DEPLOYMENT_SCOPE"/);
   assert.match(step("Verify deployment intent")?.run ?? "", /grep -Fx "scope=\$expected_scope"/);
-  // Regression: admin-web/portal-web plans report hostname_bootstrap=not-applicable
-  // (same as api/postgres), so operation=deploy must accept that combination
-  // instead of rejecting it before Azure deployment ever runs.
+  // Regression: a scope's own hostname-bootstrap field is only ever
+  // true/false when that scope (or full) actually manages the hostname;
+  // every other scope must report not-applicable, and operation=deploy
+  // must accept that combination instead of rejecting it before Azure
+  // deployment ever runs.
   assert.match(
     step("Verify deployment intent")?.run ?? "",
-    /admin-web:not-applicable\|portal-web:not-applicable\) ;;/,
+    /"\$own_scope:true"\|"\$own_scope:false"\|full:true\|full:false\) ;;/,
   );
+  assert.match(step("Verify deployment intent")?.run ?? "", /\*:not-applicable\) ;;/);
   assert.match(step("Preview database and job changes")?.if ?? "", /inputs\.operation != 'deploy-foundation'/);
   assert.match(step("Preview database and job changes")?.run ?? "", /apiImage="\$API_IMAGE"/);
   assert.match(step("Verify reviewed database and job plans still apply")?.run ?? "", /compare_plan database-access/);
@@ -1202,9 +1270,9 @@ test("deploy exposes exact component scopes and binds deploys to plan scope", ()
   assert.doesNotMatch(step("Deploy migration job")?.if ?? "", /DEPLOYMENT_SCOPE == 'api'/);
   assert.match(step("Deploy applications")?.if ?? "", /DEPLOYMENT_SCOPE != 'postgres'/);
   for (const name of [
-    "Preview public-web hostname bootstrap",
+    "Preview web hostname bootstrap",
     "Preview application changes",
-    "Bootstrap public-web hostnames",
+    "Bootstrap web hostnames",
     "Deploy applications",
   ]) {
     const script = step(name)?.with?.inlineScript ?? "";

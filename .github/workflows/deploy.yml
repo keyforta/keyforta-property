@@ -62,6 +62,9 @@ jobs:
       RESOURCE_GROUP: rg-keyforta-dev-san
       WEB_CANONICAL_HOST: keyforta.com
       WEB_WWW_HOST: www.keyforta.com
+      API_CANONICAL_HOST: api.keyforta.com
+      ADMIN_CANONICAL_HOST: admin.keyforta.com
+      PORTAL_CANONICAL_HOST: portal.keyforta.com
     steps:
       - name: Check out immutable revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -120,14 +123,29 @@ jobs:
             expected_scope="$DEPLOYMENT_SCOPE"
           fi
           grep -Fx "scope=$expected_scope" plan-evidence/deployment-plan.txt
-          planned_hostname_bootstrap=$(sed -n 's/^hostname_bootstrap=//p' plan-evidence/deployment-plan.txt)
-          case "$expected_scope:$planned_hostname_bootstrap" in
-            full:true|full:false|public-web:true|public-web:false) ;;
-            foundation:not-applicable|api:not-applicable|postgres:not-applicable) ;;
-            admin-web:not-applicable|portal-web:not-applicable) ;;
-            *) echo "Plan evidence has an invalid hostname_bootstrap value for scope '$expected_scope'." >&2; exit 1 ;;
-          esac
-          echo "EXPECTED_HOSTNAME_BOOTSTRAP=$planned_hostname_bootstrap" >> "$GITHUB_ENV"
+          # Each app has its own hostname-bootstrap field; it is only ever
+          # true/false when the deployment scope actually manages that app's
+          # hostname (its own scope, or full), otherwise it must be
+          # not-applicable (mirrors the original public-web-only check).
+          verify_bootstrap_field() {
+            field="$1"
+            own_scope="$2"
+            value=$(sed -n "s/^${field}=//p" plan-evidence/deployment-plan.txt)
+            case "$expected_scope:$value" in
+              "$own_scope:true"|"$own_scope:false"|full:true|full:false) ;;
+              "$own_scope:"*|full:*)
+                echo "Plan evidence has an invalid $field value for scope '$expected_scope'." >&2
+                exit 1
+                ;;
+              *:not-applicable) ;;
+              *) echo "Plan evidence has an invalid $field value for scope '$expected_scope'." >&2; exit 1 ;;
+            esac
+            echo "$value"
+          }
+          echo "EXPECTED_HOSTNAME_BOOTSTRAP=$(verify_bootstrap_field hostname_bootstrap public-web)" >> "$GITHUB_ENV"
+          echo "EXPECTED_API_HOSTNAME_BOOTSTRAP=$(verify_bootstrap_field api_hostname_bootstrap api)" >> "$GITHUB_ENV"
+          echo "EXPECTED_ADMIN_HOSTNAME_BOOTSTRAP=$(verify_bootstrap_field admin_hostname_bootstrap admin-web)" >> "$GITHUB_ENV"
+          echo "EXPECTED_PORTAL_HOSTNAME_BOOTSTRAP=$(verify_bootstrap_field portal_hostname_bootstrap portal-web)" >> "$GITHUB_ENV"
 
       - name: Sign in to Azure with OIDC
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
@@ -280,40 +298,70 @@ jobs:
             portal-web) load_image portal_image keyforta-portal-web ;;
           esac
 
-      - name: Inspect public-web hostname state
+      - name: Inspect application hostname state
         id: hostname-state
-        if: (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && (inputs.operation == 'deploy' || steps.foundation-state.outputs.exists == 'true')
+        if: env.DEPLOYMENT_SCOPE != 'postgres' && (inputs.operation == 'deploy' || steps.foundation-state.outputs.exists == 'true')
         env:
           OPERATION: ${{ inputs.operation }}
         run: |
-          web_app=$(az containerapp list \
-            --resource-group "$RESOURCE_GROUP" \
-            --query "[?name == 'ca-keyforta-${ENVIRONMENT}-web'].name | [0]" -o tsv)
-          if [ -n "$web_app" ]; then
-            hostnames=$(az containerapp hostname list \
-              --name "$web_app" \
+          app_hostnames() {
+            app_name=$(az containerapp list \
               --resource-group "$RESOURCE_GROUP" \
-              --query '[].name' -o tsv)
-          else
-            hostnames=''
-          fi
+              --query "[?name == 'ca-keyforta-${ENVIRONMENT}-${1}'].name | [0]" -o tsv)
+            if [ -n "$app_name" ]; then
+              az containerapp hostname list \
+                --name "$app_name" \
+                --resource-group "$RESOURCE_GROUP" \
+                --query '[].name' -o tsv
+            fi
+          }
+
+          web_hostnames=$(app_hostnames web)
           canonical_present=false
           www_present=false
-          grep -Fxq "$WEB_CANONICAL_HOST" <<< "$hostnames" && canonical_present=true
-          grep -Fxq "$WEB_WWW_HOST" <<< "$hostnames" && www_present=true
+          grep -Fxq "$WEB_CANONICAL_HOST" <<< "$web_hostnames" && canonical_present=true
+          grep -Fxq "$WEB_WWW_HOST" <<< "$web_hostnames" && www_present=true
           if [ "$canonical_present" = false ] && [ "$www_present" = false ]; then
-            bootstrap_required=true
+            web_bootstrap_required=true
           elif [ "$canonical_present" = true ] && [ "$www_present" = true ]; then
-            bootstrap_required=false
+            web_bootstrap_required=false
           else
             echo "Expected either zero or both public-web hostnames; refusing a partial-state deployment." >&2
             exit 1
           fi
-          if [ "$OPERATION" = "deploy" ] && [ "$bootstrap_required" != "$EXPECTED_HOSTNAME_BOOTSTRAP" ]; then
-            echo "Planned hostname bootstrap state '$EXPECTED_HOSTNAME_BOOTSTRAP' no longer matches live state '$bootstrap_required'; run a new plan." >&2
-            exit 1
-          fi
-          echo "bootstrap-required=$bootstrap_required" >> "$GITHUB_OUTPUT"
+
+          single_host_bootstrap_required() {
+            grep -Fxq "$2" <<< "$(app_hostnames "$1")" && echo false || echo true
+          }
+          api_bootstrap_required=$(single_host_bootstrap_required api "$API_CANONICAL_HOST")
+          admin_bootstrap_required=$(single_host_bootstrap_required admin "$ADMIN_CANONICAL_HOST")
+          portal_bootstrap_required=$(single_host_bootstrap_required portal "$PORTAL_CANONICAL_HOST")
+
+          check_drift() {
+            name="$1"; actual="$2"; expected="$3"
+            if [ "$OPERATION" = "deploy" ] && [ "$actual" != "$expected" ]; then
+              echo "Planned hostname bootstrap state '$expected' no longer matches live state '$actual' for $name; run a new plan." >&2
+              exit 1
+            fi
+          }
+          case "$DEPLOYMENT_SCOPE" in
+            full)
+              check_drift web "$web_bootstrap_required" "$EXPECTED_HOSTNAME_BOOTSTRAP"
+              check_drift api "$api_bootstrap_required" "$EXPECTED_API_HOSTNAME_BOOTSTRAP"
+              check_drift admin-web "$admin_bootstrap_required" "$EXPECTED_ADMIN_HOSTNAME_BOOTSTRAP"
+              check_drift portal-web "$portal_bootstrap_required" "$EXPECTED_PORTAL_HOSTNAME_BOOTSTRAP"
+              ;;
+            public-web) check_drift web "$web_bootstrap_required" "$EXPECTED_HOSTNAME_BOOTSTRAP" ;;
+            api) check_drift api "$api_bootstrap_required" "$EXPECTED_API_HOSTNAME_BOOTSTRAP" ;;
+            admin-web) check_drift admin-web "$admin_bootstrap_required" "$EXPECTED_ADMIN_HOSTNAME_BOOTSTRAP" ;;
+            portal-web) check_drift portal-web "$portal_bootstrap_required" "$EXPECTED_PORTAL_HOSTNAME_BOOTSTRAP" ;;
+          esac
+          {
+            echo "bootstrap-required=$web_bootstrap_required"
+            echo "api-bootstrap-required=$api_bootstrap_required"
+            echo "admin-bootstrap-required=$admin_bootstrap_required"
+            echo "portal-bootstrap-required=$portal_bootstrap_required"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Verify public-web domain preconditions
         if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full')
@@ -377,6 +425,49 @@ jobs:
           for verification_host in "asuid.${WEB_CANONICAL_HOST}" "asuid.${WEB_WWW_HOST}"; do
             test "$(dig +short TXT "$verification_host" | tr -d '\"')" = "$verification_id"
           done
+
+      - name: Verify subdomain domain preconditions
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'api' || env.DEPLOYMENT_SCOPE == 'admin-web' || env.DEPLOYMENT_SCOPE == 'portal-web' || env.DEPLOYMENT_SCOPE == 'full')
+        run: |
+          verification_id=$(az containerapp env show \
+            --name "$APP_ENVIRONMENT" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.customDomainConfiguration.customDomainVerificationId -o tsv)
+          default_domain=$(az containerapp env show \
+            --name "$APP_ENVIRONMENT" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.defaultDomain -o tsv)
+
+          verify_subdomain() {
+            app_suffix="$1"
+            canonical_host="$2"
+            app=$(az containerapp list \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?name == 'ca-keyforta-${ENVIRONMENT}-${app_suffix}'].name | [0]" -o tsv)
+            if [ -n "$app" ]; then
+              fqdn=$(az containerapp show \
+                --name "$app" \
+                --resource-group "$RESOURCE_GROUP" \
+                --query properties.configuration.ingress.fqdn -o tsv)
+              if [ -z "$fqdn" ]; then
+                echo "The existing ${app_suffix} Container App has no ingress FQDN." >&2
+                exit 1
+              fi
+            else
+              fqdn="ca-keyforta-${ENVIRONMENT}-${app_suffix}.${default_domain}"
+            fi
+            test "$(dig +short CNAME "$canonical_host" | sed 's/\.$//')" = "$fqdn"
+            test "$(dig +short TXT "asuid.${canonical_host}" | tr -d '\"')" = "$verification_id"
+          }
+          if [ "$DEPLOYMENT_SCOPE" = "api" ] || [ "$DEPLOYMENT_SCOPE" = "full" ]; then
+            verify_subdomain api "$API_CANONICAL_HOST"
+          fi
+          if [ "$DEPLOYMENT_SCOPE" = "admin-web" ] || [ "$DEPLOYMENT_SCOPE" = "full" ]; then
+            verify_subdomain admin "$ADMIN_CANONICAL_HOST"
+          fi
+          if [ "$DEPLOYMENT_SCOPE" = "portal-web" ] || [ "$DEPLOYMENT_SCOPE" = "full" ]; then
+            verify_subdomain portal "$PORTAL_CANONICAL_HOST"
+          fi
 
       - name: Verify PostgreSQL DBA access configuration
         if: (env.DEPLOYMENT_SCOPE == 'full' || env.DEPLOYMENT_SCOPE == 'postgres') && (inputs.operation == 'deploy' || (inputs.operation == 'plan' && steps.foundation-state.outputs.exists == 'true'))
@@ -758,14 +849,14 @@ jobs:
           compare_plan migration-job
           if [ "$DEPLOYMENT_SCOPE" = "full" ]; then compare_plan seed-job; fi
 
-      - name: Preview public-web hostname bootstrap
+      - name: Preview web hostname bootstrap
         if: (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
           inlineScript: |
-            output_file=hostname-bootstrap-what-if.json
+            output_file=hostname-bootstrap-web-what-if.json
             if [ "${{ inputs.operation }}" = "deploy" ]; then
-              output_file=current-hostname-bootstrap-what-if.json
+              output_file=current-hostname-bootstrap-web-what-if.json
             fi
             az deployment group what-if \
               --resource-group "$RESOURCE_GROUP" \
@@ -792,7 +883,145 @@ jobs:
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
                 webWwwHostName="$WEB_WWW_HOST" \
+                apiCanonicalHostName="$API_CANONICAL_HOST" \
+                adminCanonicalHostName="$ADMIN_CANONICAL_HOST" \
+                portalCanonicalHostName="$PORTAL_CANONICAL_HOST" \
                 bindWebCertificates=false \
+                bindApiCertificates=true \
+                bindAdminCertificates=true \
+                bindPortalCertificates=true \
+              --no-pretty-print --result-format FullResourcePayloads --output json \
+              > "$output_file"
+
+      - name: Preview api hostname bootstrap
+        if: (env.DEPLOYMENT_SCOPE == 'api' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.api-bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            output_file=hostname-bootstrap-api-what-if.json
+            if [ "${{ inputs.operation }}" = "deploy" ]; then
+              output_file=current-hostname-bootstrap-api-what-if.json
+            fi
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-api-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$API_IMAGE" \
+                webImage="$WEB_IMAGE" \
+                adminImage="$ADMIN_IMAGE" \
+                portalImage="$PORTAL_IMAGE" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                authorizationModuleEnabled="$AUTHORIZATION_MODULE_ENABLED" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                apiCanonicalHostName="$API_CANONICAL_HOST" \
+                adminCanonicalHostName="$ADMIN_CANONICAL_HOST" \
+                portalCanonicalHostName="$PORTAL_CANONICAL_HOST" \
+                bindWebCertificates=true \
+                bindApiCertificates=false \
+                bindAdminCertificates=true \
+                bindPortalCertificates=true \
+              --no-pretty-print --result-format FullResourcePayloads --output json \
+              > "$output_file"
+
+      - name: Preview admin-web hostname bootstrap
+        if: (env.DEPLOYMENT_SCOPE == 'admin-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.admin-bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            output_file=hostname-bootstrap-admin-what-if.json
+            if [ "${{ inputs.operation }}" = "deploy" ]; then
+              output_file=current-hostname-bootstrap-admin-what-if.json
+            fi
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-admin-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$API_IMAGE" \
+                webImage="$WEB_IMAGE" \
+                adminImage="$ADMIN_IMAGE" \
+                portalImage="$PORTAL_IMAGE" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                authorizationModuleEnabled="$AUTHORIZATION_MODULE_ENABLED" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                apiCanonicalHostName="$API_CANONICAL_HOST" \
+                adminCanonicalHostName="$ADMIN_CANONICAL_HOST" \
+                portalCanonicalHostName="$PORTAL_CANONICAL_HOST" \
+                bindWebCertificates=true \
+                bindApiCertificates=true \
+                bindAdminCertificates=false \
+                bindPortalCertificates=true \
+              --no-pretty-print --result-format FullResourcePayloads --output json \
+              > "$output_file"
+
+      - name: Preview portal-web hostname bootstrap
+        if: (env.DEPLOYMENT_SCOPE == 'portal-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.portal-bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            output_file=hostname-bootstrap-portal-what-if.json
+            if [ "${{ inputs.operation }}" = "deploy" ]; then
+              output_file=current-hostname-bootstrap-portal-what-if.json
+            fi
+            az deployment group what-if \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-portal-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$API_IMAGE" \
+                webImage="$WEB_IMAGE" \
+                adminImage="$ADMIN_IMAGE" \
+                portalImage="$PORTAL_IMAGE" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                authorizationModuleEnabled="$AUTHORIZATION_MODULE_ENABLED" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                apiCanonicalHostName="$API_CANONICAL_HOST" \
+                adminCanonicalHostName="$ADMIN_CANONICAL_HOST" \
+                portalCanonicalHostName="$PORTAL_CANONICAL_HOST" \
+                bindWebCertificates=true \
+                bindApiCertificates=true \
+                bindAdminCertificates=true \
+                bindPortalCertificates=false \
               --no-pretty-print --result-format FullResourcePayloads --output json \
               > "$output_file"
 
@@ -833,7 +1062,13 @@ jobs:
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
                 webWwwHostName="$WEB_WWW_HOST" \
+                apiCanonicalHostName="$API_CANONICAL_HOST" \
+                adminCanonicalHostName="$ADMIN_CANONICAL_HOST" \
+                portalCanonicalHostName="$PORTAL_CANONICAL_HOST" \
                 bindWebCertificates=true \
+                bindApiCertificates=true \
+                bindAdminCertificates=true \
+                bindPortalCertificates=true \
               > "$output_file"
 
       - name: Verify reviewed application plan still applies
@@ -860,13 +1095,43 @@ jobs:
             exit 1
           fi
 
-      - name: Verify reviewed hostname bootstrap plan still applies
+      - name: Verify reviewed web hostname bootstrap plan still applies
         if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
         run: |
-          jq -S '.changes | sort_by(.resourceId)' plan-evidence/hostname-bootstrap-what-if.json > reviewed-hostname-bootstrap-what-if.json
-          jq -S '.changes | sort_by(.resourceId)' current-hostname-bootstrap-what-if.json > current-normalized-hostname-bootstrap-what-if.json
-          if ! diff -u reviewed-hostname-bootstrap-what-if.json current-normalized-hostname-bootstrap-what-if.json; then
-            echo "Hostname bootstrap resources drifted from the reviewed plan; run a new plan." >&2
+          jq -S '.changes | sort_by(.resourceId)' plan-evidence/hostname-bootstrap-web-what-if.json > reviewed-hostname-bootstrap-web-what-if.json
+          jq -S '.changes | sort_by(.resourceId)' current-hostname-bootstrap-web-what-if.json > current-normalized-hostname-bootstrap-web-what-if.json
+          if ! diff -u reviewed-hostname-bootstrap-web-what-if.json current-normalized-hostname-bootstrap-web-what-if.json; then
+            echo "Web hostname bootstrap resources drifted from the reviewed plan; run a new plan." >&2
+            exit 1
+          fi
+
+      - name: Verify reviewed api hostname bootstrap plan still applies
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'api' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.api-bootstrap-required == 'true'
+        run: |
+          jq -S '.changes | sort_by(.resourceId)' plan-evidence/hostname-bootstrap-api-what-if.json > reviewed-hostname-bootstrap-api-what-if.json
+          jq -S '.changes | sort_by(.resourceId)' current-hostname-bootstrap-api-what-if.json > current-normalized-hostname-bootstrap-api-what-if.json
+          if ! diff -u reviewed-hostname-bootstrap-api-what-if.json current-normalized-hostname-bootstrap-api-what-if.json; then
+            echo "API hostname bootstrap resources drifted from the reviewed plan; run a new plan." >&2
+            exit 1
+          fi
+
+      - name: Verify reviewed admin-web hostname bootstrap plan still applies
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'admin-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.admin-bootstrap-required == 'true'
+        run: |
+          jq -S '.changes | sort_by(.resourceId)' plan-evidence/hostname-bootstrap-admin-what-if.json > reviewed-hostname-bootstrap-admin-what-if.json
+          jq -S '.changes | sort_by(.resourceId)' current-hostname-bootstrap-admin-what-if.json > current-normalized-hostname-bootstrap-admin-what-if.json
+          if ! diff -u reviewed-hostname-bootstrap-admin-what-if.json current-normalized-hostname-bootstrap-admin-what-if.json; then
+            echo "Admin-web hostname bootstrap resources drifted from the reviewed plan; run a new plan." >&2
+            exit 1
+          fi
+
+      - name: Verify reviewed portal-web hostname bootstrap plan still applies
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'portal-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.portal-bootstrap-required == 'true'
+        run: |
+          jq -S '.changes | sort_by(.resourceId)' plan-evidence/hostname-bootstrap-portal-what-if.json > reviewed-hostname-bootstrap-portal-what-if.json
+          jq -S '.changes | sort_by(.resourceId)' current-hostname-bootstrap-portal-what-if.json > current-normalized-hostname-bootstrap-portal-what-if.json
+          if ! diff -u reviewed-hostname-bootstrap-portal-what-if.json current-normalized-hostname-bootstrap-portal-what-if.json; then
+            echo "Portal-web hostname bootstrap resources drifted from the reviewed plan; run a new plan." >&2
             exit 1
           fi
 
@@ -944,7 +1209,7 @@ jobs:
                 postgresServerName="$POSTGRES_SERVER" \
                 apiImage="$API_IMAGE"
 
-      - name: Bootstrap public-web hostnames
+      - name: Bootstrap web hostnames
         if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         with:
@@ -974,7 +1239,127 @@ jobs:
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
                 webWwwHostName="$WEB_WWW_HOST" \
-                bindWebCertificates=false
+                apiCanonicalHostName="$API_CANONICAL_HOST" \
+                adminCanonicalHostName="$ADMIN_CANONICAL_HOST" \
+                portalCanonicalHostName="$PORTAL_CANONICAL_HOST" \
+                bindWebCertificates=false \
+                bindApiCertificates=true \
+                bindAdminCertificates=true \
+                bindPortalCertificates=true
+
+      - name: Bootstrap api hostname
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'api' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.api-bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-api-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$API_IMAGE" \
+                webImage="$WEB_IMAGE" \
+                adminImage="$ADMIN_IMAGE" \
+                portalImage="$PORTAL_IMAGE" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                authorizationModuleEnabled="$AUTHORIZATION_MODULE_ENABLED" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                apiCanonicalHostName="$API_CANONICAL_HOST" \
+                adminCanonicalHostName="$ADMIN_CANONICAL_HOST" \
+                portalCanonicalHostName="$PORTAL_CANONICAL_HOST" \
+                bindWebCertificates=true \
+                bindApiCertificates=false \
+                bindAdminCertificates=true \
+                bindPortalCertificates=true
+
+      - name: Bootstrap admin-web hostname
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'admin-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.admin-bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-admin-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$API_IMAGE" \
+                webImage="$WEB_IMAGE" \
+                adminImage="$ADMIN_IMAGE" \
+                portalImage="$PORTAL_IMAGE" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                authorizationModuleEnabled="$AUTHORIZATION_MODULE_ENABLED" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                apiCanonicalHostName="$API_CANONICAL_HOST" \
+                adminCanonicalHostName="$ADMIN_CANONICAL_HOST" \
+                portalCanonicalHostName="$PORTAL_CANONICAL_HOST" \
+                bindWebCertificates=true \
+                bindApiCertificates=true \
+                bindAdminCertificates=false \
+                bindPortalCertificates=true
+
+      - name: Bootstrap portal-web hostname
+        if: inputs.operation == 'deploy' && (env.DEPLOYMENT_SCOPE == 'portal-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.portal-bootstrap-required == 'true'
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "keyforta-${ENVIRONMENT}-apps-portal-hostname-bootstrap" \
+              --template-file infra/bicep/apps.bicep \
+              --parameters environment="$ENVIRONMENT" \
+                deploymentScope="$DEPLOYMENT_SCOPE" \
+                containerAppsEnvironmentName="$APP_ENVIRONMENT" \
+                registryName="$REGISTRY_NAME" \
+                apiIdentityName="$API_IDENTITY" \
+                webIdentityName="$WEB_IDENTITY" \
+                postgresServerName="$POSTGRES_SERVER" \
+                apiImage="$API_IMAGE" \
+                webImage="$WEB_IMAGE" \
+                adminImage="$ADMIN_IMAGE" \
+                portalImage="$PORTAL_IMAGE" \
+                databaseUserName="$API_IDENTITY" \
+                entraAudience="${{ vars.ENTRA_AUDIENCE }}" \
+                entraIssuer="${{ vars.ENTRA_ISSUER }}" \
+                entraJwksUri="${{ vars.ENTRA_JWKS_URI }}" \
+                platformAdminObjectIds="$PLATFORM_ADMIN_OBJECT_IDS" \
+                authorizationModuleEnabled="$AUTHORIZATION_MODULE_ENABLED" \
+                documentStorageAccountName="$DOCUMENT_STORAGE_ACCOUNT" \
+                tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
+                webCanonicalHostName="$WEB_CANONICAL_HOST" \
+                webWwwHostName="$WEB_WWW_HOST" \
+                apiCanonicalHostName="$API_CANONICAL_HOST" \
+                adminCanonicalHostName="$ADMIN_CANONICAL_HOST" \
+                portalCanonicalHostName="$PORTAL_CANONICAL_HOST" \
+                bindWebCertificates=true \
+                bindApiCertificates=true \
+                bindAdminCertificates=true \
+                bindPortalCertificates=false
 
       - name: Deploy applications
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'
@@ -1006,7 +1391,13 @@ jobs:
                 tenantApplicationContainerName="$TENANT_APPLICATION_CONTAINER" \
                 webCanonicalHostName="$WEB_CANONICAL_HOST" \
                 webWwwHostName="$WEB_WWW_HOST" \
-                bindWebCertificates=true
+                apiCanonicalHostName="$API_CANONICAL_HOST" \
+                adminCanonicalHostName="$ADMIN_CANONICAL_HOST" \
+                portalCanonicalHostName="$PORTAL_CANONICAL_HOST" \
+                bindWebCertificates=true \
+                bindApiCertificates=true \
+                bindAdminCertificates=true \
+                bindPortalCertificates=true
 
       - name: Smoke test public applications
         if: inputs.operation == 'deploy' && env.DEPLOYMENT_SCOPE != 'postgres'
@@ -1114,7 +1505,16 @@ jobs:
             else
               echo "- Result: ${PLAN_SCOPE} what-if completed"
               if [ "$PLAN_SCOPE" = "public-web" ] || [ "$PLAN_SCOPE" = "full" ]; then
-                echo "- Hostname bootstrap required: ${{ steps.hostname-state.outputs.bootstrap-required }}"
+                echo "- Web hostname bootstrap required: ${{ steps.hostname-state.outputs.bootstrap-required }}"
+              fi
+              if [ "$PLAN_SCOPE" = "api" ] || [ "$PLAN_SCOPE" = "full" ]; then
+                echo "- API hostname bootstrap required: ${{ steps.hostname-state.outputs.api-bootstrap-required }}"
+              fi
+              if [ "$PLAN_SCOPE" = "admin-web" ] || [ "$PLAN_SCOPE" = "full" ]; then
+                echo "- Admin-web hostname bootstrap required: ${{ steps.hostname-state.outputs.admin-bootstrap-required }}"
+              fi
+              if [ "$PLAN_SCOPE" = "portal-web" ] || [ "$PLAN_SCOPE" = "full" ]; then
+                echo "- Portal-web hostname bootstrap required: ${{ steps.hostname-state.outputs.portal-bootstrap-required }}"
               fi
               echo "- Next: review this run, then dispatch operation=deploy for the same SHA and plan run ID"
             fi
@@ -1133,19 +1533,29 @@ jobs:
       - name: Preserve SHA-bound deployment plan evidence
         if: inputs.operation == 'plan'
         run: |
-          case "$PLAN_SCOPE" in
-            full|public-web)
-              hostname_bootstrap='${{ steps.hostname-state.outputs.bootstrap-required }}'
-              case "$hostname_bootstrap" in true|false) ;; *) exit 1 ;; esac
-              ;;
-            *) hostname_bootstrap=not-applicable ;;
-          esac
+          bootstrap_field() {
+            own_scope="$1"
+            output_value="$2"
+            case "$PLAN_SCOPE" in
+              full|"$own_scope")
+                case "$output_value" in true|false) echo "$output_value" ;; *) exit 1 ;; esac
+                ;;
+              *) echo not-applicable ;;
+            esac
+          }
+          hostname_bootstrap=$(bootstrap_field public-web '${{ steps.hostname-state.outputs.bootstrap-required }}')
+          api_hostname_bootstrap=$(bootstrap_field api '${{ steps.hostname-state.outputs.api-bootstrap-required }}')
+          admin_hostname_bootstrap=$(bootstrap_field admin-web '${{ steps.hostname-state.outputs.admin-bootstrap-required }}')
+          portal_hostname_bootstrap=$(bootstrap_field portal-web '${{ steps.hostname-state.outputs.portal-bootstrap-required }}')
           {
             echo "commit_sha=$DEPLOYMENT_SHA"
             echo "operation=plan"
             echo "run_id=$GITHUB_RUN_ID"
             echo "scope=$PLAN_SCOPE"
             echo "hostname_bootstrap=$hostname_bootstrap"
+            echo "api_hostname_bootstrap=$api_hostname_bootstrap"
+            echo "admin_hostname_bootstrap=$admin_hostname_bootstrap"
+            echo "portal_hostname_bootstrap=$portal_hostname_bootstrap"
             echo "api_image=${API_IMAGE:-not-applicable}"
             echo "web_image=${WEB_IMAGE:-not-applicable}"
             echo "admin_image=${ADMIN_IMAGE:-not-applicable}"
