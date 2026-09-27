@@ -87,11 +87,11 @@ managed certificates secure `keyforta.com` and `www.keyforta.com`; the `www`
 host redirects permanently to the canonical apex host. Cloudflare remains the
 authoritative DNS provider, but these traffic records must remain DNS-only so
 Azure can issue and renew the certificates.
-The deployment workflow builds the API, public-web, and admin-web Dockerfiles
-under `deployments/azure/docker/` only during `operation=plan`. It publishes
-BuildKit SBOM/provenance, blocks on High/Critical image findings, resolves ACR
-digests, locks each SHA-tagged manifest against later writes, and stores those
-references with normalized `what-if` evidence. The
+The deployment workflow builds the API, public-web, admin-web, and portal-web
+Dockerfiles under `deployments/azure/docker/` only during `operation=plan`. It
+publishes BuildKit SBOM/provenance, blocks on High/Critical image findings,
+resolves ACR digests, locks each SHA-tagged manifest against later writes, and
+stores those references with normalized `what-if` evidence. The
 deploy operation imports the reviewed digests, rebuilds nothing, rejects drift,
 and passes only digest-addressed images to Bicep. The empty
 `deployments/azure/workflows/` directory
@@ -108,11 +108,21 @@ The deployment workflow uses a SHA-bound, scope-bound plan:
 | `api`        | API image and Container App only |
 | `public-web` | Public-web image and Container App only |
 | `admin-web`  | Admin-web image and Container App only |
-| `full`       | PostgreSQL, API, public web, admin web, and dormant development seed-job definition |
+| `portal-web` | Portal-web image and Container App only |
+| `full`       | PostgreSQL, API, public web, admin web, portal web, and dormant development seed-job definition |
 
-The `portal-web` and `mcp` names are reserved in the workflow but
-fail before Azure sign-in because those applications do not yet have approved
-container images and Azure resource definitions. A `postgres` deployment uses
+`portal-web` deploys to its default Azure Container Apps domain today; it does
+not yet bind `portal.keyforta.com`. `admin-web` and `api` likewise remain on
+their default domains. `infra/bicep/apps.bicep` already defines the dormant
+`apiCanonicalHostName`/`adminCanonicalHostName`/`portalCanonicalHostName` and
+`bindApiCertificates`/`bindAdminCertificates`/`bindPortalCertificates`
+parameters for ADR-015 (each defaults to disabled/empty, so this does not
+change current behavior); wiring those into `deploy.yml` inputs and driving
+the staged cutover below is a follow-up change, gated on the Cloudflare DNS
+records existing first. The `mcp` name is reserved in this workflow and fails
+before Azure sign-in — it is deployed independently through
+`.github/workflows/deploy-mcp.yml` per ADR-012 and is out of scope here. A
+`postgres` deployment uses
 the API image as its checksummed migration runner but does not deploy the API
 Container App. PostgreSQL server provisioning remains part of the foundation;
 the component scope does not create another server.
@@ -198,6 +208,70 @@ Cut over in this order:
 Rollback restores the preserved Cloudflare records. Remove certificate and
 hostname bindings only through another reviewed Bicep plan; do not make
 unrecorded Azure portal changes.
+
+## Per-service custom domain cutover (ADR-015)
+
+`api.keyforta.com`, `admin.keyforta.com`, and `portal.keyforta.com` each need
+one Cloudflare DNS-only CNAME record plus one `asuid.<subdomain>` TXT
+validation record, following the same single-hostname CNAME pattern already
+used for `mcp.keyforta.com` (see `docs/operations/MCP_DEV_RUNBOOK.md`) rather
+than the apex+`www` pattern above. `mcp.keyforta.com` is already deployed and
+is not part of this cutover; do not change its records here.
+
+For each of `api`, `admin`, and `portal`, capture the live validation ID and
+Container App FQDN immediately before adding records — do not reuse a prior
+snapshot:
+
+```bash
+az containerapp env show --name "$APP_ENVIRONMENT" --resource-group "$RESOURCE_GROUP" \
+  --query 'properties.customDomainConfiguration.customDomainVerificationId' -o tsv
+az containerapp show --name "ca-keyforta-${ENVIRONMENT}-<service>" --resource-group "$RESOURCE_GROUP" \
+  --query properties.configuration.ingress.fqdn -o tsv
+```
+
+Add, per hostname (`<service>` is `api`, `admin`, or `portal`):
+
+| Type  | Name             | Value                                         | Proxy    |
+| ----- | ---------------- | ---------------------------------------------- | -------- |
+| TXT   | `asuid.<service>` | the `customDomainVerificationId` captured above | DNS only |
+| CNAME | `<service>`       | the `ca-keyforta-<env>-<service>` ingress FQDN captured above | DNS only |
+
+Keep every record DNS-only (unproxied) — Azure managed certificate issuance
+and renewal require CNAME validation to resolve directly to the Container App,
+the same requirement as the existing `www` record.
+
+Cut over in this order, matching ADR-015's staged rollout so the API keeps
+accepting the existing origins while each new hostname comes up. **Steps 2 and
+4 require a follow-up workflow change first**: this PR adds the
+`apiCanonicalHostName`/`adminCanonicalHostName`/`portalCanonicalHostName` and
+`bind*Certificates` Bicep parameters but deliberately does not yet wire them
+into `deploy.yml`'s `workflow_dispatch` inputs or its `az deployment group`
+invocations — see "Explicitly deferred to a follow-up PR" in the PR that
+introduced portal-web as a deployable scope. Do not attempt steps 2 or 4
+until that follow-up merges.
+
+1. Add the three TXT validation records without changing traffic.
+2. Once `deploy.yml` accepts the hostname/bind inputs, merge and deploy the
+   reviewed `api` scope with `bindApiCertificates=false` so
+   `CORS_ALLOWED_ORIGIN` is updated to include the new admin/portal origins
+   alongside the existing ones (no origin is removed yet).
+3. Add the three CNAME records.
+4. Confirm public DNS for all three hostnames, then (once `deploy.yml`
+   accepts the inputs) deploy the reviewed `api`, `admin`, and `portal` plans
+   with their `bind*Certificates` flags enabled to issue and bind each
+   managed certificate.
+5. Verify each hostname serves traffic and that the API accepts requests from
+   the new admin/portal origins.
+6. Once the new hostnames are confirmed stable, deploy a follow-up `api`
+   scope that removes the old origins from `CORS_ALLOWED_ORIGIN`, per ADR-015.
+7. Register `https://admin.keyforta.com/auth/callback` and
+   `https://portal.keyforta.com/auth/callback` as Entra SPA redirect URIs.
+   This is a manual Entra/Graph step outside this repository — it is not
+   automated by Bicep or `deploy.yml`.
+
+Rollback restores the preserved Cloudflare records for each hostname and
+removes the corresponding certificate/hostname binding only through another
+reviewed Bicep plan.
 
 No click-created production resource is considered complete without its
 equivalent reviewed infrastructure code and recovery documentation.
@@ -420,6 +494,7 @@ flowchart TB
     API["API Container App: external ingress, scale to zero"]
     Public["Public web Container App: external ingress, scale to zero"]
     Admin["Admin Container App: external ingress, scale to zero"]
+    Portal["Portal Container App: external ingress, scale to zero"]
     MCP["MCP Container App: approved and inactive, multiple revisions"]
     Migration["Migration Container Apps job: forward-only runner"]
     PG[("PostgreSQL 16 B1ms: public network, Azure-services firewall, no HA, no geo backup")]
@@ -428,23 +503,25 @@ flowchart TB
     Certs["Managed certificates: apex HTTP and www CNAME"]
     McpCert["MCP managed certificate: optional CNAME binding"]
     ApiId["API managed identity: ACR pull, Blob contributor, PostgreSQL runtime"]
-    WebId["Shared web identity: ACR pull for public and admin"]
+    WebId["Shared web identity: ACR pull for public, admin, and portal"]
     MigrationId["Migration identity: ACR pull and PostgreSQL administrator"]
     McpId["MCP identity: approved and inactive, ACR pull only"]
   end
 
-  Deferred["Deferred or absent: portal app, worker app, private endpoints, VNet integration, HA, geo backup"]
+  Deferred["Deferred or absent: api.keyforta.com/admin.keyforta.com/portal.keyforta.com custom domain binding, worker app, private endpoints, VNet integration, HA, geo backup"]
 
   Actor -->|"plan pushes SHA tags and deploys reviewed digests"| ACR
   Actor -->|"reviewed Bicep mutations"| CAE
   ACR --> API
   ACR --> Public
   ACR --> Admin
+  ACR --> Portal
   ACR -.-> MCP
   ACR --> Migration
   CAE --> API
   CAE --> Public
   CAE --> Admin
+  CAE --> Portal
   CAE -.-> MCP
   CAE --> Migration
   CAE -->|"platform and application logs"| LA
@@ -455,6 +532,7 @@ flowchart TB
   ApiId --> API
   WebId --> Public
   WebId --> Admin
+  WebId --> Portal
   MigrationId --> Migration
   McpId -.-> MCP
   DNS --> Public
@@ -466,7 +544,7 @@ flowchart TB
   classDef capable fill:#e8f5e9,stroke:#2e7d32,color:#102a13
   classDef inactive fill:#fff8e1,stroke:#b26a00,color:#3d2900,stroke-dasharray:6 4
   classDef deferred fill:#f3f4f6,stroke:#6b7280,color:#374151,stroke-dasharray:2 4
-  class ACR,LA,CAE,API,Public,Admin,Migration,PG,Blob,Defender,Certs,ApiId,WebId,MigrationId capable
+  class ACR,LA,CAE,API,Public,Admin,Portal,Migration,PG,Blob,Defender,Certs,ApiId,WebId,MigrationId capable
   class MCP,McpDNS,McpCert,McpId inactive
   class Deferred deferred
 ```

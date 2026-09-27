@@ -174,11 +174,17 @@ or tenant data in the record.
      not configure PostgreSQL access or run migrations.
    - `public-web` previews and deploys only the public-web image and Container App.
    - `admin-web` previews and deploys only the admin SPA image and Container App.
-   - `full` composes `postgres`, `api`, `public-web`, and `admin-web`, and reconciles the
-     dormant development seed-job definition without executing it.
-   - `portal-web` remains a reserved name that fails closed. MCP is intentionally
-     excluded from this workflow and uses the separately approved `Deploy MCP`
-     plan, evidence, approval, deploy, traffic-switch, and smoke-test path.
+   - `portal-web` previews and deploys only the portal SPA image and Container
+     App, on its default Azure domain (`portal.keyforta.com` is not yet
+     bound; see ADR-015 and `infra/README.md`'s per-service custom domain
+     cutover section). Requires `PORTAL_ENTRA_CLIENT_ID` (a separate Entra SPA
+     app registration) to already be configured as a repository variable.
+   - `full` composes `postgres`, `api`, `public-web`, `admin-web`, and
+     `portal-web`, and reconciles the dormant development seed-job definition
+     without executing it.
+   - MCP is intentionally excluded from this workflow and uses the separately
+     approved `Deploy MCP` plan, evidence, approval, deploy, traffic-switch,
+     and smoke-test path.
 3. On a fresh resource group, review the `foundation`-scoped plan and dispatch
    `operation=deploy-foundation` with its run ID. Then dispatch `operation=plan`
    again for the same SHA; do not deploy jobs or applications from a

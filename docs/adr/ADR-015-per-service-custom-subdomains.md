@@ -1,6 +1,11 @@
 # ADR-015: Per-service custom subdomains and portal-web deployment
 
-**Status:** Proposed — requires acceptance before implementation
+**Status:** Accepted on 2026-09-27
+**Owner:** @cmbuyamba (product owner)
+**Scope of this acceptance:** `api.keyforta.com`, `admin.keyforta.com`, and
+`portal.keyforta.com` only. `mcp.keyforta.com` is explicitly deferred to a
+later, separate rollout using its own existing `deploy-mcp.yml` workflow (see
+Context) and is not authorized by this acceptance.
 
 ## Context
 
@@ -39,15 +44,11 @@ decision record rather than silent implementation:
    "New deployable services require an accepted ADR showing a measurable
    need." `portal-web` has source, tests, and a Vite build in
    `apps/portal-web`, but no build/runtime image and no production resource.
-   **Measurable need (must be filled in before acceptance):** the product
-   owner has requested landlord/tenant portal access at
-   `portal.keyforta.com` as a distinct surface from `keyforta.com` (public
-   marketing/discovery) and `admin.keyforta.com` (internal operations). The
-   specific baseline this ADR needs before it can move to Accepted: which
-   user-facing capability in `apps/portal-web` is blocked on deployment
-   today (e.g. a named workflow currently unreachable in any environment),
-   and the accepting owner who confirms that need. Until those two are
-   recorded here, this ADR stays Proposed.
+   **Measurable need:** the product owner has directed that
+   `portal.keyforta.com` be deployed now, as a distinct landlord/tenant
+   surface from `keyforta.com` (public marketing/discovery) and
+   `admin.keyforta.com` (internal operations) — confirmed and accepted by
+   @cmbuyamba on 2026-09-27.
 2. **Exposing `api` and `admin-web` on the public internet under predictable
    hostnames.** Today `admin-web`'s Azure-generated hostname is not linked
    from anywhere public, which is a (weak) form of obscurity. Moving it to
@@ -57,7 +58,7 @@ decision record rather than silent implementation:
    authorization, not by hostname secrecy — but it is called out explicitly
    so the trade is a recorded decision, not an oversight.
 
-## Decision (proposed)
+## Decision
 
 - `https://keyforta.com` remains the canonical public origin (unchanged from
   ADR-014).
@@ -176,9 +177,10 @@ decision record rather than silent implementation:
   Cloudflare record (or remove it, for portal-web) and remove the Azure
   hostname binding through a reviewed forward infrastructure change.
 
-## Required before implementation
+## Acceptance
 
-This ADR must move from **Proposed** to **Accepted** (with an owner and
-date) before any Bicep, Dockerfile, or `deploy.yml` change described above is
-merged, per this repository's rule that production infrastructure/deployment
-and new deployable services stop for human approval first.
+Accepted by @cmbuyamba on 2026-09-27 for `api.keyforta.com`,
+`admin.keyforta.com`, and `portal.keyforta.com`. `mcp.keyforta.com` remains
+deferred (see Context) and is not authorized by this acceptance — it will be
+requested separately when ready, using its own existing `deploy-mcp.yml`
+workflow.
