@@ -175,9 +175,10 @@ or tenant data in the record.
    - `public-web` previews and deploys only the public-web image and Container App.
    - `admin-web` previews and deploys only the admin SPA image and Container App.
    - `portal-web` previews and deploys only the portal SPA image and Container
-     App, on its default Azure domain (`portal.keyforta.com` is not yet
-     bound; see ADR-015 and `infra/README.md`'s per-service custom domain
-     cutover section). Requires `PORTAL_ENTRA_CLIENT_ID` (a separate Entra SPA
+     App. `deploy.yml` bootstraps and drift-checks `portal.keyforta.com`'s
+     managed certificate the same way it does for the public-web domains; see
+     ADR-015 and `infra/README.md`'s per-service custom domain cutover
+     section. Requires `PORTAL_ENTRA_CLIENT_ID` (a separate Entra SPA
      app registration) to already be configured as a repository variable.
    - `full` composes `postgres`, `api`, `public-web`, `admin-web`, and
      `portal-web`, and reconciles the dormant development seed-job definition

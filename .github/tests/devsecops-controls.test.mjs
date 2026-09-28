@@ -417,13 +417,13 @@ test("application delivery deploys only reviewed digest-addressed images", () =>
     assert.match(scripts, new RegExp(`${component}_IMAGE=\\$REGISTRY_SERVER/${repository}@\\$${digest}`));
   }
   assert.match(scripts, /application-what-if\.json/);
-  assert.match(scripts, /hostname-bootstrap-what-if\.json/);
+  assert.match(scripts, /hostname-bootstrap-web-what-if\.json/);
   assert.match(drift?.run ?? "", /diff -u/);
   assert.ok(steps.indexOf(drift) < steps.indexOf(deploy));
   for (const mutation of [
     "Configure PostgreSQL Entra administrator",
     "Deploy migration job",
-    "Bootstrap public-web hostnames",
+    "Bootstrap web hostnames",
   ]) {
     assert.ok(steps.indexOf(drift) < steps.indexOf(step(mutation)));
   }
