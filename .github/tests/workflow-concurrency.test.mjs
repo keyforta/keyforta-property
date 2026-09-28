@@ -304,6 +304,107 @@ test("deploy binds and verifies the api/admin-web/portal-web canonical subdomain
   assert.match(evidence.run, /portal_hostname_bootstrap=/);
 });
 
+function runSubdomainPreconditions({ appExists = true, fqdn = "", cname = "", txt = "" } = {}) {
+  const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
+  const script = document.jobs.deploy.steps.find(
+    (step) => step.name === "Verify subdomain domain preconditions",
+  )?.run;
+  assert.ok(script);
+
+  const directory = mkdtempSync(join(tmpdir(), "keyforta-subdomain-precondition-"));
+  try {
+    executable(
+      directory,
+      "az",
+      `#!/usr/bin/env bash
+case "$*" in
+  *customDomainVerificationId*) echo verification-id ;;
+  *properties.defaultDomain*) echo environment.example.test ;;
+  *"containerapp list"*) ${appExists ? "echo ca-keyforta-dev-api" : "echo ''"} ;;
+  *"containerapp show"*) ${fqdn ? `echo '${fqdn}'` : "echo ''"} ;;
+  *) exit 1 ;;
+esac
+`,
+    );
+    executable(
+      directory,
+      "dig",
+      `#!/usr/bin/env bash
+case "$*" in
+  *" CNAME api.keyforta.com") echo '${cname}' ;;
+  *" TXT asuid.api.keyforta.com") echo '"${txt}"' ;;
+  *) exit 1 ;;
+esac
+`,
+    );
+    return spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        API_CANONICAL_HOST: "api.keyforta.com",
+        ADMIN_CANONICAL_HOST: "admin.keyforta.com",
+        PORTAL_CANONICAL_HOST: "portal.keyforta.com",
+        APP_ENVIRONMENT: "test-environment",
+        DEPLOYMENT_SCOPE: "api",
+        ENVIRONMENT: "dev",
+        PATH: `${directory}:${process.env.PATH}`,
+        RESOURCE_GROUP: "test-resource-group",
+      },
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+test("subdomain preconditions pass when an existing app's FQDN matches CNAME/TXT records", () => {
+  const result = runSubdomainPreconditions({
+    appExists: true,
+    fqdn: "ca-keyforta-dev-api.environment.example.test",
+    cname: "ca-keyforta-dev-api.environment.example.test.",
+    txt: "verification-id",
+  });
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("subdomain preconditions fall back to the default-domain FQDN when the app does not exist yet", () => {
+  const result = runSubdomainPreconditions({
+    appExists: false,
+    cname: "ca-keyforta-dev-api.environment.example.test.",
+    txt: "verification-id",
+  });
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("subdomain preconditions fail closed on a mismatched CNAME record", () => {
+  const result = runSubdomainPreconditions({
+    appExists: true,
+    fqdn: "ca-keyforta-dev-api.environment.example.test",
+    cname: "some-other-host.environment.example.test.",
+    txt: "verification-id",
+  });
+  assert.notEqual(result.status, 0);
+});
+
+test("subdomain preconditions fail closed on a mismatched TXT verification record", () => {
+  const result = runSubdomainPreconditions({
+    appExists: true,
+    fqdn: "ca-keyforta-dev-api.environment.example.test",
+    cname: "ca-keyforta-dev-api.environment.example.test.",
+    txt: "stale-verification-id",
+  });
+  assert.notEqual(result.status, 0);
+});
+
+test("subdomain preconditions reject a present app without an ingress FQDN", () => {
+  const result = runSubdomainPreconditions({
+    appExists: true,
+    fqdn: "",
+    cname: "ca-keyforta-dev-api.environment.example.test.",
+    txt: "verification-id",
+  });
+  assert.notEqual(result.status, 0);
+});
+
 test("application hostname inspection handles zero, both, partial, and drift states", () => {
   const document = YAML.parse(readFileSync(".github/workflows/deploy.yml", "utf8"));
   const script = document.jobs.deploy.steps.find(
@@ -314,7 +415,23 @@ test("application hostname inspection handles zero, both, partial, and drift sta
   function inspect(hostnames, operation = "plan", expected = "") {
     const directory = mkdtempSync(join(tmpdir(), "keyforta-hostname-state-"));
     try {
-      executable(directory, "az", '#!/usr/bin/env bash\nprintf "%s\\n" "$HOSTNAMES"\n');
+      executable(
+        directory,
+        "az",
+        `#!/usr/bin/env bash
+case "$*" in
+  *"ca-keyforta-dev-api'"*) printf "%s\\n" "app-api" ;;
+  *"ca-keyforta-dev-admin'"*) printf "%s\\n" "app-admin" ;;
+  *"ca-keyforta-dev-portal'"*) printf "%s\\n" "app-portal" ;;
+  *"ca-keyforta-dev-web'"*) printf "%s\\n" "app-web" ;;
+  *"--name app-api"*) printf "%s\\n" "api.keyforta.com" ;;
+  *"--name app-admin"*) printf "%s\\n" "admin.keyforta.com" ;;
+  *"--name app-portal"*) printf "%s\\n" "portal.keyforta.com" ;;
+  *"--name app-web"*) printf "%s\\n" "$HOSTNAMES" ;;
+  *) exit 1 ;;
+esac
+`,
+      );
       const output = join(directory, "output");
       const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
         encoding: "utf8",
@@ -322,6 +439,7 @@ test("application hostname inspection handles zero, both, partial, and drift sta
           ...process.env,
           APP_ENVIRONMENT: "test-environment",
           DEPLOYMENT_SCOPE: "public-web",
+          ENVIRONMENT: "dev",
           EXPECTED_HOSTNAME_BOOTSTRAP: expected,
           EXPECTED_API_HOSTNAME_BOOTSTRAP: "not-applicable",
           EXPECTED_ADMIN_HOSTNAME_BOOTSTRAP: "not-applicable",

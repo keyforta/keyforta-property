@@ -111,15 +111,18 @@ The deployment workflow uses a SHA-bound, scope-bound plan:
 | `portal-web` | Portal-web image and Container App only |
 | `full`       | PostgreSQL, API, public web, admin web, portal web, and dormant development seed-job definition |
 
-`portal-web` deploys to its default Azure Container Apps domain today; it does
-not yet bind `portal.keyforta.com`. `admin-web` and `api` likewise remain on
-their default domains. `infra/bicep/apps.bicep` already defines the dormant
+`deploy.yml` inspects live hostname state and bootstraps
+`api.keyforta.com`/`admin.keyforta.com`/`portal.keyforta.com` the same way it
+already did for `keyforta.com`/`www.keyforta.com`: an "Inspect application
+hostname state" step drift-checks the reviewed plan, per-service preview/
+verify/bootstrap steps apply each managed certificate binding with the others
+held at steady state, and the steady-state deploy passes
 `apiCanonicalHostName`/`adminCanonicalHostName`/`portalCanonicalHostName` and
-`bindApiCertificates`/`bindAdminCertificates`/`bindPortalCertificates`
-parameters for ADR-015 (each defaults to disabled/empty, so this does not
-change current behavior); wiring those into `deploy.yml` inputs and driving
-the staged cutover below is a follow-up change, gated on the Cloudflare DNS
-records existing first. The `mcp` name is reserved in this workflow and fails
+`bindApiCertificates=true`/`bindAdminCertificates=true`/`bindPortalCertificates=true`
+on every subsequent run. In `dev`, all four domains are already bound with
+managed certificates; this automation now exists so a disaster-recovery
+rebuild or a new environment can re-bootstrap them without manual
+`az deployment group create` calls. The `mcp` name is reserved in this workflow and fails
 before Azure sign-in — it is deployed independently through
 `.github/workflows/deploy-mcp.yml` per ADR-012 and is out of scope here. A
 `postgres` deployment uses
@@ -241,23 +244,20 @@ and renewal require CNAME validation to resolve directly to the Container App,
 the same requirement as the existing `www` record.
 
 Cut over in this order, matching ADR-015's staged rollout so the API keeps
-accepting the existing origins while each new hostname comes up. **Steps 2 and
-4 require a follow-up workflow change first**: this PR adds the
+accepting the existing origins while each new hostname comes up.
+`deploy.yml` already wires the
 `apiCanonicalHostName`/`adminCanonicalHostName`/`portalCanonicalHostName` and
-`bind*Certificates` Bicep parameters but deliberately does not yet wire them
-into `deploy.yml`'s `workflow_dispatch` inputs or its `az deployment group`
-invocations — see "Explicitly deferred to a follow-up PR" in the PR that
-introduced portal-web as a deployable scope. Do not attempt steps 2 or 4
-until that follow-up merges.
+`bind*Certificates` Bicep parameters into its `workflow_dispatch` inputs and
+`az deployment group` invocations, so steps 2 and 4 below can run once the
+corresponding DNS records exist — no further workflow change is required.
 
 1. Add the three TXT validation records without changing traffic.
-2. Once `deploy.yml` accepts the hostname/bind inputs, merge and deploy the
-   reviewed `api` scope with `bindApiCertificates=false` so
+2. Deploy the reviewed `api` scope with `bindApiCertificates=false` so
    `CORS_ALLOWED_ORIGIN` is updated to include the new admin/portal origins
    alongside the existing ones (no origin is removed yet).
 3. Add the three CNAME records.
-4. Confirm public DNS for all three hostnames, then (once `deploy.yml`
-   accepts the inputs) deploy the reviewed `api`, `admin`, and `portal` plans
+4. Confirm public DNS for all three hostnames, then deploy the reviewed
+   `api`, `admin`, and `portal` plans
    with their `bind*Certificates` flags enabled to issue and bind each
    managed certificate.
 5. Verify each hostname serves traffic and that the API accepts requests from

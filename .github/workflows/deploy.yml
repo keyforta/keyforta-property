@@ -307,16 +307,19 @@ jobs:
           app_hostnames() {
             app_name=$(az containerapp list \
               --resource-group "$RESOURCE_GROUP" \
-              --query "[?name == 'ca-keyforta-${ENVIRONMENT}-${1}'].name | [0]" -o tsv)
+              --query "[?name == 'ca-keyforta-${ENVIRONMENT}-${1}'].name | [0]" -o tsv) || return 1
             if [ -n "$app_name" ]; then
               az containerapp hostname list \
                 --name "$app_name" \
                 --resource-group "$RESOURCE_GROUP" \
-                --query '[].name' -o tsv
+                --query '[].name' -o tsv || return 1
             fi
           }
 
-          web_hostnames=$(app_hostnames web)
+          web_hostnames=$(app_hostnames web) || {
+            echo "Could not discover the public-web Container App's hostnames; refusing to plan against unknown live state." >&2
+            exit 1
+          }
           canonical_present=false
           www_present=false
           grep -Fxq "$WEB_CANONICAL_HOST" <<< "$web_hostnames" && canonical_present=true
@@ -331,11 +334,19 @@ jobs:
           fi
 
           single_host_bootstrap_required() {
-            grep -Fxq "$2" <<< "$(app_hostnames "$1")" && echo false || echo true
+            hostnames=$(app_hostnames "$1") || return 1
+            case "$hostnames" in
+              "") echo true ;;
+              "$2") echo false ;;
+              *)
+                echo "Expected zero hostnames or exactly the canonical hostname ($2) for $1; refusing a partial/drifted deployment." >&2
+                return 1
+                ;;
+            esac
           }
-          api_bootstrap_required=$(single_host_bootstrap_required api "$API_CANONICAL_HOST")
-          admin_bootstrap_required=$(single_host_bootstrap_required admin "$ADMIN_CANONICAL_HOST")
-          portal_bootstrap_required=$(single_host_bootstrap_required portal "$PORTAL_CANONICAL_HOST")
+          api_bootstrap_required=$(single_host_bootstrap_required api "$API_CANONICAL_HOST") || exit 1
+          admin_bootstrap_required=$(single_host_bootstrap_required admin "$ADMIN_CANONICAL_HOST") || exit 1
+          portal_bootstrap_required=$(single_host_bootstrap_required portal "$PORTAL_CANONICAL_HOST") || exit 1
 
           check_drift() {
             name="$1"; actual="$2"; expected="$3"
@@ -849,6 +860,15 @@ jobs:
           compare_plan migration-job
           if [ "$DEPLOYMENT_SCOPE" = "full" ]; then compare_plan seed-job; fi
 
+      # The four hostname-bootstrap steps below always pin deploymentScope to
+      # their own single service, even during a `full` deploy: apps.bicep
+      # derives deployWeb/deployApi/deployAdmin/deployPortal from
+      # deploymentScope, so a single-service scope guarantees each bootstrap
+      # only evaluates its own resources. Using the overall $DEPLOYMENT_SCOPE
+      # here would let a `full` bootstrap deployment also apply another
+      # service's certificate binding in the same call, which would race with
+      # (and invalidate) that other service's independently-reviewed what-if
+      # plan when more than one service needs bootstrapping at once.
       - name: Preview web hostname bootstrap
         if: (env.DEPLOYMENT_SCOPE == 'public-web' || env.DEPLOYMENT_SCOPE == 'full') && steps.hostname-state.outputs.bootstrap-required == 'true'
         uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
@@ -863,7 +883,7 @@ jobs:
               --name "keyforta-${ENVIRONMENT}-apps-hostname-bootstrap" \
               --template-file infra/bicep/apps.bicep \
               --parameters environment="$ENVIRONMENT" \
-                deploymentScope="$DEPLOYMENT_SCOPE" \
+                deploymentScope="public-web" \
                 containerAppsEnvironmentName="$APP_ENVIRONMENT" \
                 registryName="$REGISTRY_NAME" \
                 apiIdentityName="$API_IDENTITY" \
@@ -907,7 +927,7 @@ jobs:
               --name "keyforta-${ENVIRONMENT}-apps-api-hostname-bootstrap" \
               --template-file infra/bicep/apps.bicep \
               --parameters environment="$ENVIRONMENT" \
-                deploymentScope="$DEPLOYMENT_SCOPE" \
+                deploymentScope="api" \
                 containerAppsEnvironmentName="$APP_ENVIRONMENT" \
                 registryName="$REGISTRY_NAME" \
                 apiIdentityName="$API_IDENTITY" \
@@ -951,7 +971,7 @@ jobs:
               --name "keyforta-${ENVIRONMENT}-apps-admin-hostname-bootstrap" \
               --template-file infra/bicep/apps.bicep \
               --parameters environment="$ENVIRONMENT" \
-                deploymentScope="$DEPLOYMENT_SCOPE" \
+                deploymentScope="admin-web" \
                 containerAppsEnvironmentName="$APP_ENVIRONMENT" \
                 registryName="$REGISTRY_NAME" \
                 apiIdentityName="$API_IDENTITY" \
@@ -995,7 +1015,7 @@ jobs:
               --name "keyforta-${ENVIRONMENT}-apps-portal-hostname-bootstrap" \
               --template-file infra/bicep/apps.bicep \
               --parameters environment="$ENVIRONMENT" \
-                deploymentScope="$DEPLOYMENT_SCOPE" \
+                deploymentScope="portal-web" \
                 containerAppsEnvironmentName="$APP_ENVIRONMENT" \
                 registryName="$REGISTRY_NAME" \
                 apiIdentityName="$API_IDENTITY" \
@@ -1219,7 +1239,7 @@ jobs:
               --name "keyforta-${ENVIRONMENT}-apps-hostname-bootstrap" \
               --template-file infra/bicep/apps.bicep \
               --parameters environment="$ENVIRONMENT" \
-                deploymentScope="$DEPLOYMENT_SCOPE" \
+                deploymentScope="public-web" \
                 containerAppsEnvironmentName="$APP_ENVIRONMENT" \
                 registryName="$REGISTRY_NAME" \
                 apiIdentityName="$API_IDENTITY" \
@@ -1257,7 +1277,7 @@ jobs:
               --name "keyforta-${ENVIRONMENT}-apps-api-hostname-bootstrap" \
               --template-file infra/bicep/apps.bicep \
               --parameters environment="$ENVIRONMENT" \
-                deploymentScope="$DEPLOYMENT_SCOPE" \
+                deploymentScope="api" \
                 containerAppsEnvironmentName="$APP_ENVIRONMENT" \
                 registryName="$REGISTRY_NAME" \
                 apiIdentityName="$API_IDENTITY" \
@@ -1295,7 +1315,7 @@ jobs:
               --name "keyforta-${ENVIRONMENT}-apps-admin-hostname-bootstrap" \
               --template-file infra/bicep/apps.bicep \
               --parameters environment="$ENVIRONMENT" \
-                deploymentScope="$DEPLOYMENT_SCOPE" \
+                deploymentScope="admin-web" \
                 containerAppsEnvironmentName="$APP_ENVIRONMENT" \
                 registryName="$REGISTRY_NAME" \
                 apiIdentityName="$API_IDENTITY" \
@@ -1333,7 +1353,7 @@ jobs:
               --name "keyforta-${ENVIRONMENT}-apps-portal-hostname-bootstrap" \
               --template-file infra/bicep/apps.bicep \
               --parameters environment="$ENVIRONMENT" \
-                deploymentScope="$DEPLOYMENT_SCOPE" \
+                deploymentScope="portal-web" \
                 containerAppsEnvironmentName="$APP_ENVIRONMENT" \
                 registryName="$REGISTRY_NAME" \
                 apiIdentityName="$API_IDENTITY" \
