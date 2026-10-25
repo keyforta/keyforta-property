@@ -23,6 +23,22 @@ resource-group-scoped foundation deployment runs.
 
 ## Company DEVELOPMENT preparation — isolated preview and plan-bound apply
 
+### Proposed staged company-foundation contract
+
+The authoritative [staged proposal in ADR-016](../docs/adr/ADR-016-company-development-private-foundation.md#proposed-staged-company-foundation-contract)
+is **Proposed**, not implemented. The sections below describe existing one-shot
+code/preparation, not a staged runbook; apply remains unconfigured.
+User approval on 2026-10-25 covers proposal preparation only, not changed execution.
+Proposed sequence: seven-resource bootstrap; human exact-ID grants and separate
+Defender/backend verification; protected continuation using existing references.
+Augustin2K must freshly review; Product/Security must specifically approve empty
+unused unverified-Defender Storage and the bootstrap-authority removal guard.
+Platform must prove narrow continuation/ACA permissions; sufficiency is unproven.
+Historical run `40223406509` attempt `2` / artifact `12610233452` was reviewed;
+see ADR evidence/expiry. It is not a staged execution input. Require new versioned
+stage/inventory-bound evidence and native independent gates. No activation here.
+Unchanged: $120/month before tax, $108.35 estimate, no extra services or cost guarantee.
+
 See [proposed ADR-016](../docs/adr/ADR-016-company-development-private-foundation.md).
 The user approved private-network **preparation** and a **$120/month before-tax
 planning ceiling**; estimated envelope **$108.35**, headroom **$11.65**. The later
@@ -143,7 +159,8 @@ activation, authorized external owners must separately:
 7. Review the seven-day-retained SHA/run-bound artifact (review context,
    API-verifiable snapshot, parameters/template/
    what-if hashes, approval reference, destination, $120 ceiling). Do not promote
-   it as an application plan. No successful live preview exists from local prep.
+   it as an application plan. This was the local-preparation state; see the
+   historical successful preview evidence linked in the staged proposal above.
    Reprice before execution; obtain **separate independent apply-diff review**
    and the external controls/inputs below. Conditional foundation execution
    consent is already recorded; the preview route itself cannot deploy.
@@ -223,7 +240,8 @@ hash, run identity and polled ARM result. Failure/timeout preserves evidence and
 stops without Azure retry, rollback/deletion or reconciliation; a partially
 populated RG blocks reapplication and requires explicit inventory/recovery review.
 ARM success is not functional application, private-access, restore or cutover
-acceptance. No live plan, protected approval, apply or resources exist from prep.
+acceptance. Preparation did not apply resources; subsequent historical preview
+review does not configure apply or authorize the changed staged proposal.
 
 Validation uses existing `node --test .github/tests/*.test.mjs` / `pnpm verify`
 and recursive CI Bicep compilation. Security CI now executes

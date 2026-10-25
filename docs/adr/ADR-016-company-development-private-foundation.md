@@ -29,7 +29,116 @@ review, not activated. This consent does not waive audit/security/reviews,
 network-owner/payer inputs, native independent approvals or bootstrap authority;
 no additional blanket authorization is requested. This ADR remains **Proposed**.
 
-## Context and invariant
+## Proposed staged company-foundation contract
+
+### Review scope and evidence - 2026-10-25
+
+The user approved preparation of this minimal staged proposal for independent
+review only: not implementation, deployment, permission writes or activation.
+ADR-016 remains **Proposed**; no acceptance or security waiver is recorded.
+Unchanged: $120/month before-tax ceiling, $108.35 estimate, not cost guarantees.
+No extra services, paid components or source-dev changes.
+Augustin2K owns fresh independent review; Product/Security must specifically
+approve the two new security decisions below. Platform owns permission proof,
+Network the existing network controls, Finance the unchanged cost/offer gates.
+
+Current code is one-shot: empty RG, create-only full plan, six-file artifact,
+one ARM submission. Apply remains unconfigured. The following stages are future
+proposals, not implemented capabilities or permission definitions proven sufficient.
+[Historical review](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6402311737):
+Augustin2K reviewed run `40223406509`, attempt `2`, artifact `12610233452`,
+SHA `4066ce311d13ec06bdd60c04eb05bac15f24cb05`; parent confirmed main CI green.
+Artifact expires `2026-11-01T19:12:40Z`; it cannot authorize changed stages.
+[Feasibility finding](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6402526036):
+exact future-principal role delegation is impossible under the considered scheme.
+No workflow Owner/Contributor, `roleAssignments/write`, subscription scanner
+writes or subscription-wide RG/Network writer is proposed.
+
+### Stage 1 - bootstrap only
+
+Create ONLY the three existing-design API/web/migration UAMIs, ACR, Storage
+account, Blob service and private `tenant-applications` container: seven resources
+plus ARM deployment records. No Network, PG, ACA, logs, Defender, assignments,
+apps or jobs. Confirm names against the reviewed compiled template. Preserve
+registry admin disabled, shared keys/public Blob access disabled,
+OAuth, HTTPS/TLS 1.2+, private container and seven-day soft delete.
+**NEW, UNAPPROVED security decision:** temporarily empty, unused Storage without
+verified Defender. No app attachment, uploads, data or migration; not foundation-ready.
+**NEW, UNAPPROVED handoff guard:** human removal of bootstrap workflow write rights
+before Stage 2, proving no inherited/equivalent rights remain. Continuation cannot
+rewrite UAMIs, ACR or Storage. Bootstrap type-scoped rights
+can modify those types while active; they are not name-bound create-only rights.
+Both this guard/tradeoff and the transient exception need Augustin's fresh review
+and specific Product/Security approval before implementation, not broad consent.
+
+### Stage 2 - human permissions and separate Defender verification
+
+The operator reads actual tenant, resource ID, `principalId` AND `clientId` for
+each UAMI from completed ARM deployment operations and live inventory; names or
+client GUIDs alone are insufficient. Verify expected scopes and direct/inherited
+effective rights; missing visibility or permission proof stops continuation.
+Grant API/web/migration `AcrPull` (`7f951dda-4ed3-4680-a7ca-43fe172d538d`)
+at exact ACR scope `acrkeyfortacdevmxv24i2qhtib6` in the fixed destination RG.
+Grant API `Storage Blob Data Contributor`
+(`ba92f5b4-2d11-453d-a403-e96b0029c9fe`) only at
+`stakeyfortacdevmxv24i2qh/blobServices/default/containers/tenant-applications`.
+Use validated `ServicePrincipal` principals and existing deterministic assignment
+IDs: `guid(scopeResourceId, uamiResourceId, roleDefinitionId)` (full role resource
+ID). Verify exact existing matches idempotently; conflicts stop.
+Separately, the human Defender operator needs reviewed subscription
+`Microsoft.Security/datascanners/read` and `/write`, Event Grid and role-management
+capabilities. Retain enabled on-upload scanning, full 100 GB cap, existing
+sensitive-discovery/index settings and protection/retention settings.
+Verify successful provisioning, actual scanner identity/backend/Event Grid and
+service-created Storage Blob Data Owner access beyond the four template grants.
+Record actual IDs/scopes, not "only four total assignments"; missing backend
+visibility, unexplained access or security state blocks progress.
+
+### Stage 3 - protected verified continuation
+
+Only after human/security verification, create existing-design Network/NSG,
+delegated subnets, private DNS/link, 30-day logs, private PG16 B1ms/32 GiB
+Premium_LRS/seven-day backup/Entra-only/no password/no public access, and external
+ACA Consumption-only environment. Preserve approved network controls/extensions.
+Bootstrap resources are existing references, not redeployed; CI does not
+reconcile human roles or Defender. Minimum custom-VNet ACA caller permissions
+remain UNPROVEN: resolve concrete narrow operations (including subnet/link and
+existing logs-key dependency, without retaining keys), or stop. Do not widen
+scope, substitute human full deployment or add paid components automatically.
+
+### Stage evidence, re-entry and gates
+
+Version 2 artifact: stage `bootstrap`/`continuation`, mode `initial`/`reviewed-reentry`;
+existing six JSON files plus exact `inventory.json`, bound to SHA/run/attempt/artifact,
+complete source manifest hash, parameters/template/what-if hashes and native gate context.
+Bind starting/expected inventory, actual IDs/roles/backend, predecessor execution,
+human security evidence and permission handoff/change-freeze references.
+Reject historical six-file full plans. Initial bootstrap requires an empty RG;
+continuation must exactly match reviewed bootstrap plus security inventory.
+Partial re-entry requires frozen actual ARM operations/inventory and a freshly
+reviewed preview; unknown/timed-out outcomes are not automatic retries.
+Deletion, extras, drift or recreated principals stop; no blanket populated-RG or
+Modify allowance, automatic cleanup or replay. Exact completed state is a
+verified no-op, not resubmitted. Mismatch means no ARM PUT.
+Retain native independent gates, initiator AND rerun-actor separation,
+prevent-self-review, live UI bypass-off verification, exact-SHA checks and latest
+CI/security/DAST success. Changed stage/evidence/permissions/attempt needs review.
+No AI substitutes for human approval; no customer/app activation before security
+verification and a future separately authorized synthetic scan-result proof.
+
+### Future acceptance and implementation boundary
+
+Test stage inventory negatives and compiled source/default compatibility;
+wrong destination/IDs/roles/scopes/inherited extras or missing Defender backend;
+stage/inventory/source/hash freshness; no PUT on mismatch; partial timeout,
+reviewed re-entry/no-op; retained native gates/latest CI. Future work is limited
+to existing three Bicep files, two helpers, two workflows, three company tests
+and source fixture. Run focused red/green, compilation and `pnpm verify` THEN,
+not in this documentation delivery. No source dev/default shared-module behavior
+changes. Until decisions/proofs pass, withhold activation; after partial execution,
+retain unused resources/evidence for human review, never automatic deletion.
+
+## Existing one-shot design and invariant (implemented preparation, not activation)
 
 The source foundation unconditionally enables PostgreSQL public networking and
 the `AllowAzureServices` special `0.0.0.0` firewall rule. That admits attempts from
