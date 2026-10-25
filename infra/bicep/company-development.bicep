@@ -20,7 +20,7 @@ param networkApproval string
 // to source dev. The workflow also verifies the actual tenant/sub/RG before ARM.
 module company './modules/company-development-resources.bicep' = {
   name: 'foundation-keyforta-cdev'
-  scope: resourceGroup('212bf9c5-2326-4852-846e-7227bac81fd5', 'rg-keyforta-companydev-san')
+  scope: resourceGroup('891e5e6e-8ae3-4455-9184-8d7606223d91', 'rg-keyforta-companydev-san')
   params: {
     vnetCidr: vnetCidr
     acaSubnetCidr: acaSubnetCidr

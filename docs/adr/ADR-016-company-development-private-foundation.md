@@ -45,8 +45,8 @@ added. Production requirements in ADR-009 remain unresolved.
 
 ## Proposed implementation
 
-- Fixed destination subscription `212bf9c5-2326-4852-846e-7227bac81fd5`,
-  tenant `8019a048-e7d6-48e8-984a-b902f641a21b`, existing RG
+- Fixed destination subscription `891e5e6e-8ae3-4455-9184-8d7606223d91`,
+  tenant `8019a048-e7d6-48e8-984a-b902f641a21b`, required empty target RG
   `rg-keyforta-companydev-san`, region `southafricanorth`, naming `keyforta-cdev-*`.
   The dedicated entry module explicitly scopes its only module to that RG/sub.
   The preview script also checks actual Azure tenant/subscription/RG/region.
@@ -86,6 +86,40 @@ added. Production requirements in ADR-009 remain unresolved.
   SQL grant or billing resource is created by this change.
 
 ## Options and cost consequences
+
+### Approved offer/destination change — 2026-10-25 UTC
+
+The user replaced the previous destination
+`212bf9c5-2326-4852-846e-7227bac81fd5` (**superseded**, no fallback) with the
+fixed subscription above. Selected read-only ARM metadata verifies **Enabled**,
+the exact company tenant, `quotaId: FreeTrial_2014-09-01` and spending limit
+**On**. Parent read-only evidence reported zero resources; this is not proof of
+SKU availability or a successful provider preview. The **$200 free credit is
+user-reported**, with remaining balance/expiry **unverified**, not a recurring
+monthly allowance. Do not apply old Pay-As-You-Go billing evidence to this offer.
+No upgrade, spending-limit removal, service addition or security downgrade is
+authorized. The architecture, $120/month before-tax ceiling and $108.35 estimate
+below are unchanged; credit coverage is not established.
+
+Microsoft's [spending-limit guidance](https://learn.microsoft.com/en-us/azure/cost-management-billing/manage/spending-limit)
+explains that exhaustion can disable services and that some separately billed
+services are not bounded by this limit. Trial expiry/disablement is an
+operational interruption risk, not a recovery strategy or a $120 cap.
+[PostgreSQL capacity guidance](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/how-to-resolve-capacity-errors)
+and [ACA quota guidance](https://learn.microsoft.com/en-us/azure/container-apps/quotas)
+require subscription/region/SKU checks: an Enabled subscription and a published
+regional service listing do not guarantee B1ms PostgreSQL or ACA capacity in
+South Africa North for this trial. Eligibility/quota/capacity, credit validity
+and actual pricing remain pre-execution blockers; do not upgrade to resolve them.
+Preserve seven-day backups, restore-test requirements, telemetry, SLO/error-budget
+and runbook gates below. Credit expiry must not strand the only recovery copy;
+the source remains untouched and no data is moved by this foundation change.
+
+All former-destination previews and source hashes are stale for this retarget.
+Require fresh exact-SHA CI, protected preview, hashes and independent apply
+review. Existing independent/no-self-review/no-admin-bypass controls are not
+waived; no OIDC, RBAC, GitHub environment setup, dispatch or provisioning occurs
+in this change. PR #157 publication consent is not consent to publish a new PR.
 
 Public-retail USD, 730 hours, before tax, observed 2026-10-25; account discounts
 and free consumption grants are not credited. These are estimates, not caps:

@@ -91,7 +91,7 @@ jobs:
         with:
           client-id: ${{ env.PREVIEW_CLIENT_ID }}
           tenant-id: 8019a048-e7d6-48e8-984a-b902f641a21b
-          subscription-id: 212bf9c5-2326-4852-846e-7227bac81fd5
+          subscription-id: 891e5e6e-8ae3-4455-9184-8d7606223d91
       - name: Compile and request create-only foundation what-if
         run: node scripts/infra/company-development.mjs preview
       - name: Preserve SHA-bound preparation evidence

@@ -10,7 +10,7 @@ import { sourceFixture } from "./fixtures/company-source.mjs";
 const read = (file) => readFileSync(file, "utf8");
 const controls = async () => import("../../scripts/infra/company-development.mjs");
 const valid = {
-  subscriptionId: "212bf9c5-2326-4852-846e-7227bac81fd5",
+  subscriptionId: "891e5e6e-8ae3-4455-9184-8d7606223d91",
   tenantId: "8019a048-e7d6-48e8-984a-b902f641a21b",
   resourceGroup: "rg-keyforta-companydev-san",
   location: "southafricanorth",
@@ -32,7 +32,7 @@ test("company foundation has an isolated wrapper with no CIDR defaults", () => {
     assert.match(template, new RegExp(`param ${name} string\\s*\\n`));
     assert.doesNotMatch(template, new RegExp(`param ${name} string\\s*=`));
   }
-  assert.match(template, /scope: resourceGroup\('212bf9c5-2326-4852-846e-7227bac81fd5', 'rg-keyforta-companydev-san'\)/);
+  assert.match(template, /scope: resourceGroup\('891e5e6e-8ae3-4455-9184-8d7606223d91', 'rg-keyforta-companydev-san'\)/);
   const resources = read("infra/bicep/modules/company-development-resources.bicep");
   assert.match(resources, /environment: 'cdev'/);
   assert.match(resources, /Microsoft\.App\/environments/);
@@ -86,6 +86,21 @@ test("CIDR validation rejects overlap, host bits, non-RFC1918 and platform reser
   reject({ vnetCidr: "172.30.0.0/16", acaSubnetCidr: "172.30.0.0/26", postgresSubnetCidr: "172.30.0.64/28" });
   reject({ vnetCidr: "10.84.0.0/24; false" });
   reject({ vnetCidr: "" });
+});
+
+test("superseded destination and source subscriptions are rejected at every preview boundary", async () => {
+  const { validateInputs, assertAzureContext, validatePreview } = await controls();
+  for (const subscriptionId of [
+    "212bf9c5-2326-4852-846e-7227bac81fd5",
+    "f9809805-ff42-4ece-b3da-43ebd70e0fb7",
+  ]) {
+    assert.throws(() => validateInputs({ ...valid, subscriptionId }, approved), /destination/i);
+    assert.throws(() => assertAzureContext({ id: subscriptionId, tenantId: valid.tenantId, state: "Enabled" }), /destination subscription/i);
+    assert.throws(() => validatePreview({ changes: [{
+      resourceId: `/subscriptions/${subscriptionId}/resourceGroups/${valid.resourceGroup}/providers/Microsoft.Network/virtualNetworks/test`,
+      changeType: "Create", after: { type: "Microsoft.Network/virtualNetworks" },
+    }] }), /outside destination scope/i);
+  }
 });
 
 test("Azure context and environment protection fail closed", async () => {
@@ -179,7 +194,7 @@ test("company workflow is disabled-by-default, protected, immutable, preview-onl
   assert.ok(workflow.jobs.plan.steps.indexOf(prepare) < workflow.jobs.plan.steps.indexOf(login));
   assert.equal(prepare.env.GH_TOKEN, "${{ github.token }}");
   assert.match(text, /tenant-id: 8019a048-e7d6-48e8-984a-b902f641a21b/);
-  assert.match(text, /subscription-id: 212bf9c5-2326-4852-846e-7227bac81fd5/);
+  assert.match(text, /subscription-id: 891e5e6e-8ae3-4455-9184-8d7606223d91/);
   assert.doesNotMatch(text, /vars\.AZURE_|rg-keyforta-dev-san|environment: dev|customer|ciamlogin/);
   const script = read("scripts/infra/company-development.mjs");
   assert.match(script, /assertEnvironmentProtection\(environment, expectedEnvironment\)/);

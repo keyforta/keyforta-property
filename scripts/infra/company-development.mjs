@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const destination = Object.freeze({
-  subscriptionId: "212bf9c5-2326-4852-846e-7227bac81fd5",
+  subscriptionId: "891e5e6e-8ae3-4455-9184-8d7606223d91",
   tenantId: "8019a048-e7d6-48e8-984a-b902f641a21b",
   resourceGroup: "rg-keyforta-companydev-san",
   location: "southafricanorth",
