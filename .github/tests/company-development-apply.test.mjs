@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { chmodSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import YAML from "yaml";
-import { sourceFixture } from "./fixtures/company-source.mjs";
+import { sourceFixture, sourcePaths } from "./fixtures/company-source.mjs";
 
 const controls = () => import("../../scripts/infra/company-development-apply.mjs");
 const hash = (text) => createHash("sha256").update(text).digest("hex");
@@ -14,49 +14,741 @@ const sha = "a".repeat(40);
 const subscriptionId = "891e5e6e-8ae3-4455-9184-8d7606223d91";
 const resourceGroup = "rg-keyforta-companydev-san";
 const input = {
+  stage: "bootstrap", mode: "initial", evidenceVersion: 2,
+  changeFreeze: "https://github.com/keyforta/keyforta-property/issues/159#issuecomment-123",
   subscriptionId, resourceGroup, tenantId: "8019a048-e7d6-48e8-984a-b902f641a21b", location: "southafricanorth",
   vnetCidr: "10.84.0.0/24", acaSubnetCidr: "10.84.0.0/26", postgresSubnetCidr: "10.84.0.64/28",
   networkApproval: "https://github.com/keyforta/keyforta-property/issues/123",
 };
+function actualResources(expected) {
+  return expected.map(({ id, type }, index) => ({
+    id, type, location: "southafricanorth",
+    ...(type.endsWith("/registries") ? { sku: { name: "Basic" } }
+      : type.endsWith("/storageAccounts") ? { sku: { name: "Standard_LRS" }, kind: "StorageV2" } : {}),
+    properties: type.endsWith("/userAssignedIdentities")
+      ? { tenantId: input.tenantId, principalId: `11111111-1111-4111-8111-00000000000${index}`, clientId: `22222222-2222-4222-8222-00000000000${index}` }
+      : type.endsWith("/registries") ? { provisioningState: "Succeeded", adminUserEnabled: false, publicNetworkAccess: "Enabled" }
+      : type.endsWith("/storageAccounts") ? { provisioningState: "Succeeded", allowBlobPublicAccess: false, allowSharedKeyAccess: false, defaultToOAuthAuthentication: true, minimumTlsVersion: "TLS1_2", supportsHttpsTrafficOnly: true, publicNetworkAccess: "Enabled" }
+      : type.endsWith("/blobServices") ? { deleteRetentionPolicy: { days: 7, enabled: true } }
+      : { publicAccess: "None" },
+  }));
+}
+
+function continuationResources(state) {
+  const inventory = state.continuationInventory();
+  const vnet = inventory.find((r) => r.type === "Microsoft.Network/virtualNetworks").id;
+  const dns = inventory.find((r) => r.type === "Microsoft.Network/privateDnsZones").id;
+  return inventory.map(({ id, type }) => ({
+    id, type, location: "southafricanorth",
+    ...(type === "Microsoft.DBforPostgreSQL/flexibleServers" ? { sku: { name: "Standard_B1ms", tier: "Burstable" } } : {}),
+    properties: { provisioningState: "Succeeded",
+      ...(type === "Microsoft.DBforPostgreSQL/flexibleServers" ? { state: "Ready", version: "16", authConfig: { activeDirectoryAuth: "Enabled", passwordAuth: "Disabled", tenantId: input.tenantId },
+        storage: { storageSizeGB: 32, type: "Premium_LRS" }, backup: { backupRetentionDays: 7, geoRedundantBackup: "Disabled" }, highAvailability: { mode: "Disabled" },
+        network: { publicNetworkAccess: "Disabled", delegatedSubnetResourceId: `${vnet}/subnets/postgres`, privateDnsZoneArmResourceId: dns } } : {}),
+      ...(type === "Microsoft.App/managedEnvironments" ? { workloadProfiles: [{ name: "Consumption", workloadProfileType: "Consumption" }],
+        vnetConfiguration: { infrastructureSubnetId: `${vnet}/subnets/aca-infrastructure`, internal: false }, infrastructureResourceGroup: "ME_keyforta_cdev_mxv24i2qhtib6", zoneRedundant: false } : {}),
+      ...(type === "Microsoft.OperationalInsights/workspaces" ? { retentionInDays: 30 } : {}),
+    },
+  }));
+}
+
+async function stagedFixture() {
+  const state = await import("../../scripts/infra/company-development-state.mjs");
+  const { bootstrapInventory, destination } = await import("../../scripts/infra/company-development.mjs");
+  const now = Date.parse("2026-10-25T21:00:00.000Z");
+  const boot = actualResources(bootstrapInventory());
+  const scanner = {
+    id: `/subscriptions/${subscriptionId}/providers/Microsoft.Security/dataScanners/synthetic-actual-scanner`,
+    type: "Microsoft.Security/dataScanners",
+    identity: { type: "SystemAssigned", tenantId: destination.tenantId, principalId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" },
+    properties: {},
+  };
+  const defender = { properties: { isEnabled: true, overrideSubscriptionLevelSettings: true, sensitiveDataDiscovery: { isEnabled: false }, malwareScanning: { onUpload: { isEnabled: true, capGBPerMonth: 100 }, blobScanResultsOptions: "blobIndexTags" } } };
+  const previousState = { version: 2, stage: "bootstrap", destination, resources: boot };
+  const { prepareHumanGrants } = await controls();
+  const tuples = prepareHumanGrants(bootstrapRead(boot), "companydev-bootstrap-synthetic", previousState).assignments;
+  const owner = {
+    id: `${boot.find((r) => r.type.endsWith("/storageAccounts")).id}/providers/Microsoft.Authorization/roleAssignments/dddddddd-dddd-4ddd-8ddd-dddddddddddd`,
+    name: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", principalId: scanner.identity.principalId, principalType: "ServicePrincipal",
+    roleDefinitionId: `/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/b7e6dc6d-f1e8-4753-8033-0f276bb0955b`,
+    scope: boot.find((r) => r.type.endsWith("/storageAccounts")).id,
+  };
+  const assignments = [...tuples.map(({ id, name, principalId, principalType, roleDefinitionId, scope }) => ({ id, name, principalId, principalType, roleDefinitionId, scope })), owner];
+  const ref = "https://github.com/keyforta/keyforta-property/issues/159#issuecomment-123";
+  const predecessor = {
+    version: 2, stage: "bootstrap", mode: "initial", destination, completed: true,
+    commitSha: sha, runId: "123", runAttempt: "1", applyClientId: "22222222-2222-4222-8222-222222222222",
+    sourceSha256: "b".repeat(64), templateSha256: "c".repeat(64), parametersSha256: "d".repeat(64),
+    resources: state.projectResources(boot), deploymentName: `companydev-bootstrap-${sha.slice(0, 12)}`,
+  };
+  predecessor.sourceFiles = sourcePaths.map((path) => ({ path, sha256: "b".repeat(64) }));
+  predecessor.sourceSha256 = hash(JSON.stringify(predecessor.sourceFiles));
+  const context = {
+    predecessor: { runId: "123", runAttempt: "1", artifactId: "456", stage: "bootstrap", mode: "initial", sha, checkpointSha256: "e".repeat(64) },
+    baseline: state.projectResources(boot), deploymentName: `companydev-continuation-${sha.slice(0, 12)}`,
+    freezeReference: ref, inspectionReference: ref, approvedChanges: [],
+    security: { scannerId: scanner.id, ownerReviewReference: ref, writerRemovalReference: ref, permissionReviewReference: ref },
+  };
+  const transport = { resources: boot, assignments, scanner, defender, permissions: [{ actions: ["*/read", "Microsoft.Resources/deployments/write"], notActions: [], dataActions: [], notDataActions: [] }],
+    stagePermissions: [{ actions: ["*/read", ...new Set(state.continuationInventory().map((r) => `${r.type}/write`)), "Microsoft.Resources/deployments/write", "Microsoft.Resources/deployments/whatIf/action", "Microsoft.OperationalInsights/workspaces/sharedKeys/action"], notActions: [], dataActions: [], notDataActions: [] }],
+    predecessorDeployment: { name: predecessor.deploymentName, properties: { provisioningState: "Succeeded" } }, deployment: null, extraDeployments: [] };
+  const calls = [];
+  const read = (a) => {
+    calls.push(a);
+    if (a[0] === "account") return { id: subscriptionId, tenantId: destination.tenantId, state: "Enabled", user: { type: "servicePrincipal", name: predecessor.applyClientId } };
+    if (a[0] === "resource" && a[1] === "list") return transport.resources.filter((r) => state.topLevelTypes.includes(r.type));
+    if (a[0] === "resource" && a[1] === "show") {
+      const id = a[a.indexOf("--ids") + 1];
+      const found = transport.resources.find((r) => r.id.toLowerCase() === id.toLowerCase());
+      if (!found) throw Object.assign(new Error("ResourceNotFound"), { code: "ResourceNotFound" });
+      return found;
+    }
+    if (a[0] === "role") {
+      const target = a[a.indexOf("--scope") + 1].toLowerCase();
+      return transport.assignments.filter((r) => r.scope.toLowerCase() === target
+        || (a.includes("--include-inherited") && target.startsWith(`${r.scope.toLowerCase()}/`)));
+    }
+    if (a[0] === "deployment" && a[2] === "list") return [transport.predecessorDeployment, transport.deployment, ...transport.extraDeployments].filter(Boolean);
+    if (a[0] === "deployment" && a[2] === "show") {
+      const found = [transport.predecessorDeployment, transport.deployment].find((d) => d?.name === a[a.indexOf("--name") + 1]);
+      if (!found) throw Object.assign(new Error("DeploymentNotFound"), { code: "DeploymentNotFound" });
+      return found;
+    }
+    if (a[0] === "deployment" && a[1] === "operation") {
+      const target = a[a.indexOf("--name") + 1].includes("-bootstrap-") ? boot.find((r) => r.type.endsWith("/storageAccounts")) : state.continuationInventory().at(-1);
+      return [{ properties: { provisioningState: "Succeeded", targetResource: { id: target.id, resourceType: target.type }, provisioningOperation: "Create" } }];
+    }
+    if (a[0] === "rest" && a.includes("get")) {
+      const url = a[a.indexOf("--url") + 1];
+      if (url.includes(`/resourceGroups/${resourceGroup}/providers/Microsoft.Authorization/permissions?`)) return { value: transport.stagePermissions };
+      if (url.includes("/permissions?")) return { value: transport.permissions };
+      if (url.includes("/defenderForStorageSettings/")) return transport.defender;
+      if (url.includes("/dataScanners/")) return transport.scanner;
+    }
+    throw new Error(`Unexpected read ${JSON.stringify(a)}`);
+  };
+  const security = state.readSecurity(read, context.security, previousState);
+  context.security.functionalTest = {
+    owner: "cmbuyamba", observationReference: ref, executionAuthorizationReference: ref,
+    testId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    storageId: owner.scope, containerId: boot.find((r) => r.type.endsWith("/containers")).id,
+    blob: { name: "synthetic-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.txt", etag: '"synthetic-etag"', contentSha256: "f".repeat(64), contentLength: 36 },
+    enabledAt: "2026-10-25T20:00:00.000Z", startedAt: "2026-10-25T20:10:00.000Z",
+    uploadedAt: "2026-10-25T20:11:00.000Z", scanTime: "2026-10-25T20:12:00.000Z", observedAt: "2026-10-25T20:13:00.000Z",
+    result: "No threats found", readableSecuritySha256: state.stateHash(security),
+  };
+  const plan = {
+    inputs: { ...input, stage: "continuation", stageContext: context },
+    inventory: { baseline: context.baseline, expected: [...bootstrapInventory(), ...state.continuationInventory()] },
+    evidence: { commitSha: sha, sourceSha256: predecessor.sourceSha256, templateSha256: "1".repeat(64), parametersSha256: "2".repeat(64) },
+  };
+  return { state, now, boot, read, transport, calls, context, predecessor, plan, security };
+}
+
+async function bootstrapRecoveryFixture() {
+  const f = await stagedFixture();
+  const { bootstrapInventory } = await import("../../scripts/infra/company-development.mjs");
+  f.transport.assignments = [];
+  f.transport.defender = { properties: { isEnabled: false } };
+  f.transport.predecessorDeployment.properties.provisioningState = "Failed";
+  f.predecessor.completed = false;
+  f.plan.inputs.stage = "bootstrap"; f.plan.inputs.mode = "reviewed-reentry";
+  delete f.context.security;
+  f.context.deploymentName = f.predecessor.deploymentName;
+  f.context.inspection = f.state.inspectDeployment(f.read, f.context.deploymentName);
+  f.plan.inventory = { baseline: f.context.baseline, expected: bootstrapInventory() };
+  f.transport.stagePermissions = [{ actions: ["*/read", ...new Set(bootstrapInventory().map((r) => `${r.type}/write`)), "Microsoft.Resources/deployments/write", "Microsoft.Resources/deployments/whatIf/action"], notActions: [], dataActions: [], notDataActions: [] }];
+  f.plan.whatIf = { changes: bootstrapInventory().map(({ id, type }) => ({ resourceId: id, changeType: "NoChange", after: { type } })) };
+  return f;
+}
+
+for (const path of ["human grant preparation", "continuation security", "partial bootstrap"]) {
+  test(`review fix scoped role CLI compatibility: ${path}`, async () => {
+    const f = path === "partial bootstrap" ? await bootstrapRecoveryFixture() : await stagedFixture();
+    const scopes = [];
+    const compatible = (read) => (args) => {
+      if (args[0] === "role") {
+        if (args.includes("--scope") && args.includes("--all")) throw new Error("group or scope are not required when --all is used");
+        assert.ok(args.includes("--scope") && args.includes("--include-inherited"), "Keep exact scope and inherited visibility");
+        scopes.push(args[args.indexOf("--scope") + 1]);
+      }
+      return read(args);
+    };
+    if (path === "human grant preparation") {
+      const { prepareHumanGrants } = await controls();
+      assert.equal(prepareHumanGrants(compatible(bootstrapRead(f.boot)), "companydev-bootstrap-synthetic", f.predecessor).assignments.length, 4);
+    } else if (path === "continuation security") {
+      assert.doesNotThrow(() => f.state.readSecurity(compatible(f.read), f.context.security, f.predecessor));
+    } else assert.equal(f.state.assessStage(compatible(f.read), f.plan, f.predecessor, f.now).action, "submit");
+    assert.ok(scopes.some((s) => s.includes("/registries/")));
+    assert.ok(scopes.some((s) => s.includes("/containers/")), "Container requires its own scoped read");
+  });
+}
+
+test("review fix partial bootstrap rejects container-only human grant before preview or submit", async () => {
+  const f = await bootstrapRecoveryFixture();
+  const container = f.boot.find((r) => r.type.endsWith("/containers"));
+  const api = f.boot.find((r) => r.id.endsWith("-api"));
+  f.transport.assignments = [{
+    id: `${container.id}/providers/Microsoft.Authorization/roleAssignments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa`,
+    scope: container.id, principalId: api.properties.principalId, principalType: "ServicePrincipal",
+    roleDefinitionId: `/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/ba92f5b4-2d11-453d-a403-e96b0029c9fe`,
+  }];
+  const accountId = f.boot.find((r) => r.type.endsWith("/storageAccounts")).id;
+  assert.deepEqual(f.read(["role", "assignment", "list", "--scope", accountId, "--include-inherited"]), [], "Account scope must not see descendant container grants");
+  f.calls.length = 0;
+  let previews = 0, submits = 0;
+  assert.throws(() => f.state.executeReviewedStage({
+    plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now,
+    preview: () => { previews++; return f.plan.whatIf; }, submit: () => { submits++; },
+  }), /Bootstrap grants already exist/);
+  assert.equal(previews, 0); assert.equal(submits, 0);
+  assert.ok(f.calls.some((a) => a[0] === "role" && a[a.indexOf("--scope") + 1].toLowerCase() === container.id.toLowerCase()));
+  f.transport.assignments = [];
+  for (const failure of [undefined, new Error("403 missing container role visibility")]) {
+    const read = (a) => {
+      if (a[0] === "role" && a[a.indexOf("--scope") + 1].toLowerCase() === container.id.toLowerCase()) {
+        if (failure instanceof Error) throw failure;
+        return failure;
+      }
+      return f.read(a);
+    };
+    assert.throws(() => f.state.executeReviewedStage({
+      plan: f.plan, predecessor: f.predecessor, read, now: f.now,
+      preview: () => { previews++; return f.plan.whatIf; }, submit: () => { submits++; },
+    }), /visibility/);
+    assert.equal(previews, 0); assert.equal(submits, 0);
+  }
+});
+
+test("owner-confirmed synthetic handoff is correlated, fresh, non-tag-authoritative and never reads blob data", async () => {
+  const f = await stagedFixture();
+  const checked = f.state.validateFunctionalTest(f.context.security.functionalTest, f.security, f.now);
+  assert.equal(checked.internalTopology, "UNVERIFIED");
+  assert.equal(checked.automaticDataAdmission, false);
+  for (const change of [
+    { result: "Error" }, { result: "Not scanned" }, { result: "Malicious" }, { owner: "other" },
+    { observationReference: "" }, { executionAuthorizationReference: "" }, { readableSecuritySha256: "0".repeat(64) },
+    { storageId: "foreign" }, { containerId: "foreign" },
+    { scanTime: "2026-10-25T20:09:00.000Z" }, { scanTime: "2026-10-25T22:00:00.000Z" },
+    { observedAt: "2026-10-24T20:13:00.000Z" },
+    { blob: { ...f.context.security.functionalTest.blob, etag: undefined } },
+    { blob: { ...f.context.security.functionalTest.blob, contentSha256: "" } },
+    { blob: { ...f.context.security.functionalTest.blob, name: "../foreign.txt" } },
+  ]) assert.throws(() => f.state.validateFunctionalTest({ ...f.context.security.functionalTest, ...change }, f.security, f.now));
+  assert.throws(() => f.state.validateFunctionalTest(undefined, f.security, f.now));
+  assert.ok(f.calls.every((a) => a[0] !== "storage"), "Workflow must never perform blob/tag/data operations");
+});
+
+test("positive human handoff reaches continuation submission; completed replay is verified no-PUT and drift blocks", async () => {
+  const f = await stagedFixture();
+  let puts = 0, previews = 0;
+  const fresh = { changes: f.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+  f.plan.whatIf = fresh;
+  const result = f.state.executeReviewedStage({
+    plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now,
+    preview: () => { previews++; return structuredClone(fresh); }, submit: () => { puts++; },
+  });
+  assert.equal(result.action, "submitted");
+  assert.equal(puts, 1); assert.equal(previews, 1);
+  assert.equal(result.functionalTest.internalTopology, "UNVERIFIED");
+  const runtime = continuationResources(f.state);
+  f.transport.resources = [...f.boot, ...runtime];
+  const complete = { ...f.predecessor, stage: "continuation", deploymentName: f.context.deploymentName, resources: f.state.projectResources(f.transport.resources), completed: true, templateSha256: f.plan.evidence.templateSha256, parametersSha256: f.plan.evidence.parametersSha256 };
+  f.context.baseline = complete.resources;
+  f.context.predecessor.stage = "continuation";
+  f.plan.inputs.mode = "reviewed-reentry";
+  f.plan.inventory.baseline = complete.resources;
+  f.plan.whatIf = { changes: f.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: "NoChange", after: { type } })) };
+  f.transport.deployment = { name: f.context.deploymentName, properties: { provisioningState: "Succeeded" } };
+  f.context.inspection = f.state.inspectDeployment(f.read, f.context.deploymentName);
+  assert.equal(f.state.executeReviewedStage({ plan: f.plan, predecessor: complete, read: f.read, now: f.now, preview: () => f.plan.whatIf, submit: () => { puts++; } }).action, "noop");
+  assert.equal(puts, 1);
+  f.plan.evidence.commitSha = "f".repeat(40); // new commit, identical complete dependencies/payload
+  assert.equal(f.state.executeReviewedStage({ plan: f.plan, predecessor: complete, read: f.read, now: f.now, preview: () => f.plan.whatIf, submit: () => { puts++; } }).action, "noop");
+  assert.equal(puts, 1);
+  f.transport.resources.at(-1).properties.unreviewed = true;
+  assert.throws(() => f.state.executeReviewedStage({ plan: f.plan, predecessor: complete, read: f.read, now: f.now, preview: () => f.plan.whatIf, submit: () => { puts++; } }));
+  assert.equal(puts, 1);
+});
+
+test("continuation blocks missing/changed security, grants, writer rights and foreign/recreated predecessor before PUT", async () => {
+  for (const mutate of [
+    (f) => { delete f.context.security.functionalTest; },
+    (f) => { f.transport.defender.properties.malwareScanning.onUpload.capGBPerMonth = 99; },
+    (f) => { f.transport.defender.properties.malwareScanning.operationStatus = { code: "Failure" }; },
+    (f) => { f.transport.scanner.identity.tenantId = "foreign"; },
+    (f) => { f.transport.assignments.pop(); },
+    (f) => { f.transport.assignments[0].scope = `/subscriptions/${subscriptionId}`; },
+    (f) => { f.transport.assignments[0].principalId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"; },
+    (f) => { f.transport.permissions[0].actions.push("Microsoft.Storage/storageAccounts/write"); },
+    (f) => { f.transport.permissions[0].actions.push("Microsoft.Authorization/roleAssignments/write"); },
+    (f) => { f.transport.permissions[0].dataActions.push("Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"); },
+    (f) => { f.predecessor.resources.find((r) => r.type.endsWith("/userAssignedIdentities")).properties.principalId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"; },
+    (f) => { f.context.security.writerRemovalReference = ""; },
+  ]) {
+    const f = await stagedFixture(); mutate(f); let puts = 0;
+    assert.throws(() => f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now, preview: () => ({ changes: [] }), submit: () => { puts++; } }));
+    assert.equal(puts, 0);
+  }
+});
+
+test("reviewed partial re-entry inspects terminal operations, permits only exact delta, stops timeout/unknown/extras", async () => {
+  const f = await stagedFixture();
+  const first = f.state.continuationInventory()[0];
+  f.transport.resources.push({ ...first, properties: { provisioningState: "Succeeded", tags: { approved: "old" } } });
+  f.context.baseline = f.state.projectResources(f.transport.resources);
+  f.plan.inventory.baseline = f.context.baseline;
+  f.plan.inputs.mode = "reviewed-reentry";
+  f.plan.evidence.commitSha = "f".repeat(40); // fresh source SHA; inspect OLD failed deployment before a new write
+  const partial = { ...f.predecessor, stage: "continuation", deploymentName: f.context.deploymentName, completed: false, resources: f.context.baseline };
+  f.context.predecessor.stage = "continuation";
+  f.transport.deployment = { name: f.context.deploymentName, properties: { provisioningState: "Failed" } };
+  f.context.inspection = f.state.inspectDeployment(f.read, f.context.deploymentName);
+  const modify = { resourceId: first.id, changeType: "Modify", before: { type: first.type, properties: { tags: { approved: "old" } } }, after: { type: first.type, properties: { tags: { approved: "new" } } }, delta: [{ path: "properties.tags.approved", propertyChangeType: "Modify", before: "old", after: "new" }] };
+  f.context.approvedChanges = [modify];
+  f.plan.whatIf = { changes: [modify, ...f.state.continuationInventory().slice(1).map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } }))] };
+  let puts = 0;
+  const run = () => f.state.executeReviewedStage({ plan: f.plan, predecessor: partial, read: f.read, now: f.now, preview: () => structuredClone(f.plan.whatIf), submit: () => { puts++; } });
+  assert.equal(run().action, "submitted"); assert.equal(puts, 1);
+  for (const status of ["Running", "Accepted", "Unknown", undefined]) {
+    f.transport.deployment.properties.provisioningState = status;
+    assert.throws(run); assert.equal(puts, 1);
+  }
+  f.transport.deployment.properties.provisioningState = "Failed";
+  for (const change of ["Delete", "Ignore", "Unsupported"]) {
+    f.plan.whatIf.changes[0].changeType = change; assert.throws(run); assert.equal(puts, 1);
+  }
+  f.plan.whatIf.changes[0].changeType = "Modify";
+  f.context.approvedChanges = []; assert.throws(run); assert.equal(puts, 1);
+});
+
+test("predecessor checkpoint requires real run/artifact provenance, exact stage/version/attempt and complete hashed dependencies", async () => {
+  const f = await stagedFixture();
+  const { assertExecutionCheckpoint } = await controls();
+  const bytes = encode(f.predecessor);
+  const ref = { ...f.context.predecessor, checkpointSha256: hash(bytes) };
+  const run = { id: 123, run_attempt: 1, head_sha: sha, head_branch: "main", event: "workflow_dispatch", status: "completed", conclusion: "success", path: ".github/workflows/company-development-foundation-apply.yml", repository: { full_name: "keyforta/keyforta-property" }, head_repository: { full_name: "keyforta/keyforta-property" } };
+  const artifact = { id: 456, expired: false, name: `company-dev-foundation-bootstrap-initial-v2-apply-${sha}-123-1`, workflow_run: { id: 123, head_sha: sha } };
+  assert.deepEqual(assertExecutionCheckpoint(bytes, run, artifact, ref), f.predecessor);
+  // A later job/upload/cleanup failure does not authorize another PUT. Preserve
+  // the checkpoint but require actual terminal inventory + fresh NoChange in
+  // reviewed re-entry; success is still mandatory for the NEW preview artifact.
+  assert.deepEqual(assertExecutionCheckpoint(bytes, { ...run, conclusion: "failure" }, artifact, ref), f.predecessor);
+  for (const mutation of [
+    { run: { ...run, run_attempt: 2 } }, { run: { ...run, event: "pull_request" } },
+    { artifact: { ...artifact, id: 999 } }, { artifact: { ...artifact, expired: true } },
+    { ref: { ...ref, stage: "continuation" } }, { ref: { ...ref, checkpointSha256: "0".repeat(64) } },
+    { bytes: encode({ ...f.predecessor, version: 1 }) },
+    { bytes: encode({ ...f.predecessor, sourceFiles: f.predecessor.sourceFiles.slice(1) }) },
+  ]) assert.throws(() => assertExecutionCheckpoint(mutation.bytes ?? bytes, mutation.run ?? run, mutation.artifact ?? artifact,
+    mutation.ref ?? (mutation.bytes ? { ...ref, checkpointSha256: hash(mutation.bytes) } : ref)));
+});
+
+test("continuation inspects successful predecessor and rejects foreign/unknown ARM history or incomplete bootstrap", async () => {
+  for (const mutation of [
+    (f) => { f.transport.predecessorDeployment.properties.provisioningState = "Running"; },
+    (f) => { f.transport.predecessorDeployment.properties.provisioningState = "Failed"; },
+    (f) => { f.transport.predecessorDeployment = null; },
+    (f) => { f.transport.extraDeployments.push({ name: "foreign", properties: { provisioningState: "Succeeded" } }); },
+    (f) => { f.predecessor.completed = false; },
+    (f) => { f.transport.defender.properties.malwareScanning.onUpload.filters = { excludeBlobsWithSuffix: [".txt"] }; },
+  ]) {
+    const f = await stagedFixture(); mutation(f);
+    let puts = 0;
+    f.plan.whatIf = { changes: f.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+    assert.throws(() => f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now, preview: () => f.plan.whatIf, submit: () => { puts++; } }));
+    assert.equal(puts, 0);
+  }
+});
+
+test("exact reviewed service-created security inventory is read and bound, never inferred or deployed by continuation", async () => {
+  const f = await stagedFixture();
+  const topic = { id: `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.EventGrid/systemTopics/actual-reviewed-service-topic`,
+    type: "Microsoft.EventGrid/systemTopics", properties: { source: f.security.storageId, provisioningState: "Succeeded" } };
+  f.transport.resources = [...f.boot, topic];
+  f.context.security.resourceInventory = [{ id: topic.id, type: topic.type }];
+  f.context.baseline = f.plan.inventory.baseline = f.state.projectResources(f.transport.resources);
+  f.plan.inventory.expected.push({ id: topic.id, type: topic.type });
+  f.context.security.functionalTest.readableSecuritySha256 = f.state.stateHash(f.state.readSecurity(f.read, f.context.security, f.predecessor));
+  f.plan.whatIf = { changes: f.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+  let puts = 0;
+  const execute = () => f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now, preview: () => f.plan.whatIf, submit: () => { puts++; } });
+  assert.equal(execute().action, "submitted"); assert.equal(puts, 1);
+  topic.properties.source = "foreign"; assert.throws(execute); assert.equal(puts, 1);
+  topic.properties.source = f.security.storageId;
+  f.plan.whatIf.changes.push({ resourceId: topic.id, changeType: "Create", after: { type: topic.type } });
+  assert.throws(execute); assert.equal(puts, 1);
+});
+
+test("stage permission readiness checks only documented template operations, rejects broad/security/data writers and does not claim full ACA proof", async () => {
+  const f = await stagedFixture();
+  const operations = [...new Set(f.state.continuationInventory().map((r) => `${r.type}/write`)), "Microsoft.Resources/deployments/write", "Microsoft.Resources/deployments/whatIf/action", "Microsoft.OperationalInsights/workspaces/sharedKeys/action"];
+  const grant = { actions: ["*/read", ...operations], notActions: [], dataActions: [], notDataActions: [] };
+  const checked = f.state.readStagePermissionReadiness(() => ({ value: [grant] }), "continuation", "apply");
+  assert.equal(checked.acaMinimumPermissionProof, "EXTERNAL_REQUIRED");
+  for (const change of [
+    { actions: ["*"] }, { actions: [...grant.actions, "Microsoft.Network/*"] },
+    { actions: [...grant.actions, "Microsoft.Authorization/roleAssignments/write"] },
+    { dataActions: ["*"] }, { actions: ["*/read"] }, { notActions: [operations[0]] },
+  ]) assert.throws(() => f.state.readStagePermissionReadiness(() => ({ value: [{ ...grant, ...change }] }), "continuation", "apply"));
+  assert.throws(() => f.state.readStagePermissionReadiness(() => ({ value: [] }), "continuation", "apply"));
+  assert.throws(() => f.state.readStagePermissionReadiness(() => { throw new Error("403 missing visibility"); }, "continuation", "apply"));
+  assert.doesNotThrow(() => f.state.readStagePermissionReadiness(() => ({ value: [{ ...grant, actions: ["*/read", "Microsoft.Resources/deployments/whatIf/action"] }] }), "continuation", "preview"));
+});
+
+test("continuation what-if cannot retain resolved Log Analytics keys, including scalar delta values", async () => {
+  const f = await stagedFixture();
+  f.plan.whatIf = { changes: f.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+  const aca = f.plan.whatIf.changes.find((r) => r.after.type === "Microsoft.App/managedEnvironments");
+  aca.after.properties = { appLogsConfiguration: { logAnalyticsConfiguration: { sharedKey: "synthetic-secret-do-not-persist" } } };
+  assert.throws(() => f.state.validateStageChanges(f.plan.whatIf, f.plan, false), /secret/i);
+  aca.after.properties.appLogsConfiguration.logAnalyticsConfiguration.sharedKey = "[listKeys(resourceId('logs'), '2023-09-01').primarySharedKey]";
+  assert.doesNotThrow(() => f.state.validateStageChanges(f.plan.whatIf, f.plan, false));
+  aca.delta = [{ path: "properties.appLogsConfiguration.logAnalyticsConfiguration.sharedKey", propertyChangeType: "Modify", before: "synthetic-secret-do-not-persist", after: "*****" }];
+  assert.throws(() => f.state.validateStageChanges(f.plan.whatIf, f.plan, false), /secret/i);
+});
+
+test("partial bootstrap recovery allows only reviewed first-observed resources before handoff and completed timeout recovery performs no PUT", async () => {
+  const f = await stagedFixture();
+  const { bootstrapInventory } = await import("../../scripts/infra/company-development.mjs");
+  const storage = f.boot.find((r) => r.type.endsWith("/storageAccounts"));
+  f.transport.resources = [f.boot.find((r) => r.type.endsWith("/userAssignedIdentities")), storage];
+  f.transport.assignments = []; f.transport.defender = { properties: { isEnabled: false } };
+  f.context.baseline = f.state.projectResources(f.transport.resources);
+  f.plan.inputs.stage = "bootstrap"; f.plan.inputs.mode = "reviewed-reentry"; delete f.context.security;
+  f.context.deploymentName = f.predecessor.deploymentName;
+  f.context.inspection = f.state.inspectDeployment(f.read, f.context.deploymentName);
+  f.predecessor.completed = false; f.predecessor.resources = [];
+  f.predecessor.templateSha256 = f.plan.evidence.templateSha256; f.predecessor.parametersSha256 = f.plan.evidence.parametersSha256;
+  f.plan.inventory = { expected: bootstrapInventory(), baseline: f.context.baseline };
+  f.transport.predecessorDeployment.properties.provisioningState = "Failed";
+  f.context.inspection = f.state.inspectDeployment(f.read, f.context.deploymentName);
+  f.transport.stagePermissions = [{ actions: ["*/read", ...new Set(bootstrapInventory().map((r) => `${r.type}/write`)), "Microsoft.Resources/deployments/write", "Microsoft.Resources/deployments/whatIf/action"], notActions: [], dataActions: [], notDataActions: [] }];
+  f.plan.whatIf = { changes: bootstrapInventory().map(({ id, type }) => ({ resourceId: id, after: { type }, changeType: f.transport.resources.some((r) => r.id === id) ? "NoChange" : "Create" })) };
+  let puts = 0;
+  const run = () => f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now, preview: () => structuredClone(f.plan.whatIf), submit: () => { puts++; } });
+  assert.equal(run().action, "submitted"); assert.equal(puts, 1);
+  f.transport.defender.properties.isEnabled = true; assert.throws(run); assert.equal(puts, 1);
+  f.transport.defender.properties.isEnabled = false;
+  f.transport.resources = f.boot; f.context.baseline = f.state.projectResources(f.boot);
+  f.plan.inventory.baseline = f.context.baseline;
+  f.transport.predecessorDeployment.properties.provisioningState = "Succeeded";
+  f.context.inspection = f.state.inspectDeployment(f.read, f.context.deploymentName);
+  f.plan.whatIf.changes.forEach((c) => { c.changeType = "NoChange"; });
+  assert.equal(run().action, "noop"); assert.equal(puts, 1);
+});
+
+test("direct security-scope writer authority cannot hide beneath otherwise read-only bootstrap permissions", async () => {
+  const f = await stagedFixture();
+  f.plan.whatIf = { changes: f.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+  let puts = 0;
+  const read = (a) => a[0] === "rest" && a.some((v) => v.includes("/dataScanners/") && v.includes("/permissions?"))
+    ? { value: [{ actions: ["Microsoft.Security/dataScanners/write"], notActions: [], dataActions: [], notDataActions: [] }] } : f.read(a);
+  assert.throws(() => f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read, now: f.now, preview: () => f.plan.whatIf, submit: () => { puts++; } }));
+  assert.equal(puts, 0);
+});
+
+test("completed continuation verifies actual PG sizing/private Entra-only/backup state and ACA Consumption rather than inventory count alone", async () => {
+  const f = await stagedFixture(), resources = continuationResources(f.state);
+  assert.doesNotThrow(() => f.state.assertCompletedResources([...f.boot, ...resources], "continuation"));
+  for (const mutation of [
+    (r) => { r.find((v) => v.type === "Microsoft.DBforPostgreSQL/flexibleServers").properties.authConfig.passwordAuth = "Enabled"; },
+    (r) => { r.find((v) => v.type === "Microsoft.DBforPostgreSQL/flexibleServers").properties.storage.storageSizeGB = 64; },
+    (r) => { r.find((v) => v.type === "Microsoft.DBforPostgreSQL/flexibleServers").properties.network.publicNetworkAccess = "Enabled"; },
+    (r) => { r.find((v) => v.type === "Microsoft.DBforPostgreSQL/flexibleServers").properties.state = "Updating"; },
+    (r) => { r.find((v) => v.type === "Microsoft.App/managedEnvironments").properties.workloadProfiles.push({ name: "paid", workloadProfileType: "D4" }); },
+    (r) => { delete r.find((v) => v.type === "Microsoft.App/managedEnvironments").properties.vnetConfiguration; },
+    (r) => { r[0].properties.provisioningState = "Failed"; },
+  ]) { const changed = structuredClone(resources); mutation(changed); assert.throws(() => f.state.assertCompletedResources([...f.boot, ...changed], "continuation")); }
+});
+function bootstrapRead(resources, { account, assignments = [] } = {}) {
+  const defaults = { id: subscriptionId, tenantId: input.tenantId, state: "Enabled", user: { name: "synthetic-operator@example.invalid", type: "user" } };
+  return (args) => {
+    if (args[0] === "account") return account ?? defaults;
+    if (args[0] === "role") {
+      assert.deepEqual(args.slice(0, 3), ["role", "assignment", "list"]);
+      assert.ok(args.includes("--include-inherited"));
+      assert.ok(!args.includes("--all"), "Azure CLI rejects --all with --scope");
+      return assignments;
+    }
+    if (args[0] === "deployment") return resources.map((r) => ({ properties: {
+      provisioningState: "Succeeded", provisioningOperation: "Create", targetResource: { id: r.id, resourceType: r.type },
+    } }));
+    if (args[1] === "list") return resources.filter((r) => !r.type.includes("/blobServices"));
+    assert.deepEqual(args.slice(0, 2), ["resource", "show"]);
+    return resources.find((r) => r.id === args[args.indexOf("--ids") + 1]);
+  };
+}
+
+test("human grant preparation uses actual tenant/resource/principal/client IDs and ARM-compatible deterministic names; never grants", async () => {
+  const { prepareHumanGrants, assertHumanGrantAssignments, armGuid } = await controls();
+  const { bootstrapInventory } = await import("../../scripts/infra/company-development.mjs");
+  const resources = actualResources(bootstrapInventory());
+  const previous = { version: 2, stage: "bootstrap", destination: { subscriptionId, tenantId: input.tenantId, resourceGroup, location: input.location }, resources };
+  const calls = [];
+  const read = bootstrapRead(resources);
+  const plan = prepareHumanGrants((args) => { calls.push(args); return read(args); }, "companydev-bootstrap-synthetic", previous);
+  assert.equal(plan.commands.length, 4);
+  assert.equal(plan.assignments.length, 4);
+  assert.equal(plan.securityHandoffVerified, false);
+  assert.equal(plan.workflowGrantAuthority, false);
+  assert.equal(plan.bindings.length, 3);
+  assert.deepEqual(plan.bindings.map((b) => b.principalId).sort(), resources.filter((r) => r.type.endsWith("/userAssignedIdentities")).map((r) => r.properties.principalId).sort());
+  const expectedNames = plan.assignments.map((a) => {
+    const body = `${a.scope}-${a.identityResourceId}-${a.roleDefinitionId}`;
+    // Independent standard-library UUIDv5 oracle, not an implementation clone.
+    return execFileSync("python3", ["-c", "import uuid,sys; print(uuid.uuid5(uuid.UUID('11fb06fb-712d-4ddd-98c7-e71bbd588830'),sys.argv[1]))", body], { encoding: "utf8" }).trim();
+  });
+  assert.deepEqual(plan.assignments.map((a) => a.name), expectedNames);
+  assert.equal(armGuid("a", "b"), "2d796349-8c7e-55ec-9624-54ece82ed031");
+  for (let i = 0; i < 4; i++) {
+    const assignment = plan.assignments[i];
+    const command = plan.commands[i];
+    assert.equal(command.executable, "az");
+    assert.deepEqual(command.args.slice(0, 3), ["role", "assignment", "create"]);
+    for (const [flag, value] of [
+      ["--scope", assignment.scope], ["--name", expectedNames[i]], ["--role", assignment.roleDefinitionId],
+      ["--assignee-object-id", assignment.principalId], ["--assignee-principal-type", "ServicePrincipal"], ["--subscription", subscriptionId],
+    ]) assert.equal(command.args[command.args.indexOf(flag) + 1], value);
+    assert.match(assignment.roleDefinitionId, new RegExp(`^/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/`));
+    assert.ok(!command.args.includes(assignment.clientId), "Client IDs must never be used as assignee object IDs");
+  }
+  assert.ok(calls.every((args) => args[0] !== "role" || args.slice(0, 3).join(" ") === "role assignment list"), "Preparation may only read assignments");
+  assert.equal(calls.filter((args) => args[0] === "role").length, 2);
+  const matches = plan.assignments.map(({ id, name, principalId, principalType, roleDefinitionId, scope }) => ({ id, name, principalId, principalType, roleDefinitionId, scope }));
+  assert.doesNotThrow(() => assertHumanGrantAssignments(matches, plan.assignments));
+  assert.deepEqual(prepareHumanGrants(bootstrapRead(resources, { assignments: matches }), "companydev-bootstrap-synthetic", previous).commands, [], "Exact existing tuple must be idempotent, no duplicate grant command");
+  assert.equal(prepareHumanGrants(bootstrapRead(resources, { assignments: matches.slice(1) }), "companydev-bootstrap-synthetic", previous).commands.length, 1);
+  assert.deepEqual(plan.assignments.map((a) => a.scope).sort(), [
+    ...Array(3).fill(resources.find((r) => r.type.endsWith("/registries")).id),
+    resources.find((r) => r.type.endsWith("/containers")).id,
+  ].sort());
+});
+
+test("human grant tuple verification rejects inherited/broad/extra roles, foreign same-tenant SP, swapped/recreated identities and missing visibility", async () => {
+  const { prepareHumanGrants, assertHumanGrantAssignments, armGuid } = await controls();
+  const { bootstrapInventory } = await import("../../scripts/infra/company-development.mjs");
+  const resources = actualResources(bootstrapInventory());
+  const previous = { version: 2, stage: "bootstrap", destination: { subscriptionId, tenantId: input.tenantId, resourceGroup, location: input.location }, resources };
+  const plan = prepareHumanGrants(bootstrapRead(resources), "companydev-bootstrap-synthetic", previous);
+  const assignments = plan.assignments.map(({ id, name, principalId, principalType, roleDefinitionId, scope }) => ({ id, name, principalId, principalType, roleDefinitionId, scope }));
+  for (const mutate of [
+    (a) => { a.pop(); },
+    (a) => { a.push({ ...a[0], id: `${a[0].scope}/providers/Microsoft.Authorization/roleAssignments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa` }); },
+    (a) => { a[0].principalId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"; },
+    (a) => { a[0].scope = `/subscriptions/${subscriptionId}`; },
+    (a) => { a[0].scope = a[0].scope.replace(resourceGroup, "foreign-rg"); },
+    (a) => { a[0].scope = a[0].scope.replace(subscriptionId, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"); },
+    (a) => { a[0].roleDefinitionId = `/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c`; },
+    (a) => { a[0].roleDefinitionId = a[0].roleDefinitionId.split("/").at(-1); },
+    (a) => { a[0].principalType = "User"; },
+    (a) => { a[0].principalId = plan.assignments[0].clientId; },
+    (a) => { a[0].condition = "@Resource[anything]"; a[0].conditionVersion = "2.0"; },
+    (a) => { a[0].name = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"; },
+    (a) => { a[0].id = a[0].id.replace(resourceGroup, "foreign-rg"); },
+  ]) {
+    const changed = structuredClone(assignments); mutate(changed);
+    assert.throws(() => assertHumanGrantAssignments(changed, plan.assignments));
+    // Missing grants are prepared, but any conflicting/broad/extra actual
+    // assignment must stop preparation rather than emit corrective commands.
+    if (changed.length >= assignments.length) {
+      assert.throws(() => prepareHumanGrants(bootstrapRead(resources, { assignments: changed }), "companydev-bootstrap-synthetic", previous));
+    }
+  }
+  for (const mutate of [
+    (r) => { r.find((x) => x.type.endsWith("/userAssignedIdentities")).properties.principalId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"; },
+    (r) => { const identities = r.filter((x) => x.type.endsWith("/userAssignedIdentities")); [identities[0].properties, identities[1].properties] = [identities[1].properties, identities[0].properties]; },
+    (r) => { r.find((x) => x.type.endsWith("/userAssignedIdentities")).properties.tenantId = "foreign"; },
+  ]) {
+    const changed = structuredClone(resources); mutate(changed);
+    assert.throws(() => prepareHumanGrants(bootstrapRead(changed), "companydev-bootstrap-synthetic", previous));
+  }
+  for (const account of [
+    { id: subscriptionId, tenantId: input.tenantId, state: "Enabled", user: { type: "servicePrincipal", name: "workflow" } },
+    { id: "foreign", tenantId: input.tenantId, state: "Enabled", user: { type: "user", name: "human" } },
+    { id: subscriptionId, tenantId: "foreign", state: "Enabled", user: { type: "user", name: "human" } },
+  ]) assert.throws(() => prepareHumanGrants(bootstrapRead(resources, { account }), "companydev-bootstrap-synthetic", previous));
+  assert.throws(() => prepareHumanGrants(() => { throw new Error("403 missing visibility"); }, "companydev-bootstrap-synthetic", previous), /missing visibility/);
+  assert.throws(() => assertHumanGrantAssignments(undefined, plan.assignments), /visibility/i);
+  for (const mutate of [
+    (a) => { a[0].roleDefinitionId = `/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c`; },
+    (a) => { a[0].scope = `/subscriptions/${subscriptionId}`; },
+    (a) => { a[0].identityResourceId = a[0].identityResourceId.replace(resourceGroup, "foreign-rg"); },
+    (a) => { a[3].principalId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"; },
+  ]) {
+    const proposed = structuredClone(plan.assignments); mutate(proposed);
+    for (const a of proposed) {
+      a.name = armGuid(a.scope, a.identityResourceId, a.roleDefinitionId);
+      a.id = `${a.scope}/providers/Microsoft.Authorization/roleAssignments/${a.name}`;
+    }
+    assert.throws(() => assertHumanGrantAssignments(proposed, proposed), "Caller-updated JSON/names must not broaden the approved tuple policy");
+  }
+});
+
+test("manual human-grant-plan CLI binds predecessor bytes, reads fixed destination only, and emits commands without executing them", async () => {
+  const { bootstrapInventory, destination } = await import("../../scripts/infra/company-development.mjs");
+  const resources = actualResources(bootstrapInventory());
+  const previous = { version: 2, stage: "bootstrap", destination, resources };
+  const { root: dir } = sourceFixture();
+  const path = join(dir, "bootstrap-state.json");
+  const bytes = encode(previous);
+  writeFileSync(path, bytes);
+  const tool = `#!/usr/bin/env node
+const fs=require("node:fs"),a=process.argv.slice(2),e=process.env;
+fs.appendFileSync(e.TOOL_LOG,JSON.stringify(a)+"\\n");
+const resources=JSON.parse(e.FAKE_RESOURCES); let value;
+if(a[0]==="account")value={id:"${subscriptionId}",tenantId:"${input.tenantId}",state:"Enabled",user:{type:"user",name:"synthetic-operator@example.invalid"}};
+else if(a[0]==="role"&&a[2]==="list")value=[];
+else if(a[0]==="deployment")value=resources.map(r=>({properties:{provisioningState:"Succeeded",provisioningOperation:"Create",targetResource:{id:r.id,resourceType:r.type}}}));
+else if(a[0]==="resource"&&a[1]==="list")value=resources.filter(r=>!r.type.includes("/blobServices"));
+else if(a[0]==="resource"&&a[1]==="show")value=resources.find(r=>r.id===a[a.indexOf("--ids")+1]);
+else {console.error("Unexpected/non-read operation");process.exit(9)}
+console.log(JSON.stringify(value));
+`;
+  writeFileSync(join(dir, "az"), tool); chmodSync(join(dir, "az"), 0o700);
+  const env = { ...process.env, GITHUB_ACTIONS: "false", PATH: `${dir}:${process.env.PATH}`, TOOL_LOG: join(dir, "tools.jsonl"), FAKE_RESOURCES: JSON.stringify(resources) };
+  const args = [resolve("scripts/infra/company-development-apply.mjs"), "human-grant-plan", "--deployment", "companydev-bootstrap-synthetic", "--predecessor", path, "--predecessor-sha256", hash(bytes)];
+  try {
+    const run = (changes = {}, arguments_ = args) => spawnSync(process.execPath, arguments_, { cwd: dir, env: { ...env, ...changes }, encoding: "utf8" });
+    const ci = run({ GITHUB_ACTIONS: "true" });
+    assert.equal(ci.status, 1);
+    assert.match(ci.stderr, /manual.*operator|workflow/i);
+    const wrong = run({}, [...args.slice(0, -1), "0".repeat(64)]);
+    assert.equal(wrong.status, 1);
+    assert.match(wrong.stderr, /predecessor.*hash/i);
+    const result = run();
+    assert.equal(result.status, 0, result.stderr);
+    const plan = JSON.parse(result.stdout);
+    assert.equal(plan.predecessorFileSha256, hash(bytes));
+    assert.equal(plan.commands.length, 4);
+    assert.equal(plan.reviewContextOnly, true);
+    const calls = readFileSync(env.TOOL_LOG, "utf8").trim().split("\n").map(JSON.parse);
+    assert.equal(calls.length, 12);
+    for (const a of calls) {
+      assert.equal(a[a.indexOf("--subscription") + 1], subscriptionId);
+      assert.ok(!a.includes("create") && !a.includes("put") && !a.includes("delete"));
+    }
+    assert.equal(run({}, [...args, "--unexpected", "value"]).status, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 function fixture(sha = "a".repeat(40)) {
   const parameters = {
     $schema: "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
     contentVersion: "1.0.0.0",
-    parameters: Object.fromEntries(["vnetCidr", "acaSubnetCidr", "postgresSubnetCidr", "networkApproval"].map((key) => [key, { value: input[key] }])),
+    parameters: Object.fromEntries(["stage", "vnetCidr", "acaSubnetCidr", "postgresSubnetCidr", "networkApproval"].map((key) => [key, { value: input[key] }])),
   };
   const template = { resources: [{ type: "Microsoft.Resources/deployments", subscriptionId, resourceGroup, properties: { mode: "Incremental" } }] };
-  const whatIf = { changes: [{ resourceId: `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.Network/virtualNetworks/test`, changeType: "Create", after: { type: "Microsoft.Network/virtualNetworks" } }] };
-  const context = { repository: "keyforta/keyforta-property", revision: sha, runId: "123", runAttempt: "1", environment: { name: "company-dev" } };
+  const inventory = {
+    version: 2, stage: "bootstrap", mode: "initial",
+    destination: { subscriptionId, tenantId: input.tenantId, resourceGroup, location: input.location },
+    baseline: [],
+    expected: [
+      ...["api", "web", "migration"].map((name) => ({ type: "Microsoft.ManagedIdentity/userAssignedIdentities", name: `id-keyforta-cdev-${name}` })),
+      { type: "Microsoft.ContainerRegistry/registries", name: "acrkeyfortacdevmxv24i2qhtib6" },
+      { type: "Microsoft.Storage/storageAccounts", name: "stakeyfortacdevmxv24i2qh" },
+      { type: "Microsoft.Storage/storageAccounts/blobServices", name: "stakeyfortacdevmxv24i2qh/default" },
+      { type: "Microsoft.Storage/storageAccounts/blobServices/containers", name: "stakeyfortacdevmxv24i2qh/default/tenant-applications" },
+    ].map(({ type, name }) => {
+      const segments = type.split("/");
+      const names = name.split("/");
+      return { type, id: `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/${segments[0]}/${segments.slice(1).map((part, i) => `${part}/${names[i]}`).join("/")}` };
+    }).sort((a, b) => a.id.localeCompare(b.id)),
+    predecessor: null, securityHandoff: null, changeFreeze: input.changeFreeze,
+  };
+  const whatIf = { changes: inventory.expected.map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+  const context = { repository: "keyforta/keyforta-property", revision: sha, runId: "123", runAttempt: "1", stage: "bootstrap", mode: "initial", evidenceVersion: 2, inventorySha256: hash(JSON.stringify(inventory)), environment: { name: "company-dev" } };
   const files = {
     "inputs.json": encode(input), "parameters.json": encode(parameters),
     "template.json": encode(template), "what-if.json": encode(whatIf), "review-context.json": encode(context),
+    "inventory.json": encode(inventory),
   };
+  const sourceFiles = sourcePaths.map((path) => ({ path, sha256: "b".repeat(64) }));
   const evidence = {
     ...input, operation: "foundation-preview-only", commitSha: sha, runId: "123", runAttempt: "1",
     reviewContext: context, approvedParameters: parameters, executionApproved: false,
     planningCeilingUsdBeforeTax: "120.00", estimatedMonthlyUsdBeforeTax: "108.35",
     previewClientId: "11111111-1111-4111-8111-111111111111",
-    sourceSha256: "b".repeat(64),
+    sourceSha256: hash(JSON.stringify(sourceFiles)), sourceFiles,
+    inventorySha256: hash(files["inventory.json"]),
+    inputsSha256: hash(files["inputs.json"]), reviewContextSha256: hash(files["review-context.json"]),
     templateSha256: hash(files["template.json"]), parametersSha256: hash(files["parameters.json"]), whatIfSha256: hash(files["what-if.json"]),
   };
   files["evidence.json"] = encode(evidence);
   return {
     files, whatIf,
     expected: {
-      sha, runId: "123", runAttempt: "1", artifactId: "456", sourceSha256: evidence.sourceSha256,
+      sha, stage: input.stage, mode: input.mode, evidenceVersion: 2,
+      runId: "123", runAttempt: "1", artifactId: "456", sourceSha256: evidence.sourceSha256,
+      evidenceSha256: hash(files["evidence.json"]), inventorySha256: evidence.inventorySha256,
       templateSha256: evidence.templateSha256, parametersSha256: evidence.parametersSha256, whatIfSha256: evidence.whatIfSha256,
     },
     run: { id: 123, run_attempt: 1, head_sha: sha, head_branch: "main", status: "completed", conclusion: "success", event: "workflow_dispatch", path: ".github/workflows/company-development-foundation.yml", repository: { full_name: "keyforta/keyforta-property" }, head_repository: { full_name: "keyforta/keyforta-property" } },
-    artifact: { id: 456, expired: false, name: `company-dev-foundation-plan-${sha}-123-1`, workflow_run: { id: 123, head_sha: sha } },
+    artifact: { id: 456, expired: false, name: `company-dev-foundation-bootstrap-initial-v2-plan-${sha}-123-1`, workflow_run: { id: 123, head_sha: sha } },
   };
 }
+
+test("staged apply rejects legacy evidence, wrong stage/version, incomplete dependencies and inventory tampering", async () => {
+  const { assertPlan } = await controls();
+  for (const mutation of [
+    (f) => { delete f.files["inventory.json"]; },
+    (f) => { const e = JSON.parse(f.files["evidence.json"]); e.evidenceVersion = 1; f.files["evidence.json"] = encode(e); },
+    (f) => { const e = JSON.parse(f.files["evidence.json"]); e.stage = "continuation"; f.files["evidence.json"] = encode(e); },
+    (f) => { const e = JSON.parse(f.files["evidence.json"]); e.sourceFiles.pop(); e.sourceSha256 = f.expected.sourceSha256 = hash(JSON.stringify(e.sourceFiles)); f.files["evidence.json"] = encode(e); },
+    (f) => { const i = JSON.parse(f.files["inventory.json"]); i.expected.pop(); f.files["inventory.json"] = encode(i); },
+    (f) => { f.expected.mode = "reviewed-reentry"; },
+  ]) {
+    const f = fixture();
+    mutation(f);
+    // Updating actor-supplied hashes cannot make invalid semantics acceptable.
+    f.expected.evidenceSha256 = hash(f.files["evidence.json"]);
+    const e = JSON.parse(f.files["evidence.json"]);
+    assert.throws(() => assertPlan(f.files, f.run, f.artifact, f.expected, e.sourceSha256));
+  }
+});
+
+test("bootstrap actual reads reject foreign tenant, wrong destination, duplicated principals, failed provisioning and security drift", async () => {
+  const { readBootstrapState } = await controls();
+  const { bootstrapInventory } = await import("../../scripts/infra/company-development.mjs");
+  const expected = bootstrapInventory();
+  const resources = actualResources(expected);
+  const read = (actual) => (args) => {
+    if (args[0] === "deployment") return actual.map((r) => ({ properties: { provisioningState: "Succeeded", provisioningOperation: "Create", targetResource: { id: r.id, resourceType: r.type } } }));
+    if (args[1] === "list") return actual.filter((r) => !r.type.includes("/blobServices"));
+    assert.equal(args[0], "resource"); assert.equal(args[1], "show");
+    assert.ok(args.includes("--api-version"));
+    return actual.find((r) => r.id === args[args.indexOf("--ids") + 1]);
+  };
+  assert.equal(readBootstrapState(read(resources), "companydev-bootstrap-synthetic").resources.length, 7);
+  for (const mutate of [
+    (r) => { r.find((x) => x.type.endsWith("/userAssignedIdentities")).properties.tenantId = "foreign"; },
+    (r) => { r[0].id = r[0].id.replace(subscriptionId, "foreign"); },
+    (r) => { const ids = r.filter((x) => x.type.endsWith("/userAssignedIdentities")); ids[1].properties.principalId = ids[0].properties.principalId; },
+    (r) => { r.find((x) => x.type.endsWith("/registries")).properties.provisioningState = "Failed"; },
+    (r) => { r.find((x) => x.type.endsWith("/storageAccounts")).properties.allowSharedKeyAccess = true; },
+    (r) => { r.find((x) => x.type.endsWith("/containers")).properties.publicAccess = "Blob"; },
+    (r) => { r.find((x) => x.type.endsWith("/registries")).sku.name = "Premium"; },
+    (r) => { r.find((x) => x.type.endsWith("/storageAccounts")).sku.name = "Standard_GRS"; },
+    (r) => { r.push({ id: "extra-role", type: "Microsoft.Authorization/roleAssignments" }); },
+    (r) => { r.pop(); },
+  ]) {
+    const actual = structuredClone(resources); mutate(actual);
+    assert.throws(() => readBootstrapState(read(actual), "companydev-bootstrap-synthetic"));
+  }
+  assert.throws(() => readBootstrapState(() => { throw new Error("403 missing visibility"); }, "companydev-bootstrap-synthetic"), /visibility/);
+  assert.throws(() => readBootstrapState((args) => {
+    const value = read(resources)(args);
+    if (args[0] === "deployment") value[0].properties.provisioningOperation = "Unknown";
+    return value;
+  }, "companydev-bootstrap-synthetic"), /operation/i);
+});
 
 test("apply accepts only exact successful preview run/artifact/SHA and every reviewed content hash", async () => {
   const { assertPlan } = await controls();
   const f = fixture();
-  assert.equal(assertPlan(f.files, f.run, f.artifact, f.expected, "b".repeat(64)).evidence.commitSha, sha);
+  assert.equal(assertPlan(f.files, f.run, f.artifact, f.expected, f.expected.sourceSha256).evidence.commitSha, sha);
   for (const file of ["template.json", "parameters.json", "what-if.json"]) {
-    assert.throws(() => assertPlan({ ...f.files, [file]: `${f.files[file]} ` }, f.run, f.artifact, f.expected, "b".repeat(64)), /hash/i);
+    assert.throws(() => assertPlan({ ...f.files, [file]: `${f.files[file]} ` }, f.run, f.artifact, f.expected, f.expected.sourceSha256), /hash/i);
   }
   assert.throws(() => assertPlan(f.files, f.run, f.artifact, f.expected, "c".repeat(64)), /source/i);
   for (const changes of [
@@ -86,7 +778,8 @@ test("apply rejects superseded destination and source plans even with recomputed
         evidence.subscriptionId = rejectedSubscription;
       }
       f.files["evidence.json"] = encode(evidence);
-      assert.throws(() => assertPlan(f.files, f.run, f.artifact, f.expected, "b".repeat(64)), /destination subscription|template subscription/i);
+      f.expected.evidenceSha256 = hash(f.files["evidence.json"]);
+      assert.throws(() => assertPlan(f.files, f.run, f.artifact, f.expected, f.expected.sourceSha256), /destination subscription|template subscription|inputs.json hash/i);
     }
   }
 });
@@ -99,7 +792,7 @@ test("apply rejects semantic approval drift and any extra artifact file even whe
   const changed = encode(parameters);
   const evidence = JSON.parse(f.files["evidence.json"]);
   evidence.parametersSha256 = hash(changed);
-  assert.throws(() => assertPlan({ ...f.files, "parameters.json": changed, "evidence.json": encode(evidence) }, f.run, f.artifact, { ...f.expected, parametersSha256: hash(changed) }, "b".repeat(64)), /parameter/i);
+  assert.throws(() => assertPlan({ ...f.files, "parameters.json": changed, "evidence.json": encode(evidence) }, f.run, f.artifact, { ...f.expected, evidenceSha256: hash(encode(evidence)), parametersSha256: hash(changed) }, f.expected.sourceSha256), /parameter/i);
   assert.throws(() => assertPlan({ ...f.files, "unexpected.json": "{}" }, f.run, f.artifact, f.expected, "b".repeat(64)), /artifact/i);
 });
 
@@ -122,7 +815,7 @@ test("apply re-previews create-only destination changes and rejects any semantic
   for (const changeType of ["Delete", "Modify", "Ignore", "NoChange"]) {
     assert.throws(() => assertFreshPreview(f.whatIf, { changes: [{ ...f.whatIf.changes[0], changeType }] }));
   }
-  const plan = assertPlan(f.files, f.run, f.artifact, f.expected, "b".repeat(64));
+  const plan = assertPlan(f.files, f.run, f.artifact, f.expected, f.expected.sourceSha256);
   const request = applyRequest(plan, sha);
   assert.match(request.url, new RegExp(`/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.Resources/deployments/`));
   assert.equal(request.body.properties.mode, "Incremental");
@@ -136,6 +829,10 @@ test("apply route has a distinct protected environment/principal, no bootstrap o
   assert.deepEqual(Object.keys(workflow.on), ["workflow_dispatch"]);
   assert.equal(workflow.concurrency.group, "company-dev-foundation");
   assert.equal(workflow.concurrency["cancel-in-progress"], false);
+  for (const key of ["stage", "mode", "evidence_version", "reviewed_inventory_sha256", "reviewed_evidence_sha256"]) {
+    assert.equal(workflow.on.workflow_dispatch.inputs[key].required, true);
+  }
+  assert.equal(workflow.env.FOUNDATION_STAGE, "${{ inputs.stage }}");
   assert.equal(workflow.jobs.apply.environment, "company-dev-apply");
   assert.equal(workflow.jobs.guard.permissions["id-token"], undefined);
   assert.equal(workflow.jobs.apply.permissions["id-token"], "write");
@@ -161,7 +858,9 @@ test("mocked apply CLI makes no write on failed quality, drift, nonempty RG or s
   f.expected.sourceSha256 = foundationSource({ root: dir, revision }).sha256;
   const evidence = JSON.parse(f.files["evidence.json"]);
   evidence.sourceSha256 = f.expected.sourceSha256;
+  evidence.sourceFiles = foundationSource({ root: dir, revision }).files;
   f.files["evidence.json"] = encode(evidence);
+  f.expected.evidenceSha256 = hash(f.files["evidence.json"]);
   const script = resolve("scripts/infra/company-development-apply.mjs");
   const environment = {
     id: 789, node_id: "apply-environment-node", name: "company-dev-apply",
@@ -175,12 +874,18 @@ fs.appendFileSync(e.TOOL_LOG,JSON.stringify({name,args:a})+"\\n");
 const json=(key)=>JSON.parse(e[key]);
 let value;
 if(name==="gh"){
+ if(!e.GH_TOKEN){console.error("To use GitHub CLI in a GitHub Actions workflow, set GH_TOKEN");process.exit(4)}
  if(a[0]==="run"){
-  const folder=a[a.indexOf("--dir")+1]; for(const [file,text]of Object.entries(json("FAKE_FILES")))fs.writeFileSync(path.join(folder,file),text);
+  const folder=a[a.indexOf("--dir")+1], predecessor=a[a.indexOf("--name")+1].includes("-apply-");
+  const files=predecessor?{"checkpoint.json":e.FAKE_CHECKPOINT}:json("FAKE_FILES");
+  for(const [file,text]of Object.entries(files))fs.writeFileSync(path.join(folder,file),text);
   process.exit(0)
  }
  const api=a[1];
  if(api.includes("/environments/"))value=json("FAKE_ENVIRONMENT");
+ else if(e.STAGED==="true" && api.includes("/attempts/"))value=json("FAKE_PREDECESSOR_RUN");
+ else if(e.STAGED==="true" && api.includes("/actions/artifacts/"+e.PREDECESSOR_ARTIFACT_ID))value=json("FAKE_PREDECESSOR_ARTIFACT");
+ else if(e.STAGED==="true" && api.includes("/actions/runs/"+e.PREDECESSOR_RUN_ID+"/artifacts?"))value={total_count:1,artifacts:[json("FAKE_PREDECESSOR_ARTIFACT")]};
  else if(api.includes("/actions/workflows/")){
   const workflow=/workflows\\/([^/]+)\\//.exec(api)[1];
   value={workflow_runs:[{id:999,head_sha:e.GITHUB_SHA,head_branch:"main",event:"push",status:"completed",conclusion:e.FAIL_QUALITY==="true"?"failure":"success",path:".github/workflows/"+workflow}]};
@@ -188,30 +893,63 @@ if(name==="gh"){
  else if(api.includes("/actions/artifacts/"))value=json("FAKE_ARTIFACT");
  else value=json("FAKE_RUN");
 }else if(name==="az"){
- if(a[0]==="account")value={id:"${subscriptionId}",tenantId:"${input.tenantId}",state:"Enabled",user:{type:"servicePrincipal",name:e.APPLY_CLIENT_ID}};
+ if(a[0]==="account")value={id:"${subscriptionId}",tenantId:"${input.tenantId}",state:"Enabled",user:{type:"servicePrincipal",name:e.PREVIEW_PHASE==="true"?e.PREVIEW_CLIENT_ID:e.APPLY_CLIENT_ID}};
+ else if(a[0]==="bicep"){console.log(e.FAKE_TEMPLATE);process.exit(0)}
  else if(a[0]==="provider")value={registrationState:"Registered"};
  else if(a[0]==="group")value={id:"/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}",location:"southafricanorth"};
- else if(a[0]==="resource")value=e.NONEMPTY==="true"?[{id:"unexpected"}]:[];
- else if(a[0]==="rest"){process.exit(0)}
+ else if(a[0]==="resource"){
+  const resources=[...json("FAKE_RESOURCES"),...(e.STAGED==="true" && fs.existsSync("continued")?json("FAKE_CONTINUATION_RESOURCES"):[])];
+  if(a[1]==="show"){
+   value=resources.find(r=>r.id.toLowerCase()===a[a.indexOf("--ids")+1].toLowerCase());
+   if(!value){console.error("ERROR: (ResourceNotFound) synthetic absent");process.exit(3)}
+  }
+  else if(e.STAGED==="true")value=resources.filter(r=>json("FAKE_TOP_TYPES").includes(r.type));
+  else value=e.NONEMPTY==="true"?[{id:"unexpected"}]:fs.existsSync("submitted")?json("FAKE_RESOURCES").filter(r=>!r.type.includes("/blobServices")):[];
+ }
+ else if(a[0]==="role" && a[2]==="list"){
+  if(a.includes("--scope") && a.includes("--all")){console.error("group or scope are not required when --all is used");process.exit(2)}
+  const scope=a[a.indexOf("--scope")+1].toLowerCase();
+  value=json("FAKE_ASSIGNMENTS").filter(r=>r.scope.toLowerCase()===scope || (a.includes("--include-inherited") && scope.startsWith(r.scope.toLowerCase()+"/")));
+ }
+ else if(a[0]==="rest"){
+  if(a.includes("get")){
+   const url=a[a.indexOf("--url")+1];
+   if(url.includes("/resourceGroups/${resourceGroup}/providers/Microsoft.Authorization/permissions?"))value={value:e.PREVIEW_PHASE==="true"?[{actions:["*/read","Microsoft.Resources/deployments/whatIf/action"],notActions:[],dataActions:[],notDataActions:[]}]:json("FAKE_STAGE_PERMISSIONS")};
+   else if(url.includes("/permissions?"))value={value:json("FAKE_PERMISSIONS")};
+   else if(url.includes("/defenderForStorageSettings/"))value=json("FAKE_DEFENDER");
+   else if(url.includes("/dataScanners/"))value=json("FAKE_SCANNER");
+   else {console.error("Unsupported synthetic GET");process.exit(2)}
+  }else {fs.writeFileSync(e.STAGED==="true"?"continued":"submitted","true");process.exit(0)}
+ }
+ else if(a[1]==="operation")value=json(e.STAGED==="true" && a[a.indexOf("--name")+1].includes("-continuation-")?"FAKE_CONTINUATION_RESOURCES":"FAKE_RESOURCES").map(r=>({properties:{provisioningState:"Succeeded",provisioningOperation:"Create",targetResource:{id:r.id,resourceType:r.type}}}));
+ else if(a[2]==="list")value=e.STAGED==="true"?[{name:e.BOOTSTRAP_DEPLOYMENT,properties:{provisioningState:"Succeeded"}},...(fs.existsSync("continued")?[{name:e.CONTINUATION_DEPLOYMENT,properties:{provisioningState:"Succeeded"}}]:[])]:e.EXISTING_DEPLOYMENT==="true"?[{name:"previous",properties:{provisioningState:e.PREVIOUS_STATE||"Running"}}]:[];
  else if(a[2]==="what-if"){value=json("FAKE_WHAT_IF");if(e.DRIFT==="true")value.changes[0].after.name="drift"}
- else if(a[2]==="show")value={id:"companydev-test-deployment",properties:{provisioningState:"Succeeded",outputs:{}}};
+ else if(a[2]==="show"){
+  const name=a[a.indexOf("--name")+1];
+  if(e.STAGED==="true" && name!==e.BOOTSTRAP_DEPLOYMENT && !fs.existsSync("continued")){console.error("ERROR: (DeploymentNotFound) synthetic absent");process.exit(3)}
+  value={name,id:"companydev-test-deployment",properties:{provisioningState:e.RESULT_STATE||"Succeeded",outputs:{}}};
+ }
  else {console.error("Unexpected Azure command");process.exit(2)}
 }
 console.log(JSON.stringify(value));
 `;
   const env = {
-    ...process.env, PATH: `${dir}:${process.env.PATH}`, TOOL_LOG: join(dir, "tools.jsonl"),
+    ...process.env, GH_TOKEN: "synthetic-actions-token", PATH: `${dir}:${process.env.PATH}`, TOOL_LOG: join(dir, "tools.jsonl"),
     GITHUB_REPOSITORY: "keyforta/keyforta-property", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
     GITHUB_SHA: revision, GITHUB_RUN_ID: "777", GITHUB_RUN_ATTEMPT: "1",
     GITHUB_OUTPUT: join(dir, "outputs"), GITHUB_STEP_SUMMARY: join(dir, "summary"),
     COMPANY_DEV_APPLY_ENABLED: "true", PLAN_RUN_ID: "123", PLAN_RUN_ATTEMPT: "1", PLAN_ARTIFACT_ID: "456",
+    FOUNDATION_STAGE: "bootstrap", FOUNDATION_MODE: "initial", EVIDENCE_VERSION: "2",
     REVIEWED_SOURCE_SHA256: f.expected.sourceSha256, REVIEWED_TEMPLATE_SHA256: f.expected.templateSha256,
     REVIEWED_PARAMETERS_SHA256: f.expected.parametersSha256, REVIEWED_WHAT_IF_SHA256: f.expected.whatIfSha256,
+    REVIEWED_INVENTORY_SHA256: f.expected.inventorySha256, REVIEWED_EVIDENCE_SHA256: f.expected.evidenceSha256,
     APPROVED_VNET_CIDR: input.vnetCidr, APPROVED_ACA_SUBNET_CIDR: input.acaSubnetCidr,
     APPROVED_POSTGRES_SUBNET_CIDR: input.postgresSubnetCidr, APPROVED_NETWORK_REFERENCE: input.networkApproval,
     APPLY_CLIENT_ID: "22222222-2222-4222-8222-222222222222",
     FAKE_FILES: JSON.stringify(f.files), FAKE_RUN: JSON.stringify(f.run), FAKE_ARTIFACT: JSON.stringify(f.artifact),
     FAKE_ENVIRONMENT: JSON.stringify(environment), FAKE_WHAT_IF: JSON.stringify(f.whatIf),
+    FAKE_RESOURCES: JSON.stringify(actualResources(JSON.parse(f.files["inventory.json"]).expected)),
+    FAKE_STAGE_PERMISSIONS: JSON.stringify([{ actions: ["*/read", ...new Set(JSON.parse(f.files["inventory.json"]).expected.map((r) => `${r.type}/write`)), "Microsoft.Resources/deployments/write", "Microsoft.Resources/deployments/whatIf/action"], notActions: [], dataActions: [], notDataActions: [] }]),
   };
   try {
     for (const name of ["gh", "az"]) { writeFileSync(join(dir, name), tool); chmodSync(join(dir, name), 0o700); }
@@ -232,14 +970,25 @@ console.log(JSON.stringify(value));
       assert.match(dirty.stderr, /source differs from committed bytes/i);
     }
     writeFileSync(sourcePath, committedSource);
-    for (const changes of [{ FAIL_QUALITY: "true" }, { DRIFT: "true" }, { NONEMPTY: "true" }, { APPLY_CLIENT_ID: evidence.previewClientId }]) {
+    for (const changes of [
+      { FAIL_QUALITY: "true" }, { DRIFT: "true" }, { NONEMPTY: "true" }, { APPLY_CLIENT_ID: evidence.previewClientId },
+      ...["Running", "Failed", "Succeeded", "Canceled", "Unknown"].map((state) => ({ EXISTING_DEPLOYMENT: "true", PREVIOUS_STATE: state })),
+      { FOUNDATION_STAGE: "continuation" }, { FOUNDATION_MODE: "reviewed-reentry" }, { EVIDENCE_VERSION: "1" },
+    ]) {
       assert.equal(run("apply", changes).status, 1, JSON.stringify(changes));
     }
     const calls = () => readFileSync(env.TOOL_LOG, "utf8").trim().split("\n").map(JSON.parse);
-    assert.equal(calls().filter((call) => call.name === "az" && call.args[0] === "rest").length, 0);
+    assert.equal(calls().filter((call) => call.name === "az" && call.args[0] === "rest" && call.args.includes("put")).length, 0);
     const result = run("apply");
     assert.equal(result.status, 0, result.stderr);
-    const writes = calls().filter((call) => call.name === "az" && call.args[0] === "rest");
+    const state = JSON.parse(readFileSync(join(dir, "company-dev-apply/bootstrap-state.json"), "utf8"));
+    const validatedBootstrapCheckpoint = readFileSync(join(dir, "company-dev-apply/checkpoint.json"), "utf8");
+    assert.equal(state.resources.length, 7);
+    assert.equal(state.securityHandoffVerified, false);
+    // Initial mode cannot replay completion. Reviewed re-entry/no-op uses the
+    // separate inventory + terminal-inspection route exercised below.
+    assert.equal(run("apply").status, 1);
+    const writes = calls().filter((call) => call.name === "az" && call.args[0] === "rest" && call.args.includes("put"));
     assert.equal(writes.length, 1);
     const args = writes[0].args;
     assert.equal(args[args.indexOf("--method") + 1], "put");
@@ -247,6 +996,99 @@ console.log(JSON.stringify(value));
     const body = JSON.parse(args[args.indexOf("--body") + 1]);
     assert.deepEqual(body.properties.template, JSON.parse(f.files["template.json"]));
     assert.deepEqual(body.properties.parameters, JSON.parse(f.files["parameters.json"]).parameters);
-    for (const call of calls().filter((call) => call.name === "az")) assert.equal(call.args[call.args.indexOf("--subscription") + 1], subscriptionId);
+    assert.equal(calls().filter((call) => call.name === "az" && call.args[0] === "rest" && call.args.includes("put")).length, 1);
+    rmSync(join(dir, "submitted"));
+    const unknown = spawnSync(process.execPath, [script, "apply"], {
+      cwd: dir, env: { ...env, RESULT_STATE: "Unknown" }, encoding: "utf8", timeout: 10000,
+    });
+    assert.equal(unknown.status, 1, "Unknown ARM outcome must stop immediately, not poll or retry");
+    assert.match(unknown.stderr, /unknown.*inspect/i);
+    assert.equal(run("apply").status, 1, "Unknown submission cannot be retried against retained resources");
+    assert.equal(calls().filter((call) => call.name === "az" && call.args[0] === "rest" && call.args.includes("put")).length, 2);
+    // Exercise BOTH real protected CLIs (all subprocesses synthetic): immutable
+    // bootstrap checkpoint -> native preview context -> prepare/actual reads ->
+    // seven-file plan -> native apply context -> single continuation PUT -> a
+    // fresh reviewed-reentry plan and verified completed NO-PUT replay.
+    const staged = await stagedFixture();
+    const stageContext = staged.context;
+    stageContext.baseline = JSON.parse(validatedBootstrapCheckpoint).resources;
+    stageContext.deploymentName = `companydev-continuation-${revision.slice(0, 12)}`;
+    const setPredecessor = (bytes, runId, artifactId) => {
+      const cp = JSON.parse(bytes);
+      stageContext.predecessor = { runId, runAttempt: "1", artifactId, stage: cp.stage, mode: cp.mode, sha: revision, checkpointSha256: hash(bytes) };
+      Object.assign(env, { FAKE_CHECKPOINT: bytes, PREDECESSOR_RUN_ID: runId, PREDECESSOR_ARTIFACT_ID: artifactId,
+        FAKE_PREDECESSOR_RUN: JSON.stringify({ ...f.run, id: Number(runId), path: ".github/workflows/company-development-foundation-apply.yml" }),
+        FAKE_PREDECESSOR_ARTIFACT: JSON.stringify({ id: Number(artifactId), expired: false, name: `company-dev-foundation-${cp.stage}-${cp.mode}-v2-apply-${revision}-${runId}-1`, workflow_run: { id: Number(runId), head_sha: revision } }) });
+    };
+    setPredecessor(validatedBootstrapCheckpoint, "777", "888");
+    const relativeUtc = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
+    Object.assign(stageContext.security.functionalTest, { enabledAt: relativeUtc(60), startedAt: relativeUtc(50), uploadedAt: relativeUtc(49), scanTime: relativeUtc(48), observedAt: relativeUtc(47) });
+    const runtime = continuationResources(staged.state);
+    Object.assign(env, { STAGED: "true", FOUNDATION_STAGE: "continuation", CHANGE_FREEZE: input.changeFreeze,
+      COMPANY_DEV_PLAN_ENABLED: "true", PREVIEW_CLIENT_ID: evidence.previewClientId,
+      VNET_CIDR: input.vnetCidr, ACA_SUBNET_CIDR: input.acaSubnetCidr, POSTGRES_SUBNET_CIDR: input.postgresSubnetCidr, NETWORK_APPROVAL: input.networkApproval,
+      BOOTSTRAP_DEPLOYMENT: JSON.parse(validatedBootstrapCheckpoint).deploymentName, CONTINUATION_DEPLOYMENT: stageContext.deploymentName,
+      FAKE_TEMPLATE: f.files["template.json"], FAKE_CONTINUATION_RESOURCES: JSON.stringify(runtime), FAKE_TOP_TYPES: JSON.stringify(staged.state.topLevelTypes),
+      FAKE_ASSIGNMENTS: JSON.stringify(staged.transport.assignments), FAKE_DEFENDER: JSON.stringify(staged.transport.defender),
+      FAKE_SCANNER: JSON.stringify(staged.transport.scanner), FAKE_PERMISSIONS: JSON.stringify(staged.transport.permissions),
+      FAKE_STAGE_PERMISSIONS: JSON.stringify(staged.transport.stagePermissions) });
+    const outputs = () => {
+      for (const line of readFileSync(env.GITHUB_OUTPUT, "utf8").trim().split("\n")) {
+        const i = line.indexOf("="); env[line.slice(0, i).toUpperCase()] = line.slice(i + 1);
+      }
+    };
+    const protectedStage = (mode, previewId, applyId) => {
+      Object.assign(env, { FOUNDATION_MODE: mode, STAGE_CONTEXT: JSON.stringify(stageContext), GITHUB_RUN_ID: previewId,
+        PREVIEW_PHASE: "true", FAKE_ENVIRONMENT: JSON.stringify({ ...environment, name: "company-dev" }) });
+      env.FAKE_WHAT_IF = JSON.stringify({ changes: staged.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: mode === "initial" ? "Create" : "NoChange", after: { type } })) });
+      const previewScript = resolve("scripts/infra/company-development.mjs");
+      const previewWorkflow = YAML.parse(readFileSync(resolve(".github/workflows/company-development-foundation.yml"), "utf8"));
+      const previewRun = (op, omitToken = false) => {
+        const job = previewWorkflow.jobs[op === "guard" ? "guard" : "plan"];
+        const step = job.steps.find((s) => s.run?.endsWith(`company-development.mjs ${op}`));
+        const stepEnv = { ...env };
+        delete stepEnv.GH_TOKEN; delete stepEnv.GITHUB_TOKEN;
+        const token = step.env?.GH_TOKEN ?? job.env?.GH_TOKEN ?? previewWorkflow.env?.GH_TOKEN;
+        if (!omitToken && token === "${{ github.token }}") stepEnv.GH_TOKEN = "synthetic-actions-token";
+        return spawnSync(process.execPath, [previewScript, op], { cwd: dir, env: stepEnv, encoding: "utf8" });
+      };
+      for (const op of ["guard", "prepare", "preview"]) {
+        if (op === "preview") {
+          const missingToken = previewRun(op, true);
+          assert.equal(missingToken.status, 1);
+          assert.match(missingToken.stderr, /set GH_TOKEN/);
+        }
+        const result = previewRun(op); assert.equal(result.status, 0, `${op}: ${result.stderr}`); outputs();
+      }
+      const files = Object.fromEntries(Object.keys(f.files).map((name) => [name, readFileSync(join(dir, "company-dev-plan", name), "utf8")]));
+      const planEvidence = JSON.parse(files["evidence.json"]);
+      Object.assign(env, { GITHUB_RUN_ID: applyId, PREVIEW_PHASE: "false", FAKE_ENVIRONMENT: JSON.stringify(environment),
+        PLAN_RUN_ID: previewId, FAKE_FILES: JSON.stringify(files),
+        FAKE_RUN: JSON.stringify({ ...f.run, id: Number(previewId) }),
+        FAKE_ARTIFACT: JSON.stringify({ ...f.artifact, name: `company-dev-foundation-continuation-${mode}-v2-plan-${revision}-${previewId}-1`, workflow_run: { id: Number(previewId), head_sha: revision } }),
+        REVIEWED_SOURCE_SHA256: planEvidence.sourceSha256, REVIEWED_TEMPLATE_SHA256: planEvidence.templateSha256,
+        REVIEWED_PARAMETERS_SHA256: planEvidence.parametersSha256, REVIEWED_WHAT_IF_SHA256: planEvidence.whatIfSha256,
+        REVIEWED_INVENTORY_SHA256: planEvidence.inventorySha256, REVIEWED_EVIDENCE_SHA256: hash(files["evidence.json"]) });
+      for (const op of ["guard", "verify", "apply"]) {
+        const result = run(op); assert.equal(result.status, 0, `${mode} ${op}: ${result.stderr}`); outputs();
+      }
+      return readFileSync(join(dir, "company-dev-apply/checkpoint.json"), "utf8");
+    };
+    const beforeContinuation = calls().length;
+    const continuationCheckpoint = protectedStage("initial", "124", "999");
+    assert.equal(JSON.parse(continuationCheckpoint).stage, "continuation");
+    assert.equal(JSON.parse(continuationCheckpoint).completed, true);
+    assert.equal(calls().slice(beforeContinuation).filter((c) => c.name === "az" && c.args[0] === "rest" && c.args.includes("put")).length, 1);
+    setPredecessor(continuationCheckpoint, "999", "889");
+    stageContext.baseline = JSON.parse(continuationCheckpoint).resources;
+    stageContext.inspection = staged.state.canonical({ name: stageContext.deploymentName, status: "Succeeded",
+      operations: runtime.map((r) => ({ operationId: null, provisioningState: "Succeeded", provisioningOperation: "Create", targetResource: { id: r.id, resourceType: r.type } })) });
+    const beforeNoop = calls().length;
+    const noopCheckpoint = protectedStage("reviewed-reentry", "125", "1001");
+    assert.equal(JSON.parse(noopCheckpoint).completed, true);
+    assert.equal(JSON.parse(readFileSync(join(dir, "company-dev-apply/result.json"), "utf8")).state, "VerifiedNoOp");
+    assert.equal(calls().slice(beforeNoop).filter((c) => c.name === "az" && c.args[0] === "rest" && c.args.includes("put")).length, 0);
+    assert.ok(calls().slice(beforeContinuation).filter((c) => c.name === "az").every((c) => c.args[0] !== "storage" && (c.args[0] !== "role" || c.args[2] === "list")), "No workflow Blob access or role grant");
+    for (const call of calls().filter((call) => call.name === "az" && call.args[0] !== "bicep")) assert.equal(call.args[call.args.indexOf("--subscription") + 1], subscriptionId);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

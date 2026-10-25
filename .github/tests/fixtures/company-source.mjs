@@ -7,6 +7,12 @@ export const sourcePaths = [
   "infra/bicep/company-development.bicep",
   "infra/bicep/modules/company-development-resources.bicep",
   "infra/bicep/modules/foundation-resources.bicep",
+  "scripts/infra/company-development.mjs",
+  "scripts/infra/company-development-apply.mjs",
+  "scripts/infra/company-development-state.mjs",
+  ".github/workflows/company-development-foundation.yml",
+  ".github/workflows/company-development-foundation-apply.yml",
+  "scripts/verify/company-foundation-parser.py",
 ];
 
 // Synthetic commits ONLY in a new temporary repository. Never stage/commit the

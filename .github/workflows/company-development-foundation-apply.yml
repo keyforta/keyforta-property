@@ -5,6 +5,21 @@ name: Company development foundation apply
 on:
   workflow_dispatch:
     inputs:
+      stage:
+        description: Exact reviewed bootstrap or human-handoff-verified continuation plan
+        required: true
+        type: choice
+        options: [bootstrap, continuation]
+      mode:
+        description: Initial stage or inventory-bound reviewed recovery or verified no-PUT no-op
+        required: true
+        type: choice
+        options: [initial, reviewed-reentry]
+      evidence_version:
+        description: Staged evidence schema (legacy full plans are rejected)
+        required: true
+        type: choice
+        options: ["2"]
       plan_run_id:
         description: Successful company foundation PREVIEW run for this exact main SHA
         required: true
@@ -33,6 +48,14 @@ on:
         description: Reviewed exact provider what-if artifact SHA256
         required: true
         type: string
+      reviewed_inventory_sha256:
+        description: Reviewed exact baseline and expected inventory SHA256
+        required: true
+        type: string
+      reviewed_evidence_sha256:
+        description: Reviewed evidence envelope SHA256 (binds all remaining files and source dependencies)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -43,6 +66,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  FOUNDATION_STAGE: ${{ inputs.stage }}
+  FOUNDATION_MODE: ${{ inputs.mode }}
+  EVIDENCE_VERSION: ${{ inputs.evidence_version }}
   COMPANY_DEV_APPLY_ENABLED: ${{ vars.COMPANY_DEV_APPLY_ENABLED }}
   PLAN_RUN_ID: ${{ inputs.plan_run_id }}
   PLAN_RUN_ATTEMPT: ${{ inputs.plan_run_attempt }}
@@ -51,6 +77,8 @@ env:
   REVIEWED_TEMPLATE_SHA256: ${{ inputs.reviewed_template_sha256 }}
   REVIEWED_PARAMETERS_SHA256: ${{ inputs.reviewed_parameters_sha256 }}
   REVIEWED_WHAT_IF_SHA256: ${{ inputs.reviewed_what_if_sha256 }}
+  REVIEWED_INVENTORY_SHA256: ${{ inputs.reviewed_inventory_sha256 }}
+  REVIEWED_EVIDENCE_SHA256: ${{ inputs.reviewed_evidence_sha256 }}
 
 jobs:
   guard:
@@ -117,7 +145,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: company-dev-foundation-apply-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: company-dev-apply/
+          name: company-dev-foundation-${{ inputs.stage }}-${{ inputs.mode }}-v2-apply-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            company-dev-apply/reviewed-inputs.json
+            company-dev-apply/template.json
+            company-dev-apply/fresh-what-if.json
+            company-dev-apply/submission.json
+            company-dev-apply/result.json
+            company-dev-apply/bootstrap-state.json
+            company-dev-apply/checkpoint.json
           if-no-files-found: warn
           retention-days: 7

@@ -28,6 +28,8 @@ def main():
                 "tenantApplicationDocuments", "documentStorageDefender",
                 "apiDocumentStorageAccess", "webIdentity", "migrationIdentity",
                 "apiAcrPull", "webAcrPull", "migrationAcrPull",
+                "existingApiIdentity", "existingWebIdentity", "existingMigrationIdentity",
+                "existingRegistry", "existingStorage", "existingBlobService", "existingContainer",
             }, set()
         ),
     }

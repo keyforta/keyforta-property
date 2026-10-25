@@ -1,5 +1,8 @@
 targetScope = 'resourceGroup'
 
+@allowed(['bootstrap', 'continuation'])
+param stage string
+
 // Required inputs: no example CIDR or approval default is deployable.
 // The GitHub preview path validates canonical RFC1918, containment, nonoverlap,
 // reserved ranges and exact agreement with externally approved environment values.
@@ -22,6 +25,7 @@ module company './modules/company-development-resources.bicep' = {
   name: 'foundation-keyforta-cdev'
   scope: resourceGroup('891e5e6e-8ae3-4455-9184-8d7606223d91', 'rg-keyforta-companydev-san')
   params: {
+    companyStage: stage
     vnetCidr: vnetCidr
     acaSubnetCidr: acaSubnetCidr
     postgresSubnetCidr: postgresSubnetCidr

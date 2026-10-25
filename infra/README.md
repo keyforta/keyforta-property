@@ -23,21 +23,327 @@ resource-group-scoped foundation deployment runs.
 
 ## Company DEVELOPMENT preparation — isolated preview and plan-bound apply
 
-### Proposed staged company-foundation contract
+### Current staged company-foundation implementation — local only, not activated
 
 The authoritative [staged proposal in ADR-016](../docs/adr/ADR-016-company-development-private-foundation.md#proposed-staged-company-foundation-contract)
-is **Proposed**, not implemented. The sections below describe existing one-shot
-code/preparation, not a staged runbook; apply remains unconfigured.
-User approval on 2026-10-25 covers proposal preparation only, not changed execution.
-Proposed sequence: seven-resource bootstrap; human exact-ID grants and separate
-Defender/backend verification; protected continuation using existing references.
+remains a **Proposed ADR awaiting external acceptance**, but the
+[Product Owner explicitly approved staged local implementation](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6402966949).
+The two reserved decisions are specifically approved: temporary **empty/unused**
+Storage before verified Defender, and **human removal of all bootstrap workflow
+writer rights, including inherited/equivalent authority, before grants/security
+handoff**. Continuation must never regain UAMI/ACR/Storage writes.
 Follow ADR-016: cmbuyamba owns Azure technical decisions; no second Azure technical review.
-Empty unused unverified-Defender Storage and the bootstrap-authority removal guard still need specific Product Owner approval.
+Independent GitHub PR/native human controls remain unchanged.
 Platform must prove narrow continuation/ACA permissions; sufficiency is unproven.
 Historical run `40223406509` attempt `2` / artifact `12610233452` was reviewed;
-see ADR evidence/expiry. It is not a staged execution input. Require new versioned
-stage/inventory-bound evidence and native independent gates. No activation here.
+see ADR evidence/expiry. It is **historical only**, never a staged execution input.
+No activation, Azure writes, configuration changes or workflow dispatch occurs here.
 Unchanged: $120/month before tax, $108.35 estimate, no extra services or cost guarantee.
+
+**Implemented routes:** `stage=bootstrap|continuation`,
+`mode=initial|reviewed-reentry`, `evidence_version=2`. Protected continuation
+requires actual readable security/permissions plus the owner-confirmed functional
+record under the [specific subsequent approval](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6403538260).
+That approval covers the **code/test contract only**, not actual execution or
+upload. Internal topology remains **UNVERIFIED**, never inferred from names,
+mutable tags or absence of errors. The authoritative acceptance map is in ADR-016.
+
+Bootstrap creates exactly three UAMIs, ACR, Storage, Blob service and private
+container (seven writes plus deployment records). No Network, PG, ACA, logs,
+role assignments, Defender/scanner, applications, jobs or data. Source/default
+shared-module behavior remains unchanged, including full Defender 100 GB
+on-upload/index settings, authentication and retention. Neither company
+template stage creates grants or Defender. Bootstrap is **NOT foundation-ready**:
+no app attachment, uploads, customer data, migrations or cutover.
+
+Current routes retain the two native protected environments, separate scoped
+preview/apply federation, manual/main-only entry, immutable checkout, same
+concurrency, latest exact-SHA CI/security/DAST and supported GitHub protection
+snapshot checks. Before releasing either pending job, an independent configured
+reviewer other than initiator **and rerun actor** must inspect actual settings,
+verify prevent-self-review, protected branches and **admin bypass disabled in
+the live UI**, then record exact SHA/run/attempt/environment ID/snapshot hash
+and reviewed stage/inventory in the **native approval comment**. This is the
+existing human contract, not a new Azure technical sign-off. Code does not parse
+comments, invent issuer attestations or treat JSON as independent security proof.
+
+Preview additionally requires explicit approved CIDRs/network reference and a
+`change_freeze` repository issue/PR/comment reference. That reference binds
+operator review context; it does not authenticate or prove a freeze. Initial
+bootstrap requires an existing empty company RG **and empty ARM deployment
+history**, and already registered ManagedIdentity/ContainerRegistry/Storage.
+No registration/RG/identity/federation/RBAC setup is performed by the helper.
+Native reviewers must review stage-scoped effective preview/apply permissions
+and external freeze ownership. Bootstrap writers must have no security/grant
+authority; do not use Owner/Contributor or subscription workload writers.
+Continuation rechecks original bootstrap apply-caller permissions at bootstrap
+and readable security scopes, rejecting surviving writer/data authority. RG
+permission reads check the narrow stage-operation allowlist. These are readable
+current-caller checks, not proof of equivalent/transitive/group/PIM authority;
+cmbuyamba's genuine owner review under the native gate remains mandatory.
+
+The preview artifact is exactly seven regular JSON files: existing six
+(`evidence`, `inputs`, `parameters`, `review-context`, `template`, `what-if`)
+plus `inventory.json`. Its name is
+`company-dev-foundation-STAGE-MODE-v2-plan-SHA-RUNID-ATTEMPT`.
+Version/stage/mode, actual destination checks, reviewed baseline/expected IDs,
+predecessor/security handoff (null only for initial bootstrap), freeze reference, full
+source dependencies and hashes are bound. Source manifests cover the three
+Bicep files, both route helpers plus their shared read-only state helper, both
+workflows and existing parser gate (nine paths total), hashing raw
+Git blobs at the exact SHA and rejecting targeted worktree drift.
+Compiled name expressions are reviewed locally; actual provider what-if must
+resolve **exactly** the seven expected IDs, not merely seven allowed types.
+
+Apply inputs retain run/attempt/artifact ID and reviewed source/template/
+parameter/what-if hashes, adding stage/mode/version and reviewed **inventory**
+and **evidence-envelope** SHA256. The envelope binds input/context/dependency
+hashes as well; artifact identity/provenance comes from actual GitHub metadata
+after upload, not a fabricated pre-upload artifact ID. Legacy full-plan
+six-file/v1 artifacts cannot apply. Before its one incremental PUT, apply
+rechecks latest quality, actual identity/tenant/sub/RG/region, stage-specific
+inventory/history/permissions/security, then fresh canonical what-if against the
+reviewed in-memory template/parameters. It repeats actual checks and quality/source
+checks before submission; initial bootstrap also repeats emptiness.
+No mutable parameter file is consumed by ARM.
+
+After ARM success, read-only `az deployment operation group list` recursively
+reads the actual known nested deployments and checks all seven targets.
+`az resource list` plus typed `az resource show --ids … --api-version …` reads
+the actual UAMI resource/tenant/principal/client IDs and registry/Storage/Blob
+properties. Fail closed on missing visibility, duplicate identities, wrong
+destination, extra/missing resources or security-property drift. The execution
+artifact includes `bootstrap-state.json`, `checkpoint.json`, submission hash and ARM result; it
+explicitly records **security handoff not verified**. This is not effective-RBAC,
+scanner/backend or readiness evidence. No app/data access is attempted.
+
+Failed/canceled/unknown ARM outcomes and polling timeout stop and retain evidence.
+Inspect the **existing deployment** before any later write; never retry, clean
+up, recreate or delete automatically. Partial and completed inventories both
+block **initial bootstrap**; the separately reviewed recovery route below is
+required. Exact completed source/template/parameters/resources, terminal ARM
+inspection and fresh NoChange produce a verified **no ARM PUT**. Withhold
+dispatch/activation while external readiness is incomplete; no variables were disabled
+or enabled by this implementation.
+
+#### Human handoff evidence — readable machine checks and native owner review
+
+After bootstrap, the human must first remove workflow bootstrap writer rights
+and prove no inherited/equivalent access remains. The following are supported
+read operations for inspection, not a machine-complete revocation proof:
+
+- `az account show --subscription 891e5e6e-8ae3-4455-9184-8d7606223d91`;
+  verify tenant `8019a048-e7d6-48e8-984a-b902f641a21b`.
+- `az role assignment list --scope <exact-resource-or-RG-ID> --include-inherited --subscription 891e5e6e-8ae3-4455-9184-8d7606223d91`.
+  Inspect actual role definitions, conditions, scope and effective context;
+  this listing alone does not establish group/PIM/deny/equivalent authority.
+- Caller-context `az rest --method get --url "https://management.azure.com<exact-scope-starting-with-slash>/providers/Microsoft.Authorization/permissions?api-version=2022-04-01" --subscription 891e5e6e-8ae3-4455-9184-8d7606223d91`.
+  Use the actual caller and normalized scope.
+  This API reports that caller's permissions, not another principal's complete
+  effective rights; a successful read/activation flag is not revocation proof.
+
+Only the human may then grant the three exact-scope AcrPull roles and API
+container Blob Data Contributor described in ADR-016, using actual ServicePrincipal
+object IDs and existing deterministic Bicep `guid(scopeResourceId,
+uamiResourceId, fullRoleDefinitionResourceId)` assignment names.
+
+**Implemented read/command preparation, not grant execution or handoff approval:**
+the manual operator may use the following only under separately authorized
+operator-read context; it has not been executed against Azure in this work:
+
+```sh
+node scripts/infra/company-development-apply.mjs human-grant-plan \
+  --deployment companydev-bootstrap-<reviewed-sha-prefix> \
+  --predecessor /path/to/reviewed/bootstrap-state.json \
+  --predecessor-sha256 <reviewed-file-sha256>
+```
+
+This command rejects GitHub Actions and service-principal contexts. It checks
+the fixed actual account tenant/subscription, re-reads bootstrap deployment
+operations/resources, compares actual UAMI resource/principal/client IDs with
+the predecessor, then reads `az role assignment list --scope … --include-inherited`
+for the exact registry and container. It prints **argv arrays**, never
+executes `role assignment create`. Names use documented ARM `guid()` UUIDv5
+semantics with full role-definition resource IDs. Exact existing tuples produce
+no command; only missing tuples produce commands. Wrong IDs/principals/scopes/
+roles, conditions, conflicting deterministic names, visible inherited UAMI
+privileges and unexplained direct assignments at either destination stop.
+The tuple checker also rejects caller-updated expected tuples that broaden
+the approved policy. Nothing automatically changes/removes existing grants.
+
+Scoped assignment reads retain `--include-inherited` and must not use `--all`
+(Azure CLI rejects that combination). They return assignments at the scope and
+its ancestors, **not descendants**. Partial-bootstrap recovery therefore also
+queries the actual `tenant-applications` container independently when it exists;
+any container handoff grant blocks before preview/submission. Missing inherited
+or container-role visibility remains a stop, never a pass.
+
+The output and predecessor hash are review context/byte binding, **not**
+authenticated predecessor provenance, owner approval, complete inherited/
+transitive/PIM privilege proof or bootstrap-writer revocation. Other principals'
+inherited roles still need human assessment; two successful listings do not
+prove exhaustive effective access. Protected continuation binds actual GitHub
+checkpoint provenance separately and re-reads actual settings/identities/grants/
+caller permissions. The native reviewer verifies genuine owner-authored evidence
+and equivalent/transitive/PIM removal; there is no self-authored approval boolean.
+Do not execute the emitted commands before the owner-approved writer-removal
+condition and actual operator authority have been established. Do not grant
+from client IDs or guessed GUIDs.
+
+Future **human-only action preparation**, not execution authority: after reviewing
+actual direct/inherited role definitions and effective contexts, remove each
+identified bootstrap writer assignment using its actual assignment resource ID:
+
+```sh
+az role assignment delete --ids "<reviewed-actual-bootstrap-writer-assignment-id>" \
+  --subscription 891e5e6e-8ae3-4455-9184-8d7606223d91
+```
+
+This is not a bulk cleanup or sufficient proof: inherited/group/PIM/equivalent
+rights require owner-specific removal/verification, and continuation must not
+regain bootstrap/security writes. Re-read caller permissions and owner evidence
+before granting. Only the human executes separately authorized argv from
+`human-grant-plan`; neither workflow can grant.
+
+Defender is a separate human operation requiring reviewed subscription
+datascanners read/write, Event Grid and role-management capabilities. Enabled
+100 GB on-upload/index/no-exclusion settings, actual scanner identity and Storage
+Blob Data **Owner** beyond those four grants are read. Any explicitly reviewed
+service-created Event Grid system topic is read at its actual ID and checked for
+its readable Storage source/provisioning state, without inferring internal mapping.
+Missing visibility/unknown effective access or minimum ACA permissions blocks
+continuation. Native human gates remain authoritative within their actual
+review contract, not substitutes for missing readable data.
+
+The existing-design settings action, after **separate human execution approval**
+and operator-permission review, is this explicit REST PUT. Replace the placeholder
+only with the exact actual Storage ID read from the fixed company destination:
+
+```sh
+az rest --method put \
+  --url "https://management.azure.com<verified-actual-storage-id>/providers/Microsoft.Security/defenderForStorageSettings/current?api-version=2025-06-01" \
+  --body '{"properties":{"isEnabled":true,"overrideSubscriptionLevelSettings":true,"sensitiveDataDiscovery":{"isEnabled":false},"malwareScanning":{"onUpload":{"isEnabled":true,"capGBPerMonth":100},"blobScanResultsOptions":"blobIndexTags"}}}' \
+  --subscription 891e5e6e-8ae3-4455-9184-8d7606223d91
+```
+
+No command above was executed here. Re-read actual settings/scanner/service grants
+and inventory; the PUT response or missing `operationStatus` alone is not healthy
+backend proof. The owner-confirmed functional record below is additionally required.
+Never create a guessed scanner/backend topic/Data Owner assignment in a workflow.
+
+**Resolved semantic, with explicit limits:** the documented Defender settings read schema
+`2025-06-01` exposes configuration/failure information, not successful backend
+provisioning or storage-to-scanner linkage. The documented data scanner schema
+`2026-08-01` is identity-only; it exposes no Storage/Event Grid relationship or
+provisioning-state property. The optional scan-results Event Grid topic must
+not be mistaken for the service-managed backend. The specific approval above
+replaces that unobservable requirement with an **owner-confirmed harmless
+functional test alongside actual readable configuration/identity/grant checks**.
+It does not claim hidden internal linkage. Missing readable visibility still fails.
+
+After **separate future execution authorization**, cmbuyamba manually follows
+[Microsoft's test procedure](https://learn.microsoft.com/en-us/azure/defender-for-cloud/defender-for-storage-test)
+and observes “Malware scanning scan result” and “Malware scanning scan time”.
+No helper/workflow uploads, reads, deletes or modifies blobs/tags. Use a harmless
+1–65536-byte `synthetic-<UUID>.txt`, not EICAR or an endpoint exclusion. Record
+exact Storage/container IDs, blob version or ETag, content SHA256/length, ordered
+strict UTC enablement/test-start/upload/scan/owner-observation times and result
+`No threats found`. Test start and owner observation must be within 24 hours
+at both preview and apply; the actual current readable security snapshot hash
+must match. Missing/failed/stale/mismatched correlation stops continuation.
+The 24-hour/64-KiB bounds are evidence limits, not Azure service guarantees.
+
+[Index tags are mutable and not tamper-resistant](https://learn.microsoft.com/en-us/azure/defender-for-cloud/introduction-malware-scanning#blob-index-tags).
+They MUST NOT be the sole security control or automated foundation-ready/
+data-admission signal. The owner confirms the genuine actual result; the
+independent native gate verifies that owner record and its limits. This limited
+pre-healthy synthetic exception is approved for code only: **no live test is
+authorized by this work**. No new Event Grid topic/diagnostic service, customer
+data, apps, migrations or cutover are added.
+
+#### V2 stage context, provenance and reviewed recovery
+
+The preview's optional `stage_context` input is JSON; **omit it only for initial
+bootstrap**. It is review context, never an approval assertion. Its fields are:
+
+- `predecessor`: exact `runId`, `runAttempt`, immutable `artifactId`, `stage`,
+  `mode`, `sha` and raw `checkpointSha256` from a v2 **apply** artifact. Helpers
+  GET actual GitHub run-attempt/artifact metadata, check repository/main/manual
+  workflow/attempt/SHA/name/expiry and download that unique artifact. The
+  checkpoint binds all nine source hashes, compiled template/parameters, actual
+  resources and original bootstrap apply client. Local caller JSON alone does
+  not establish provenance. Historical full-plan artifacts never qualify.
+  A failed/cancelled/timed-out apply may supply its immutable checkpoint for
+  recovery, including a completed ARM stage followed by later job failure.
+  That is never replay authority: actual terminal inspection, exact payload/
+  inventory and fresh NoChange must establish a no-PUT result. The newly
+  reviewed preview run itself must still have succeeded.
+- `baseline`: exact `projectResources()` output from actual typed reads, not
+  names/client IDs alone. `readResources()` cross-checks generic RG inventory and
+  supported typed reads. Shared Log Analytics key fields are not retained; a
+  what-if containing resolved keys/secrets stops before persistence/upload.
+- `deploymentName`: exact deterministic stage/SHA deployment being inspected.
+  Initial continuation targets its new name; recovery inspects the predecessor's
+  actual failed/completed deployment even when a fresh reviewed source SHA would
+  create a different deployment name. Unknown/running/Accepted/missing visibility
+  stops. No unknown submission is automatically retried.
+- `freezeReference`, `inspectionReference`: existing owner review issue/PR/comment
+  references, with genuine owner-controlled freeze/actual inspection checked
+  natively. Recovery additionally includes the exact `inspection` output of
+  `inspectDeployment()`. If a different new target already exists, its exact
+  `targetInspection` must also match. Any further deterministic stage deployment
+  requires exact `deploymentInspections`; foreign targets/operations stop.
+- `approvedChanges`: exact canonical provider what-if entries for each explicitly
+  approved property-level `Modify`; never blanket Modify or nonempty-RG consent.
+  Resource Delete/Ignore/unknown, duplicate/missing/extra IDs, unexpected security
+  resources, inventory/principal/property drift or fresh what-if mismatch stops.
+- For continuation, `security`: `scannerId` from an actual read;
+  `ownerReviewReference`, `writerRemovalReference`, `permissionReviewReference`;
+  optional `resourceInventory` of exact reviewed RG-local
+  `Microsoft.EventGrid/systemTopics` / `Microsoft.Security/dataScanners` IDs/types
+  (never guessed/generated backend IDs); `inheritedAssignmentReview` for each
+  otherwise unexplained RG/subscription-inherited operator assignment, with exact
+  `id`, canonical `sha256`, `reason`, `ownerReference`; and `functionalTest`.
+  Unknown direct assignments and extra workload/scanner privileges fail.
+- `functionalTest`: `owner: "cmbuyamba"`, `observationReference`,
+  `executionAuthorizationReference`, UUID `testId`, exact `storageId`/`containerId`,
+  `blob: {name, versionId and/or etag, contentSha256, contentLength}`,
+  `enabledAt`, `startedAt`, `uploadedAt`, `scanTime`, `observedAt`, `result` and
+  `readableSecuritySha256`. `readSecurity()` and canonical `stateHash()` define
+  the readable snapshot binding; neither the file nor its hash authenticates
+  the owner/result. The native reviewer must verify genuine referenced evidence.
+
+The shared state helper exports these pure projections/read-only functions so
+operators/tests use the same schema; it is essential shared policy, not new
+tooling/deployment architecture. Actual read operations are the account/resource/
+deployment/role/permissions commands above plus Defender settings GET
+`2025-06-01`, scanner GET `2026-08-01`, typed Event Grid GET `2022-06-15`.
+An explicit `ResourceNotFound`/`DeploymentNotFound` alone means absence; 403,
+transport/unknown errors are never absence or a pass.
+
+Partial bootstrap recovery is possible only before handoff: preserve all
+previously recorded identities/properties, review newly observed IDs/creation/
+activity/operations under freeze, require no workload grants and readable disabled
+Defender when Storage exists, then review exact missing creates/targeted deltas.
+A checkpoint lacking an earlier principal ID is **not** machine proof of identity
+continuity. Completed exact stages use fresh NoChange and no PUT, even after a
+previous submission timed out; changed completed payloads stop, not reconfigure.
+Recovery never deletes/recreates/cleans up or regains bootstrap authority.
+
+RG caller-permission checks permit only stage template PUT types, deployment
+write/what-if/validate and the existing continuation workspace
+`Microsoft.OperationalInsights/workspaces/sharedKeys/action`, plus reads; preview
+has reads/what-if only, and no-op does not require write authority. These known
+operations **do not establish complete custom-VNet ACA minimum permissions**:
+the result explicitly records `EXTERNAL_REQUIRED`. Actual owner-reviewed minimum
+provider operations, native controls, subscription offer/quota/capacity remain
+activation blockers. No broader RG/Network/subscription writers are granted.
+
+### Historical one-shot preparation — superseded, not a current runbook
+
+The following preserves the earlier preparation history. In particular its
+full-plan six-file artifact and workflow-managed grants/Defender are **not**
+current company capabilities; use the current slice and ADR acceptance map above.
 
 See [proposed ADR-016](../docs/adr/ADR-016-company-development-private-foundation.md).
 The user approved private-network **preparation** and a **$120/month before-tax
@@ -165,7 +471,7 @@ activation, authorized external owners must separately:
    and the external controls/inputs below. Conditional foundation execution
    consent is already recorded; the preview route itself cannot deploy.
 
-### Separate protected apply route — prepared, not activated or exercised live
+### Historical one-shot protected apply route — not activated or exercised live
 
 `company-development-foundation-apply.yml` has its own native
 **`company-dev-apply` environment** and **distinct federated apply client ID**.
@@ -242,6 +548,8 @@ populated RG blocks reapplication and requires explicit inventory/recovery revie
 ARM success is not functional application, private-access, restore or cutover
 acceptance. Preparation did not apply resources; subsequent historical preview
 review does not configure apply or authorize the changed staged proposal.
+
+### Current validation and retained recovery constraints
 
 Validation uses existing `node --test .github/tests/*.test.mjs` / `pnpm verify`
 and recursive CI Bicep compilation. Security CI now executes
