@@ -48,10 +48,10 @@ var portalCanonicalBaseUrl = !empty(portalCanonicalHostName) ? 'https://${portal
 // origin allowed alongside its new custom-domain origin until the cutover is
 // confirmed stable, then remove the default-domain origin in a follow-up
 // `api` deploy. See infra/README.md "Per-service custom domain cutover".
-var corsAllowedOrigins = filter(
-  [webPublicBaseUrl, adminDefaultDomainBaseUrl, adminCanonicalBaseUrl, portalDefaultDomainBaseUrl, portalCanonicalBaseUrl],
-  origin => !empty(origin)
-)
+// Named input preserves the CORS values while allowing pinned pycep 0.5.1 to
+// parse filter(): its first argument cannot be an inline array literal.
+var corsOriginCandidates = [webPublicBaseUrl, adminDefaultDomainBaseUrl, adminCanonicalBaseUrl, portalDefaultDomainBaseUrl, portalCanonicalBaseUrl]
+var corsAllowedOrigins = filter(corsOriginCandidates, origin => !empty(origin))
 var deployApi = deploymentScope == 'api' || deploymentScope == 'full'
 var deployWeb = deploymentScope == 'public-web' || deploymentScope == 'full'
 var deployAdmin = deploymentScope == 'admin-web' || deploymentScope == 'full'

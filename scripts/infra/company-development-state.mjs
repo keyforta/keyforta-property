@@ -266,26 +266,37 @@ export function readStagePermissionReadiness(read, stage, phase, writeRequired =
     declaredTemplateOperationsOnly: true, acaMinimumPermissionProof: stage === "continuation" ? "EXTERNAL_REQUIRED" : "NOT_APPLICABLE" };
 }
 
-export function assertWriterRevoked(read, predecessor, phase = "apply", securityContext) {
+export function assertOriginalApplyCaller(read, predecessor) {
   const account = read(["account", "show"]);
   assert.equal(account.id, destination.subscriptionId, "Wrong writer subscription");
   assert.equal(account.tenantId, destination.tenantId, "Wrong writer tenant");
   assert.equal(account.user?.type, "servicePrincipal", "Scoped workflow caller required");
-  if (phase === "apply") assert.ok(sameId(account.user.name, predecessor.applyClientId), "Continuation must verify original bootstrap workflow caller, not a different SP");
-  const forbidden = [
-    "Microsoft.ManagedIdentity/userAssignedIdentities/write", "Microsoft.ManagedIdentity/userAssignedIdentities/delete", "Microsoft.ManagedIdentity/userAssignedIdentities/assign/action",
-    "Microsoft.ContainerRegistry/registries/write", "Microsoft.ContainerRegistry/registries/delete", "Microsoft.ContainerRegistry/registries/listCredentials/action",
-    "Microsoft.Storage/storageAccounts/write", "Microsoft.Storage/storageAccounts/delete", "Microsoft.Storage/storageAccounts/listKeys/action",
-    "Microsoft.Storage/storageAccounts/blobServices/write", "Microsoft.Storage/storageAccounts/blobServices/containers/write",
-    "Microsoft.Storage/storageAccounts/blobServices/delete", "Microsoft.Storage/storageAccounts/blobServices/containers/delete",
-    "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/write", "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/delete",
-    "Microsoft.Authorization/roleAssignments/write", "Microsoft.Authorization/roleAssignments/delete", "Microsoft.Authorization/roleDefinitions/write",
-    "Microsoft.Security/defenderForStorageSettings/write", "Microsoft.Security/dataScanners/write",
-    "Microsoft.Security/defenderForStorageSettings/delete", "Microsoft.Security/dataScanners/delete",
-    "Microsoft.EventGrid/systemTopics/write", "Microsoft.EventGrid/systemTopics/delete",
-    "Microsoft.Authorization/roleDefinitions/delete", "Microsoft.Authorization/elevateAccess/action", "Microsoft.Resources/tags/write",
-    "Microsoft.Authorization/roleAssignmentScheduleRequests/write", "Microsoft.Authorization/roleEligibilityScheduleRequests/write",
+  assert.match(predecessor.applyClientId ?? "", uuid, "Missing original bootstrap workflow caller");
+  assert.ok(sameId(account.user.name, predecessor.applyClientId), "Must verify original bootstrap workflow caller, not a different SP");
+  return account;
+}
+export function assertWriterRevoked(read, predecessor, phase = "apply", securityContext) {
+  const account = phase === "apply" ? assertOriginalApplyCaller(read, predecessor) : read(["account", "show"]);
+  assert.equal(account.id, destination.subscriptionId, "Wrong writer subscription");
+  assert.equal(account.tenantId, destination.tenantId, "Wrong writer tenant");
+  assert.equal(account.user?.type, "servicePrincipal", "Scoped workflow caller required");
+  // Effective reads can include the exact continuation role inherited from
+  // the RG. Retain those declared operations, never bootstrap/security writes.
+  const allowed = [
+    ...new Set(continuationInventory().map((r) => `${r.type}/write`)),
+    "Microsoft.OperationalInsights/workspaces/sharedKeys/action",
+    "Microsoft.Resources/deployments/write", "Microsoft.Resources/deployments/whatIf/action", "Microsoft.Resources/deployments/validate/action",
   ];
+  // Subtraction is per permission row. A broad unknown pattern cannot be
+  // proven read-only by sampling a finite blacklist of provider operations.
+  const excluded = (pattern, exceptions) => exceptions.some((exception) => {
+    if (exception.toLowerCase() === pattern.toLowerCase()) return true;
+    if (!pattern.includes("*")) return wildcard(exception, pattern);
+    // Only prove wildcard-set containment for an identical pattern or a
+    // literal prefix followed by '*'. Never infer it from sample operations.
+    const prefix = exception.endsWith("*") ? exception.slice(0, -1) : null;
+    return prefix !== null && !prefix.includes("*") && pattern.toLowerCase().startsWith(prefix.toLowerCase());
+  });
   const reads = [];
   const storage = bootstrapInventory().find((r) => r.type.endsWith("/storageAccounts"));
   const protectedScopes = [...bootstrapInventory().map((r) => r.id), ...(securityContext
@@ -295,8 +306,11 @@ export function assertWriterRevoked(read, predecessor, phase = "apply", security
     assert.ok(Array.isArray(response?.value) && response.value.length, "Missing effective caller permission visibility");
     for (const grant of response.value) {
       assert.ok(Array.isArray(grant.actions) && Array.isArray(grant.notActions) && Array.isArray(grant.dataActions) && Array.isArray(grant.notDataActions), "Incomplete effective permission read");
-      assert.equal(grant.dataActions.length, 0, "Workflow must never have Blob/data access");
-      for (const operation of forbidden) assert.ok(!grant.actions.some((p) => wildcard(p, operation)) || grant.notActions.some((p) => wildcard(p, operation)), `Bootstrap/security writer authority not removed: ${operation}`);
+      for (const key of ["actions", "notActions", "dataActions", "notDataActions"]) assert.ok(grant[key].every((p) => typeof p === "string" && p.length), "Invalid effective permission pattern");
+      for (const action of grant.dataActions) assert.ok(excluded(action, grant.notDataActions), "Workflow must never have Blob/data access");
+      for (const action of grant.actions) assert.ok(excluded(action, grant.notActions)
+        || action.toLowerCase().endsWith("/read") || allowed.some((a) => a.toLowerCase() === action.toLowerCase()),
+      `Bootstrap/security writer authority outside closed allowlist: ${action}`);
     }
     reads.push({ scope: id, permissions: response.value });
   }
@@ -334,6 +348,7 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
   assert.ok(context && predecessor, "Missing staged predecessor/inventory evidence");
   assert.deepEqual(predecessor.destination, destination, "Wrong predecessor destination");
   assert.equal(predecessor.version, 2, "Legacy predecessor");
+  if (phase === "apply") assertOriginalApplyCaller(read, predecessor);
   assert.equal(context.predecessor.stage, predecessor.stage, "Predecessor stage mismatch");
   assert.equal(context.predecessor.sha, predecessor.commitSha, "Predecessor SHA mismatch");
   assert.equal(context.predecessor.runId, predecessor.runId, "Predecessor run mismatch");
@@ -390,8 +405,14 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
     assert.ok(inspection && context.inspection, "Reviewed re-entry requires actual frozen terminal ARM inspection");
     assert.deepEqual(inspection, context.inspection, "Frozen ARM operation/inspection drift");
   } else assert.equal(inspection, null, "Existing deployment must be inspected through reviewed re-entry");
+  if (targetInspection?.status === "Succeeded" && expectedName !== predecessor.deploymentName) {
+    assert.fail("Succeeded current target requires its own verified completion checkpoint; no recovery PUT");
+  }
   const completed = predecessor.stage === inputs.stage && inspection?.status === "Succeeded"
     && current.length === plan.inventory.expected.length;
+  if (predecessor.stage === inputs.stage && predecessor.completed) {
+    assert.ok(completed, "Completed same-stage checkpoint requires verified no-op with complete inventory; no write recovery");
+  }
   if (completed) {
     assert.equal(inputs.mode, "reviewed-reentry", "Completed stage requires reviewed inspection/no-op");
     for (const key of ["sourceSha256", "templateSha256", "parametersSha256"]) assert.equal(plan.evidence[key], predecessor[key], `Completed stage ${key} drift`);

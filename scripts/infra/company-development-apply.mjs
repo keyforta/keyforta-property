@@ -202,6 +202,10 @@ export function readBootstrapState(read, deploymentName) {
     for (const operation of rows) {
       const p = operation.properties;
       assert.equal(p?.provisioningState, "Succeeded", "Incomplete/failed actual ARM operation");
+      if (p.provisioningOperation === "EvaluateDeploymentOutput") {
+        assert.ok(!p.targetResource, "Unexpected output-evaluation resource target");
+        continue; // Output evaluation establishes no resource creation/provenance.
+      }
       assert.equal(p.provisioningOperation, "Create", "Unexpected/unknown bootstrap ARM operation");
       const target = p.targetResource;
       assert.ok(target?.id && target.resourceType, "Missing actual ARM operation target");
@@ -524,6 +528,11 @@ async function apply() {
   const verified = verify(); // supported API checks + actual protected job, no self-attestation
   destinationContext(verified.plan.inputs);
   const stateEngine = await import("./company-development-state.mjs");
+  const predecessor = verified.plan.inputs.stageContext
+    ? loadExecutionCheckpoint(verified.plan.inputs.stageContext.predecessor) : null;
+  // Bind before any execution evidence/checkpoint can be written. Replays must
+  // not launder the bootstrap writer into a replacement caller's checkpoint.
+  if (predecessor) stateEngine.assertOriginalApplyCaller(azure, predecessor);
   if (!verified.plan.inputs.stageContext) stateEngine.readStagePermissionReadiness(azure, verified.plan.inputs.stage, "apply");
   mkdirSync("company-dev-apply", { recursive: true, mode: 0o700 });
   writeJson("company-dev-apply/reviewed-inputs.json", { ...verified.expected, reviewContext: verified.context, qualityRuns: verified.qualityRuns });
@@ -546,7 +555,7 @@ async function apply() {
     writeJson("company-dev-apply/checkpoint.json", {
       version: 2, stage: verified.plan.inputs.stage, mode: verified.plan.inputs.mode, destination,
       completed, commitSha: currentRun().revision, runId: currentRun().runId, runAttempt: currentRun().runAttempt,
-      applyClientId: process.env.APPLY_CLIENT_ID, deploymentName: actualDeployment.name, deploymentCommitSha: actualDeployment.commitSha,
+      applyClientId: predecessor?.applyClientId ?? process.env.APPLY_CLIENT_ID, deploymentName: actualDeployment.name, deploymentCommitSha: actualDeployment.commitSha,
       sourceSha256: verified.plan.evidence.sourceSha256, sourceFiles: verified.plan.evidence.sourceFiles,
       templateSha256: verified.plan.evidence.templateSha256, parametersSha256: verified.plan.evidence.parametersSha256,
       resources, predecessor: verified.plan.inputs.stageContext?.predecessor ?? null,
@@ -563,7 +572,6 @@ async function apply() {
     command("az", ["rest", "--method", "put", "--url", request.url, "--body", JSON.stringify(request.body), "--subscription", destination.subscriptionId, "--output", "none", "--only-show-errors"]);
   };
   if (verified.plan.inputs.stageContext) {
-    const predecessor = loadExecutionCheckpoint(verified.plan.inputs.stageContext.predecessor);
     const decision = stateEngine.executeReviewedStage({ plan: verified.plan, predecessor, read: azure, preview, submit });
     if (decision.action === "noop") {
       checkpoint(true, decision.resources, { name: decision.inspection.name, commitSha: decision.inspection.name === predecessor.deploymentName ? (predecessor.deploymentCommitSha ?? predecessor.commitSha) : currentRun().revision });
@@ -594,7 +602,7 @@ async function apply() {
       if (verified.plan.inputs.stage === "continuation") {
         const security = stateEngine.readSecurity(azure, verified.plan.inputs.stageContext.security, { resources });
         stateEngine.validateFunctionalTest(verified.plan.inputs.stageContext.security.functionalTest, security);
-        stateEngine.assertWriterRevoked(azure, { applyClientId: process.env.APPLY_CLIENT_ID }, "apply", verified.plan.inputs.stageContext.security);
+        stateEngine.assertWriterRevoked(azure, predecessor, "apply", verified.plan.inputs.stageContext.security);
       }
       checkpoint(true, resources);
       console.log("Stage ARM completion verified. No apps/customer data/data-admission authority. Human/native controls remain mandatory; internal topology UNVERIFIED.");

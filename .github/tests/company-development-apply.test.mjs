@@ -162,6 +162,106 @@ async function bootstrapRecoveryFixture() {
   return f;
 }
 
+test("PR161 output evaluation without a target is valid only when successful; Create targets remain exact", async () => {
+  const f = await stagedFixture();
+  const { readBootstrapState } = await controls();
+  const output = { operationId: "08585205573948283761", properties: {
+    provisioningOperation: "EvaluateDeploymentOutput", provisioningState: "Succeeded",
+    timestamp: "2026-10-25T20:00:00Z", duration: "PT0.003S", statusCode: "OK",
+  } };
+  const read = (operation) => (args) => args[0] === "deployment"
+    ? [...bootstrapRead(f.boot)(args), structuredClone(operation)] : bootstrapRead(f.boot)(args);
+  assert.equal(readBootstrapState(read(output), "companydev-bootstrap-synthetic").resources.length, 7);
+  for (const properties of [
+    { ...output.properties, provisioningState: "Failed" },
+    { ...output.properties, provisioningOperation: "Unknown" },
+    { provisioningState: "Succeeded", provisioningOperation: "Create" },
+    { provisioningState: "Succeeded", provisioningOperation: "Create", targetResource: { id: "/foreign", resourceType: "Microsoft.Storage/storageAccounts" } },
+  ]) assert.throws(() => readBootstrapState(read({ properties }), "companydev-bootstrap-synthetic"));
+});
+
+for (const completed of [false, true]) {
+  test(`PR161 bootstrap caller replacement stops before preview or submit (completed=${completed})`, async () => {
+    const f = await bootstrapRecoveryFixture();
+    f.predecessor.completed = completed;
+    f.transport.predecessorDeployment.properties.provisioningState = completed ? "Succeeded" : "Failed";
+    f.context.inspection = f.state.inspectDeployment(f.read, f.context.deploymentName);
+    Object.assign(f.plan.evidence, {
+      sourceSha256: f.predecessor.sourceSha256, templateSha256: f.predecessor.templateSha256,
+      parametersSha256: f.predecessor.parametersSha256,
+    });
+    const replacement = "99999999-9999-4999-8999-999999999999";
+    const read = (args) => args[0] === "account"
+      ? { ...f.read(args), user: { type: "servicePrincipal", name: replacement } } : f.read(args);
+    let previews = 0, puts = 0;
+    assert.throws(() => f.state.executeReviewedStage({
+      plan: f.plan, predecessor: f.predecessor, read, now: f.now,
+      preview: () => { previews++; return f.plan.whatIf; }, submit: () => { puts++; },
+    }), /original.*caller|caller.*changed/i);
+    assert.equal(previews, 0); assert.equal(puts, 0);
+  });
+}
+
+test("PR161 protected scopes use effective closed permissions, including resource-only lifecycle mutation", async () => {
+  const f = await stagedFixture();
+  const scope = f.boot.find((r) => r.type.endsWith("/storageAccounts")).id;
+  const check = (grant) => f.state.assertWriterRevoked((args) => {
+    if (args[0] === "rest" && args[args.indexOf("--url") + 1].toLowerCase().includes(`${scope}/providers/Microsoft.Authorization/permissions?`.toLowerCase())) return { value: [grant] };
+    return f.read(args);
+  }, f.predecessor, "apply", f.context.security);
+  const base = { actions: ["*/read"], notActions: [], dataActions: [], notDataActions: [] };
+  assert.doesNotThrow(() => check(f.transport.stagePermissions[0]), "Exact inherited continuation operations remain allowed");
+  for (const action of [
+    "Microsoft.Storage/storageAccounts/managementPolicies/write",
+    "Microsoft.Storage/storageAccounts/localUsers/write",
+    "Microsoft.Storage/storageAccounts/restoreBlobRanges/action", "Microsoft.Unknown/resources/write", "*",
+  ]) assert.throws(() => check({ ...base, actions: [...base.actions, action] }), /authority|allowlist/);
+  assert.doesNotThrow(() => check({ ...base, actions: [...base.actions, "Microsoft.Storage/storageAccounts/managementPolicies/write"], notActions: ["Microsoft.Storage/storageAccounts/managementPolicies/*"] }));
+  assert.doesNotThrow(() => check({ ...base, dataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"], notDataActions: ["Microsoft.Storage/*"] }));
+  assert.throws(() => check({ ...base, dataActions: ["*"], notDataActions: ["Microsoft.Storage/*"] }), /data/);
+  // NotActions is per grant, not a deny that can cancel a separate grant.
+  assert.throws(() => f.state.assertWriterRevoked((args) => args[0] === "rest" && args.includes("get")
+    ? { value: [{ ...base, actions: ["Microsoft.Storage/storageAccounts/managementPolicies/write"] }, { ...base, notActions: ["*"] }] }
+    : f.read(args), f.predecessor), /authority|allowlist/);
+});
+
+test("PR161 older failed predecessor cannot resubmit a distinct succeeded current target", async () => {
+  const f = await bootstrapRecoveryFixture();
+  const currentSha = "f".repeat(40);
+  f.plan.evidence.commitSha = currentSha;
+  f.transport.deployment = { name: `companydev-bootstrap-${currentSha.slice(0, 12)}`, properties: { provisioningState: "Succeeded" } };
+  f.context.targetInspection = f.state.inspectDeployment(f.read, f.transport.deployment.name);
+  let puts = 0, previews = 0;
+  assert.throws(() => f.state.executeReviewedStage({
+    plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now,
+    preview: () => { previews++; return f.plan.whatIf; }, submit: () => { puts++; },
+  }), /target.*checkpoint|checkpoint.*target/i);
+  assert.equal(puts, 0); assert.equal(previews, 0);
+});
+
+test("PR161 completed continuation with missing server and children stops instead of write recovery", async () => {
+  const f = await stagedFixture();
+  const all = [...f.boot, ...continuationResources(f.state)];
+  const complete = { ...f.predecessor, stage: "continuation", deploymentName: f.context.deploymentName,
+    completed: true, resources: f.state.projectResources(all),
+    templateSha256: f.plan.evidence.templateSha256, parametersSha256: f.plan.evidence.parametersSha256 };
+  f.transport.resources = all.filter((r) => !r.type.startsWith("Microsoft.DBforPostgreSQL/"));
+  f.context.baseline = f.plan.inventory.baseline = f.state.projectResources(f.transport.resources);
+  f.context.predecessor.stage = "continuation";
+  f.plan.inputs.mode = "reviewed-reentry";
+  f.transport.deployment = { name: f.context.deploymentName, properties: { provisioningState: "Succeeded" } };
+  f.context.inspection = f.state.inspectDeployment(f.read, f.context.deploymentName);
+  f.plan.whatIf = { changes: f.state.continuationInventory().map(({ id, type }) => ({
+    resourceId: id, changeType: type.startsWith("Microsoft.DBforPostgreSQL/") ? "Create" : "NoChange", after: { type },
+  })) };
+  let puts = 0, previews = 0;
+  assert.throws(() => f.state.executeReviewedStage({
+    plan: f.plan, predecessor: complete, read: f.read, now: f.now,
+    preview: () => { previews++; return f.plan.whatIf; }, submit: () => { puts++; },
+  }), /Completed.*inventory|completed.*no-op/i);
+  assert.equal(puts, 0); assert.equal(previews, 0);
+});
+
 for (const path of ["human grant preparation", "continuation security", "partial bootstrap"]) {
   test(`review fix scoped role CLI compatibility: ${path}`, async () => {
     const f = path === "partial bootstrap" ? await bootstrapRecoveryFixture() : await stagedFixture();

@@ -176,6 +176,18 @@ The small shared `company-development-state.mjs` is essential to use the same
 read-only state/security/re-entry rules in both existing CLI routes, rather than
 duplicate them. It is not another deployable, Bicep surface, service or tool.
 
+PR #161 hardens that contract without changing its authorization: same-stage
+recovery/replay binds the original apply client before execution/checkpoint
+creation and preserves it in later checkpoints. Protected scopes use closed
+read/deployment-operation allowlists with per-grant effective exclusions, not a
+finite mutation blacklist. A distinct already-succeeded target needs its own
+verified completion checkpoint. A completed same-stage predecessor can only
+verify no-op or stop; a missing PG server/children never permits write recovery.
+Successful targetless ARM output evaluation is not resource-creation evidence.
+The pinned Checkov adapter exposes conditional resource bodies to existing
+checks without evaluating away a branch, changing Bicep payloads, or adding
+skips. Parser errors/unknown conditional shapes remain blocking.
+
 | Requirement | Executable behavior / acceptance evidence | Remaining work / execution blockers |
 | --- | --- | --- |
 | R1 stage-selective templates | Three existing Bicep surfaces; seven bootstrap writes; nine continuation writes and existing bootstrap references. Actual compiled inventory/security tests protect PG16/B1ms/32 GiB Premium_LRS/seven-day/Entra-only, ACA Consumption and source/default payload digest, including full Defender 100 GB/index settings. Company stages never grant or write Defender/scanner. | No live capacity, eligibility or minimum ACA permission sufficiency claim. |

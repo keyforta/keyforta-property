@@ -330,6 +330,26 @@ continuity. Completed exact stages use fresh NoChange and no PUT, even after a
 previous submission timed out; changed completed payloads stop, not reconfigure.
 Recovery never deletes/recreates/cleans up or regains bootstrap authority.
 
+Every staged apply, including partial bootstrap and completed replay, must use
+the original checkpoint's apply client **before execution evidence or a new
+checkpoint is written**. New checkpoints preserve that original writer for
+subsequent revocation checks. Successful ARM `EvaluateDeploymentOutput` entries
+without resource targets are accepted but prove no resource creation; Create
+entries still require exact allowed targets, and unknown operation types stop.
+A distinct current-SHA target that already succeeded cannot be recovered using
+an older failed predecessor: obtain its own verified completion checkpoint.
+A same-stage completed checkpoint permits only verified no-op or stop, even
+if the server/children have disappeared and a newly reviewed baseline records
+their absence. Missing resources are not permission to recreate completed state.
+
+Protected bootstrap/security resource permission reads use a closed allowlist:
+reads, exact inherited continuation operations, and ARM deployment
+write/what-if/validate operations only. All
+other effective mutations (including Storage lifecycle policy writes) and data
+actions stop. NotActions/NotDataActions subtract only within their own grant;
+unknown wildcard-set containment fails closed. Owner/native review of equivalent,
+transitive and PIM rights remains required.
+
 RG caller-permission checks permit only stage template PUT types, deployment
 write/what-if/validate and the existing continuation workspace
 `Microsoft.OperationalInsights/workspaces/sharedKeys/action`, plus reads; preview
@@ -561,6 +581,16 @@ upgrade or softened scanner gate. For local compilation use the installed
 Bicep CLI with `build <file> --stdout`; do not deploy locally. No `.bicepparam`
 with guessed approved CIDRs is committed. Evidence and unresolved dependency
 audit failures must remain visible; do not waive quality gates.
+
+The same image runs `scripts/verify/checkov-bicep.test.py` and scans through
+`scripts/verify/checkov-bicep.py`. This version-locked adapter corrects pycep's
+`config.config` conditional-resource nesting so Checkov actually sees Storage's
+literal TLS 1.2 property. It preserves each condition and checks every resource,
+never chooses a supposedly inactive branch. TLS downgrade/missing-property
+regressions must fail; parsing/unknown shapes fail hard. The apps CORS filter
+uses a named array because pinned pycep cannot parse an inline-array argument;
+origin values and filtering remain unchanged. No Checkov skips or image upgrade
+are added, and the source/default foundation resource payload remains unchanged.
 
 Rollback at this stage: keep the route disabled; no resources exist from these
 changes. After any separately approved provisioning, abort/retain evidence on
