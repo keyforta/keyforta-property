@@ -1,0 +1,103 @@
+name: Company development foundation preview
+
+# PREPARATION ONLY. Review this new route before activation. It has no deploy
+# operation, bootstrap, provider registration, SQL, images, apps or jobs.
+# GitHub company-dev required-reviewer approval is the authoritative gate.
+# Independent manual no-bypass verification for this exact SHA/run/snapshot must
+# be recorded in that approval; no repository flag is a replacement.
+on:
+  workflow_dispatch:
+    inputs:
+      vnet_cidr:
+        description: Network-owner-approved RFC1918 VNet CIDR (no default)
+        required: true
+        type: string
+      aca_subnet_cidr:
+        description: Approved ACA infrastructure /26 within that VNet
+        required: true
+        type: string
+      postgres_subnet_cidr:
+        description: Approved separate PostgreSQL /28 within that VNet
+        required: true
+        type: string
+      network_approval:
+        description: Repository issue or PR URL recording network-owner approval
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: company-dev-foundation
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read # GET environment protection metadata; no settings writes
+    outputs:
+      review_context: ${{ steps.review-context.outputs.review_context }}
+    steps:
+      - name: Check out workflow revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify externally configured route activation and reviewers
+        id: review-context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPANY_DEV_PLAN_ENABLED: ${{ vars.COMPANY_DEV_PLAN_ENABLED }}
+        run: node scripts/infra/company-development.mjs guard
+
+  plan:
+    needs: [guard]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: company-dev
+    permissions:
+      contents: read
+      actions: read # Recheck environment snapshot after GitHub approval, before OIDC
+      id-token: write
+    env:
+      PREVIEW_CLIENT_ID: ${{ vars.COMPANY_DEV_PLAN_CLIENT_ID }}
+      REVIEW_CONTEXT: ${{ needs.guard.outputs.review_context }}
+      VNET_CIDR: ${{ inputs.vnet_cidr }}
+      ACA_SUBNET_CIDR: ${{ inputs.aca_subnet_cidr }}
+      POSTGRES_SUBNET_CIDR: ${{ inputs.postgres_subnet_cidr }}
+      NETWORK_APPROVAL: ${{ inputs.network_approval }}
+      APPROVED_VNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_VNET_CIDR }}
+      APPROVED_ACA_SUBNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_ACA_SUBNET_CIDR }}
+      APPROVED_POSTGRES_SUBNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_POSTGRES_SUBNET_CIDR }}
+      APPROVED_NETWORK_REFERENCE: ${{ vars.COMPANY_DEV_NETWORK_APPROVAL_REFERENCE }}
+    steps:
+      - name: Check out approved immutable revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate explicit destination network inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/infra/company-development.mjs prepare
+      - name: Sign in with destination-only preview federation
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
+        with:
+          client-id: ${{ env.PREVIEW_CLIENT_ID }}
+          tenant-id: 8019a048-e7d6-48e8-984a-b902f641a21b
+          subscription-id: 212bf9c5-2326-4852-846e-7227bac81fd5
+      - name: Compile and request create-only foundation what-if
+        run: node scripts/infra/company-development.mjs preview
+      - name: Preserve SHA-bound preparation evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: company-dev-foundation-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: company-dev-plan/
+          if-no-files-found: error
+          retention-days: 7

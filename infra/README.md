@@ -21,6 +21,215 @@ deployment time. Templates compile independently before `what-if` is allowed.
 The bootstrap administrator creates each environment resource group before the
 resource-group-scoped foundation deployment runs.
 
+## Company DEVELOPMENT preparation — isolated preview and plan-bound apply
+
+See [proposed ADR-016](../docs/adr/ADR-016-company-development-private-foundation.md).
+The user approved private-network **preparation** and a **$120/month before-tax
+planning ceiling**; estimated envelope **$108.35**, headroom **$11.65**. The later
+“I approve” conditionally authorizes the agreed foundation-only provisioning
+**once every prerequisite genuinely passes**; no renewed blanket approval is
+needed. It does not waive audit, independent review, exact network/payer inputs
+or external protected controls. No provider/RG/identity/role bootstrap, workflow
+activation or customer migration occurs during preparation.
+Source `foundation.bicep`, `deploy.yml`, `dev` environment variables,
+domains and customer authentication remain unchanged.
+
+New entry point `bicep/company-development.bicep` is fixed to company subscription
+`212bf9c5-2326-4852-846e-7227bac81fd5` and `rg-keyforta-companydev-san`.
+It composes the shared foundation via `modules/company-development-resources.bicep`:
+separate delegated ACA `/26` / PostgreSQL `/28`, PostgreSQL NSG and private DNS,
+public DB access disabled/no firewall rules, external ACA workload-profiles
+environment with only Consumption. ACR/Blob authenticated public paths and all
+Defender/scanning/auth/retention settings remain intact. No apps/jobs are added.
+
+The new `.github/workflows/company-development-foundation.yml` is **manual,
+main-only, preview-only**. The separate
+`.github/workflows/company-development-foundation-apply.yml` is a prepared,
+**unactivated**, main-only apply route; both share `company-dev-foundation`
+concurrency, not source dev concurrency. Neither does bootstrap.
+Do not dispatch during preparation. Before
+activation, authorized external owners must separately:
+
+1. Review this route and ADR; approve canonical, nonoverlapping corporate-safe
+   RFC1918 VNet/ACA/PostgreSQL CIDRs and the detailed NSG/platform dependencies.
+   The template has **no CIDR defaults**. Local validation cannot inspect all
+   corporate networks or establish the identity/authority of an approval author.
+2. Configure `company-dev` with required human reviewers, prevent self-review,
+   admin bypass disabled, and protected-branch restrictions. Protect main with
+   required repository CI/security checks and independent reviews. The guard
+   reads documented reviewer/self-review/branch settings and actual environment
+   IDs, failing closed on missing settings/API access. YAML does **not**
+   configure reviewers. **Admin-bypass cannot be verified by the documented
+   REST/GraphQL environment schemas.** The user explicitly approved
+   **independent manual verification while retaining GitHub required-reviewer
+   protection**. The supported native `company-dev` approval is authoritative;
+   there is no replacement attestation service, approval flag or invented API.
+
+   **Mandatory external reviewer procedure:** the guard publishes the exact
+   checkout SHA, run/attempt, actual environment ID/node ID and a hash of the
+   API-verifiable protection snapshot in the run summary. Before releasing the
+   pending `company-dev` job, an independent configured GitHub reviewer OTHER
+   THAN the workflow initiator (and re-run actor) must inspect the live settings,
+   visually verify **Allow administrators to bypass configured protection rules
+   is disabled**, and record that verification plus the exact SHA, run/attempt,
+   environment ID and snapshot hash in the **native environment approval
+   comment**. Verify required CI/security checks, including audit, pass for that
+   same SHA; reject blocked checks, mismatches or changed settings. A new
+   revision/attempt or environment change requires a fresh review, not reuse of
+   an older comment. GitHub's configured prevent-self-review control enforces
+   initiator separation; the independent reviewer owns the manual checklist.
+
+   The protected job cannot start until GitHub releases its actual environment
+   gate. Before Azure login it re-reads the API-verifiable protections and rejects
+   snapshot/run/SHA drift. Code does **not** claim to machine-prove the UI setting,
+   parse approval comments, or independently authenticate a reviewer from a
+   self-authored record. Job outputs/snapshot hashes are context, not approvals.
+   Missing or invented `can_admins_bypass` fields are never treated as proof.
+   Dispatch booleans, repository activation variables and actor self-attestation
+   cannot replace the real required-reviewer control. Do not dispatch during prep.
+3. Create an approved destination-only OIDC preview identity, verify actual
+   immutable repository/environment subject claims and least privilege. Planning
+   needs target reads plus `Microsoft.Resources/deployments/whatIf/action` (review
+   effective provider permissions); **not** generic Owner, role-assignment writes,
+   provider registration, SQL or subscription-wide workload write access.
+   No identity/role/federation is bootstrapped by this workflow.
+4. Under separate bootstrap approval, register required providers including
+   `Microsoft.Network` and create the **empty** target RG in South Africa North.
+   These are prerequisites, not workflow side effects. SKU/capacity/name/policy
+   checks remain necessary. A missing RG/provider stops preview.
+5. Configure these nonsecret **company-dev** environment variables, with no reuse
+   or repointing of source variables:
+
+   | Variable | Externally approved value |
+   | --- | --- |
+   | `COMPANY_DEV_PLAN_CLIENT_ID` | Destination preview identity client UUID |
+   | `COMPANY_DEV_APPROVED_VNET_CIDR` | Approved VNet CIDR |
+   | `COMPANY_DEV_APPROVED_ACA_SUBNET_CIDR` | Approved contained `/26` |
+   | `COMPANY_DEV_APPROVED_POSTGRES_SUBNET_CIDR` | Approved separate contained `/28` |
+   | `COMPANY_DEV_NETWORK_APPROVAL_REFERENCE` | Repository issue/PR URL recording actual network-owner approval |
+
+   Only after route review, set repository-level `COMPANY_DEV_PLAN_ENABLED=true`
+   to enter the pre-OIDC guard. That variable is **not** execution approval
+   and cannot bypass the native required-reviewer approval described above.
+6. Only after external route/bootstrap authorization and independent protected-
+   environment preview approval, supply dispatch CIDRs/reference exactly
+   matching those variables. The script validates destination context, registered
+   providers and empty RG, compiles in memory, requests provider `what-if` with
+   `ProviderNoRbac`, and rejects anything except allowed foundation **creates**
+   in the target RG. It rejects prepared ARM-parameter drift, passes a canonical
+   in-memory snapshot of **all four** approved parameters directly to Azure CLI
+   (not a mutable `@file`), and records that exact shape/hash in evidence.
+   File mutation after validation cannot change the parameters ARM consumes.
+   Failure/Ignore/unknown output is a stop, never authorization
+   to weaken validation. ACA's platform-generated `ME_...` RG may not be expanded
+   by ARM what-if; approve/verify its expected LB/two-IP inventory and charges
+   separately before execution.
+7. Review the seven-day-retained SHA/run-bound artifact (review context,
+   API-verifiable snapshot, parameters/template/
+   what-if hashes, approval reference, destination, $120 ceiling). Do not promote
+   it as an application plan. No successful live preview exists from local prep.
+   Reprice before execution; obtain **separate independent apply-diff review**
+   and the external controls/inputs below. Conditional foundation execution
+   consent is already recorded; the preview route itself cannot deploy.
+
+### Separate protected apply route — prepared, not activated or exercised live
+
+`company-development-foundation-apply.yml` has its own native
+**`company-dev-apply` environment** and **distinct federated apply client ID**.
+Externally configure the same required-reviewer, prevent-self-review,
+protected-main and disabled-admin-bypass protections/checklist as for preview.
+YAML does not create reviewers or prove the UI-only bypass setting. The guard
+has no OIDC; only the protected job can obtain it, and supported protection/
+SHA/run/snapshot checks execute again **before** Azure login.
+
+External owners must configure `COMPANY_DEV_APPLY_CLIENT_ID` and the four approved
+network variables in that environment, without changing source or preview
+variables. Set repository `COMPANY_DEV_APPLY_ENABLED=true` only after independent
+route review, quality gates and external readiness; it is an inactive-route
+switch, not human approval. Apply and preview client IDs must differ.
+
+**Least privilege is an unresolved external prerequisite, not an Owner grant.**
+The apply identity needs reviewed destination foundation resource/deployment
+permissions and narrowly constrained role-assignment authority for exactly:
+three `AcrPull` assignments to the new API/web/migration identities on the new
+registry, and one `Storage Blob Data Contributor` assignment to the new API
+identity on the new private document container. Review actual scopes/principals,
+conditioned delegation and effective provider permissions before activation.
+ACA's managed `ME_...` RG/platform actions need explicit owner-reviewed effective
+permissions too; target-RG-only access is not claimed sufficient for that platform
+operation. No subscription-wide workload writer/Owner, source privileges,
+registration/RG/federation setup, or role-grant setup is performed by this route.
+If least privilege cannot be satisfied without broader new authority, stop.
+
+Required dispatch inputs have **no defaults**: successful preview run ID,
+attempt, immutable artifact ID, and independently reviewed **source manifest,
+template, parameter and what-if SHA256** hashes. They must refer to the apply
+workflow's exact main SHA. The sole accepted, nonexpired artifact name is
+`company-dev-foundation-plan-SHA-RUNID-ATTEMPT`, with exactly six regular JSON
+files (`inputs`, `parameters`, `template`, `what-if`, `review-context`, `evidence`).
+The helper verifies successful same-repository preview provenance, every reviewed
+hash, exact approved parameters/input snapshot and current foundation-source
+digest; its guard output binds all dispatch inputs through protected approval.
+The source manifest is derived from raw Git blobs at the exact workflow SHA,
+not worktree-only hashes. Every targeted foundation file must exist in that
+commit and match its worktree bytes exactly; dirty, missing, untracked-at-SHA or
+nonregular targeted files stop guard/pre-login validation. Unrelated tracked/
+untracked worktree changes do not fail this targeted invariant. Local tests use
+temporary synthetic Git repositories; uncommitted preparation files here are
+not represented as already reviewed/committed.
+
+The independent reviewer OTHER THAN initiator/re-run actor records those exact
+plan IDs/hashes with SHA/run/attempt/environment ID/snapshot and manual no-bypass
+verification in the **native apply environment approval comment**. Review actual
+what-if resources, network/payer/before-tax budget and expected ACA managed RG/
+LB/two-IP charges, scoped permissions, recovery owner and destination change
+freeze. Do not approve a blocked audit/security check or missing input.
+
+Apply requires the **latest** exact-SHA main-push runs of `ci.yml`, `security.yml`
+and `dast.yml` all successful (a newer pending/failed run cannot be hidden by an
+older success). It rechecks those before submission, fixed signed-in
+subscription/tenant/**apply service principal**, registered providers and an
+existing **empty** exact company RG. It performs a fresh provider what-if with
+the reviewed template and approved inline parameters. Only the create-only
+foundation allowlist is accepted; complete canonicalized change payloads must
+equal the reviewed what-if. Platform-provider inventory not expanded by what-if
+still requires the independent external approval above. Shared concurrency
+serializes these routes but cannot lock out external writers; an externally
+owned change freeze is required.
+
+Only then does the route submit one fixed-destination
+[ARM deployment PUT](https://learn.microsoft.com/en-us/rest/api/resources/deployments/create-or-update?view=rest-resources-2025-04-01),
+using the validated **in-memory** template and full parameter values, not mutable
+file references. There are no local compilation/rebuilds, source writes, apps,
+job starts, SQL, customer auth/DNS/data actions or destructive automation.
+Execution evidence retains reviewed IDs/hashes, fresh what-if, submitted body
+hash, run identity and polled ARM result. Failure/timeout preserves evidence and
+stops without Azure retry, rollback/deletion or reconciliation; a partially
+populated RG blocks reapplication and requires explicit inventory/recovery review.
+ARM success is not functional application, private-access, restore or cutover
+acceptance. No live plan, protected approval, apply or resources exist from prep.
+
+Validation uses existing `node --test .github/tests/*.test.mjs` / `pnpm verify`
+and recursive CI Bicep compilation. Security CI now executes
+`scripts/verify/company-foundation-parser.py` inside the **existing pinned**
+Checkov 3.3.17 image before the normal scan. This uses its actual pycep-parser
+0.5.1 to require parse success and exact foundation resource/module inventories;
+silent Checkov parse skips cannot satisfy it. No new exclusion, dependency
+upgrade or softened scanner gate. For local compilation use the installed
+Bicep CLI with `build <file> --stdout`; do not deploy locally. No `.bicepparam`
+with guessed approved CIDRs is committed. Evidence and unresolved dependency
+audit failures must remain visible; do not waive quality gates.
+
+Rollback at this stage: keep the route disabled; no resources exist from these
+changes. After any separately approved provisioning, abort/retain evidence on
+drift, failed private DNS/Entra/SQL/scanning checks or budget forecast change.
+Deletion needs explicit authority. Apps, migration/seed jobs, DB administrator/
+SQL grants, telemetry alerts and isolated restore tests require separate approval;
+GitHub-hosted CI has no private DB route. Follow existing
+[backup/retention](../docs/database/backup-retention-runbook.md) and
+[operations](../docs/operations/README.md) runbooks. An empty foundation proves no
+SLO/RPO/RTO or restore readiness; security/integrity failure stops promotion.
+
 Security CI scans Bicep with digest-pinned Checkov. The exact exclusions cover
 the approved synthetic-pilot topology: public service endpoints
 (`CKV_AZURE_35`, `CKV_AZURE_59`, `CKV_AZURE_139`), external plan-time Trivy

@@ -1,0 +1,123 @@
+name: Company development foundation apply
+
+# PREPARED, NOT ACTIVATED. Conditional user consent does not waive CI/audit,
+# exact plan review or native independent company-dev-apply approval.
+on:
+  workflow_dispatch:
+    inputs:
+      plan_run_id:
+        description: Successful company foundation PREVIEW run for this exact main SHA
+        required: true
+        type: string
+      plan_run_attempt:
+        description: Exact successful preview attempt
+        required: true
+        type: string
+      plan_artifact_id:
+        description: Exact immutable non-expired preview artifact ID
+        required: true
+        type: string
+      reviewed_source_sha256:
+        description: Reviewed foundation source manifest SHA256 from evidence
+        required: true
+        type: string
+      reviewed_template_sha256:
+        description: Reviewed exact compiled template SHA256
+        required: true
+        type: string
+      reviewed_parameters_sha256:
+        description: Reviewed exact approved parameters SHA256
+        required: true
+        type: string
+      reviewed_what_if_sha256:
+        description: Reviewed exact provider what-if artifact SHA256
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Shared with preview, but never source dev. External change freeze also required.
+concurrency:
+  group: company-dev-foundation
+  cancel-in-progress: false
+
+env:
+  COMPANY_DEV_APPLY_ENABLED: ${{ vars.COMPANY_DEV_APPLY_ENABLED }}
+  PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+  PLAN_RUN_ATTEMPT: ${{ inputs.plan_run_attempt }}
+  PLAN_ARTIFACT_ID: ${{ inputs.plan_artifact_id }}
+  REVIEWED_SOURCE_SHA256: ${{ inputs.reviewed_source_sha256 }}
+  REVIEWED_TEMPLATE_SHA256: ${{ inputs.reviewed_template_sha256 }}
+  REVIEWED_PARAMETERS_SHA256: ${{ inputs.reviewed_parameters_sha256 }}
+  REVIEWED_WHAT_IF_SHA256: ${{ inputs.reviewed_what_if_sha256 }}
+
+jobs:
+  guard:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      review_context: ${{ steps.review-context.outputs.review_context }}
+      plan_binding: ${{ steps.review-context.outputs.plan_binding }}
+    steps:
+      - name: Check out exact reviewed main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify successful immutable plan and green CI then publish independent review context
+        id: review-context
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/infra/company-development-apply.mjs guard
+
+  apply:
+    needs: [guard]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: company-dev-apply
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      REVIEW_CONTEXT: ${{ needs.guard.outputs.review_context }}
+      PLAN_BINDING: ${{ needs.guard.outputs.plan_binding }}
+      APPLY_CLIENT_ID: ${{ vars.COMPANY_DEV_APPLY_CLIENT_ID }}
+      APPROVED_VNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_VNET_CIDR }}
+      APPROVED_ACA_SUBNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_ACA_SUBNET_CIDR }}
+      APPROVED_POSTGRES_SUBNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_POSTGRES_SUBNET_CIDR }}
+      APPROVED_NETWORK_REFERENCE: ${{ vars.COMPANY_DEV_NETWORK_APPROVAL_REFERENCE }}
+    steps:
+      - name: Check out approved immutable revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Revalidate reviewed inputs and live environment before sign-in
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/infra/company-development-apply.mjs verify
+      - name: Sign in with separate scoped company apply federation
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
+        with:
+          client-id: ${{ env.APPLY_CLIENT_ID }}
+          tenant-id: 8019a048-e7d6-48e8-984a-b902f641a21b
+          subscription-id: 212bf9c5-2326-4852-846e-7227bac81fd5
+      - name: Re-preview reject drift and apply exact reviewed foundation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/infra/company-development-apply.mjs apply
+      - name: Preserve isolated execution or failure evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: company-dev-foundation-apply-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: company-dev-apply/
+          if-no-files-found: warn
+          retention-days: 7
