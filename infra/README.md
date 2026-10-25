@@ -35,12 +35,28 @@ Source `foundation.bicep`, `deploy.yml`, `dev` environment variables,
 domains and customer authentication remain unchanged.
 
 New entry point `bicep/company-development.bicep` is fixed to company subscription
-`212bf9c5-2326-4852-846e-7227bac81fd5` and `rg-keyforta-companydev-san`.
+`891e5e6e-8ae3-4455-9184-8d7606223d91` and `rg-keyforta-companydev-san`.
 It composes the shared foundation via `modules/company-development-resources.bicep`:
 separate delegated ACA `/26` / PostgreSQL `/28`, PostgreSQL NSG and private DNS,
 public DB access disabled/no firewall rules, external ACA workload-profiles
 environment with only Consumption. ACR/Blob authenticated public paths and all
 Defender/scanning/auth/retention settings remain intact. No apps/jobs are added.
+
+**Approved destination replacement (2026-10-25 UTC):** the previous destination
+`212bf9c5-2326-4852-846e-7227bac81fd5` is **superseded**, not a fallback.
+Read-only ARM metadata verifies the new subscription is Enabled in company tenant
+`8019a048-e7d6-48e8-984a-b902f641a21b`, offer `FreeTrial_2014-09-01`,
+spending limit **On**. The **$200 credit is user-reported**; remaining balance
+and expiry are not verified, and it is not recurring monthly credit. Keep the
+$120/month before-tax ceiling and $108.35 foundation-only estimate; neither is
+a verified credit-coverage promise or an enforced spend cap. No upgrade or
+spending-limit removal is authorized. Trial/SKU/region eligibility, capacity,
+quota and remaining credit validity must be established before execution; stop
+if the unchanged stack cannot run within this offer. See ADR-016's offer caveats.
+Prior plans/artifacts and permissions for the superseded subscription must not
+be reused as approval for this destination: obtain a fresh exact-SHA protected
+preview and independent plan-bound apply review. This retarget creates no
+resources, OIDC/RBAC, environment configuration, or new publication consent.
 
 The new `.github/workflows/company-development-foundation.yml` is **manual,
 main-only, preview-only**. The separate

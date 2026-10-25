@@ -11,7 +11,7 @@ const controls = () => import("../../scripts/infra/company-development-apply.mjs
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 const encode = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const sha = "a".repeat(40);
-const subscriptionId = "212bf9c5-2326-4852-846e-7227bac81fd5";
+const subscriptionId = "891e5e6e-8ae3-4455-9184-8d7606223d91";
 const resourceGroup = "rg-keyforta-companydev-san";
 const input = {
   subscriptionId, resourceGroup, tenantId: "8019a048-e7d6-48e8-984a-b902f641a21b", location: "southafricanorth",
@@ -67,6 +67,30 @@ test("apply accepts only exact successful preview run/artifact/SHA and every rev
   assert.throws(() => assertPlan(f.files, f.run, { ...f.artifact, id: 999 }, f.expected, "b".repeat(64)));
 });
 
+test("apply rejects superseded destination and source plans even with recomputed reviewed hashes", async () => {
+  const { assertPlan } = await controls();
+  for (const rejectedSubscription of [
+    "212bf9c5-2326-4852-846e-7227bac81fd5",
+    "f9809805-ff42-4ece-b3da-43ebd70e0fb7",
+  ]) {
+    for (const templateOnly of [false, true]) {
+      const f = fixture();
+      const template = JSON.parse(f.files["template.json"]);
+      template.resources[0].subscriptionId = rejectedSubscription;
+      f.files["template.json"] = encode(template);
+      const evidence = JSON.parse(f.files["evidence.json"]);
+      evidence.templateSha256 = f.expected.templateSha256 = hash(f.files["template.json"]);
+      if (!templateOnly) {
+        const inputs = { ...input, subscriptionId: rejectedSubscription };
+        f.files["inputs.json"] = encode(inputs);
+        evidence.subscriptionId = rejectedSubscription;
+      }
+      f.files["evidence.json"] = encode(evidence);
+      assert.throws(() => assertPlan(f.files, f.run, f.artifact, f.expected, "b".repeat(64)), /destination subscription|template subscription/i);
+    }
+  }
+});
+
 test("apply rejects semantic approval drift and any extra artifact file even when actor updates raw hashes", async () => {
   const { assertPlan } = await controls();
   const f = fixture();
@@ -118,6 +142,8 @@ test("apply route has a distinct protected environment/principal, no bootstrap o
   assert.deepEqual(workflow.jobs.apply.needs, ["guard"]);
   const steps = workflow.jobs.apply.steps;
   const login = steps.find((step) => step.uses?.startsWith("azure/login@"));
+  assert.equal(login.with["subscription-id"], subscriptionId);
+  assert.equal(login.with["tenant-id"], input.tenantId);
   assert.equal(login.with["client-id"], "${{ env.APPLY_CLIENT_ID }}");
   assert.equal(login.with["subscription-id"], subscriptionId);
   assert.ok(steps.findIndex((step) => step.run?.endsWith("company-development-apply.mjs verify")) < steps.indexOf(login));
