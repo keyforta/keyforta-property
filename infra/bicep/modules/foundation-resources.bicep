@@ -4,6 +4,10 @@ param location string
 @minLength(3)
 param resourcePrefix string
 
+// Empty preserves source defaults. Keep syntax compatible with the pinned
+// Checkov/pycep parser; the isolated wrapper supplies all four private IDs.
+param privateNetwork object = {}
+
 var suffix = uniqueString(resourceGroup().id)
 var baseName = '${resourcePrefix}-${environment}'
 var tenantApplicationContainerName = 'tenant-applications'
@@ -47,10 +51,17 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
     highAvailability: {
       mode: 'Disabled'
     }
-    network: {
+    network: empty(privateNetwork) ? {
       publicNetworkAccess: 'Enabled'
+    } : {
+      publicNetworkAccess: 'Disabled'
+      delegatedSubnetResourceId: privateNetwork.postgresSubnetId
+      privateDnsZoneArmResourceId: privateNetwork.postgresDnsZoneId
     }
-    storage: { storageSizeGB: 32 }
+    storage: empty(privateNetwork) ? { storageSizeGB: 32 } : {
+      storageSizeGB: 32
+      type: 'Premium_LRS'
+    }
     version: '16'
   }
 }
@@ -63,7 +74,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
     }
   }
 
-resource azureServicesFirewall 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2024-08-01' = {
+resource azureServicesFirewall 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2024-08-01' = if (empty(privateNetwork)) {
   parent: postgres
   name: 'AllowAzureServices'
   properties: {
@@ -81,7 +92,7 @@ resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-0
 resource appEnvironment 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
   name: 'cae-${baseName}-${suffix}'
   location: location
-  properties: {
+  properties: union({
     appLogsConfiguration: {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
@@ -90,7 +101,19 @@ resource appEnvironment 'Microsoft.App/managedEnvironments@2024-10-02-preview' =
       }
     }
     zoneRedundant: false
-  }
+  }, empty(privateNetwork) ? {} : {
+      infrastructureResourceGroup: privateNetwork.infrastructureResourceGroup
+      vnetConfiguration: {
+        infrastructureSubnetId: privateNetwork.acaSubnetId
+        internal: false
+      }
+      workloadProfiles: [
+        {
+          name: 'Consumption'
+          workloadProfileType: 'Consumption'
+        }
+      ]
+  })
 }
 
 resource apiIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {

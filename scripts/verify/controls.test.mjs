@@ -7,6 +7,7 @@ import { checkArchitecture } from "./architecture-boundaries.mjs";
 import { validateMermaidDocuments } from "./mermaid-diagrams.mjs";
 import { checkPrEvidence } from "./pr-evidence.mjs";
 import { scanSecrets } from "./secret-scan.mjs";
+import "./dependency-patches.test.mjs";
 
 function withTemporaryFile(source, assertion) {
   const directory = mkdtempSync(join(tmpdir(), "keyforta-control-test-"));
