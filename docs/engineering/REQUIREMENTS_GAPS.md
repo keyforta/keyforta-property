@@ -2,6 +2,23 @@
 
 This report records decisions without changing requirements.
 
+## Proposed staged company-foundation contract
+
+2026-10-25: proposal delivery only; ADR-016 remains Proposed, not accepted.
+The [authoritative staged contract](../adr/ADR-016-company-development-private-foundation.md#proposed-staged-company-foundation-contract)
+owns stage details, evidence IDs, cost constraints and acceptance tests.
+Follow ADR-016: cmbuyamba owns Azure technical decisions; no second Azure technical review.
+Existing one-shot code is not a staged capability; apply remains unconfigured.
+Review triggers: changed stage, SHA/attempt, inventory, security or permissions.
+No implementation, permission writes or activation are authorized by this entry.
+
+| Gap | Evidence | Potential technical impact | Decision owner | Status |
+| --- | --- | --- | --- | --- |
+| Company bootstrap security exception and authority handoff | ADR-016 proposes empty unused Storage without verified Defender and human removal of bootstrap write rights before grants. | Cannot call bootstrap foundation-ready; inherited/equivalent rights must not survive or permit continuation to rewrite bootstrap resources. | cmbuyamba (Product Owner / sole Azure technical owner) | NEW, UNAPPROVED; specific Product Owner technical/security decisions pending concrete approval before implementation; required GitHub gates unchanged |
+| Exact human grants and Defender backend proof | Issue #159 feasibility rules out considered exact future-principal delegation; ADR requires actual UAMI IDs and separate scanner/backend/Data Owner inventory. | Missing visibility, wrong scopes/principals or unexplained effective access blocks continuation; workflow cannot manage grants/scanner. | Platform/Security human operators | Open; four template grants are not the total Defender-managed access inventory |
+| Narrow custom-VNet ACA caller authority | ADR-016 records minimum effective continuation permissions as unproven. | No generic Owner/Contributor, subscription RG/Network writer or paid-component workaround; stop without concrete proof. | Platform/Network with Security | Open; capability boundaries are not verified executable role definitions |
+| Staged evidence and native company gates | Historical reviewed full-plan artifact is not valid for changed stages; ADR records parent-confirmed main CI and evidence expiry. | New stage/inventory/source-bound artifact and exact-SHA independent native approvals required, including rerun-actor separation and live bypass-off verification. | Repository maintainers and configured independent human reviewers | Proposed only; older general GitHub-protection limitation below remains historical context, not proof for company environments |
+
 | Gap                                  | Evidence                                                                                                                                                                      | Potential technical impact                                                                              | Decision owner                           | Status                                               |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------- |
 | External Identity transition timing  | The [Azure customer identity onboarding appendix](../../infra/README.md#customer-identity-onboarding) describes temporary B2B onboarding until External ID exists.                                                                  | Identity claims, onboarding support, redirect registrations, and test environments may change.          | Product owner with security owner        | Product-owner clarification required                 |
