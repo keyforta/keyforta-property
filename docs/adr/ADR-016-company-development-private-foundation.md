@@ -38,9 +38,19 @@ review only: not implementation, deployment, permission writes or activation.
 ADR-016 remains **Proposed**; no acceptance or security waiver is recorded.
 Unchanged: $120/month before-tax ceiling, $108.35 estimate, not cost guarantees.
 No extra services, paid components or source-dev changes.
-Augustin2K owns fresh independent review; Product/Security must specifically
-approve the two new security decisions below. Platform owns permission proof,
-Network the existing network controls, Finance the unchanged cost/offer gates.
+cmbuyamba is the sole accountable Azure technical expert and owner.
+No second Azure technical review/sign-off is required
+to prepare infrastructure or assess the proposed Azure technical design.
+Technical validation relies on reproducible tests/provider results.
+AI may assist evidence/checks, not claim expertise or approve risk; cmbuyamba owns technical/risk decisions.
+Incomplete evidence remains blocking; neither owner status nor AI assistance waives checks.
+Required independent PR approvals and native environment gates remain unchanged:
+human authorization/control checks, not Azure expertise certification or duplicate technical review.
+Augustin2K may review scope/operator intent and GitHub controls without Azure expertise.
+Platform/Network/Security are responsibility roles, not additional Azure reviewers:
+Platform owns permission proof and Network the existing network controls.
+Both new security decisions require specific informed Product Owner approval;
+Finance retains the unchanged cost/offer gates.
 
 Current code is one-shot: empty RG, create-only full plan, six-file artifact,
 one ARM submission. Apply remains unconfigured. The following stages are future
@@ -68,8 +78,8 @@ verified Defender. No app attachment, uploads, data or migration; not foundation
 before Stage 2, proving no inherited/equivalent rights remain. Continuation cannot
 rewrite UAMIs, ACR or Storage. Bootstrap type-scoped rights
 can modify those types while active; they are not name-bound create-only rights.
-Both this guard/tradeoff and the transient exception need Augustin's fresh review
-and specific Product/Security approval before implementation, not broad consent.
+Both this guard/tradeoff and the transient exception need specific informed Product Owner
+technical/security approval before implementation, not broad consent; required GitHub gates remain.
 
 ### Stage 2 - human permissions and separate Defender verification
 

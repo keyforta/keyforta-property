@@ -31,8 +31,8 @@ code/preparation, not a staged runbook; apply remains unconfigured.
 User approval on 2026-10-25 covers proposal preparation only, not changed execution.
 Proposed sequence: seven-resource bootstrap; human exact-ID grants and separate
 Defender/backend verification; protected continuation using existing references.
-Augustin2K must freshly review; Product/Security must specifically approve empty
-unused unverified-Defender Storage and the bootstrap-authority removal guard.
+Follow ADR-016: cmbuyamba owns Azure technical decisions; no second Azure technical review.
+Empty unused unverified-Defender Storage and the bootstrap-authority removal guard still need specific Product Owner approval.
 Platform must prove narrow continuation/ACA permissions; sufficiency is unproven.
 Historical run `40223406509` attempt `2` / artifact `12610233452` was reviewed;
 see ADR evidence/expiry. It is not a staged execution input. Require new versioned
