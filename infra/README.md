@@ -441,6 +441,115 @@ Rollback: withhold execution and preserve originals; any code revert requires
 review. Never delete/recreate resources, manually fabricate completion, or
 silently upgrade/reuse a stale preview.
 
+### Inspection-only snapshot collection (code preparation approved, no dispatch now)
+
+**Invariant:** collect a fresh snapshot as the existing observer **before**
+snapshot approval, without treating collection as an approved audit or creating
+user UI/freeze facts. The owner approved this separate implementation on
+2026-10-26 at 15:21:06.973Z. This is code/tests/PR preparation, not execution.
+`company-development-inspection.yml` calls the dedicated `inspect-prepare` /
+`inspect` commands in the existing GET-only module. Neither command invokes
+completion, preview/apply, WhatIf, validate, data access or permission changes.
+Existing audit/manual-UI/snapshot-review/deployment controls remain mandatory.
+
+For future execution **after merge**, use the actual merged main SHA, not the PR
+head or a guessed future SHA. The authorized owner supplies a fresh (at most one
+hour old through finalization) inspection-only intent, predating that attempt.
+No further code-preparation approval is required. Runtime context is deliberately
+distinct from audit execution/snapshot/UI authorization:
+
+| `inspection_intent` field | Required actual value |
+| --- | --- |
+| `version`, `kind`, `scope`, `owner` | `1`, `bootstrap-inspection-intent`, `inspection-only-no-authority`, `cmbuyamba` |
+| `execution` | `{revision:<actual merged main SHA>}` |
+| `authorizedAt`, `ownerAuthorizationReference` | Fresh actual inspection execution context and native issue/PR/comment reference; code-prep consent is not a dispatch |
+| `reviewReferences` | 1–10 native issue/PR/comment references for the exact reviewed source and inspection-only scope |
+| `original`, `originalSource` | Unchanged exported original binding and nine-path immutable historical Git-blob manifest |
+| `source` | `inspectionSource(SHA)`: version **4**, thirteen ordered paths (existing twelve plus the exact inspector workflow), raw Git-blob digests |
+| `baselineChangesSha256`, `implementationChangesSha256` | Same raw repository-wide diff commands as the audit runbook below, using the actual merged SHA; no circular prepublication binding |
+| `environment` | Actual full `environments/company-dev` API response, including bypass=false, protected-branch policy and rule identities |
+| `observerBinding` | Byte-pinned existing protected configuration object, not a new identity/role plan |
+
+Do **not** add `manualUi`, `freezeReference`, `inspectionReference` or
+`frozenSnapshotSha256`; inspection rejects invented audit fields. No preapproved
+snapshot is needed to collect the snapshot. The inspector verifies actual API
+protections and owner/native workflow/job metadata; it does **not** assert an
+actual UI observation or authenticate human approval from a URL. The audit still
+requires genuine fresh UI `observedAt`, external freeze, digest review and
+exact-source audit-only execution consent.
+
+Offline review: construct the manifests/diff hashes from the eventual immutable
+commit, then run `assertSourceReview(intent)` from that clean checkout. Source
+review pins the existing historical workflow blobs, Bicep/parser and exact
+enumerated whole-PR surfaces. Unknown workflows/helpers or dirty source fail.
+Only the exact inspector path is added; no directory-prefix exception. Audit v3
+and historical v1 manifests remain unchanged.
+
+When execution is separately authorized, the future manual commands are:
+
+```sh
+# PRIVATE local file contains actual owner context and immutable source bindings.
+# Run only once merged SHA, green push checks and runtime consent are known.
+gh workflow run company-development-inspection.yml --ref main \
+  -f inspection_intent="$(node -e 'process.stdout.write(JSON.stringify(JSON.parse(require("node:fs").readFileSync(process.argv[1],"utf8"))))' /private/path/inspection-intent.json)"
+gh run view <actual-inspection-run-id> --repo keyforta/keyforta-property
+gh run download <actual-inspection-run-id> --repo keyforta/keyforta-property \
+  --name company-dev-inspection-v1-<merged-sha>-<run-id>-<attempt> \
+  --dir /private/path/company-inspection-evidence
+```
+
+Do not run those commands as part of this PR. Main must still equal that SHA;
+latest exact-SHA push CI/Security/DAST must be successful. The same protected
+`company-dev` environment and `company-dev-foundation` concurrency apply. Existing
+contents/actions read plus id-token write suffice; no administrative GitHub
+token scope is added. Branch-required check metadata comes from `branches/main`,
+not the administration-only branch-protection endpoint. Exact applied binding,
+native workflow/job/owner/event/repo/attempt and complete actual protections are
+checked before login and again after collection. Missing API visibility is a
+technical stop, never a reason to grant privileges or invent UI facts.
+
+Only successful authentication, two identical full enumerated GET snapshots,
+intact original archive/checkpoint, complete shape/inventory/history/permission/
+exact-grant visibility and final guards produce the distinct seven-day restricted
+Actions artifact `company-dev-inspection-v1-SHA-RUN-ATTEMPT`. It contains exactly
+`inspection.json`, `snapshot.json`, `read-journal.json`, `source-review.json`,
+`controls.json`, `historical-original.zip`,
+`historical-incomplete-checkpoint.json`, `original-bindings.json`.
+`inspection.json` is version 1 / `bootstrap-inspection-evidence` /
+`inspection-only`, **never** a receipt/predecessor/checkpoint/continuation input.
+The digest is production `stateHash(snapshot)` (SHA256 of canonical full raw
+objects), not a projection. Original bytes/hashes and completed=false remain
+unchanged. Directory/file modes are 0700/0600 and exclusive-create. Full raw
+evidence stays under repository-controlled Actions access; logs expose only
+sanitized status/digests. Do not publish snapshots/directory dumps in PRs or Git.
+
+Failed calls, pagination, malformed/absent visibility, wrong caller, unknown
+authority/grants, source/state/guard drift or secrets are nonzero and upload
+nothing. The historical-state semantic validator alone may record `rejected`
+as a diagnostic fact after complete collection; that is **not** audit acceptance.
+Before that diagnostic boundary, both reads require scoped deployment/history
+IDs, nonempty state, UUID correlation and parseable timestamp, plus unique string
+operation IDs, state/timestamp and the complete context-bound Create/Read/output
+set. Create and Read require typed targets; EvaluateDeploymentOutput legitimately
+has no target (absent or null). Missing/malformed evidence is never a historical
+mismatch diagnostic, even when identically omitted from both snapshots.
+Scoped observer permissions must include the twelve RG reads (subscription
+reads are scoped at subscription), with no non-read/data/wildcard authority.
+This does not relax the audit's existing permission assertions. Every inspector
+record says auditCompleted=false, permissionsVerified=false,
+writerRevocationVerified=false, continuationAuthorized=false,
+securityHandoffVerified=false and PIM visibility unknown/not measured.
+
+Next, the human must privately review the actual observer snapshot and approve
+its exact digest before a separately authorized completion audit, including fresh
+actual UI context. No inspection success substitutes for that step. Original
+writer revocation/equivalent/PIM proof, security/functional handoff, unresolved
+3 Modify / 5 Delete, all deployment gates, telemetry, backups/restore tests,
+SLOs/error budgets and readiness remain outstanding. No new paid services;
+$108.35/month estimate/$120 pre-tax ceiling unchanged. Rollback is a reviewed
+code revert/withheld dispatch preserving artifacts; never replay, delete/recreate
+resources or remove already-applied access automatically.
+
 ### Historical bootstrap completion audit (code approval, not execution)
 
 The separately approved `company-development-bootstrap-completion.yml` /
@@ -461,8 +570,8 @@ the existing preview principal is **ineligible** for this closed audit role:
 its legitimate WhatIf capability and broader reads remain unchanged.
 
 The audit runs under existing `company-dev` protection and
-`company-dev-foundation` concurrency with a **separate audit identity**, fail-closed
-until human configuration after separate access-plan approval; never the preview
+`company-dev-foundation` concurrency with the **existing separately configured audit identity**
+recorded below; never the preview
 client `684d29f1-1055-4030-b308-872dd2781d39` or historical writer. The fixed
 transport permits management GETs only: subscription/RG, generic and seven
 typed resources, original three deployments and their operation lists,
@@ -475,12 +584,35 @@ signed-in separately protected audit caller; no token/key export, arbitrary exec
 data-plane read, Blob call, what-if/validate, submission callback or mutation
 exists in this route. GitHub artifact upload stores evidence only.
 
-#### Separate read-only audit access-change PLAN — NOT APPLIED
+<a id="separate-read-only-audit-access-change-plan-not-applied"></a>
 
-Owner `cmbuyamba` must separately review and explicitly authorize application.
-The 2026-10-26 13:55:09.016Z **“do it”** approves only this code/docs PR and
-preparation of the plan, not access changes. No identity IDs, role IDs, assignment
-IDs or credentials are fabricated for the future observer.
+#### Separate read-only audit access — APPLIED, observer effectiveness unmeasured
+
+The original 13:55:09.016Z code/plan-only approval was superseded **for this exact
+access plan only** by [owner authorization at 2026-10-26 15:03:13.182Z](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6419531083).
+[Applied readback status](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6419710770)
+records app object `560c04ad-aa69-4d28-8a53-d1191cbd876f`, client
+`142bbb0f-118a-4dea-9f53-69e03d3f308b`, enabled secretless SP
+`c0f5fe98-9cb7-4a6b-a371-fbe549c6dfc1`, subscription role/assignment
+`c5a24670-954b-42ed-9ddc-3cf797d95073` / `fda6671f-0189-4851-975f-185582e3aa5e`,
+and RG role/assignment `4d8f2624-bc56-4a80-bf83-7b96614e4efe` /
+`30e020fa-7840-4f0e-880b-51e7f643dd96`. The singleton federation
+`30b44e89-85b8-4073-8977-95bea9e60c72` uses the exact immutable subject below.
+Protected `company-dev` variables `COMPANY_DEV_AUDIT_CLIENT_ID` and
+`COMPANY_DEV_AUDIT_OBSERVER_BINDING` exist; raw binding byte SHA256 is
+`3471916410bbcbf38ba589ced35f3a17760bce2bc493df03d03063b4ee135f25`.
+Preview/historical access is unchanged (readback hash
+`44077767d3dac9257b5f473e024a92dff6fa91df5f39bbe0209c9adf5b169e5b`).
+Complete readbacks, binding JSON and rollback inventory stay in the owner's
+restricted session evidence, not Git or PR logs.
+
+**Do not recreate or reapply.** The numbered plan below is the historical
+approved change inventory and rollback boundary, not another execution request.
+No observer token/effective-permission measurement has yet occurred. Human
+`*` permission pages are not observer evidence. Azure PIM inventory is
+license-blocked and directory PIM is 403/scope-blocked: **unknown**, not passed;
+do not add licenses, Graph scopes or observer privileges. This status establishes
+neither audit completion nor application-stack/foundation readiness.
 
 1. **Preserve existing access.** Do not subtract any preview rights: application
    `684d29f1-1055-4030-b308-872dd2781d39`, SP
@@ -533,7 +665,7 @@ IDs or credentials are fabricated for the future observer.
    no unknown actions and all 14 required reads without subtraction. Existing
    human `*`/elevate pages are not measurements of the preview or audit SP.
    Missing/403 pages and token/identity uncertainty remain blocking.
-5. **Federation PLAN ONLY.** New audit app gets exactly issuer
+5. **Applied federation contract (do not recreate).** Audit app has exactly issuer
    `https://token.actions.githubusercontent.com`, audience
    `api://AzureADTokenExchange`, and the evidenced immutable GitHub subject
    `repo:keyforta@329171003/keyforta-property@1370148176:environment:company-dev`.
@@ -567,8 +699,10 @@ IDs or credentials are fabricated for the future observer.
    bootstrap writer/equivalent rights only in a separately authorized handoff,
    never as an automatic audit “fix”. Code rollback is a reviewed revert.
 
-**Remaining execution gates:** merge the correction, separately approve/apply
-the access plan, then separately authorize actual-observer inspection. Obtain
+**Remaining execution gates:** the correction is merged and exact access is
+already applied; neither needs repeated approval/application. Merge the
+inspection implementation and obtain fresh runtime inspection context as below.
+Obtain
 a fresh full actual-audit-observer snapshot, human approval of that exact digest,
 fresh exact-source audit-only execution consent and actual UI timestamp before
 dispatch. No dispatch now; generic “confirmed” or approval-received time is not
@@ -590,7 +724,7 @@ readiness remain separate outstanding requirements.
    checkpoint remains `completed=false`, and bootstrap-state remains absent.
    Its checkpoint SHA256 is
    `9b9cbb2835a95de67d638da4269968e9cd7cba2511f34036aad9b69f74bd4836`.
-2. First complete the separately approved access plan above. Obtain fresh **audit-only** owner authorization for the exact merged main
+2. Preserve the already-applied access above. Obtain fresh **audit-only** owner authorization for the exact merged main
    SHA, repository-wide diff, full version-3 closure and complete new workflow
    blob. Existing approvals are not reusable runtime approval. Main must still
    be protected at that SHA; latest exact-SHA push CI, Security and DAST must

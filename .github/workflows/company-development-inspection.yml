@@ -1,0 +1,68 @@
+name: Company development inspection
+
+# Evidence collection only. Code-preparation consent is NOT dispatch consent.
+on:
+  workflow_dispatch:
+    inputs:
+      inspection_intent:
+        description: Fresh owner inspection-only context, exact merged SHA/source review and actual API environment snapshot; no snapshot preapproval or manual UI claims
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: company-dev-foundation
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/main' && github.actor == 'cmbuyamba'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: company-dev
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      AUDIT_CLIENT_ID: ${{ vars.COMPANY_DEV_AUDIT_CLIENT_ID }}
+      AUDIT_OBSERVER_BINDING: ${{ vars.COMPANY_DEV_AUDIT_OBSERVER_BINDING }}
+      INSPECTION_INTENT: ${{ inputs.inspection_intent }}
+    steps:
+      - name: Check out exact merged source and historical objects
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify inspection-only native source, job, owner, protections, quality and applied binding before OIDC
+        id: context
+        run: node scripts/infra/company-development-completion.mjs inspect-prepare
+      - name: Sign in with existing secretless read-only audit federation
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
+        with:
+          client-id: ${{ vars.COMPANY_DEV_AUDIT_CLIENT_ID }}
+          tenant-id: 8019a048-e7d6-48e8-984a-b902f641a21b
+          subscription-id: 891e5e6e-8ae3-4455-9184-8d7606223d91
+      - name: Collect complete enumerated management GET snapshot, never completion receipt
+        env:
+          INSPECTION_CONTEXT: ${{ steps.context.outputs.inspection_context }}
+        run: node scripts/infra/company-development-completion.mjs inspect
+      - name: Preserve restricted inspection evidence only after successful collection and final guards
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: company-dev-inspection-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            company-dev-inspection/inspection.json
+            company-dev-inspection/snapshot.json
+            company-dev-inspection/read-journal.json
+            company-dev-inspection/source-review.json
+            company-dev-inspection/controls.json
+            company-dev-inspection/historical-original.zip
+            company-dev-inspection/historical-incomplete-checkpoint.json
+            company-dev-inspection/original-bindings.json
+          if-no-files-found: error
+          retention-days: 7

@@ -89,6 +89,7 @@ export const baselineRevision = "6fccaa9ca066e32fde2870858adc1334525a7423";
 const previewWorkflow = ".github/workflows/company-development-foundation.yml";
 const applyWorkflow = ".github/workflows/company-development-foundation-apply.yml";
 export const auditWorkflow = ".github/workflows/company-development-bootstrap-completion.yml";
+export const inspectionWorkflow = ".github/workflows/company-development-inspection.yml";
 export const reviewedWorkflowProfiles = Object.freeze({
   [original.sha]: {
     [previewWorkflow]: "927f28dee6ec34a317175b78c8fdf7d92c1826cff2791717e4624fff750c2397",
@@ -100,7 +101,8 @@ export const reviewedWorkflowProfiles = Object.freeze({
   },
 });
 // v1 nine-path manifest is immutable historical artifact semantics. New routes
-// MUST use version 3 and the complete closure, including both consumer drivers.
+// Completion uses version 3 including both consumers; inspection adds its exact
+// workflow in mode-specific version 4, never a legacy plan/checkpoint version.
 export const historicalSourcePaths = Object.freeze([
   "infra/bicep/company-development.bicep", "infra/bicep/modules/company-development-resources.bicep",
   "infra/bicep/modules/foundation-resources.bicep", "scripts/infra/company-development.mjs",
@@ -110,6 +112,8 @@ export const historicalSourcePaths = Object.freeze([
 export const currentSourcePaths = Object.freeze([...historicalSourcePaths,
   "scripts/infra/company-development-completion-validation.mjs",
   "scripts/infra/company-development-completion.mjs", auditWorkflow]);
+// Inspection-only v4; keep historical v1 and completion v3 semantics intact.
+export const inspectionSourcePaths = Object.freeze([...currentSourcePaths, inspectionWorkflow]);
 export function manifestPaths(version) {
   assert.ok(version === undefined || version === 3, "Unknown source manifest version");
   return version === 3 ? currentSourcePaths : historicalSourcePaths;
@@ -245,7 +249,7 @@ export function assertAuditGrants(snapshot, binding) {
   assert.deepEqual([...seen].sort(), pins.map((p) => p.assignmentId).sort(), "Missing historical/observer grants");
   assert.deepEqual([...humans].sort(), [...historicalInheritedHumanHashes].sort(), "Missing inherited human grant visibility");
 }
-export function assertReadPermissions(rows) {
+export function assertReadPermissions(rows, requiredActions = permittedReadActions) {
   assert.ok(Array.isArray(rows) && rows.length, "Missing permission visibility");
   const allowed = new Set(permittedReadActions.map((a) => a.toLowerCase()));
   for (const row of rows) {
@@ -259,7 +263,7 @@ export function assertReadPermissions(rows) {
   }
   assert.ok(rows.some((r) => r.actions.some((a) => !r.notActions.some((n) => n.toLowerCase() === a.toLowerCase()))), "Missing effective read permission visibility");
   const effective = new Set(rows.flatMap((r) => r.actions.filter((a) => !r.notActions.some((n) => sameId(n, a)))).map((a) => a.toLowerCase()));
-  assert.ok([...allowed].every((a) => effective.has(a)), "Missing required effective read operation");
+  assert.ok(requiredActions.every((a) => effective.has(a.toLowerCase())), "Missing required effective read operation");
 }
 export const historicalFiles = Object.freeze(["checkpoint.json", "fresh-what-if.json", "result.json", "reviewed-inputs.json", "submission.json", "template.json"]);
 export function assertArtifactMetadata(run, artifact, listing, ref, workflow, conclusion, name, now = Date.now()) {

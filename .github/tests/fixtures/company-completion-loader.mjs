@@ -49,6 +49,15 @@ registerHooks({
       source = source.replace(/export const historicalInheritedHumanHashes = Object\.freeze\(\[[\s\S]*?\n\]\);/,
         `export const historicalInheritedHumanHashes = Object.freeze(${JSON.stringify(syntheticInheritedHumans.map(digest))});`);
     }
+    // Inspector CLI pins the already-applied identity/configuration. Only local
+    // synthetic CLI processes substitute those pins; production has no hook.
+    if (process.env.MOCK_FIXTURE && process.env.INSPECTION_INTENT) {
+      const binding = JSON.parse(process.env.INSPECTION_INTENT).observerBinding;
+      source = source.replaceAll("142bbb0f-118a-4dea-9f53-69e03d3f308b", binding.clientId)
+        .replaceAll("c0f5fe98-9cb7-4a6b-a371-fbe549c6dfc1", binding.principalId)
+        .replaceAll("3471916410bbcbf38ba589ced35f3a17760bce2bc493df03d03063b4ee135f25",
+          createHash("sha256").update(JSON.stringify(binding)).digest("hex"));
+    }
     source = source.replaceAll("dc69598ff7e2cb03a36f91f92100285cce0edfadd1739fac185f3fcfb26253ff", predictionHash);
     return { ...result, source };
   },

@@ -366,10 +366,83 @@ digest and an actual UI observation timestamp before any separately authorized
 audit. Generic confirmation and this implementation approval are not digest
 approval. The [access plan](../../infra/README.md#separate-read-only-audit-access-change-plan-not-applied)
 records exact actions/scopes, federation, ownership, evidence and rollback.
-No access plan has been applied. Code rollback is a reviewed revert; access
+The exact access plan was subsequently approved and applied as recorded below;
+do not recreate it. Code rollback is a reviewed revert; access
 rollback removes only the newly approved audit access, never preview/historical
 grants. Costs ($108.35 estimate/$120 ceiling), telemetry, backups/restore tests,
 SLOs/error budgets and outstanding operational readiness are unchanged.
+
+#### Approved separate inspection-only route — 2026-10-26 15:21:06.973Z
+
+The owner approved **“Prepare a tested PR for this inspection-only workflow,
+using the existing audit identity and permissions. Do not weaken the audit or
+deployment gates.”** This approves implementation/tests/docs/PR publication,
+not merge or live workflow dispatch. Scope is the company bootstrap foundation,
+not the unapproved application stack.
+
+The [exact access plan is APPLIED](../../infra/README.md#separate-read-only-audit-access--applied-observer-effectiveness-unmeasured)
+under [specific owner authorization](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6419531083);
+[status/readback](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6419710770)
+records existing secretless audit client `142bbb0f-118a-4dea-9f53-69e03d3f308b` /
+SP `c0f5fe98-9cb7-4a6b-a371-fbe549c6dfc1`, two exact roles/assignments, singleton
+immutable-subject federation and protected environment variables. Preserve their
+bytes, preview/historical access and OIDC customization. No new RBAC/identity/
+federation/config/resources/Graph scopes/licenses are authorized here.
+Actual observer token/effective permissions remain unmeasured; human `*` pages
+are not observer evidence. License-blocked Azure PIM and scope-blocked directory
+PIM remain **unknown**, never success or authority to expand access.
+
+**Cycle-breaking decision:** a separate manual
+`company-development-inspection.yml` uses protected `company-dev`, main-only
+owner `cmbuyamba`, shared `company-dev-foundation` concurrency and existing
+contents/actions read plus id-token write. Dedicated commands in the existing
+read-only module reuse the closed `observe`/`assertObserverBinding` transport;
+no apply/write-capable imports, WhatIf/validate/data/key/token export or receipt
+production are reachable on this route. It authenticates the exact byte-pinned
+existing observer **without requiring snapshot approval first**.
+
+Before OIDC and finally, require the exact merged SHA/committed closure, current
+protected main/required native checks, latest exact-SHA green push CI/Security/
+DAST, actual environment identity/protection/bypass=false, exact native
+workflow/run/job/attempt/repository/owner and matching protected observer binding.
+Fresh inspection-only owner context must predate dispatch, remain under one hour
+old and identify exact-source review references. This is API/runtime context,
+**not manual UI observation, freeze or digest approval**. Inspector schema rejects
+those audit-only fields; it never invents `observedAt`. The complete runbook
+defines future inputs/commands only once the actual merged SHA is known.
+
+Two complete identical actual-observer GET snapshots retain full raw resources,
+inventory/history/operations/roles/permissions/Defender and journal, plus unchanged
+original archive/incomplete checkpoint and provenance. Failed GETs, missing or
+malformed visibility, foreign endpoints/pagination/scope/type, unauthorized
+permissions/grants, drift and secret payloads fail nonzero without artifact or
+authority. The historical-state semantic validator may report bounded
+`accepted|rejected` diagnostics after complete collection; neither is an approved
+audit. Scoped read sufficiency is checked at the actual scope (twelve RG reads);
+existing audit permission gates retain their original default behavior.
+
+Evidence has a distinct version-1 `bootstrap-inspection-evidence` /
+`inspection-only` kind, `company-dev-inspection-v1-SHA-RUN-ATTEMPT` artifact/path
+and complete file hashes; snapshot digest is production `stateHash`. Every
+completion/predecessor/continuation consumer rejects it. Raw evidence stays in
+restricted repository-controlled Actions artifacts for seven days, not PR logs
+or Git. It explicitly withholds audit completion, complete permissions/PIM proof,
+writer revocation, continuation and security-handoff authority. No original
+checkpoint repair, receipt or approved-audit claim is possible.
+
+Inspection uses mode-specific version **4** thirteen-path runtime source closure,
+including the exact new workflow, and the whole repository diff review. Audit v3
+twelve-path and historical v1 nine-path manifests/workflow blob pins remain
+compatible and strict. No prefix allowlist, hidden helper, fabricated future
+source digest or prepublication circular SHA binding is introduced.
+
+Next steps remain private human review/approval of the actual snapshot digest,
+fresh genuine UI `observedAt`, exact-source audit-only execution consent and all
+existing audit checks. Inspection does not waive freeze, security/writer-removal,
+handoff, strict NoChange/3 Modify/5 Delete, telemetry, backups/restore tests,
+SLOs/error budgets or readiness. No new paid service; $108.35 estimate/$120
+pre-tax ceiling unchanged. Rollback is reviewed code revert/withheld dispatch,
+preserving originals and existing access, never automatic Azure mutation.
 
 A normal successful workflow alone produces a version-1
 `bootstrap-completion-receipt` / `audit-readonly` artifact with unchanged historical

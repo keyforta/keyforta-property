@@ -12,6 +12,7 @@ import {
   assertAuditPayload as assertNoSecretPayload, assertReadPermissions, assertReference, assertArtifactMetadata, historicalFiles,
   assertOriginalFiles, assertHistoricalState, completionAssertions, assertCompletionReceipt, authenticateCompletion, projectResources,
   historicalAuditGrants, assertObserverBinding, assertAuditGrants,
+  inspectionWorkflow, inspectionSourcePaths, permittedReadActions, uuid,
 } from "./company-development-completion-validation.mjs";
 
 const host = "https://management.azure.com";
@@ -98,17 +99,21 @@ function historicalObjects(root) {
       "https://github.com/keyforta/keyforta-property.git", "main"], root);
   }
 }
-export function completionSource(revision, root = process.cwd(), checkWorktree = true) {
+function sourceManifest(revision, root, checkWorktree, paths, version) {
   assert.match(revision ?? "", /^[a-f0-9]{40}$/, "Missing exact source SHA");
   if (checkWorktree) assert.equal(git(["rev-parse", "HEAD"], root).toString().trim(), revision, "Checkout SHA mismatch");
-  const files = manifest(revision, currentSourcePaths, root);
+  const files = manifest(revision, paths, root);
   for (const { path, sha256: digest } of checkWorktree ? files : []) {
     const stat = lstatSync(join(root, path));
     assert.ok(stat.isFile() && !stat.isSymbolicLink() && stat.size <= 2 * 1024 * 1024, "Unsafe source file");
     assert.equal(sha256(readFileSync(join(root, path))), digest, "Dirty/uncommitted source bytes");
   }
-  return { version: 3, revision, files, sha256: sha256(JSON.stringify(files)) };
+  return { version, revision, files, sha256: sha256(JSON.stringify(files)) };
 }
+export const completionSource = (revision, root = process.cwd(), checkWorktree = true) =>
+  sourceManifest(revision, root, checkWorktree, currentSourcePaths, 3);
+export const inspectionSource = (revision, root = process.cwd(), checkWorktree = true) =>
+  sourceManifest(revision, root, checkWorktree, inspectionSourcePaths, 4);
 // Exact repository-wide review surface, separate from the twelve-path runtime
 // manifest. Test-only loaders/helpers must never enter the runtime import graph.
 export const reviewedCompletionPaths = Object.freeze([
@@ -121,9 +126,11 @@ export const reviewedCompletionPaths = Object.freeze([
   ".github/tests/fixtures/generate-company-completion.mjs", ".github/tests/fixtures/company-history.mjs",
   ".github/tests/fixtures/company-bootstrap-original.zip", ".github/tests/fixtures/company-bootstrap-arm.json.gz",
   "infra/README.md", "docs/adr/ADR-016-company-development-private-foundation.md",
+  inspectionWorkflow, ".github/tests/company-development-inspection.test.mjs",
 ]);
 export function assertSourceReview(intent, root = process.cwd(), checkWorktree = true) {
-  assert.deepEqual(intent.source, completionSource(intent.execution.revision, root, checkWorktree), "Reviewed source closure mismatch");
+  const source = intent.kind === "bootstrap-inspection-intent" ? inspectionSource : completionSource;
+  assert.deepEqual(intent.source, source(intent.execution.revision, root, checkWorktree), "Reviewed source closure mismatch");
   const oldFiles = manifest(original.sha, historicalSourcePaths, root);
   const oldSource = { revision: original.sha, files: oldFiles, sha256: sha256(JSON.stringify(oldFiles)) };
   assert.deepEqual(intent.originalSource, oldSource, "Original source binding mismatch");
@@ -134,7 +141,7 @@ export function assertSourceReview(intent, root = process.cwd(), checkWorktree =
   git(["merge-base", "--is-ancestor", baselineRevision, intent.execution.revision], root);
   assert.notEqual(intent.execution.revision, baselineRevision, "New reviewed implementation required");
   // No workflow wildcard. The old workflows remain byte-exact PR166; the new
-  // entire workflow is bound by the reviewed version-3 source closure.
+  // entire workflow is bound by the reviewed mode-specific source closure.
   for (const [path, digest] of Object.entries(reviewedWorkflowProfiles[baselineRevision])) {
     assert.equal(sha256(git(["show", `${intent.execution.revision}:${path}`], root)), digest, "Unreviewed existing workflow change");
   }
@@ -150,12 +157,12 @@ export function assertSourceReview(intent, root = process.cwd(), checkWorktree =
   }
   return oldSource;
 }
-export function assertNativeContext(env = process.env) {
+function nativeContext(env, workflow) {
   assert.equal(env.GITHUB_ACTIONS, "true", "Native Actions dispatch required");
   assert.equal(env.GITHUB_REPOSITORY, repository, "Wrong repository");
   assert.equal(env.GITHUB_REF, "refs/heads/main", "Protected main required");
   assert.equal(env.GITHUB_EVENT_NAME, "workflow_dispatch", "Manual dispatch required");
-  assert.equal(env.GITHUB_WORKFLOW_REF, `${repository}/${auditWorkflow}@refs/heads/main`, "Wrong native audit workflow");
+  assert.equal(env.GITHUB_WORKFLOW_REF, `${repository}/${workflow}@refs/heads/main`, "Wrong native evidence workflow");
   assert.equal(env.GITHUB_WORKFLOW_SHA, env.GITHUB_SHA, "Native workflow source SHA mismatch");
   assert.equal(env.GITHUB_REF_PROTECTED, "true", "Native protected branch required");
   assert.equal(env.GITHUB_ACTOR, "cmbuyamba", "Owner dispatch required");
@@ -164,6 +171,7 @@ export function assertNativeContext(env = process.env) {
   for (const k of ["GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"]) assert.match(env[k] ?? "", /^[1-9]\d*$/, "Native run required");
   return { revision: env.GITHUB_SHA, runId: env.GITHUB_RUN_ID, runAttempt: env.GITHUB_RUN_ATTEMPT };
 }
+export const assertNativeContext = (env = process.env) => nativeContext(env, auditWorkflow);
 export function assertIntent(intent, execution, now = Date.now()) {
   assert.equal(intent?.version, 1, "Missing audit intent");
   assert.equal(intent.kind, "bootstrap-completion-audit-intent", "Wrong owner intent contract");
@@ -328,6 +336,186 @@ export function auditCompletion({ intent, execution, originalSource, source, git
   for (const [p, bytes] of Object.entries(encoded)) if (p !== "historical-original.zip") assertNoSecretPayload(JSON.parse(bytes));
   return { receipt, files: encoded };
 }
+// Separate capability route: never invokes auditCompletion, receipt creation,
+// authentication of completion, WhatIf, apply or any write-capable driver.
+export function assertInspectionNativeContext(env = process.env) {
+  assert.equal(env.GITHUB_JOB, "inspect", "Wrong native inspection job");
+  return nativeContext(env, inspectionWorkflow);
+}
+function assertInspectionIntent(intent, execution, now) {
+  assert.equal(intent?.version, 1, "Missing inspection intent");
+  assert.equal(intent.kind, "bootstrap-inspection-intent", "Wrong inspection intent");
+  assert.equal(intent.scope, "inspection-only-no-authority", "Inspection only");
+  assert.equal(intent.owner, "cmbuyamba", "Wrong inspection owner");
+  assert.deepEqual(Object.keys(intent).sort(), ["version", "kind", "scope", "owner", "execution", "original",
+    "originalSource", "source", "environment", "observerBinding", "authorizedAt", "ownerAuthorizationReference",
+    "reviewReferences", "baselineChangesSha256", "implementationChangesSha256"].sort(), "Unknown inspection intent; no snapshot/UI/freeze assertions");
+  assert.deepEqual(intent.execution, { revision: execution.revision }, "Inspection exact SHA mismatch");
+  assert.deepEqual(intent.original, original, "Wrong original evidence");
+  assertReference(intent.ownerAuthorizationReference);
+  assert.ok(Array.isArray(intent.reviewReferences) && intent.reviewReferences.length > 0 && intent.reviewReferences.length <= 10, "Missing bounded review references");
+  intent.reviewReferences.forEach(assertReference);
+  const age = now - Date.parse(intent.authorizedAt);
+  assert.ok(age >= 0 && age <= 60 * 60 * 1000, "Stale inspection authorization context");
+  assertObserverBinding(intent.observerBinding);
+}
+export function inspectionControls(intent, execution, github = gh, now = Date.now()) {
+  assertInspectionIntent(intent, execution, now);
+  const branch = github("branches/main"), protection = branch.protection;
+  assert.equal(branch.protected, true, "Main must be protected");
+  assert.equal(branch.commit?.sha, execution.revision, "Main SHA moved");
+  const required = protection?.required_status_checks;
+  for (const name of ["validate", "scan", "api"]) {
+    assert.ok(required?.contexts?.includes(name) && required.checks?.some((c) => c.context === name && c.app_id === 15368), "Missing required native check");
+  }
+  const environment = github("environments/company-dev");
+  assert.ok(Number.isSafeInteger(environment.id) && environment.node_id, "Missing environment identity");
+  assert.equal(environment.name, "company-dev", "Wrong environment");
+  assert.equal(environment.can_admins_bypass, false, "Missing/unsafe API bypass setting; inspection is not a UI observation");
+  assert.deepEqual(environment.deployment_branch_policy, { protected_branches: true, custom_branch_policies: false }, "Wrong environment branch policy");
+  assert.ok(Array.isArray(environment.protection_rules)
+    && environment.protection_rules.some((r) => r.type === "branch_policy"), "Missing native branch rule");
+  assert.deepEqual(environment, intent.environment, "Environment snapshot drift");
+  const run = github(`actions/runs/${execution.runId}/attempts/${execution.runAttempt}`);
+  for (const [k, v] of Object.entries({ head_sha: execution.revision, head_branch: "main", event: "workflow_dispatch",
+    path: inspectionWorkflow, name: "Company development inspection", status: "in_progress" })) assert.equal(run[k], v, "Wrong native inspection run");
+  assert.equal(String(run.id), execution.runId, "Wrong run");
+  assert.equal(String(run.run_attempt), execution.runAttempt, "Wrong attempt");
+  for (const field of ["actor", "triggering_actor"]) assert.equal(run[field]?.login, "cmbuyamba", "Wrong owner actor");
+  for (const field of ["repository", "head_repository"]) assert.equal(run[field]?.full_name, repository, "Foreign repository");
+  const start = Date.parse(run.run_started_at);
+  assert.ok(Number.isFinite(start) && start <= now && Date.parse(intent.authorizedAt) <= start, "Intent must precede dispatch");
+  const jobs = github(`actions/runs/${execution.runId}/attempts/${execution.runAttempt}/jobs?per_page=100`);
+  assert.equal(jobs.total_count, 1, "Unexpected/incomplete job inventory");
+  assert.equal(jobs.jobs?.length, 1, "Missing native inspection job");
+  const job = jobs.jobs[0];
+  for (const [k, v] of Object.entries({ run_id: Number(execution.runId), run_attempt: Number(execution.runAttempt),
+    head_sha: execution.revision, name: "inspect", status: "in_progress", conclusion: null })) assert.equal(job[k], v, "Native inspection job mismatch");
+  assert.ok(Number.isSafeInteger(job.id) && job.id > 0, "Missing native job ID");
+  const quality = ["ci.yml", "security.yml", "dast.yml"].map((workflow) => {
+    const response = github(`actions/workflows/${workflow}/runs?head_sha=${execution.revision}&event=push&per_page=100`);
+    assert.ok(Array.isArray(response.workflow_runs) && response.workflow_runs.length, "Missing quality runs");
+    const latest = [...response.workflow_runs].sort((a, b) => b.id - a.id)[0];
+    assert.ok(Number.isSafeInteger(latest.id) && latest.id > 0 && Number.isSafeInteger(latest.run_attempt) && latest.run_attempt > 0, "Incomplete quality metadata");
+    for (const [k, v] of Object.entries({ path: `.github/workflows/${workflow}`, head_sha: execution.revision,
+      head_branch: "main", event: "push", status: "completed", conclusion: "success" })) assert.equal(latest[k], v, "Latest exact-SHA push quality failed");
+    return { workflow, id: latest.id, attempt: latest.run_attempt, sha: latest.head_sha };
+  });
+  // Job steps/run updated_at legitimately change across prepare/login/inspect.
+  // Bind stable native identities, never those mutable progress fields.
+  return { branch, environment, quality, dispatch: {
+    revision: run.head_sha, runId: String(run.id), runAttempt: String(run.run_attempt),
+    actor: run.actor.login, triggeringActor: run.triggering_actor.login,
+    createdAt: run.created_at, runStartedAt: run.run_started_at, path: run.path,
+  }, job: { id: job.id, runId: job.run_id, runAttempt: job.run_attempt, revision: job.head_sha, name: job.name } };
+}
+function assertInspectionShape(snapshot, binding) {
+  assert.equal(snapshot.subscription.subscriptionId, destination.subscriptionId, "Wrong subscription");
+  assert.equal(snapshot.subscription.tenantId, destination.tenantId, "Wrong tenant");
+  assert.equal(snapshot.subscription.state, "Enabled", "Disabled subscription");
+  assert.ok(sameId(snapshot.group.id, rg) && snapshot.group.location === destination.location, "Wrong RG");
+  const inventory = (rows) => rows.map((r) => ({ id: r.id.toLowerCase(), type: r.type.toLowerCase() })).sort((a, b) => a.id.localeCompare(b.id));
+  assert.deepEqual(inventory(snapshot.resources), inventory(bootstrapInventory()), "Wrong typed inventory");
+  assert.deepEqual(inventory(snapshot.inventory), inventory(bootstrapInventory().filter((r) => !r.type.includes("/blobServices"))), "Incomplete inventory");
+  projectResources(snapshot.resources);
+  assert.deepEqual(snapshot.permissions.map((p) => p.scope), [rg, ...bootstrapInventory().map((r) => r.id)], "Missing permission scopes");
+  const scopedReads = permittedReadActions.filter((a) => !["Microsoft.Resources/subscriptions/read", "Microsoft.Authorization/roleDefinitions/read"].includes(a));
+  for (const p of snapshot.permissions) assertReadPermissions(p.permissions, scopedReads);
+  assert.deepEqual(snapshot.roles.map((p) => p.scope), roleScopes, "Missing role scopes");
+  assertAuditGrants(snapshot, binding);
+  assert.equal(snapshot.history.length, 3, "Missing history");
+  assert.deepEqual(snapshot.history.map((d) => d.name).sort(), [...names].sort(), "Wrong history");
+  assert.equal(snapshot.deployments.length, 3, "Missing deployment objects");
+  assert.equal(snapshot.operations.length, 3, "Missing operations");
+  assert.deepEqual(snapshot.operations.map((g) => g.deploymentName).sort(), [...names].sort(), "Wrong operation groups");
+  const text = (value) => typeof value === "string" && value.trim().length > 0;
+  const timestamp = (value) => assert.ok(typeof value === "string" && Number.isFinite(Date.parse(value)), "Missing/invalid historical timestamp");
+  // Validate evidence, not agreement with the original run. These checks must
+  // remain outside the historical semantic diagnostic catch, on BOTH reads.
+  // Require only fields consumed by the history contract, not optional SDK
+  // metadata (e.g. duration/statusCode/resourceName or operation object id).
+  for (const name of names) {
+    for (const collection of [snapshot.history, snapshot.deployments]) {
+      const d = collection.find((v) => v.name === name);
+      assert.ok(d?.properties && !Array.isArray(d.properties)
+        && sameId(d.id, `${rg}/providers/Microsoft.Resources/deployments/${name}`), "Wrong deployment/history object");
+      assert.ok(text(d.properties.provisioningState), "Missing/invalid deployment/history state");
+      assert.ok(typeof d.properties.correlationId === "string" && uuid.test(d.properties.correlationId), "Missing/invalid historical correlation");
+      timestamp(d.properties.timestamp);
+    }
+    const rows = snapshot.operations.find((g) => g.deploymentName === name)?.operations;
+    assert.ok(Array.isArray(rows) && rows.length, "Missing operation visibility");
+    const seen = new Set(), signatures = [];
+    for (const op of rows) {
+      assert.ok(text(op.operationId) && !seen.has(op.operationId), "Missing/invalid/duplicate operation ID");
+      seen.add(op.operationId);
+      const p = op.properties, target = p?.targetResource;
+      assert.ok(text(p?.provisioningState), "Missing/invalid operation state");
+      timestamp(p.timestamp);
+      assert.ok(["Create", "Read", "EvaluateDeploymentOutput"].includes(p.provisioningOperation), "Unknown/destructive operation");
+      if (p.provisioningOperation === "EvaluateDeploymentOutput") {
+        assert.ok(target === undefined || target === null, "Output target forbidden");
+        signatures.push("EvaluateDeploymentOutput");
+      } else {
+        assert.ok(text(target?.id) && text(target.resourceType), "Missing/invalid operation target");
+        signatures.push(`${p.provisioningOperation}:${target.id.toLowerCase()}:${target.resourceType.toLowerCase()}`);
+      }
+    }
+    // Same closed root/nested/leaf targets and complete operation sets as
+    // assertHistoricalState. Foreign scope/type and missing rows are not drift
+    // diagnostics; complete state/correlation/time mismatches still can be.
+    const child = name === names[0] ? names[1] : name === names[1] ? names[2] : null;
+    const signature = (op, r) => `${op}:${r.id.toLowerCase()}:${r.type.toLowerCase()}`;
+    const expected = child ? ["Create", "Read"].map((op) => signature(op, {
+      id: `${rg}/providers/Microsoft.Resources/deployments/${child}`, type: "Microsoft.Resources/deployments",
+    })) : [
+      ...bootstrapInventory().map((r) => signature("Create", r)),
+      ...bootstrapInventory().filter((r) => r.type.endsWith("/registries") || /-(api|migration)$/.test(r.id)).map((r) => signature("Read", r)),
+    ];
+    assert.deepEqual(signatures.sort(), [...expected, "EvaluateDeploymentOutput"].sort(), "Incomplete/foreign context-bound operations");
+  }
+  assert.equal(typeof snapshot.defender?.properties?.isEnabled, "boolean", "Missing Defender visibility");
+}
+export function inspectSnapshot({ intent, execution, originalSource, source, github = gh, download, azure, account, observerBinding,
+  clock = () => new Date().toISOString(), now = Date.now() }) {
+  const first = inspectionControls(intent, execution, github, now);
+  assertObserverBinding(observerBinding);
+  assert.deepEqual(observerBinding, intent.observerBinding, "Protected observer binding drift");
+  assert.deepEqual(source, intent.source, "Inspection source drift");
+  assert.equal(account.id, destination.subscriptionId, "Wrong observer subscription");
+  assert.equal(account.tenantId, destination.tenantId, "Wrong observer tenant");
+  assert.equal(account.user?.type, "servicePrincipal", "Secretless SP required");
+  assert.ok(sameId(account.user.name, observerBinding.clientId), "Wrong observer identity");
+  const origin = loadOriginal(github, download, originalSource, now);
+  const journal = [], reader = createManagementReader(azure, journal, clock, observerBinding);
+  const before = observe(reader, observerBinding); assertInspectionShape(before, observerBinding);
+  const after = observe(reader, observerBinding); assertInspectionShape(after, observerBinding);
+  assert.deepEqual(after, before, "Inspection state drift");
+  const finalTime = Date.parse(clock());
+  assert.deepEqual(loadOriginal(github, download, originalSource, finalTime), origin, "Original evidence drift");
+  assert.deepEqual(inspectionControls(intent, execution, github, finalTime), first, "Final native/protection/quality drift");
+  // Only this historical semantic validator may be diagnostic. Failed GETs,
+  // malformed/incomplete visibility, caller rights, grants and guards are fatal.
+  let historicalStateValidation = "accepted";
+  try { assertHistoricalState(after, origin.checkpoint, origin.run); } catch { historicalStateValidation = "rejected"; }
+  const inspection = { version: 1, kind: "bootstrap-inspection-evidence", mode: "inspection-only",
+    execution, source, snapshotSha256: stateHash(after), observedAt: clock(), historicalStateValidation,
+    auditCompleted: false, permissionsVerified: false, writerRevocationVerified: false,
+    continuationAuthorized: false, securityHandoffVerified: false, pimVisibility: "unknown-not-measured" };
+  const evidence = { "snapshot.json": after, "read-journal.json": journal, "source-review.json": intent,
+    "controls.json": { ...first, observerAccount: { subscriptionId: account.id, tenantId: account.tenantId,
+      user: { type: account.user.type, name: account.user.name.toLowerCase() } } },
+    "historical-original.zip": origin.archive, "historical-incomplete-checkpoint.json": origin.files["checkpoint.json"],
+    "original-bindings.json": { original, run: origin.run, artifact: origin.artifact, fileHashes: origin.fileHashes } };
+  const files = Object.fromEntries(Object.entries(evidence).map(([path, value]) => {
+    if (!Buffer.isBuffer(value)) assertNoSecretPayload(typeof value === "string" ? JSON.parse(value) : value);
+    const bytes = Buffer.isBuffer(value) ? value : Buffer.from(typeof value === "string" ? value : `${JSON.stringify(value, null, 2)}\n`);
+    assert.ok(bytes.length > 0 && bytes.length <= (path.endsWith(".zip") ? 16 : 2) * 1024 * 1024, "Oversized inspection evidence");
+    return [path, bytes];
+  }));
+  inspection.evidenceHashes = Object.fromEntries(Object.entries(files).map(([p, b]) => [p, sha256(b)]));
+  return { inspection, files };
+}
 const receiptFiles = ["receipt.json", "historical-original.zip", "historical-incomplete-checkpoint.json", "original-bindings.json",
   "actual-state.json", "read-journal.json", "source-review.json", "controls.json"];
 export function loadCompletionReceipt(ref, { github = gh, download = (id) => command("gh", ["api", `repos/${repository}/actions/artifacts/${id}/zip`]), root = process.cwd(), now = Date.now() } = {}) {
@@ -447,6 +635,7 @@ function inputs() {
 }
 function cli() {
   const mode = process.argv[2];
+  if (mode === "inspect-prepare" || mode === "inspect") return inspectionCli(mode);
   assert.ok(["prepare", "audit"].includes(mode), "Only prepare/audit commands are supported");
   const bound = inputs();
   const context = controls(bound.intent, bound.execution);
@@ -455,6 +644,39 @@ function cli() {
     appendFileSync(process.env.GITHUB_OUTPUT, `audit_context=${stateHash({ ...bound, context })}\n`);
     console.log("Bound GET-only audit context; owner authorization and UI no-bypass are external controls, not inferred approvals.");
     return;
+  }
+  function inspectionInputs() {
+    const execution = assertInspectionNativeContext();
+    const raw = process.env.AUDIT_OBSERVER_BINDING ?? "";
+    // Exact already-applied protected bytes; no new identity/federation/role plan.
+    assert.equal(sha256(raw), "3471916410bbcbf38ba589ced35f3a17760bce2bc493df03d03063b4ee135f25", "Applied protected binding bytes mismatch");
+    const observerBinding = assertObserverBinding(JSON.parse(raw));
+    assert.equal(process.env.AUDIT_CLIENT_ID, observerBinding.clientId, "Protected client drift");
+    assert.equal(observerBinding.clientId, "142bbb0f-118a-4dea-9f53-69e03d3f308b", "Wrong applied audit client");
+    assert.equal(observerBinding.principalId, "c0f5fe98-9cb7-4a6b-a371-fbe549c6dfc1", "Wrong applied audit SP");
+    const intent = JSON.parse(process.env.INSPECTION_INTENT ?? "null");
+    assertInspectionIntent(intent, execution, Date.now());
+    assert.deepEqual(intent.observerBinding, observerBinding, "Protected binding mismatch before OIDC");
+    return { execution, intent, observerBinding, source: inspectionSource(execution.revision), originalSource: assertSourceReview(intent) };
+  }
+  function inspectionCli(mode) {
+    const bound = inspectionInputs(), context = inspectionControls(bound.intent, bound.execution);
+    const digest = stateHash({ ...bound, context });
+    if (mode === "inspect-prepare") {
+      assert.ok(process.env.GITHUB_OUTPUT, "Native output required");
+      appendFileSync(process.env.GITHUB_OUTPUT, `inspection_context=${digest}\n`);
+      console.log(`Inspection-only pre-OIDC context SHA256: ${digest}`);
+      return;
+    }
+    assert.equal(process.env.INSPECTION_CONTEXT, digest, "Pre-OIDC inspection context drift");
+    const account = JSON.parse(command("az", ["account", "show", "--output", "json", "--only-show-errors"]));
+    const result = inspectSnapshot({ ...bound, account, azure: (args) => JSON.parse(command("az",
+      [...args, "--subscription", destination.subscriptionId, "--output", "json", "--only-show-errors"])) });
+    assert.deepEqual(inspectionInputs(), bound, "Final source/binding drift");
+    mkdirSync("company-dev-inspection", { mode: 0o700 });
+    for (const [path, bytes] of Object.entries(result.files)) writeFileSync(join("company-dev-inspection", path), bytes, { mode: 0o600, flag: "wx" });
+    writeFileSync("company-dev-inspection/inspection.json", `${JSON.stringify(result.inspection, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+    console.log(`Inspection snapshot SHA256: ${result.inspection.snapshotSha256}; no audit completion or execution authority.`);
   }
   assert.equal(process.env.AUDIT_CONTEXT, stateHash({ ...bound, context }), "Pre-OIDC context drift");
   // Fixed authentication context read, never get-access-token/key export.
@@ -472,7 +694,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try { cli(); } catch {
     // Provider/CLI stderr and assertion values may contain resolved secrets.
     // Never dump those into Actions logs or failed diagnostics.
-    console.error("Completion audit rejected; no success receipt or execution authority. Stop and obtain authorized inspection; do not retry a deployment.");
+    console.error("Evidence route rejected; no success receipt or execution authority. Stop and obtain authorized inspection; do not retry a deployment.");
     process.exitCode = 1;
   }
 }
