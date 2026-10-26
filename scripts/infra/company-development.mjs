@@ -4,13 +4,8 @@ import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-
-export const destination = Object.freeze({
-  subscriptionId: "891e5e6e-8ae3-4455-9184-8d7606223d91",
-  tenantId: "8019a048-e7d6-48e8-984a-b902f641a21b",
-  resourceGroup: "rg-keyforta-companydev-san",
-  location: "southafricanorth",
-});
+import { destination, bootstrapInventory, assertNoSecretPayload, currentSourcePaths } from "./company-development-completion-validation.mjs";
+export { destination, bootstrapInventory, assertNoSecretPayload } from "./company-development-completion-validation.mjs";
 const environmentName = "company-dev";
 const repository = "keyforta/keyforta-property";
 const cidrNames = ["vnetCidr", "acaSubnetCidr", "postgresSubnetCidr"];
@@ -53,20 +48,6 @@ export function continuationInventory() {
   ].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-export function bootstrapInventory() {
-  const scope = `/subscriptions/${destination.subscriptionId}/resourceGroups/${destination.resourceGroup}/providers/`;
-  return [
-    ...["api", "web", "migration"].map((name) => ({
-      type: "Microsoft.ManagedIdentity/userAssignedIdentities",
-      id: `${scope}Microsoft.ManagedIdentity/userAssignedIdentities/id-keyforta-cdev-${name}`,
-    })),
-    { type: "Microsoft.ContainerRegistry/registries", id: `${scope}Microsoft.ContainerRegistry/registries/acrkeyfortacdevmxv24i2qhtib6` },
-    { type: "Microsoft.Storage/storageAccounts", id: `${scope}Microsoft.Storage/storageAccounts/stakeyfortacdevmxv24i2qh` },
-    { type: "Microsoft.Storage/storageAccounts/blobServices", id: `${scope}Microsoft.Storage/storageAccounts/stakeyfortacdevmxv24i2qh/blobServices/default` },
-    { type: "Microsoft.Storage/storageAccounts/blobServices/containers", id: `${scope}Microsoft.Storage/storageAccounts/stakeyfortacdevmxv24i2qh/blobServices/default/containers/tenant-applications` },
-  ].sort((a, b) => a.id.localeCompare(b.id));
-}
-
 export function stageInventory(input) {
   assertImplementedStage(input);
   if (input.stage !== "bootstrap" || input.mode !== "initial") {
@@ -75,8 +56,14 @@ export function stageInventory(input) {
     assert.ok(context.predecessor, "Missing predecessor provenance");
     for (const k of ["runId", "runAttempt", "artifactId"]) assert.match(context.predecessor[k] ?? "", /^[1-9]\d*$/, `Missing predecessor ${k}`);
     assert.match(context.predecessor.sha ?? "", /^[a-f0-9]{40}$/, "Missing predecessor SHA");
-    assert.match(context.predecessor.checkpointSha256 ?? "", /^[a-f0-9]{64}$/, "Missing predecessor checkpoint hash");
-    assert.ok(["bootstrap", "continuation"].includes(context.predecessor.stage) && ["initial", "reviewed-reentry"].includes(context.predecessor.mode), "Wrong predecessor stage/mode");
+    if (context.predecessor.kind === "bootstrap-completion-receipt-ref") {
+      assert.equal(input.stage, "continuation", "Completion receipt cannot select bootstrap recovery");
+      for (const k of ["receiptSha256", "archiveSha256"]) assert.match(context.predecessor[k] ?? "", /^[a-f0-9]{64}$/, "Missing completion artifact hash");
+    } else assert.match(context.predecessor.checkpointSha256 ?? "", /^[a-f0-9]{64}$/, "Missing predecessor checkpoint hash");
+    if (context.predecessor.kind === "bootstrap-completion-receipt-ref") {
+      assert.equal(context.predecessor.stage, "bootstrap", "Receipt completion basis must be bootstrap");
+      assert.equal(context.predecessor.mode, "audit-readonly", "Receipt completion basis must retain its audit mode");
+    } else assert.ok(["bootstrap", "continuation"].includes(context.predecessor.stage) && ["initial", "reviewed-reentry"].includes(context.predecessor.mode), "Wrong predecessor stage/mode");
     const expected = input.stage === "bootstrap" ? bootstrapInventory() : [...bootstrapInventory(), ...continuationInventory(), ...securityInventory(context.security)];
     for (const resource of context.baseline) assert.ok(expected.some((r) => r.id.toLowerCase() === resource.id?.toLowerCase() && r.type.toLowerCase() === resource.type?.toLowerCase()), "Unexpected baseline resource");
     if (input.stage === "continuation") assert.ok(context.security?.functionalTest && context.security.writerRemovalReference, "Missing human security/functional handoff");
@@ -215,17 +202,6 @@ const resourceTypes = new Set([
   "Microsoft.Storage/storageAccounts/blobServices/containers",
 ].map((type) => type.toLowerCase()));
 
-export function assertNoSecretPayload(value) {
-  const sensitive = /^(?:sharedKey|primarySharedKey|secondarySharedKey|password|clientSecret|accessToken|sasToken)$/i;
-  const check = (v) => assert.ok(v === undefined || v === null || v === "" || (typeof v === "string" && (/^\[.*\]$/s.test(v) || /^(?:\*{3,}|<redacted>|<not-retained>)$/i.test(v))), "Resolved secret in provider payload; stop without persisting it");
-  const visit = (v) => {
-    if (!v || typeof v !== "object") return;
-    if (typeof v.path === "string" && sensitive.test(v.path.split(".").at(-1))) { check(v.before); check(v.after); }
-    for (const [key, child] of Object.entries(v)) { if (sensitive.test(key)) check(child); else visit(child); }
-  };
-  visit(value);
-}
-
 // ARM 2025-04-01 WhatIfOperationProperties has optional array fields; the
 // flattened CLI/SDK model also emits null for unset collections. Never coerce
 // truthy/falsy values or discard warnings/potential changes.
@@ -332,10 +308,11 @@ export function assertVerificationSources(transition, evidence, predecessor) {
   }
 }
 
-export function foundationSource({ root = process.cwd(), revision = process.env.GITHUB_SHA } = {}) {
+export function foundationSource({ root = process.cwd(), revision = process.env.GITHUB_SHA, version = 3 } = {}) {
   assert.match(revision ?? "", /^[a-f0-9]{40}$/, "Source revision must be the exact workflow SHA");
   assert.equal(command("git", ["-C", root, "rev-parse", "HEAD"]).trim(), revision, "Source HEAD must equal reviewed workflow SHA");
-  const files = sourcePaths.map((path) => {
+  assert.ok(version === 1 || version === 3, "Unknown source manifest version");
+  const files = (version === 1 ? sourcePaths : currentSourcePaths).map((path) => {
     // Raw committed blob bytes, not git diff/status (which can hide index flags)
     // or worktree-only hashes. Missing/untracked-at-revision paths fail closed.
     const committed = execFileSync("git", ["-C", root, "show", `${revision}:${path}`], { stdio: ["ignore", "pipe", "pipe"] });
@@ -345,6 +322,18 @@ export function foundationSource({ root = process.cwd(), revision = process.env.
     return { path, sha256: createHash("sha256").update(committed).digest("hex") };
   });
   return { files, sha256: hashJson(files) };
+}
+// The ref discriminant is the ONLY alternate route. Legacy checkpoint loading
+// remains v2-only; no JSON receipt is promoted into completed=true.
+export async function loadStagePredecessor(context, stage) {
+  if (context.predecessor?.kind === "bootstrap-completion-receipt-ref") {
+    assert.equal(stage, "continuation", "Completion receipt is not bootstrap recovery");
+    const { loadCompletionReceipt } = await import("./company-development-completion.mjs");
+    const { completionBasis } = await import("./company-development-completion-validation.mjs");
+    return completionBasis(loadCompletionReceipt(context.predecessor));
+  }
+  const { loadExecutionCheckpoint } = await import("./company-development-apply.mjs");
+  return loadExecutionCheckpoint(context.predecessor);
 }
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
@@ -482,8 +471,7 @@ async function prepare() {
   assertReviewContext(reviewContext, environment, currentRun());
   assertStageContext(reviewContext, input);
   if (input.stageContext) {
-    const { loadExecutionCheckpoint } = await import("./company-development-apply.mjs");
-    loadExecutionCheckpoint(input.stageContext.predecessor);
+    await loadStagePredecessor(input.stageContext, input.stage);
   }
   mkdirSync("company-dev-plan", { recursive: true, mode: 0o700 });
   writeJson("company-dev-plan/review-context.json", reviewContext);
@@ -532,12 +520,12 @@ async function preview() {
   assertNoSecretPayload(template);
   writeJson("company-dev-plan/template.json", template);
   const predecessor = input.stageContext
-    ? (await import("./company-development-apply.mjs")).loadExecutionCheckpoint(input.stageContext.predecessor) : null;
+    ? await loadStagePredecessor(input.stageContext, input.stage) : null;
   const plan = { inputs: input, inventory: stageInventory(input), template, parameters,
-    evidence: { commitSha: process.env.GITHUB_SHA, sourceSha256: foundationSource().sha256, sourceFiles: foundationSource().files,
+    evidence: { commitSha: process.env.GITHUB_SHA, sourceManifestVersion: 3, sourceSha256: foundationSource().sha256, sourceFiles: foundationSource().files,
       templateSha256: digest("company-dev-plan/template.json"), parametersSha256: createHash("sha256").update(consumedParameters).digest("hex") } };
   // The new route must stop BEFORE provider what-if on any origin/state mismatch.
-  const before = input.stageContext?.sourceTransition
+  const before = input.stageContext?.sourceTransition || predecessor?.kind === "bootstrap-completion-basis"
     ? stateEngine.assessStage(azure, plan, predecessor, Date.now(), "preview") : null;
   const result = azure([
     "deployment", "group", "what-if",
@@ -565,7 +553,7 @@ async function preview() {
     runId: process.env.GITHUB_RUN_ID,
     runAttempt: process.env.GITHUB_RUN_ATTEMPT,
     previewClientId: process.env.PREVIEW_CLIENT_ID,
-    sourceSha256: foundationSource().sha256,
+    sourceManifestVersion: 3, sourceSha256: foundationSource().sha256,
     sourceFiles: foundationSource().files,
     reviewContext,
     reviewPolicy: "Explicit human authorization and operator manual no-bypass verification; no independent environment reviewer required; context is not approval or machine verification",

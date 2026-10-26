@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+const { currentSourcePaths } = await import("../../../scripts/infra/company-development-completion-validation.mjs");
 
 export const sourcePaths = [
   "infra/bicep/company-development.bicep",
@@ -24,12 +25,12 @@ export function sourceFixture({ untracked = [] } = {}) {
     "-c", "user.name=Synthetic fixture", "-c", "user.email=fixture@example.invalid", ...args,
   ], { encoding: "utf8", env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" } }).trim();
   git("init", "--quiet");
-  for (const path of sourcePaths) {
+  for (const path of currentSourcePaths) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), `// synthetic committed fixture: ${path}\n`);
   }
   writeFileSync(join(root, "package.json"), '{"private":true}\n');
-  git("add", "--", "package.json", ...sourcePaths.filter((path) => !untracked.includes(path)));
+  git("add", "--", "package.json", ...currentSourcePaths.filter((path) => !untracked.includes(path)));
   git("commit", "--quiet", "--no-verify", "-m", "Synthetic source fixture");
   return { root, revision: git("rev-parse", "HEAD"), git };
 }

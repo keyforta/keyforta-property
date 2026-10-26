@@ -280,6 +280,107 @@ $120/month before-tax ceiling remain planning figures. Rollback is withholding
 dispatch and a separately reviewed code revert; never deletion, initial retry
 or reuse of an old preview. See the [bounded recovery runbook](../../infra/README.md#verification-only-source-transition-code-approved-not-execution-authority).
 
+### Approved separate bootstrap completion evidence contract — 2026-10-26
+
+The owner approved implementation/publication through the parent operator of a
+bounded GET-only completion audit, then explicitly clarified: **reject wildcard
+read grants; require explicit permitted read actions**. This is code-contract
+approval, not full ADR acceptance, merge, dispatch, Azure execution, role changes
+or security/continuation authorization. Existing preview role sufficiency is
+unproven; no permissions are changed by this implementation.
+
+**Business invariant:** historical ARM success can be recorded together with
+current frozen identity/property/provenance observations without falsifying the
+failed workflow/incomplete checkpoint, claiming NoChange or granting deployment,
+security or data authority. The old verification-only v1 gates stay strict.
+
+The new manual `company-development-bootstrap-completion.yml` uses existing
+preview federation, protected `company-dev`, owner context and shared foundation
+concurrency. Its command imports only transport-free completion validation,
+never the apply/state drivers or a submit-capable transitive module. Shared
+inventory, secret checking and full resource projection preserve old behavior.
+Transport enumerates exact management GET endpoints/API versions/host/scope,
+including same-endpoint bounded pagination; all unknown/missing/error/foreign
+visibility fails closed. Effective permission evidence rejects all wildcard,
+data, unknown and non-read authority, even if exclusions purport to subtract it.
+No what-if/validate, PUT, grant, Blob read, key/token export or arbitrary CLI
+passthrough is available.
+
+Before OIDC and before receipt, bind actual environment identity/branch/rules,
+protected exact merged SHA, latest exact-SHA green push CI/Security/DAST and fresh
+audit-only owner intent/UI no-bypass reconciliation. Actor/reference/hash fields
+are context, not machine-authenticated approval. The single-owner policy remains;
+no independent review or prevent-self-review rule is reintroduced.
+
+Authenticate the original failed attempt/artifact and same bounded ZIP against
+its immutable archive/checkpoint/template/parameters/submission bindings. Verify
+all seven typed resources and full original projection, tenant/distinct UAMI
+principal/client bindings, complete inventory/history, all 17 context-bound
+Succeeded operations and full root/two nested deployment responses, correlation
+and timestamps inside original authenticated run bounds. Resource Creates alone
+establish creation. Pre-handoff grants/scanning or property/principal drift stop.
+Two complete reads must equal the fresh owner-reviewed frozen snapshot; repeat
+original archive and protected/source/quality checks. Retain the observing
+preview caller separately from historical apply client/principal and explicitly
+make **no revocation claim**.
+
+A normal successful workflow alone produces a version-1
+`bootstrap-completion-receipt` / `audit-readonly` artifact with unchanged historical
+ZIP/raw incomplete checkpoint, full typed state/operations/provenance, two-pass
+GET journal and source/environment/quality/owner references. Inventory and file
+digests are closed; unsafe names/duplicates/symlinks/oversize/encrypted archives,
+digest drift, missing pages, resolved secrets or failed audits produce no success
+receipt. Existing seven-day Actions retention/quota applies; this is not a new
+backup or archive service.
+
+New plan/checkpoint source manifests explicitly use version 3 and all twelve
+paths, including both consumers, new command/helper and entire new workflow.
+Historical nine-path manifests retain their original format and semantics.
+`assertVerificationSources` remains unchanged: workflow changes and the new
+dependency closure cannot be silently squeezed into v1. Pin exact original and
+PR166 workflow blob pairs, verify ancestry and repository-wide diff review,
+then bind the complete implementation source/workflow at its eventual reviewed
+SHA. No broad workflow path whitelist, hash-ignore field or fabricated final
+SHA is introduced. Historical CLI regressions use exact baseline driver bytes
+to retain v1 behavior; v3 tests cover the new complete closure.
+
+The receipt says historical ARM Succeeded/current state verified, original
+workflow failure/checkpoint false, what-if not evaluated, property deltas
+**UNRESOLVED**, and no reapply/continuation/security-handoff/data-admission
+authorization. The genuine three Modify/five Delete prediction remains blocked,
+not relabeled noise. No `VerifiedNoOp`, v2 completed checkpoint or original-run
+repair is emitted.
+
+Consumers authenticate the new workflow attempt, immutable unexpired unique
+artifact/archive/file/source digests and original failed provenance, then replay
+the complete two-pass read journal. Only an explicitly typed process-local
+completion basis can enter initial continuation or manual grant preparation.
+Both actual preview/apply loaders are wired; legacy plan/checkpoint consumers and
+bootstrap recovery reject receipts. No checkpoint laundering occurs. Continuation
+still independently requires original-writer revocation (including equivalent,
+inherited and PIM authority), actual current grants/Defender/functional evidence,
+new exact-SHA preview/plan and explicit deployment authorization. After handoff,
+compare original immutable identities plus independently approved current security
+state, not stale pre-handoff properties. Receipt alone authorizes none of these.
+
+The [completion audit runbook](../../infra/README.md#historical-bootstrap-completion-audit-code-approval-not-execution)
+defines exact inputs, source-diff/hash construction, artifact/ref inventory,
+failure stops, manual authorization limits and rollback. Offline tests use only
+deterministically generated synthetic ZIP, seven-resource/17-operation GET
+observations and workflow/artifact metadata. A test-only loader substitutes
+synthetic provenance bindings without changing runtime authentication checks;
+unmodified runtime bindings reject the synthetic archive. Operational originals
+remain outside the repository in session evidence, never publication fixtures.
+
+Operational, telemetry, backups/restore tests/measured RPO/RTO, SLO/error-budget,
+security topology, readiness, eligibility/capacity and cost gaps remain open.
+No service/paid component, grant, Defender/upload, foundation-ready or cost
+authority is added. Existing $108.35/month estimate/$120 before-tax ceiling are
+planning values, not measured spend or a billing cap. Rollback is withholding
+dispatch/receipt/consumption, preserving originals and explicitly superseding
+bad receipts; code reverts are separately reviewed. Never delete/recreate or
+reapply the original template as rollback.
+
 ### Acceptance map and current implementation boundary
 
 Both protected routes now implement the staged contract, with a reachable local

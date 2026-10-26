@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import test, { after } from "node:test";
 import YAML from "yaml";
+import { completionFixture } from "./fixtures/company-completion.mjs";
 import { sourceFixture, sourcePaths } from "./fixtures/company-source.mjs";
 
 const controls = () => import("../../scripts/infra/company-development-apply.mjs");
@@ -52,11 +53,11 @@ function continuationResources(state) {
   }));
 }
 
-async function stagedFixture() {
+async function stagedFixture(bootstrapResources) {
   const state = await import("../../scripts/infra/company-development-state.mjs");
   const { bootstrapInventory, destination } = await import("../../scripts/infra/company-development.mjs");
   const now = Date.parse("2026-10-25T21:00:00.000Z");
-  const boot = actualResources(bootstrapInventory());
+  const boot = bootstrapResources ?? actualResources(bootstrapInventory());
   const scanner = {
     id: `/subscriptions/${subscriptionId}/providers/Microsoft.Security/dataScanners/synthetic-actual-scanner`,
     type: "Microsoft.Security/dataScanners",
@@ -161,6 +162,58 @@ async function bootstrapRecoveryFixture() {
   f.plan.whatIf = { changes: bootstrapInventory().map(({ id, type }) => ({ resourceId: id, changeType: "NoChange", after: { type } })) };
   return f;
 }
+
+test("typed completion basis supports only separately authorized continuation and manual grant preparation", async () => {
+  const { auditCompletion } = await import("../../scripts/infra/company-development-completion.mjs");
+  const { authenticateCompletion, completionBasis, original } = await import("../../scripts/infra/company-development-completion-validation.mjs");
+  const audit = completionFixture();
+  try {
+    const receipt = auditCompletion(audit.options()).receipt;
+    // Unit fixture marker only: the real immutable-archive loader has its own
+    // metadata/digest/normal-workflow tamper tests. No marker survives JSON.
+    const ref = { kind: "bootstrap-completion-receipt-ref", stage: "bootstrap", mode: "audit-readonly",
+      sha: audit.revision, runId: "9001", runAttempt: "1", artifactId: "9002", receiptSha256: "a".repeat(64), archiveSha256: "b".repeat(64) };
+    const basis = completionBasis(authenticateCompletion(receipt, ref));
+    const f = await stagedFixture(audit.snapshot.resources);
+    f.now = audit.now;
+    f.predecessor.applyClientId = original.writerClientId;
+    f.predecessor.deploymentName = original.deploymentName;
+    f.transport.predecessorDeployment.name = original.deploymentName;
+    f.context.predecessor = ref;
+    const result = f.state.assessStage(f.read, f.plan, basis, f.now, "apply");
+    assert.equal(result.action, "submit"); // existing separate apply gate ONLY
+    assert.equal(result.receiptIsNotDeploymentAuthorization, true);
+    assert.equal("completed" in basis, false);
+    for (const mutate of [
+      () => { delete f.context.security.writerRemovalReference; },
+      () => { f.transport.permissions[0].actions.push("Microsoft.Storage/storageAccounts/write"); },
+      () => { f.transport.permissions[0].actions.push("*"); },
+      () => { f.transport.defender.properties.isEnabled = false; },
+      () => { f.transport.assignments.pop(); },
+      () => { delete f.context.security.functionalTest.executionAuthorizationReference; },
+      () => { f.predecessor.applyClientId = original.previewClientId; },
+      () => { f.plan.inputs.stage = "bootstrap"; },
+    ]) {
+      const context = structuredClone(f.context), transport = structuredClone(f.transport), caller = f.predecessor.applyClientId;
+      mutate();
+      assert.throws(() => f.state.assessStage(f.read, f.plan, basis, f.now, "apply"));
+      Object.assign(f.context, context); Object.assign(f.transport, transport);
+      f.predecessor.applyClientId = caller; f.plan.inputs.stage = "continuation";
+    }
+    assert.throws(() => f.state.assessStage(f.read, f.plan, JSON.parse(JSON.stringify(basis)), f.now, "apply"), /Authenticated/i);
+    const { stageInventory, loadStagePredecessor } = await import("../../scripts/infra/company-development.mjs");
+    assert.equal(stageInventory(f.plan.inputs).predecessor.kind, ref.kind);
+    assert.throws(() => stageInventory({ ...f.plan.inputs, stage: "bootstrap", mode: "reviewed-reentry" }), /bootstrap|continuation/i);
+    await assert.rejects(loadStagePredecessor({ predecessor: ref }, "bootstrap"), /bootstrap/i);
+    const { prepareHumanGrants } = await controls();
+    const commands = prepareHumanGrants(bootstrapRead(audit.snapshot.resources), original.deploymentName, basis);
+    assert.equal(commands.assignments.length, 4);
+    assert.equal(commands.commands.length, 4);
+    assert.throws(() => prepareHumanGrants(bootstrapRead(audit.snapshot.resources), original.deploymentName, receipt), /Legacy/i);
+    const changes = { changes: [{ resourceId: audit.snapshot.resources[0].id, changeType: "Modify", after: { type: audit.snapshot.resources[0].type } }] };
+    assert.throws(() => f.state.validateStageChanges(changes, f.plan, false), /bootstrap|outside exact/i);
+  } finally { rmSync(audit.root, { recursive: true, force: true }); }
+});
 
 let verificationSources;
 after(() => { if (verificationSources) rmSync(verificationSources.root, { recursive: true, force: true }); });
@@ -879,7 +932,7 @@ function bootstrapRead(resources, { account, assignments = [] } = {}) {
     } }));
     if (args[1] === "list") return resources.filter((r) => !r.type.includes("/blobServices"));
     assert.deepEqual(args.slice(0, 2), ["resource", "show"]);
-    return resources.find((r) => r.id === args[args.indexOf("--ids") + 1]);
+    return resources.find((r) => r.id.toLowerCase() === args[args.indexOf("--ids") + 1].toLowerCase());
   };
 }
 
@@ -1388,9 +1441,10 @@ test("mocked apply CLI makes no write on failed quality, drift, nonempty RG or s
   const evidence = JSON.parse(f.files["evidence.json"]);
   evidence.sourceSha256 = f.expected.sourceSha256;
   evidence.sourceFiles = foundationSource({ root: dir, revision }).files;
+  evidence.sourceManifestVersion = 3;
   f.files["evidence.json"] = encode(evidence);
   f.expected.evidenceSha256 = hash(f.files["evidence.json"]);
-  const script = resolve("scripts/infra/company-development-apply.mjs");
+  let script = resolve("scripts/infra/company-development-apply.mjs");
   const environment = {
     id: 789, node_id: "apply-environment-node", name: "company-dev-apply",
     deployment_branch_policy: { protected_branches: true },
@@ -1654,8 +1708,15 @@ console.log(JSON.stringify(value));
     assert.equal(JSON.parse(noopCheckpoint).completed, true);
     assert.equal(JSON.parse(readFileSync(join(dir, "company-dev-apply/result.json"), "utf8")).state, "VerifiedNoOp");
     assert.equal(calls().slice(beforeNoop).filter((c) => c.name === "az" && c.args[0] === "rest" && c.args.includes("put")).length, 0);
-    // New explicit cross-source route: real preview and apply entry points,
-    // original failed workflow + exact ZIP metadata, authentic 17-op shape.
+    // Preserve the historical v1 CLI contract using its exact baseline driver
+    // bytes. The NEW v3 closure cannot be laundered into a nine-path v1
+    // transition; that boundary is separately asserted by completion tests.
+    const legacyDriver = join(realpathSync(dir), "historical-v1-driver");
+    mkdirSync(legacyDriver);
+    for (const name of ["company-development.mjs", "company-development-state.mjs", "company-development-apply.mjs"]) {
+      writeFileSync(join(legacyDriver, name), execFileSync("git", ["show", `6fccaa9ca066e32fde2870858adc1334525a7423:scripts/infra/${name}`]));
+    }
+    script = join(legacyDriver, "company-development-apply.mjs");
     const recovery = await verificationRecoveryFixture(recoveryFrom, recoveryTo, dir);
     recovery.context.predecessor.artifactId = "888";
     recovery.artifact.id = 888;
@@ -1674,7 +1735,7 @@ console.log(JSON.stringify(value));
       FAKE_STAGE_PERMISSIONS: JSON.stringify(recovery.transport.stagePermissions),
       FAKE_ASSIGNMENTS: JSON.stringify(recovery.transport.assignments), FAKE_DEFENDER: JSON.stringify(recovery.transport.defender),
     });
-    const previewScript = resolve("scripts/infra/company-development.mjs");
+    const previewScript = join(legacyDriver, "company-development.mjs");
     const previewRun = (op, changes = {}) => spawnSync(process.execPath, [previewScript, op], { cwd: dir, env: { ...env, ...changes }, encoding: "utf8" });
     for (const op of ["guard", "prepare"]) {
       const result = previewRun(op); assert.equal(result.status, 0, result.stderr); outputs();

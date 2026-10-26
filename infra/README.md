@@ -441,6 +441,171 @@ Rollback: withhold execution and preserve originals; any code revert requires
 review. Never delete/recreate resources, manually fabricate completion, or
 silently upgrade/reuse a stale preview.
 
+### Historical bootstrap completion audit (code approval, not execution)
+
+The separately approved `company-development-bootstrap-completion.yml` /
+`node scripts/infra/company-development-completion.mjs prepare|audit` route
+records **historical ARM success plus currently verified frozen state**, not a
+successful original workflow, v2 completion checkpoint, `VerifiedNoOp`, safe
+redeployment or foundation readiness. Publication/merge and execution are
+separate human controls. This implementation performs no live verification.
+
+**Owner authority clarification:** reject **every wildcard**, including
+`*/read`, provider/resource wildcard reads and wildcard exclusions. Every
+permission row must expose all four arrays. Only the closed exact management
+read actions in `permittedReadActions` are permitted; data actions, what-if,
+validate, write/action and unknown read authority fail closed. Exclusions cannot
+launder broad authority. This is stricter than the old preview readiness
+checker, which remains unchanged. No role/RBAC/federation change is authorized;
+existing preview eligibility is **not established** by these code tests.
+
+The audit runs under existing `company-dev` protection and
+`company-dev-foundation` concurrency with the existing preview client
+`684d29f1-1055-4030-b308-872dd2781d39`, never the historical writer. The fixed
+transport permits management GETs only: subscription/RG, generic and seven
+typed resources, original three deployments and their operation lists,
+scope-specific permissions and inherited-at-scope role lists, and the existing
+Storage Defender setting. Every endpoint/API version/host/scope is enumerated.
+Pagination is confined to that same endpoint and API query; missing, cyclic,
+foreign, unknown or failed pages stop. `az account show` binds the actual
+signed-in preview caller; no token/key export, arbitrary executable,
+data-plane read, Blob call, what-if/validate, submission callback or mutation
+exists in this route. GitHub artifact upload stores evidence only.
+
+#### Before a separately authorized audit dispatch
+
+1. Keep the external freeze and inspect the original run **without retrying**.
+   Original source is `6216a0c95b49f522fecf1c28d8ba3405f1a93a43`, apply run
+   `40262729364/1`, artifact `12625346104`, archive SHA256
+   `7278e893f44a6fd23633f3bc74ed378c515f8e8576c33c384a72a48243a8d37c`.
+   Preserve all six raw files. The workflow conclusion remains `failure`, the
+   checkpoint remains `completed=false`, and bootstrap-state remains absent.
+   Its checkpoint SHA256 is
+   `9b9cbb2835a95de67d638da4269968e9cd7cba2511f34036aad9b69f74bd4836`.
+2. Obtain fresh **audit-only** owner authorization for the exact merged main
+   SHA, repository-wide diff, full version-3 closure and complete new workflow
+   blob. Existing approvals are not reusable runtime approval. Main must still
+   be protected at that SHA; latest exact-SHA push CI, Security and DAST must
+   be successful, including pending/failed reruns rather than an older success.
+3. Owner `cmbuyamba` must reconcile the actual environment identity, complete
+   branch/rule snapshot and **manual UI admin bypass OFF** observation, including
+   the previously unresolved API/UI discrepancy. A true API bypass field
+   blocks; an absent API field does not prove the UI setting. No independent
+   reviewer, self-review prevention or actor separation is required. Neither
+   actor identity, JSON, comment URL nor hash is machine-authenticated approval.
+4. Under separately approved read-only inspection, review and freeze the
+   **complete** canonical snapshot returned by `observe`: subscription/group,
+   inventory, seven raw typed resources, full history/root/nested responses,
+   all 17 operations, all scoped permission/role pages and Defender settings.
+   The approved `frozenSnapshotSha256` is `stateHash(snapshot)`, not a count or
+   selected-security-field digest. No resource/property/principal, history,
+   pre-handoff grant or scanning drift is accepted.
+5. Prepare the manual workflow `audit_intent` JSON using these exact fields:
+   `version:1`, `kind:"bootstrap-completion-audit-intent"`,
+   `scope:"audit-only-no-continuation"`, `owner:"cmbuyamba"`,
+   `execution:{revision:<exact merged SHA>}`, the exported `original` binding,
+   `originalSource`, `source`, `environment`, `authorizedAt`,
+   `ownerAuthorizationReference`, `freezeReference`, `inspectionReference`,
+   `frozenSnapshotSha256`, `baselineChangesSha256`,
+   `implementationChangesSha256`, and
+   `manualUi:{owner:"cmbuyamba",adminBypass:false,reconciledWithApi:true,
+   observedAt,observationReference}`. All references are native issue/PR URLs.
+   Authorization/UI context must be no older than one hour, including final
+   observation. No placeholder is executable approval.
+6. Compute source bindings from immutable local Git blobs, not worktree-only
+   hashes. `originalSource` uses the historical nine ordered paths and
+   `{revision,files,sha256}`; `source` uses `{version:3,revision,files,sha256}`
+   over all twelve `currentSourcePaths`. Manifest hashes are SHA256 of
+   `JSON.stringify(files)`. The two repository-wide review digests hash raw
+   stdout bytes from `git diff --raw --no-abbrev --no-renames ORIGINAL BASELINE`
+   and `git diff --raw --no-abbrev --no-renames BASELINE EXECUTION`, respectively.
+   BASELINE is `6fccaa9ca066e32fde2870858adc1334525a7423`.
+   `completionSource` and `assertSourceReview` provide offline byte checks.
+   **Do not invent the final implementation SHA or digest before publication.**
+7. Only after explicit execution consent, manually dispatch this new workflow
+   on that exact protected main. It checks source/quality/actual context before
+   OIDC and again at finalization; compares two complete state observations;
+   authenticates/downloads the immutable original archive twice; and checks
+   actual root/nested success, original correlation/times and exact context-bound
+   operation set. It retains the original historical writer client
+   `63b65efc-7e8d-4d82-b13a-53b875df54f1` and principal
+   `e10f9e0f-274f-4643-8a8f-ad8f41b09c64`; observing with a different principal
+   is **not writer-revocation evidence**.
+
+The old nine-path `assertVerificationSources` and strict NoChange/property-delta
+gates are unchanged. The new source profile pins the exact original and PR166
+preview/apply workflow blob pairs, verifies ancestry, binds the full new workflow
+and all dependencies to the reviewed execution SHA, and hashes repository-wide
+changes. It is not a general `.github/workflows/**` exception. Existing workflow
+changes outside the explicitly enumerated audit/code/test/fixture/docs surfaces
+fail even when a caller recomputes the input diff hash. Existing workflow
+bytes, Bicep and parser remain unchanged. New preview/apply plans/checkpoints
+carry `sourceManifestVersion:3`; historical absent-version nine-path artifacts
+remain readable under their original semantics. They do not silently acquire
+the new receipt contract. A v1 transition spanning these new dependencies is
+still blocked, not upgraded by omitting files.
+
+#### Receipt, consumption and stop conditions
+
+Only a normal successful audit emits
+`company-dev-bootstrap-completion-v1-SHA-RUN-ATTEMPT`, seven-day retention, with
+exactly `receipt.json`, `historical-original.zip`,
+`historical-incomplete-checkpoint.json`, `original-bindings.json`,
+`actual-state.json`, `read-journal.json`, `source-review.json`, `controls.json`.
+Files/directories are private and cannot replace existing local evidence.
+Archive entry names/types/sizes/digests, duplicate/path/symlink/encryption checks,
+bounded inflation and secret checks fail closed. Failure emits no success
+receipt. This uses existing Actions storage/quota, not a new backup service.
+
+The receipt is version 1, `kind=bootstrap-completion-receipt`,
+`mode=audit-readonly`, `historicalArmStatus=Succeeded`,
+`originalWorkflowConclusion=failure`, `originalCheckpointCompleted=false`,
+`currentStateVerified=true`, `reapplyAuthorized=false`,
+`continuationAuthorized=false`, `securityHandoffVerified=false`,
+`automaticDataAdmission=false`, `whatIfStatus=not-evaluated-for-this-contract`,
+`propertyDeltas=UNRESOLVED`. The reproduced three Modify / five Delete
+predictions (response SHA256
+`dc69598ff7e2cb03a36f91f92100285cce0edfadd1739fac185f3fcfb26253ff`) remain
+diagnostic provenance, **not false positives or an accepted reapply plan**.
+
+`loadCompletionReceipt` authenticates a distinct reference:
+`{kind:"bootstrap-completion-receipt-ref",stage:"bootstrap",mode:"audit-readonly",
+sha,runId,runAttempt,artifactId,archiveSha256,receiptSha256}`. It verifies the
+successful new workflow attempt, unique unexpired artifact, archive/receipt and
+every file digest, immutable source review, original failed archive, typed state,
+owner context, quality attempts and replayed two-pass GET journal. Local JSON
+and diagnostic artifacts are not evidence of completion. Do not bypass archive
+expiry with unauthenticated copies. The loader produces a process-local typed
+completion basis, **never** a v2 checkpoint or `completed=true` conversion.
+
+Both preview/apply predecessor-loading paths accept that explicit reference
+only for **initial continuation**, not bootstrap recovery. Existing plan and
+execution-checkpoint parsers reject receipts. Manual `human-grant-plan` accepts
+the authenticated reference file (its reviewed raw-file hash is still required)
+solely for reading original identities and printing commands, never executing
+grants. After a human handoff, continuation compares immutable identity bindings
+and its separately approved *current* security state, not the stale pre-handoff
+receipt projection. It still requires actual grants/Defender/functional-test
+evidence, fresh removal of **all** inherited/equivalent/PIM bootstrap writer
+authority, original-writer `assertWriterRevoked`, new exact-SHA preview/plan and
+explicit human deployment authorization. Templates still forbid bootstrap writes.
+Receipt alone dispatches nothing and provides no grants/security handoff.
+
+The audit is a point-in-time observation under freeze, not an atomic or ongoing
+guarantee. Telemetry, seven-day backups, restore tests and measured RPO/RTO,
+SLOs/error budgets, security/backend topology, functional readiness, capacity,
+offer eligibility and data admission remain outstanding. No grants, Defender
+activation, uploads, applications, production, paid service or cost authority is
+added. $108.35/month full-design estimate and $120/month before-tax planning
+ceiling remain estimates, not measured spend, a billing cap or free-quota proof.
+
+**Rollback:** withhold dispatch/receipt/consumption and preserve failed original
+workflow/archive and successful resources. Explicitly supersede/mark unusable a
+bad issued receipt and stop consumers; never silently edit historical evidence.
+Any code revert, authority/settings change or future deployment needs separate
+human review/approval. No deletion, recreation, retry or original-template PUT
+is a rollback action.
+
 The preview's optional `stage_context` input is JSON; **omit it only for initial
 bootstrap**. It is review context, never an approval assertion. Its fields are:
 

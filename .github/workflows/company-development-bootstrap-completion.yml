@@ -1,0 +1,68 @@
+name: Company development bootstrap completion audit
+
+# A manual evidence-only route. Activation/execution requires fresh, external,
+# exact-source owner approval; this file and its inputs are not that approval.
+on:
+  workflow_dispatch:
+    inputs:
+      audit_intent:
+        description: Exact-source owner audit-only context, full source manifests, actual environment/UI observation and frozen snapshot digest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: company-dev-foundation
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: github.ref == 'refs/heads/main' && github.actor == 'cmbuyamba'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: company-dev
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIEW_CLIENT_ID: ${{ vars.COMPANY_DEV_PLAN_CLIENT_ID }}
+      AUDIT_INTENT: ${{ inputs.audit_intent }}
+    steps:
+      - name: Check out exact reviewed source and historical objects
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify protected exact source, latest quality and actual owner/environment context before authentication
+        id: context
+        run: node scripts/infra/company-development-completion.mjs prepare
+      - name: Sign in with existing destination preview federation
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
+        with:
+          client-id: ${{ vars.COMPANY_DEV_PLAN_CLIENT_ID }}
+          tenant-id: 8019a048-e7d6-48e8-984a-b902f641a21b
+          subscription-id: 891e5e6e-8ae3-4455-9184-8d7606223d91
+      - name: Observe original ARM success and frozen current state using enumerated management GETs only
+        env:
+          AUDIT_CONTEXT: ${{ steps.context.outputs.audit_context }}
+        run: node scripts/infra/company-development-completion.mjs audit
+      - name: Preserve distinct success receipt and unchanged historical evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: company-dev-bootstrap-completion-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            company-dev-completion/receipt.json
+            company-dev-completion/historical-original.zip
+            company-dev-completion/historical-incomplete-checkpoint.json
+            company-dev-completion/original-bindings.json
+            company-dev-completion/actual-state.json
+            company-dev-completion/read-journal.json
+            company-dev-completion/source-review.json
+            company-dev-completion/controls.json
+          if-no-files-found: error
+          retention-days: 7
