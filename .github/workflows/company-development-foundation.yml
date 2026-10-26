@@ -8,6 +8,29 @@ name: Company development foundation preview
 on:
   workflow_dispatch:
     inputs:
+      stage:
+        description: Seven-write bootstrap or human-handoff-verified existing-reference continuation
+        required: true
+        type: choice
+        options: [bootstrap, continuation]
+      mode:
+        description: Initial stage or exact inventory/terminal-operations reviewed recovery or no-op
+        required: true
+        type: choice
+        options: [initial, reviewed-reentry]
+      evidence_version:
+        description: Staged evidence schema (legacy full plans are rejected)
+        required: true
+        type: choice
+        options: ["2"]
+      change_freeze:
+        description: External owner-controlled change-freeze review reference (not an approval assertion)
+        required: true
+        type: string
+      stage_context:
+        description: Reviewed JSON baseline, immutable predecessor and human security/functional references; omit only for initial bootstrap
+        required: false
+        type: string
       vnet_cidr:
         description: Network-owner-approved RFC1918 VNet CIDR (no default)
         required: true
@@ -27,6 +50,13 @@ on:
 
 permissions:
   contents: read
+
+env:
+  FOUNDATION_STAGE: ${{ inputs.stage }}
+  FOUNDATION_MODE: ${{ inputs.mode }}
+  EVIDENCE_VERSION: ${{ inputs.evidence_version }}
+  CHANGE_FREEZE: ${{ inputs.change_freeze }}
+  STAGE_CONTEXT: ${{ inputs.stage_context }}
 
 concurrency:
   group: company-dev-foundation
@@ -92,12 +122,21 @@ jobs:
           client-id: ${{ env.PREVIEW_CLIENT_ID }}
           tenant-id: 8019a048-e7d6-48e8-984a-b902f641a21b
           subscription-id: 891e5e6e-8ae3-4455-9184-8d7606223d91
-      - name: Compile and request create-only foundation what-if
+      - name: Compile and preview exact stage inventory and human handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/infra/company-development.mjs preview
       - name: Preserve SHA-bound preparation evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: company-dev-foundation-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: company-dev-plan/
+          name: company-dev-foundation-${{ inputs.stage }}-${{ inputs.mode }}-v2-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            company-dev-plan/evidence.json
+            company-dev-plan/inputs.json
+            company-dev-plan/parameters.json
+            company-dev-plan/review-context.json
+            company-dev-plan/template.json
+            company-dev-plan/what-if.json
+            company-dev-plan/inventory.json
           if-no-files-found: error
           retention-days: 7

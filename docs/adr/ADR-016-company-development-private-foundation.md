@@ -1,6 +1,6 @@
 # ADR-016: Isolated company-development private database foundation
 
-**Status:** Proposed implementation ADR; external human review/acceptance pending
+**Status:** Proposed ADR, external human acceptance pending; staged local implementation specifically owner-approved (not activated)
 
 **Date:** 2026-10-25 UTC
 
@@ -31,9 +31,31 @@ no additional blanket authorization is requested. This ADR remains **Proposed**.
 
 ## Proposed staged company-foundation contract
 
+The heading retains the proposal's historical anchor. The current authorization
+is [explicit Product Owner approval](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6402966949)
+for local implementation/tests of this staged contract, including **both**
+reserved decisions: temporary **empty, unused** bootstrap Storage before
+Defender, and **human removal of all bootstrap workflow writer authority before
+human grants/security handoff**, including inherited/equivalent authority.
+Continuation must never regain UAMI/ACR/Storage write authority.
+This does not constitute full external ADR acceptance, Azure permission
+sufficiency, activation, dispatch, deployment or permission/settings writes.
+No second Azure technical sign-off is required; independent GitHub PR/native
+human controls remain mandatory. Earlier proposal-only statements below record
+history, not the current implementation authorization.
+
+The [specific subsequent owner decision](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6403538260)
+approves the **local code/test contract** for owner-confirmed, correlated harmless
+synthetic functional verification alongside actual readable settings/identity/
+permissions, replacing the unobservable internal Storage→scanner→Event Grid
+mapping requirement. Internal topology remains **UNVERIFIED**. It grants **no
+execution/upload authority**; a future manual synthetic test requires separate
+authorization. Mutable Blob index tags are not a sole security control or
+automated foundation-ready/data-admission proof. Native independent gates remain.
+
 ### Review scope and evidence - 2026-10-25
 
-The user approved preparation of this minimal staged proposal for independent
+Initially the user approved preparation of this minimal staged proposal for independent
 review only: not implementation, deployment, permission writes or activation.
 ADR-016 remains **Proposed**; no acceptance or security waiver is recorded.
 Unchanged: $120/month before-tax ceiling, $108.35 estimate, not cost guarantees.
@@ -49,16 +71,19 @@ human authorization/control checks, not Azure expertise certification or duplica
 Augustin2K may review scope/operator intent and GitHub controls without Azure expertise.
 Platform/Network/Security are responsibility roles, not additional Azure reviewers:
 Platform owns permission proof and Network the existing network controls.
-Both new security decisions require specific informed Product Owner approval;
+Both new security decisions required specific informed Product Owner approval,
+now recorded in the implementation authorization above;
 Finance retains the unchanged cost/offer gates.
 
-Current code is one-shot: empty RG, create-only full plan, six-file artifact,
-one ARM submission. Apply remains unconfigured. The following stages are future
-proposals, not implemented capabilities or permission definitions proven sufficient.
+At proposal time code was one-shot: empty RG, create-only full plan, six-file
+artifact, one ARM submission, and all following stages were future proposals.
+Apply remains unconfigured. The staged implementation and remaining external
+unproven permission boundaries are enumerated in the acceptance map below.
 [Historical review](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6402311737):
 Augustin2K reviewed run `40223406509`, attempt `2`, artifact `12610233452`,
 SHA `4066ce311d13ec06bdd60c04eb05bac15f24cb05`; parent confirmed main CI green.
-Artifact expires `2026-11-01T19:12:40Z`; it cannot authorize changed stages.
+Artifact expires `2026-11-01T19:12:40Z`; it is historical only and cannot be used
+by either changed stage or version-2 apply.
 [Feasibility finding](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6402526036):
 exact future-principal role delegation is impossible under the considered scheme.
 No workflow Owner/Contributor, `roleAssignments/write`, subscription scanner
@@ -72,14 +97,15 @@ plus ARM deployment records. No Network, PG, ACA, logs, Defender, assignments,
 apps or jobs. Confirm names against the reviewed compiled template. Preserve
 registry admin disabled, shared keys/public Blob access disabled,
 OAuth, HTTPS/TLS 1.2+, private container and seven-day soft delete.
-**NEW, UNAPPROVED security decision:** temporarily empty, unused Storage without
+**Specifically owner-approved security decision:** temporarily empty, unused Storage without
 verified Defender. No app attachment, uploads, data or migration; not foundation-ready.
-**NEW, UNAPPROVED handoff guard:** human removal of bootstrap workflow write rights
+**Specifically owner-approved handoff guard:** human removal of bootstrap workflow write rights
 before Stage 2, proving no inherited/equivalent rights remain. Continuation cannot
 rewrite UAMIs, ACR or Storage. Bootstrap type-scoped rights
 can modify those types while active; they are not name-bound create-only rights.
-Both this guard/tradeoff and the transient exception need specific informed Product Owner
-technical/security approval before implementation, not broad consent; required GitHub gates remain.
+Both this guard/tradeoff and the transient exception have specific informed
+Product Owner approval at the reference above, not merely broad consent;
+required GitHub gates remain. Neither decision authorizes uploads/data/use.
 
 ### Stage 2 - human permissions and separate Defender verification
 
@@ -99,10 +125,13 @@ Separately, the human Defender operator needs reviewed subscription
 `Microsoft.Security/datascanners/read` and `/write`, Event Grid and role-management
 capabilities. Retain enabled on-upload scanning, full 100 GB cap, existing
 sensitive-discovery/index settings and protection/retention settings.
-Verify successful provisioning, actual scanner identity/backend/Event Grid and
-service-created Storage Blob Data Owner access beyond the four template grants.
-Record actual IDs/scopes, not "only four total assignments"; missing backend
-visibility, unexplained access or security state blocks progress.
+Read current settings and actual scanner identity, service-created Storage Blob
+Data Owner beyond the four grants, and exact reviewed readable service inventory.
+Verify any reviewed Event Grid system topic's readable source/provisioning state,
+without inferring hidden linkage. Use the specifically approved owner-confirmed
+functional check below for the unobservable internal mapping/completion semantic.
+Missing readable visibility, failed/stale correlation, unexplained access or
+security drift blocks progress; never claim "only four total assignments".
 
 ### Stage 3 - protected verified continuation
 
@@ -136,19 +165,85 @@ CI/security/DAST success. Changed stage/evidence/permissions/attempt needs revie
 No AI substitutes for human approval; no customer/app activation before security
 verification and a future separately authorized synthetic scan-result proof.
 
-### Future acceptance and implementation boundary
+### Acceptance map and current implementation boundary
 
-Test stage inventory negatives and compiled source/default compatibility;
-wrong destination/IDs/roles/scopes/inherited extras or missing Defender backend;
-stage/inventory/source/hash freshness; no PUT on mismatch; partial timeout,
-reviewed re-entry/no-op; retained native gates/latest CI. Future work is limited
-to existing three Bicep files, two helpers, two workflows, three company tests
-and source fixture. Run focused red/green, compilation and `pnpm verify` THEN,
-not in this documentation delivery. No source dev/default shared-module behavior
-changes. Until decisions/proofs pass, withhold activation; after partial execution,
-retain unused resources/evidence for human review, never automatic deletion.
+Both protected routes now implement the staged contract, with a reachable local
+synthetic bootstrap-checkpoint → owner handoff → protected continuation → fresh
+reviewed no-PUT replay. This is **local implementation, not Azure readiness or
+ADR acceptance**. Full effective/transitive/PIM authority and owner observations
+are checked by the already-approved native-human procedure; JSON is not approval.
+The small shared `company-development-state.mjs` is essential to use the same
+read-only state/security/re-entry rules in both existing CLI routes, rather than
+duplicate them. It is not another deployable, Bicep surface, service or tool.
 
-## Existing one-shot design and invariant (implemented preparation, not activation)
+PR #161 hardens that contract without changing its authorization: same-stage
+recovery/replay binds the original apply client before execution/checkpoint
+creation and preserves it in later checkpoints. Protected scopes use closed
+read/deployment-operation allowlists with per-grant effective exclusions, not a
+finite mutation blacklist. A distinct already-succeeded target needs its own
+verified completion checkpoint. A completed same-stage predecessor can only
+verify no-op or stop; a missing PG server/children never permits write recovery.
+Successful targetless ARM output evaluation is not resource-creation evidence.
+The pinned Checkov adapter exposes conditional resource bodies to existing
+checks without evaluating away a branch, changing Bicep payloads, or adding
+skips. Parser errors/unknown conditional shapes remain blocking.
+
+| Requirement | Executable behavior / acceptance evidence | Remaining work / execution blockers |
+| --- | --- | --- |
+| R1 stage-selective templates | Three existing Bicep surfaces; seven bootstrap writes; nine continuation writes and existing bootstrap references. Actual compiled inventory/security tests protect PG16/B1ms/32 GiB Premium_LRS/seven-day/Entra-only, ACA Consumption and source/default payload digest, including full Defender 100 GB/index settings. Company stages never grant or write Defender/scanner. | No live capacity, eligibility or minimum ACA permission sufficiency claim. |
+| R2 versioned evidence | Seven-file v2 plan, stage/mode/SHA/run/attempt/native context, exact baseline/expected inventory, complete nine-path dependency manifest and raw hashes. Continuation/re-entry bind predecessor checkpoint hash AND actual GitHub apply workflow/repository/main/manual run/attempt/artifact ID/name/expiry; checkpoint binds source/template/parameters and actual resources/original apply caller. Legacy/historical full plans fail. | Artifact IDs come from real metadata, not invented pre-upload IDs. Human references/hashes are review context, not issuer attestations or authenticated owner approval. |
+| R3 actual state / human handoff | Typed resources/ARM operations reconstruct actual UAMI tenant/resource/principal/client IDs; manual-only deterministic four-grant preparation/idempotency never executes grants. Current direct/inherited grants, scanner identity/Data Owner, full on-upload/100 GB/index/no-exclusion settings and reviewed service inventory are read. Caller-context permission reads reject surviving bootstrap/security/data authority and bind original bootstrap apply SP. Owner functional record and all references are protected-context/hash-bound. | Machine scope is readable identities/settings/grants/current-caller permissions only. Owner/native review must establish equivalent/transitive/PIM rights removal, genuine observation and separate test authority. Hidden internal topology remains UNVERIFIED, not proved from names/tags/absence of errors. |
+| R4 safe submission/re-entry | Initial bootstrap requires empty resources/history. Actual frozen baseline and terminal ARM operations, exact staged inventory, explicit canonical property-level Modify approvals and fresh matching what-if are required for recovery. Failed/canceled/unknown/running/timeouts stop without auto-retry/delete. Completed exact source/template/parameters/current resources plus fresh NoChange is no-PUT, including inspection after an unknown submission outcome. | Newly observed partial-bootstrap identities lack historical checkpoint continuity; owner must inspect creation/activity/operations under freeze. Recorded identities cannot be swapped/recreated. This is a human limitation, not fabricated machine continuity proof. |
+| R5 native workflows | Two existing main/manual-only workflows, same concurrency, distinct federated identities, stage/mode/version/context inputs and explicit artifacts/checkpoint. Independent required reviewer, initiator/rerun-actor separation, prevent-self-review, exact SHA/run/attempt/environment ID/snapshot and live UI bypass-off review retained. RG caller permission reads check only documented template PUT types/deployment what-if/workspace-key action against stage allowlists. | Native controls and actual authority remain external. Known-operation checks explicitly return ACA minimum permission proof EXTERNAL_REQUIRED; they do not establish the complete custom-VNet backend permission contract. No broader grants or activation-variable changes. |
+| R6 local tests | Existing company tests cover positive functional handoff and both protected CLIs through continuation/no-op, exact recovery deltas, timeout/unknown inspection, foreign destination/tenant/principal/roles, missing/stale/failed security, non-revocation, insufficient/broad caller rights, stage/version/hash/dependency/provenance drift and no PUT on failures. Compiled security/default compatibility and pinned parser coverage retained. | Local/synthetic only; no live upload, permissions, activation or Azure validation. Exact BEFORE/RED/AFTER/GREEN and full-verification results are retained in session evidence. |
+
+#### Backend-evidence semantic: historical question and specific owner resolution
+
+The official [Defender settings read schema, 2025-06-01](https://github.com/Azure/azure-rest-api-specs/blob/main/specification/security/resource-manager/Microsoft.Security/Security/stable/2025-06-01/defenderForStorageSettings.json)
+exposes enabled/cap/index settings and `operationStatus` for failure/partial
+success, **not** a successful provisioning-state field or storage-to-scanner
+linkage. The optional `scanResultsEventGridTopicResourceId` is a results
+destination, not evidence identifying the service-managed backend.
+The official [data scanner read schema, 2026-08-01](https://github.com/Azure/azure-rest-api-specs/blob/main/specification/security/resource-manager/Microsoft.Security/Security/stable/2026-08-01/datascanners.json)
+exposes an identity-only resource; its properties do not identify Storage,
+backend Event Grid or provisioning state. These are documented read schemas,
+not proof of provider availability in this destination. No Azure reads/writes
+were performed to establish live behavior, and Bicep API versions are unchanged.
+
+The implementation originally stopped and asked for the authoritative observable
+instead of inventing fields/linkage. The specific owner decision linked above
+resolves **only** that missing semantic: readable settings/identities/permissions
+plus an owner-confirmed harmless functional test, not complete internal mapping.
+The current local contract binds exact subscription/RG/Storage/container via IDs
+and the readable snapshot hash; a UUID-named `synthetic-<UUID>.txt`, version or
+ETag, content SHA256 and 1–65536-byte length; `cmbuyamba` observation and separate
+execution-authorization references; strict UTC enablement ≤ test start ≤ upload
+≤ scan ≤ owner observation ≤ now, within 24 hours of test start/observation;
+result exactly `No threats found`. Missing/failed/stale/mismatched records stop.
+The 24-hour/64-KiB bounds are conservative local evidence limits, not Azure SLAs.
+
+Microsoft's [manual test procedure](https://learn.microsoft.com/en-us/azure/defender-for-cloud/defender-for-storage-test)
+describes observing “Malware scanning scan result” and “Malware scanning scan
+time”. [Blob index tags are mutable and not tamper-resistant](https://learn.microsoft.com/en-us/azure/defender-for-cloud/introduction-malware-scanning#blob-index-tags).
+They MUST NOT be the sole security control or an automated security-sensitive
+data-admission signal; owner-confirmation/native review plus readable configuration
+and actual grants are required here. The workflow does not read/upload/delete/
+modify blobs or tags. No new topic/diagnostic service, EICAR, endpoint exclusion,
+app/customer-data/migration/cutover capability or live test authority is added.
+Optional results topics and absence of errors never prove internal linkage.
+
+All relevant Bicep and the pinned parser gate remain required, without gate/
+exclusion changes. No source/default resource behavior changes. Withhold activation
+until actual external controls, offer/capacity and minimum ACA permissions are
+proven; preserve unused resources/evidence after partial execution, never delete
+or retry automatically.
+
+## Historical one-shot design and invariant (superseded execution shape)
+
+The one-shot narrative below preserves the earlier design record. It must not
+be used as the staged runbook, permission allowlist or current artifact schema.
+In particular, company workflows no longer emit its four role grants/Defender;
+those remain unchanged only for source/default shared-module callers.
 
 The source foundation unconditionally enables PostgreSQL public networking and
 the `AllowAzureServices` special `0.0.0.0` firewall rule. That admits attempts from
@@ -162,7 +257,7 @@ sole serving system and the recovery boundary. ADR-008's Azure-first and
 ADR-001's modular-monolith boundaries remain unchanged; no deployable service is
 added. Production requirements in ADR-009 remain unresolved.
 
-## Proposed implementation
+## Historical proposed one-shot implementation
 
 - Fixed destination subscription `891e5e6e-8ae3-4455-9184-8d7606223d91`,
   tenant `8019a048-e7d6-48e8-984a-b902f641a21b`, required empty target RG
@@ -275,7 +370,7 @@ foundation estimate. Taxes, actual data/queries/management traffic, calendar hou
 future compute and restore duration can exceed the envelope. Budgets notify;
 they do not enforce $120. Stop and seek approval if pricing/scope changes.
 
-## Delivery, access and operational consequences
+## Historical one-shot delivery; retained access and operational constraints
 
 The preview route remains **preview only**. A separate plan-bound foundation apply
 route is prepared; both are disabled until externally activated after review.

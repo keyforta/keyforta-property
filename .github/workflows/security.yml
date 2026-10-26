@@ -127,12 +127,21 @@ jobs:
             --entrypoint python3 \
             bridgecrew/checkov:3.3.17@sha256:41c4701c6a56d8952e5aba7a420f871c8b70b57da94eb4f142dcdf7295bb0be3 \
             scripts/verify/company-foundation-parser.py
+          docker run --rm \
+            --volume "$PWD:/repo:ro" \
+            --workdir /repo \
+            --entrypoint python3 \
+            bridgecrew/checkov:3.3.17@sha256:41c4701c6a56d8952e5aba7a420f871c8b70b57da94eb4f142dcdf7295bb0be3 \
+            scripts/verify/checkov-bicep.test.py
 
       - name: Scan Bicep security configuration
         run: |
           docker run --rm \
             --volume "$PWD:/repo:ro" \
+            --workdir /repo \
+            --entrypoint python3 \
             bridgecrew/checkov:3.3.17@sha256:41c4701c6a56d8952e5aba7a420f871c8b70b57da94eb4f142dcdf7295bb0be3 \
+            scripts/verify/checkov-bicep.py \
             --directory /repo/infra/bicep \
             --framework bicep \
             --skip-path /repo/infra/bicep/mcp.bicep \
