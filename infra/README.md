@@ -1106,6 +1106,25 @@ still blocked, not upgraded by omitting files.
 
 #### Receipt, consumption and stop conditions
 
+The continuation Defender read accepts exactly `blobIndexTags` (the
+[REST 2025-06-01 enum](https://learn.microsoft.com/en-us/rest/api/defenderforcloud/defender-for-storage/get?view=rest-defenderforcloud-2025-06-01#blobscanresultsoptions))
+and `BlobIndexTags` (actual Azure GET casing, also documented by the
+[Microsoft SDK](https://learn.microsoft.com/en-us/javascript/api/@azure/arm-security/blobscanresultsoptions?view=azure-node-latest)).
+Both mean “Write scan results on the blobs index tags”; `None` means not writing
+those tags and remains rejected, as do missing/unknown representations. This is
+comparison-only compatibility, like the existing bounded typed-resource
+comparison: raw settings and their evidence/drift hashes are not rewritten.
+Enabled on-upload scanning, discovery off, the full 100 GB cap, exclusions/status,
+scanner identity/grants, authorization and functional-test checks remain intact.
+This casing fix does not establish a successful live security handoff or resolve
+scanner/operator/ACA access blockers. Source manifest versions 5/6 and historical
+pins remain unchanged: the existing exact runtime/review paths already include
+the validator, its regression tests and this document; fresh execution still
+requires exact committed-source quality/evidence and explicit authorization.
+No Azure changes, added costs, deployment, backup/restore, telemetry or readiness
+claims follow from this local fix. Roll back by reverting the PR; preserve saved
+evidence and enabled protection, without settings/grant reconciliation.
+
 Only a normal successful audit emits
 `company-dev-bootstrap-completion-v1-SHA-RUN-ATTEMPT`, seven-day retention, with
 exactly `receipt.json`, `historical-original.zip`,
