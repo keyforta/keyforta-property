@@ -8,7 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import {
   armParameters, assertAzureContext, assertReviewContext, currentRun, destination,
-  foundationSource, guard, normalizedPreview, validateInputs, workflowContext,
+  foundationSource, guard, normalizedPreview, preserveWhatIfDiagnostics, validateInputs, workflowContext,
   assertBootstrapPreview, assertImplementedStage, assertNoSecretPayload, bootstrapInventory, sourcePaths, stageInventory, validatePreview,
 } from "./company-development.mjs";
 
@@ -22,7 +22,11 @@ function command(executable, args) {
 }
 const github = (path) => JSON.parse(command("gh", ["api", `repos/${repository}/${path}`]));
 function azure(args) {
-  try { return JSON.parse(command("az", [...args, "--subscription", destination.subscriptionId, "--output", "json", "--only-show-errors"])); }
+  try {
+    const stdout = command("az", [...args, "--subscription", destination.subscriptionId, "--output", "json", "--only-show-errors"]);
+    if (args.slice(0, 3).join(" ") === "deployment group what-if") preserveWhatIfDiagnostics(stdout, "apply");
+    return JSON.parse(stdout);
+  }
   catch (error) {
     const match = /^ERROR: \((ResourceNotFound|DeploymentNotFound)\)/m.exec(error.stderr?.toString() ?? "");
     if (match) error.code = match[1]; // distinguish documented absence from 403/transport/unknown failures
@@ -620,6 +624,7 @@ async function apply() {
   mkdirSync("company-dev-apply", { recursive: true, mode: 0o700 });
   writeJson("company-dev-apply/reviewed-inputs.json", { ...verified.expected, reviewContext: verified.context, qualityRuns: verified.qualityRuns });
   writeJson("company-dev-apply/template.json", verified.plan.template);
+  let acceptedPreview;
   const preview = () => {
     const fresh = azure([
     "deployment", "group", "what-if", "--resource-group", destination.resourceGroup,
@@ -629,7 +634,7 @@ async function apply() {
     "--validation-level", "ProviderNoRbac", "--result-format", "FullResourcePayloads", "--no-pretty-print",
     ]);
     assertNoSecretPayload(fresh);
-    writeJson("company-dev-apply/fresh-what-if.json", fresh);
+    acceptedPreview = fresh; // do not put rejected responses in execution evidence
     return fresh;
   };
   const request = applyRequest(verified.plan, currentRun().revision);
@@ -650,6 +655,7 @@ async function apply() {
   }
   const submit = () => {
     quality(); workflowContext(); destinationContext(verified.plan.inputs);
+    writeJson("company-dev-apply/fresh-what-if.json", acceptedPreview);
     writeJson("company-dev-apply/submission.json", { url: request.url, bodySha256: hash(JSON.stringify(request.body)), executionRun: currentRun(), reviewed: verified.expected });
     checkpoint(false, verified.plan.inventory.baseline);
     // The only write: reviewed ARM template/parameters inline. Never grants,
@@ -659,6 +665,7 @@ async function apply() {
   if (verified.plan.inputs.stageContext) {
     const decision = stateEngine.executeReviewedStage({ plan: verified.plan, predecessor, read: azure, preview, submit });
     if (decision.action === "noop") {
+      writeJson("company-dev-apply/fresh-what-if.json", acceptedPreview);
       checkpoint(true, decision.resources, { name: decision.inspection.name, commitSha: decision.inspection.name === predecessor.deploymentName ? (predecessor.deploymentCommitSha ?? predecessor.commitSha) : currentRun().revision }, decision.sourceTransition ? decision : null);
       if (decision.sourceTransition) writeJson("company-dev-apply/bootstrap-state.json", { ...decision.verifiedBootstrap,
         sourceTransition: decision.sourceTransition, originalCheckpointBinding: verified.plan.inputs.stageContext.predecessor,

@@ -3,7 +3,7 @@
 // helpers. No Azure SDK, Blob data transport, grant or deployment capability.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { assertNoSecretPayload, assertVerificationSources, bootstrapInventory, continuationInventory, destination, securityInventory } from "./company-development.mjs";
+import { assertNoSecretPayload, assertVerificationSources, assertWhatIfCollections, bootstrapInventory, continuationInventory, destination, securityInventory } from "./company-development.mjs";
 export { continuationInventory } from "./company-development.mjs";
 import { armGuid, assertHumanGrantAssignments, readBootstrapState, recoveryOrigin } from "./company-development-apply.mjs";
 
@@ -318,8 +318,8 @@ export function assertWriterRevoked(read, predecessor, phase = "apply", security
 }
 export function validateStageChanges(preview, plan, completed) {
   assertNoSecretPayload(preview);
+  assertWhatIfCollections(preview);
   if (plan.inputs.stageContext?.sourceTransition) {
-    for (const key of ["diagnostics", "potentialChanges"]) assert.ok(preview[key] === undefined || (Array.isArray(preview[key]) && preview[key].length === 0), "Verification-only what-if diagnostics/potential changes");
     assert.ok(preview.changes?.every((c) => c.changeType === "NoChange" && (!c.delta || c.delta.length === 0)), "Verification-only requires exclusively NoChange without property deltas");
   }
   assert.ok(!preview.error && Array.isArray(preview.changes) && preview.changes.length, "Missing/failed staged what-if");

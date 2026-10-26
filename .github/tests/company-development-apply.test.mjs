@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import test, { after } from "node:test";
@@ -342,6 +342,16 @@ test("verification-only artifact parser rejects forged/stale metadata, origin an
 });
 
 test("verification-only fresh what-if must be diagnostic-free NoChange; post-preview drift never submits", async () => {
+  for (const fields of [{}, { diagnostics: null }, { potentialChanges: null },
+    { diagnostics: null, potentialChanges: null }, { diagnostics: [], potentialChanges: [] }]) {
+    const f = await verificationRecoveryFixture();
+    const fresh = { ...structuredClone(f.plan.whatIf), status: "Succeeded", error: null, ...fields };
+    let puts = 0;
+    const decision = f.execute({ plan: f.plan, predecessor: f.predecessor, read: f.read,
+      preview: () => fresh, submit: () => { puts++; } });
+    assert.equal(decision.action, "noop");
+    assert.equal(puts, 0);
+  }
   for (const change of [
     (p) => { p.changes[0].changeType = "Create"; },
     (p) => { p.changes[0].changeType = "Modify"; },
@@ -350,6 +360,9 @@ test("verification-only fresh what-if must be diagnostic-free NoChange; post-pre
     (p) => { p.changes[0].delta = [{ path: "x", propertyChangeType: "Modify" }]; },
     (p) => { p.diagnostics = [{ message: "unresolved" }]; },
     (p) => { p.potentialChanges = [{}]; },
+    ...["diagnostics", "potentialChanges"].flatMap((key) => [false, 0, "", {}, "unknown", [null]].map((value) => (p) => { p[key] = value; })),
+    (p) => { p.status = "Failed"; },
+    (p) => { p.error = { code: "ProviderFailure", message: "synthetic provider failure" }; },
     (p) => { p.changes.push({ resourceId: "/foreign", changeType: "NoChange", after: { type: "Unknown" } }); },
     (p) => { p.changes.pop(); },
   ]) {
@@ -358,6 +371,20 @@ test("verification-only fresh what-if must be diagnostic-free NoChange; post-pre
     let puts = 0;
     assert.throws(() => f.execute({ plan: f.plan, predecessor: f.predecessor, read: f.read,
       preview: () => fresh, submit: () => { puts++; } }));
+    assert.equal(puts, 0);
+  }
+  // Genuine CLI response shape: null collections do not hide the independent
+  // three-Modify/five-Delete-property blocker. Synthetic values only.
+  {
+    const f = await verificationRecoveryFixture();
+    const fresh = { ...structuredClone(f.plan.whatIf), status: "Succeeded", error: null, diagnostics: null, potentialChanges: null };
+    for (const [index, count] of [[0, 2], [1, 1], [2, 2]]) {
+      fresh.changes[index].changeType = "Modify";
+      fresh.changes[index].delta = Array.from({ length: count }, (_, n) => ({ path: `properties.synthetic${n}`, propertyChangeType: "Delete", before: false, after: null }));
+    }
+    let puts = 0;
+    assert.throws(() => f.execute({ plan: f.plan, predecessor: f.predecessor, read: f.read,
+      preview: () => fresh, submit: () => { puts++; } }), /exclusively NoChange without property deltas/);
     assert.equal(puts, 0);
   }
   const f = await verificationRecoveryFixture();
@@ -1426,7 +1453,10 @@ if(name==="gh"){
  }
  else if(a[1]==="operation")value=e.RECOVERY==="true"?json("FAKE_OPERATIONS")[a[a.indexOf("--name")+1]]:json(e.STAGED==="true" && a[a.indexOf("--name")+1].includes("-continuation-")?"FAKE_CONTINUATION_RESOURCES":"FAKE_RESOURCES").map(r=>({properties:{provisioningState:"Succeeded",provisioningOperation:"Create",targetResource:{id:r.id,resourceType:r.type}}}));
  else if(a[2]==="list")value=e.RECOVERY==="true"?json("FAKE_DEPLOYMENTS"):e.STAGED==="true"?[{name:e.BOOTSTRAP_DEPLOYMENT,properties:{provisioningState:"Succeeded"}},...(fs.existsSync("continued")?[{name:e.CONTINUATION_DEPLOYMENT,properties:{provisioningState:"Succeeded"}}]:[])]:e.EXISTING_DEPLOYMENT==="true"?[{name:"previous",properties:{provisioningState:e.PREVIOUS_STATE||"Running"}}]:[];
- else if(a[2]==="what-if"){value=json("FAKE_WHAT_IF");if(e.DRIFT==="true")value.changes[0].after.name="drift"}
+ else if(a[2]==="what-if"){
+  if(e.PROVIDER_ERROR==="true"){console.error("ERROR: (ProviderFailure) synthetic original provider error");process.exit(3)}
+  value=json("FAKE_WHAT_IF");if(e.DRIFT==="true")value.changes[0].after.name="drift"
+ }
  else if(a[2]==="show"){
   const name=a[a.indexOf("--name")+1];
   if(e.RECOVERY==="true"){
@@ -1482,6 +1512,30 @@ console.log(JSON.stringify(value));
       assert.match(dirty.stderr, /source differs from committed bytes/i);
     }
     writeFileSync(sourcePath, committedSource);
+    const diagnosticRoot = join(dir, "company-dev-whatif-diagnostics");
+    for (const field of ["diagnostics", "potentialChanges"]) {
+      const payload = { ...JSON.parse(env.FAKE_WHAT_IF), status: "Succeeded", error: null,
+        [field]: [{ message: "synthetic-private@example.invalid Bearer private-test-token" }] };
+      const rejected = run("apply", { FAKE_WHAT_IF: JSON.stringify(payload) });
+      assert.equal(rejected.status, 1);
+      assert.match(rejected.stderr, /diagnostics\/potential changes/);
+      const files = readdirSync(diagnosticRoot).map((folder) => join(diagnosticRoot, folder, "response.json"));
+      const record = files.map((file) => JSON.parse(readFileSync(file, "utf8"))).find((v) => v.responseSha256 === hash(`${JSON.stringify(payload)}\n`));
+      assert.ok(record, "Actual CLI stdout hash must be retained before validation throws");
+      for (const file of files) assert.doesNotMatch(readFileSync(file, "utf8"), /synthetic-private|private-test-token/);
+      assert.equal(existsSync(join(dir, "company-dev-apply/fresh-what-if.json")), false);
+      assert.equal(existsSync(join(dir, "company-dev-apply/submission.json")), false);
+    }
+    const diagnosticCount = readdirSync(diagnosticRoot).length;
+    const secret = run("apply", { FAKE_WHAT_IF: JSON.stringify({ ...JSON.parse(env.FAKE_WHAT_IF), accessToken: "synthetic-private-test-token" }) });
+    assert.equal(secret.status, 1);
+    assert.match(secret.stderr, /Resolved secret/);
+    assert.doesNotMatch(secret.stderr, /synthetic-private-test-token/);
+    assert.equal(readdirSync(diagnosticRoot).length, diagnosticCount);
+    const providerError = run("apply", { PROVIDER_ERROR: "true" });
+    assert.equal(providerError.status, 1);
+    assert.match(providerError.stderr, /ProviderFailure.*synthetic original provider error/);
+    assert.equal(readdirSync(diagnosticRoot).length, diagnosticCount);
     for (const changes of [
       { FAIL_QUALITY: "true" }, { DRIFT: "true" }, { NONEMPTY: "true" }, { APPLY_CLIENT_ID: evidence.previewClientId },
       ...["Running", "Failed", "Succeeded", "Canceled", "Unknown"].map((state) => ({ EXISTING_DEPLOYMENT: "true", PREVIOUS_STATE: state })),

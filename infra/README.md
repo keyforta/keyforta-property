@@ -378,6 +378,57 @@ incomplete checkpoint/artifact reference, original deployment name/SHA and
 success provenance. Preserve the original ZIP/checkpoint untouched. Without the
 explicit transition, the old same-source guard still rejects source drift.
 
+#### Rejected what-if diagnostics — not approval or recovery evidence
+
+The [published ARM 2025-04-01 response schema](https://learn.microsoft.com/en-us/rest/api/resources/deployments/what-if?view=rest-resources-2025-04-01)
+defines optional `diagnostics` and `potentialChanges` arrays under flattened
+operation properties. The [official SDK properties model](https://learn.microsoft.com/en-us/python/api/azure-mgmt-resource-deployments/azure.mgmt.resource.deployments.models.whatifoperationproperties?view=azure-python)
+documents both as `list | None`. The CLI `--no-pretty-print` response can
+therefore contain missing fields, JSON `null`, or empty arrays for no issues.
+Only those shapes pass; nonempty collections (including real warnings), objects,
+scalars and unknown shapes remain blocking on both preview and apply. Explicit
+non-success status or provider error also blocks. This does **not** normalize
+resource changes, suppress property predictions or weaken exact-source/no-op gates.
+
+Both CLIs capture a **sanitized structural JSON projection** of successful CLI
+stdout before semantic validation, under the separate
+`company-dev-whatif-diagnostics/{preview|apply}-*/response.json` directory.
+The record binds the SHA256 of the **exact stdout bytes**, phase, diagnostic
+purpose and `executionApproved=false`. It retains collection null/empty/nonempty/
+malformed shapes and known resource/property change enums, not raw provider
+messages, arbitrary keys, identifiers, property paths, before/after values or
+other free text. It is intentionally lossy; the hash is not a copy of the
+original response. No raw payload is uploaded there. The existing resolved-secret
+guard runs before any diagnostic file is created; a secret-bearing payload fails
+without a diagnostic upload. CLI/transport/JSON errors remain failures, never
+fabricated successful responses or empty-plan fallbacks. Directories are private
+0700 and exclusive new files 0600; unsafe existing roots/symlinks stop the route.
+
+Only a failed preview/apply route triggers the separate seven-day
+`company-dev-foundation-{preview|apply}-whatif-diagnostics-SHA-RUN-ATTEMPT`
+artifact upload, when a safe record exists. This upload cannot make the rejected
+run successful. A failed preview does **not** upload the seven-file plan, and a
+rejected fresh apply response is **not** written as accepted
+`company-dev-apply/fresh-what-if.json`. Ordinary execution/failure checkpoint
+evidence remains separate. Never feed diagnostics to plan/apply/checkpoint
+parsers or treat them as human authorization or a verified no-op.
+
+Historical failed preview `40267754253` attempt `1` had no artifact; its original
+payload remains unavailable. A later read-only administrator reproduction had
+`diagnostics=null`, `potentialChanges=null`, **three Modify resources and five
+Delete property predictions**. Null handling alone does not unblock it: the
+strict NoChange/no-property-delta gate still rejects it. No property prediction
+is suppressed by this fix, and no recovery completion is claimed.
+
+**Source-boundary stop:** failure-upload wiring changes the two workflows.
+The existing verification-only source-transition allowlist deliberately rejects
+workflow changes. It is unchanged by this fix; a transition spanning this patch
+cannot pass that gate. Stop for separately authorized review rather than expand
+the allowlist, reuse old approval evidence or dispatch a recovery. Templates,
+resource/parameter payloads, live permissions/settings, costs and operational
+readiness obligations are unchanged. Rollback is a separately authorized code
+revert and fresh reviewed plan, never an automatic Azure action.
+
 **Runtime remains unchanged:** no recovery run/artifact has been created by
 this code work. Persisted preview API bypass=true/apply=false does not replace
 fresh human bypass-off verification, and no setting is changed here. Maintain
