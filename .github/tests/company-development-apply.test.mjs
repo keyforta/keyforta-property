@@ -164,6 +164,62 @@ async function bootstrapRecoveryFixture() {
   return f;
 }
 
+test("Defender index-tag API casing accepts only documented and observed representations without rewriting evidence", async () => {
+  const f = await stagedFixture();
+  for (const option of ["blobIndexTags", "BlobIndexTags"]) {
+    f.transport.defender.properties.malwareScanning.blobScanResultsOptions = option;
+    const before = structuredClone(f.transport.defender);
+    const security = f.state.readSecurity(f.read, f.context.security, f.predecessor);
+    assert.equal(security.settings.malwareScanning.blobScanResultsOptions, option);
+    assert.deepEqual(f.transport.defender, before, "Comparison must retain raw provider evidence");
+    const other = structuredClone(security);
+    other.settings.malwareScanning.blobScanResultsOptions = option === "BlobIndexTags" ? "blobIndexTags" : "BlobIndexTags";
+    assert.notEqual(f.state.stateHash(security), f.state.stateHash(other), "Evidence hashes still detect representation drift");
+  }
+});
+
+test("Defender index-tag API casing still rejects other, unknown and missing result modes", async () => {
+  const f = await stagedFixture();
+  for (const option of ["None", "none", "EventGrid", "BLOBINDEXTAGS", "blobindextags", "BlobIndexTags ", "", null, undefined, false, {}, ["BlobIndexTags"]]) {
+    f.transport.defender.properties.malwareScanning.blobScanResultsOptions = option;
+    assert.throws(() => f.state.readSecurity(f.read, f.context.security, f.predecessor), /Current readable index setting missing\/drifted/);
+  }
+  delete f.transport.defender.properties.malwareScanning.blobScanResultsOptions;
+  assert.throws(() => f.state.readSecurity(f.read, f.context.security, f.predecessor), /Current readable index setting missing\/drifted/);
+});
+
+test("Defender index-tag API casing does not bypass malware, discovery, cap, status or security checks", async () => {
+  const mutations = [
+    (f) => { f.transport.defender.properties.isEnabled = false; },
+    (f) => { f.transport.defender.properties.overrideSubscriptionLevelSettings = false; },
+    (f) => { f.transport.defender.properties.malwareScanning.onUpload.isEnabled = false; },
+    (f) => { delete f.transport.defender.properties.malwareScanning.onUpload; },
+    (f) => { f.transport.defender.properties.sensitiveDataDiscovery.isEnabled = true; },
+    (f) => { delete f.transport.defender.properties.sensitiveDataDiscovery; },
+    (f) => { f.transport.defender.properties.malwareScanning.onUpload.capGBPerMonth = 99; },
+    (f) => { delete f.transport.defender.properties.malwareScanning.onUpload.capGBPerMonth; },
+    (f) => { f.transport.defender.properties.malwareScanning.onUpload.filters = { excludeBlobsLargerThan: 1024 }; },
+    (f) => { f.transport.defender.properties.malwareScanning.operationStatus = { code: "PartialSuccess" }; },
+    (f) => { f.transport.defender.properties.sensitiveDataDiscovery.operationStatus = { code: "Failed" }; },
+    (f) => { f.transport.scanner.identity.type = "systemassigned"; },
+    (f) => { f.transport.scanner.identity.tenantId = "00000000-0000-4000-8000-000000000999"; },
+    (f) => { f.transport.assignments.pop(); },
+    (f) => { f.context.security.writerRemovalReference = undefined; },
+  ];
+  for (const mutate of mutations) {
+    const f = await stagedFixture();
+    f.transport.defender.properties.malwareScanning.blobScanResultsOptions = "BlobIndexTags";
+    mutate(f);
+    assert.throws(() => f.state.readSecurity(f.read, f.context.security, f.predecessor), undefined, String(mutate));
+  }
+  const f = await stagedFixture();
+  f.transport.defender.properties.malwareScanning.blobScanResultsOptions = "BlobIndexTags";
+  assert.throws(() => f.state.readSecurity((args) => {
+    if (args.some((arg) => arg.includes("/defenderForStorageSettings/"))) throw new Error("403 settings unreadable");
+    return f.read(args);
+  }, f.context.security, f.predecessor), /403 settings unreadable/);
+});
+
 test("typed completion basis supports only separately authorized continuation and manual grant preparation", async () => {
   const { auditCompletion } = await import("../../scripts/infra/company-development-completion.mjs");
   const { authenticateCompletion, completionBasis, original } = await import("../../scripts/infra/company-development-completion-validation.mjs");

@@ -79,7 +79,11 @@ export function readSecurity(read, context, predecessor) {
   assert.equal(p.malwareScanning?.onUpload?.isEnabled, true, "On-upload scanning disabled");
   assert.equal(p.malwareScanning.onUpload.capGBPerMonth, 100, "Full 100 GB scan cap required");
   for (const value of Object.values(p.malwareScanning.onUpload.filters ?? {})) assert.ok(value === null || (Array.isArray(value) && value.length === 0), "Scanning exclusions violate full on-upload coverage");
-  assert.equal(p.malwareScanning.blobScanResultsOptions, "blobIndexTags", "Current readable index setting missing/drifted");
+  // REST 2025-06-01 spells this blobIndexTags; Azure readback/SDK use
+  // BlobIndexTags for the same index-tag mode. Compare only these two known
+  // representations; retain the raw response for evidence hashes/drift checks.
+  const indexMode = p.malwareScanning.blobScanResultsOptions;
+  assert.equal(indexMode === "BlobIndexTags" ? "blobIndexTags" : indexMode, "blobIndexTags", "Current readable index setting missing/drifted");
   assert.ok(!p.malwareScanning.operationStatus && !p.sensitiveDataDiscovery.operationStatus, "Failure/partial-success scan configuration status");
   const scannerPattern = new RegExp(`^/subscriptions/${destination.subscriptionId}(?:/resourceGroups/${destination.resourceGroup})?/providers/Microsoft.Security/dataScanners/[^/?#]+$`, "i");
   assert.match(context.scannerId ?? "", scannerPattern, "Wrong actual scanner destination");
