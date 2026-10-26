@@ -6,6 +6,26 @@ import { generateCompletionFixtures } from "./fixtures/generate-company-completi
 import { original, sha256, assertOriginalFiles, assertAuditPayload } from "../../scripts/infra/company-development-completion-validation.mjs";
 import { readArchive } from "../../scripts/infra/company-development-completion.mjs";
 
+test("synthetic gzip uses canonical OS-neutral framing and verbatim DEFLATE evidence", () => {
+  const { arm } = generateCompletionFixtures();
+  const payload = gunzipSync(arm);
+  // RFC 1952: no timestamp, optional fields, compressor hint or host OS.
+  assert.equal(arm.subarray(0, 10).toString("hex"), "1f8b08000000000000ff");
+  // RFC 1951: one final stored block, independent of native zlib heuristics.
+  assert.ok(payload.length <= 65535, "Fixture must fit the reviewed single-block encoding");
+  assert.equal(arm[10], 1);
+  assert.equal(arm.readUInt16LE(11), payload.length);
+  assert.equal(arm.readUInt16LE(13), payload.length ^ 0xffff);
+  assert.deepEqual(arm.subarray(15, -8), payload);
+  assert.equal(arm.readUInt32LE(arm.length - 4), payload.length);
+  // gunzip must authenticate both the CRC32 and size, not merely parse JSON.
+  for (const offset of [15, arm.length - 8, arm.length - 4]) {
+    const tampered = Buffer.from(arm);
+    tampered[offset] ^= 1;
+    assert.throws(() => gunzipSync(tampered), /incorrect (?:data|length) check/);
+  }
+});
+
 test("published fixtures are reproducible synthetic data, never the authenticated operational archive", () => {
   const f = generateCompletionFixtures(), again = generateCompletionFixtures();
   assert.deepEqual(f.archive, again.archive);

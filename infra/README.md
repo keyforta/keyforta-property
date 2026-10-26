@@ -531,6 +531,20 @@ exists in this route. GitHub artifact upload stores evidence only.
    repository-wide implementation diff digest. Unknown paths/workflows and
    deployment payload/parser changes still fail closed.
 
+   Regenerate publication fixtures only with
+   `node .github/tests/fixtures/generate-company-completion.mjs`. The synthetic
+   ARM gzip uses an OS-neutral, zero-timestamp header, one stored DEFLATE block
+   (maximum 65535 payload bytes), CRC32 and exact size; native compression is
+   intentionally avoided. Linux Node 24 and macOS produced different compressed
+   bodies as well as OS headers for identical JSON. Normalizing only the header
+   does not fix reproducibility. Tests retain strict whole-file SHA256 equality,
+   check canonical framing and reject payload/checksum/size corruption.
+   The canonical gzip SHA256 is
+   `2c5635feb9369f66627f5c972fe603e1951718d1a4335c098e90a2209e0fbe01`;
+   its decompressed evidence and synthetic ZIP are unchanged. Production
+   provenance bindings still reject the synthetic archive; never regenerate
+   fixtures from operational evidence or change runtime hashes to admit them.
+
    For local/CI workflow tests in a depth-1 checkout, shared test setup retrieves
    missing objects at exactly ORIGINAL and BASELINE from the fixed GitHub HTTPS
    repository (using `gh` credentials if requested). Git commit identities,

@@ -2,7 +2,7 @@
 // Run: node .github/tests/fixtures/generate-company-completion.mjs
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { gzipSync } from "node:zlib";
+import { crc32 } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import {
   destination, rg, bootstrapInventory, historicalSourcePaths, original as runtimeOriginal, sha256,
@@ -99,7 +99,17 @@ export function generateCompletionFixtures() {
   })) });
   const retained = { original, resources, inventory: resources.filter((r) => !r.type.includes("/blobServices")),
     history: deployments, deployments, operations, run, artifact, unresolvedWhatIfRaw };
-  return { archive, arm: gzipSync(json(retained), { level: 9 }), original, unresolvedWhatIfRaw };
+  // Canonical RFC 1952 gzip with one RFC 1951 stored block. Native compression
+  // varies with zlib implementation and host OS, even for identical evidence.
+  const payload = Buffer.from(json(retained));
+  if (payload.length > 65535) throw new Error("Synthetic evidence exceeds the reviewed single-block gzip limit");
+  const header = Buffer.from("1f8b08000000000000ff0100000000", "hex");
+  header.writeUInt16LE(payload.length, 11);
+  header.writeUInt16LE(payload.length ^ 0xffff, 13);
+  const trailer = Buffer.alloc(8);
+  trailer.writeUInt32LE(crc32(payload), 0);
+  trailer.writeUInt32LE(payload.length, 4);
+  return { archive, arm: Buffer.concat([header, payload, trailer]), original, unresolvedWhatIfRaw };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
