@@ -12,7 +12,7 @@ import {
   assertAuditPayload as assertNoSecretPayload, assertReadPermissions, assertReference, assertArtifactMetadata, historicalFiles,
   assertOriginalFiles, assertHistoricalState, completionAssertions, assertCompletionReceipt, authenticateCompletion, projectResources,
   historicalAuditGrants, assertObserverBinding, assertAuditGrants,
-  inspectionWorkflow, inspectionSourcePaths, permittedReadActions,
+  inspectionWorkflow, inspectionSourcePaths, permittedReadActions, uuid,
 } from "./company-development-completion-validation.mjs";
 
 const host = "https://management.azure.com";
@@ -427,11 +427,52 @@ function assertInspectionShape(snapshot, binding) {
   assert.deepEqual(snapshot.history.map((d) => d.name).sort(), [...names].sort(), "Wrong history");
   assert.equal(snapshot.deployments.length, 3, "Missing deployment objects");
   assert.equal(snapshot.operations.length, 3, "Missing operations");
+  assert.deepEqual(snapshot.operations.map((g) => g.deploymentName).sort(), [...names].sort(), "Wrong operation groups");
+  const text = (value) => typeof value === "string" && value.trim().length > 0;
+  const timestamp = (value) => assert.ok(typeof value === "string" && Number.isFinite(Date.parse(value)), "Missing/invalid historical timestamp");
+  // Validate evidence, not agreement with the original run. These checks must
+  // remain outside the historical semantic diagnostic catch, on BOTH reads.
+  // Require only fields consumed by the history contract, not optional SDK
+  // metadata (e.g. duration/statusCode/resourceName or operation object id).
   for (const name of names) {
-    const d = snapshot.deployments.find((v) => v.name === name);
-    assert.ok(d?.properties && sameId(d.id, `${rg}/providers/Microsoft.Resources/deployments/${name}`), "Wrong deployment object");
+    for (const collection of [snapshot.history, snapshot.deployments]) {
+      const d = collection.find((v) => v.name === name);
+      assert.ok(d?.properties && !Array.isArray(d.properties)
+        && sameId(d.id, `${rg}/providers/Microsoft.Resources/deployments/${name}`), "Wrong deployment/history object");
+      assert.ok(text(d.properties.provisioningState), "Missing/invalid deployment/history state");
+      assert.ok(typeof d.properties.correlationId === "string" && uuid.test(d.properties.correlationId), "Missing/invalid historical correlation");
+      timestamp(d.properties.timestamp);
+    }
     const rows = snapshot.operations.find((g) => g.deploymentName === name)?.operations;
-    assert.ok(Array.isArray(rows) && rows.length && rows.every((r) => r.operationId && r.properties?.provisioningOperation && r.properties?.provisioningState), "Incomplete operation shape");
+    assert.ok(Array.isArray(rows) && rows.length, "Missing operation visibility");
+    const seen = new Set(), signatures = [];
+    for (const op of rows) {
+      assert.ok(text(op.operationId) && !seen.has(op.operationId), "Missing/invalid/duplicate operation ID");
+      seen.add(op.operationId);
+      const p = op.properties, target = p?.targetResource;
+      assert.ok(text(p?.provisioningState), "Missing/invalid operation state");
+      timestamp(p.timestamp);
+      assert.ok(["Create", "Read", "EvaluateDeploymentOutput"].includes(p.provisioningOperation), "Unknown/destructive operation");
+      if (p.provisioningOperation === "EvaluateDeploymentOutput") {
+        assert.ok(target === undefined || target === null, "Output target forbidden");
+        signatures.push("EvaluateDeploymentOutput");
+      } else {
+        assert.ok(text(target?.id) && text(target.resourceType), "Missing/invalid operation target");
+        signatures.push(`${p.provisioningOperation}:${target.id.toLowerCase()}:${target.resourceType.toLowerCase()}`);
+      }
+    }
+    // Same closed root/nested/leaf targets and complete operation sets as
+    // assertHistoricalState. Foreign scope/type and missing rows are not drift
+    // diagnostics; complete state/correlation/time mismatches still can be.
+    const child = name === names[0] ? names[1] : name === names[1] ? names[2] : null;
+    const signature = (op, r) => `${op}:${r.id.toLowerCase()}:${r.type.toLowerCase()}`;
+    const expected = child ? ["Create", "Read"].map((op) => signature(op, {
+      id: `${rg}/providers/Microsoft.Resources/deployments/${child}`, type: "Microsoft.Resources/deployments",
+    })) : [
+      ...bootstrapInventory().map((r) => signature("Create", r)),
+      ...bootstrapInventory().filter((r) => r.type.endsWith("/registries") || /-(api|migration)$/.test(r.id)).map((r) => signature("Read", r)),
+    ];
+    assert.deepEqual(signatures.sort(), [...expected, "EvaluateDeploymentOutput"].sort(), "Incomplete/foreign context-bound operations");
   }
   assert.equal(typeof snapshot.defender?.properties?.isEnabled, "boolean", "Missing Defender visibility");
 }

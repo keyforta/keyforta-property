@@ -527,6 +527,12 @@ Failed calls, pagination, malformed/absent visibility, wrong caller, unknown
 authority/grants, source/state/guard drift or secrets are nonzero and upload
 nothing. The historical-state semantic validator alone may record `rejected`
 as a diagnostic fact after complete collection; that is **not** audit acceptance.
+Before that diagnostic boundary, both reads require scoped deployment/history
+IDs, nonempty state, UUID correlation and parseable timestamp, plus unique string
+operation IDs, state/timestamp and the complete context-bound Create/Read/output
+set. Create and Read require typed targets; EvaluateDeploymentOutput legitimately
+has no target (absent or null). Missing/malformed evidence is never a historical
+mismatch diagnostic, even when identically omitted from both snapshots.
 Scoped observer permissions must include the twelve RG reads (subscription
 reads are scoped at subscription), with no non-read/data/wildcard authority.
 This does not relax the audit's existing permission assertions. Every inspector

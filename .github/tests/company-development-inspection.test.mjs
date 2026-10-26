@@ -145,6 +145,113 @@ test("validator diagnostics are bounded facts, not completion or PIM/revocation 
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
+function historyEvidenceCases() {
+  const cases = [];
+  for (let i = 0; i < 3; i++) {
+    const add = (label, mutate) => cases.push([`${i}: ${label}`, mutate]);
+    const create = (s) => s.operations[i].operations.find((op) => op.properties.provisioningOperation === "Create");
+    add("empty deployment properties", (s) => { s.deployments[i].properties = {}; });
+    add("name-only history", (s) => { s.history[i] = { name: s.history[i].name }; });
+    for (const collection of ["deployments", "history"]) {
+      for (const field of ["provisioningState", "correlationId", "timestamp"]) {
+        add(`${collection} missing ${field}`, (s) => { delete s[collection][i].properties[field]; });
+        add(`${collection} invalid ${field}`, (s) => { s[collection][i].properties[field] = { invalid: true }; });
+      }
+      add(`${collection} unparseable timestamp`, (s) => { s[collection][i].properties.timestamp = "not-a-time"; });
+      add(`${collection} invalid correlation`, (s) => { s[collection][i].properties.correlationId = "not-a-uuid"; });
+      add(`${collection} foreign id`, (s) => { s[collection][i].id += "/foreign"; });
+    }
+    add("Create missing timestamp", (s) => { delete create(s).properties.timestamp; });
+    add("Create missing targetResource", (s) => { delete create(s).properties.targetResource; });
+    add("Create invalid timestamp", (s) => { create(s).properties.timestamp = 42; });
+    add("Create unparseable timestamp", (s) => { create(s).properties.timestamp = "not-a-time"; });
+    add("Create invalid target", (s) => { create(s).properties.targetResource = []; });
+    add("Create foreign target", (s) => { create(s).properties.targetResource.id += "/foreign"; });
+    add("Create wrong target type", (s) => { create(s).properties.targetResource.resourceType = "Unknown.Provider/type"; });
+    add("invalid operationId", (s) => { create(s).operationId = {}; });
+    add("unknown operation", (s) => { create(s).properties.provisioningOperation = "Delete"; });
+    add("Read missing target", (s) => { delete s.operations[i].operations.find((op) => op.properties.provisioningOperation === "Read").properties.targetResource; });
+    add("output missing timestamp", (s) => { delete s.operations[i].operations.find((op) => op.properties.provisioningOperation === "EvaluateDeploymentOutput").properties.timestamp; });
+    add("output unexpected target", (s) => {
+      s.operations[i].operations.find((op) => op.properties.provisioningOperation === "EvaluateDeploymentOutput").properties.targetResource = create(s).properties.targetResource;
+    });
+  }
+  return cases;
+}
+
+test("incomplete or malformed historical evidence rejects identical snapshots before diagnostics", () => {
+  const f = fixture();
+  try {
+    const original = structuredClone(f.snapshot);
+    for (const [label, mutate] of historyEvidenceCases()) {
+      Object.assign(f.snapshot, structuredClone(original)); mutate(f.snapshot); f.bindResponses();
+      assert.throws(() => route.inspectSnapshot(f.options()), undefined, label);
+    }
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("complete historical mismatches and targetless service outputs remain non-authoritative diagnostics", () => {
+  const f = fixture();
+  try {
+    f.snapshot.deployments[0].properties.correlationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    f.snapshot.operations[0].operations[0].properties.timestamp = "2021-01-01T00:00:00Z";
+    for (const group of f.snapshot.operations) {
+      delete group.operations.find((op) => op.properties.provisioningOperation === "EvaluateDeploymentOutput").properties.targetResource;
+    }
+    f.bindResponses();
+    const result = route.inspectSnapshot(f.options());
+    assert.equal(result.inspection.historicalStateValidation, "rejected");
+    for (const field of ["auditCompleted", "permissionsVerified", "writerRevocationVerified", "continuationAuthorized", "securityHandoffVerified"]) {
+      assert.equal(result.inspection[field], false);
+    }
+    assert.equal(result.receipt, undefined);
+    assert.equal(result.files["receipt.json"], undefined);
+    assert.throws(() => pure.assertCompletionReceipt(result.inspection));
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("actual inspector CLI rejects omitted history evidence without inspection artifact or completion receipt", () => {
+  const f = fixture();
+  try {
+    const now = Date.now();
+    f.intent.authorizedAt = new Date(now - 60000).toISOString();
+    f.metadata["actions/runs/9001/attempts/1"].created_at =
+      f.metadata["actions/runs/9001/attempts/1"].run_started_at = new Date(now - 30000).toISOString();
+    const mocks = installCliMocks(f, { ...process.env, ...f.env, INSPECTION_INTENT: JSON.stringify(f.intent),
+      AUDIT_CLIENT_ID: f.observerBinding.clientId, AUDIT_OBSERVER_BINDING: JSON.stringify(f.observerBinding),
+      GITHUB_OUTPUT: join(f.root, "inspection-output") });
+    const run = (mode, changes = {}) => spawnSync(process.execPath, ["scripts/infra/company-development-completion.mjs", mode], {
+      cwd: f.root, encoding: "utf8", env: { ...mocks.env, ...changes } });
+    const prepared = run("inspect-prepare");
+    assert.equal(prepared.status, 0, prepared.stderr);
+    const context = readFileSync(mocks.env.GITHUB_OUTPUT, "utf8").trim().split("=")[1];
+    const original = structuredClone(f.snapshot);
+    // Each mock endpoint returns the same incomplete record on both reads.
+    const cases = historyEvidenceCases().filter(([label]) => /empty deployment|name-only|missing (timestamp|targetResource|correlationId|provisioningState)/.test(label));
+    const failures = [];
+    for (const [label, mutate] of cases) {
+      Object.assign(f.snapshot, structuredClone(original)); mutate(f.snapshot); f.bindResponses(); mocks.save();
+      const result = run("inspect", { INSPECTION_CONTEXT: context });
+      const artifact = existsSync(join(f.root, "company-dev-inspection"));
+      const completion = existsSync(join(f.root, "company-dev-completion"));
+      if (result.status !== 1 || artifact || completion) failures.push({ label, status: result.status, artifact, completion });
+      // Only synthetic output in the isolated fixture; continue to expose each omission independently.
+      rmSync(join(f.root, "company-dev-inspection"), { recursive: true, force: true });
+    }
+    assert.deepEqual(failures, [], "Incomplete evidence must exit 1 with no artifact/receipt");
+    Object.assign(f.snapshot, structuredClone(original));
+    f.snapshot.defender.properties.isEnabled = true; f.bindResponses(); mocks.save();
+    const complete = run("inspect", { INSPECTION_CONTEXT: context });
+    assert.equal(complete.status, 0, complete.stderr);
+    const evidence = JSON.parse(readFileSync(join(f.root, "company-dev-inspection/inspection.json"), "utf8"));
+    assert.equal(evidence.historicalStateValidation, "rejected");
+    assert.equal(evidence.auditCompleted, false);
+    assert.equal(evidence.continuationAuthorized, false);
+    assert.equal(existsSync(join(f.root, "company-dev-inspection/receipt.json")), false);
+    assert.equal(existsSync(join(f.root, "company-dev-completion")), false);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
 test("inspection v4 closes exact new workflow and full published source; unknown workflow/helper and worktree tamper reject", () => {
   assert.equal(typeof route.inspectionSource, "function");
   const f = fixture();
