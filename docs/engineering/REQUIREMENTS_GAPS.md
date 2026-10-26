@@ -2,6 +2,58 @@
 
 This report records decisions without changing requirements.
 
+## Proposed single-owner company-development operating model
+
+**Status: proposal only; not an approved replacement for enforced controls.**
+
+In the owner-directed session on 2026-10-25 (America/Chicago), cmbuyamba
+stated that the company has one operator and requested removal of mandatory
+second-person environment and PR approvals. The user subsequently requested
+help documenting a replacement operating model. This records the request and
+its unresolved boundaries; it does not supersede
+[ADR-016](../adr/ADR-016-company-development-private-foundation.md),
+[AGENTS.md](../../AGENTS.md), or GitHub protections.
+
+**Outcome sought:** the sole owner can prepare, inspect and explicitly authorize
+company-development work without depending on an unavailable second operator.
+Ownership, technical review and execution authorization must be described
+accurately; owner confirmation is not independent review.
+
+Candidate acceptance boundary for policy review:
+
+1. The single-owner scope is limited to company DEVELOPMENT. Production,
+   customer-data use, payments and unrelated environments are excluded.
+2. Preview and apply remain distinct operations. Preview approval or success
+   never implies apply authorization. Apply requires a separate explicit owner
+   decision identifying the stage, immutable source revision and exact artifact.
+3. Automated tests, security scans, source/artifact integrity, destination
+   checks, least-privilege identities and staged permission/security handoff
+   remain required. Missing or stale evidence and unexpected changes stop
+   execution; owner status is not a substitute for technical evidence.
+4. The existing budget, no-extra-paid-service constraint, synthetic-data-only
+   boundary and prohibition on automatic deployment retries remain unchanged.
+5. Audit evidence identifies the actual owner/initiator and authorization
+   context. It must not invent a second reviewer, independent approval or a
+   successful run when none exists.
+6. Settings/code mismatches and changed protection snapshots remain failures,
+   not grounds to reuse old approvals or silently fall back to weaker checks.
+
+**Decisions still required:** whether the owner accepts this retained-control
+boundary; separate preview/apply authorization mechanics; exact company-only
+PR scope versus repository-wide branch protection; and policy approval,
+migration and rollback ownership. The earlier request to remove all controls
+does not resolve these questions. No replacement has been implemented or
+approved by this entry. Existing enforced requirements remain authoritative.
+
+**Observed mismatch:** after the owner removed company environment reviewer
+rules, preview run
+[40255897071](https://github.com/keyforta/keyforta-property/actions/runs/40255897071)
+failed with no plan steps executed. Current code requires reviewer protections,
+so changing GitHub settings alone does not implement a replacement model.
+Reconcile policy, tests, documentation and actual settings before claiming
+readiness. This proposal authorizes no workflow dispatch, settings/RBAC changes,
+uploads, deployment, commit, merge or activation.
+
 ## Proposed staged company-foundation contract
 
 2026-10-25: staged local implementation specifically
