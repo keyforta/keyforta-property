@@ -115,8 +115,8 @@ export const currentSourcePaths = Object.freeze([...historicalSourcePaths,
 // Inspection-only v4; keep historical v1 and completion v3 semantics intact.
 export const inspectionSourcePaths = Object.freeze([...currentSourcePaths, inspectionWorkflow]);
 export function manifestPaths(version) {
-  assert.ok(version === undefined || version === 3, "Unknown source manifest version");
-  return version === 3 ? currentSourcePaths : historicalSourcePaths;
+  assert.ok(version === undefined || version === 3 || version === 5, "Unknown source manifest version");
+  return version === undefined ? historicalSourcePaths : currentSourcePaths;
 }
 export const permittedReadActions = Object.freeze([
   "Microsoft.Resources/subscriptions/read", "Microsoft.Resources/subscriptions/resourceGroups/read",
@@ -407,15 +407,16 @@ export const completionAssertions = Object.freeze({
 export const receiptEvidencePaths = Object.freeze(["historical-original.zip", "historical-incomplete-checkpoint.json",
   "original-bindings.json", "actual-state.json", "read-journal.json", "source-review.json", "controls.json"]);
 export function assertCompletionReceipt(receipt) {
-  assert.equal(receipt?.version, 1, "Unknown receipt version");
+  assert.ok([1, 2].includes(receipt?.version), "Unknown receipt version");
+  if (receipt.version === 2) assert.ok(!("freezeReference" in receipt) && !("manualUi" in receipt), "Obsolete receipt fields");
   for (const [k, v] of Object.entries(completionAssertions)) assert.equal(receipt[k], v, `Receipt ${k} mismatch`);
   assert.ok(receipt.source && receipt.evidenceHashes && receipt.execution && receipt.original && receipt.observations, "Missing receipt binding evidence");
   assert.deepEqual(Object.keys(receipt).sort(), ["version", ...Object.keys(completionAssertions), "destination", "original",
     "execution", "source", "resources", "observer", "historicalWriter", "observations", "ownerAuthorizationReference",
-    "freezeReference", "inspectionReference", "approvalAuthentication", "evidenceHashes", "unresolvedPrediction"].sort(), "Unknown/missing receipt fields");
+    ...(receipt.version === 1 ? ["freezeReference"] : []), "inspectionReference", "approvalAuthentication", "evidenceHashes", "unresolvedPrediction"].sort(), "Unknown/missing receipt fields");
   assert.deepEqual(receipt.original, original, "Original provenance mismatch");
   assert.match(receipt.execution.revision ?? "", /^[a-f0-9]{40}$/, "Missing execution source");
-  assert.equal(receipt.source.version, 3, "Wrong source closure");
+  assert.equal(receipt.source.version, receipt.version === 1 ? 3 : 5, "Wrong source closure");
   assert.equal(receipt.source.revision, receipt.execution.revision, "Source/execution mismatch");
   assert.deepEqual(receipt.source.files?.map((f) => f.path), currentSourcePaths, "Incomplete source closure");
   assert.equal(receipt.source.sha256, sha256(JSON.stringify(receipt.source.files)), "Source digest mismatch");
@@ -431,7 +432,7 @@ export function assertCompletionReceipt(receipt) {
   assert.notEqual(receipt.observer.clientId, receipt.observer.principalId, "Observer principal/client substitution");
   assert.match(receipt.observer.bindingSha256 ?? "", /^[a-f0-9]{64}$/, "Missing observer binding hash");
   assert.deepEqual(receipt.historicalWriter, { clientId: original.writerClientId, principalId: original.writerPrincipalId, revocationVerified: false }, "Wrong historical writer/revocation assertion");
-  for (const k of ["ownerAuthorizationReference", "freezeReference", "inspectionReference"]) assertReference(receipt[k]);
+  for (const k of ["ownerAuthorizationReference", ...(receipt.version === 1 ? ["freezeReference"] : []), "inspectionReference"]) assertReference(receipt[k]);
   assert.ok(receipt.observations.length === 2 && receipt.observations.every((t) => Number.isFinite(Date.parse(t)))
     && Date.parse(receipt.observations[0]) <= Date.parse(receipt.observations[1]), "Missing observations");
   assert.deepEqual(Object.keys(receipt.evidenceHashes).sort(), [...receiptEvidencePaths].sort(), "Incomplete receipt evidence inventory");

@@ -110,10 +110,27 @@ function sourceManifest(revision, root, checkWorktree, paths, version) {
   }
   return { version, revision, files, sha256: sha256(JSON.stringify(files)) };
 }
-export const completionSource = (revision, root = process.cwd(), checkWorktree = true) =>
-  sourceManifest(revision, root, checkWorktree, currentSourcePaths, 3);
-export const inspectionSource = (revision, root = process.cwd(), checkWorktree = true) =>
-  sourceManifest(revision, root, checkWorktree, inspectionSourcePaths, 4);
+export function completionSource(revision, root = process.cwd(), checkWorktree = true, version = 5) {
+  assert.ok([3, 5].includes(version), "Unknown completion source profile");
+  return sourceManifest(revision, root, checkWorktree, currentSourcePaths, version);
+}
+export function inspectionSource(revision, root = process.cwd(), checkWorktree = true, version = 6) {
+  assert.ok([4, 6].includes(version), "Unknown inspection source profile");
+  return sourceManifest(revision, root, checkWorktree, inspectionSourcePaths, version);
+}
+// Current approved policy profile: workflow bytes are explicit, never a
+// wildcard or self-referential manifest hash. Historical pins above stay intact.
+export const policyWorkflowProfile = Object.freeze({
+  ".github/workflows/company-development-foundation.yml": "f3a61be83353382279afcc772b525c54f818f28af7dda0b1921bd15d0a0f07ff",
+  ".github/workflows/company-development-foundation-apply.yml": "6ba75c222aa9b193c70297359303e8c052a42ac12f235f0c197d62557204ded3",
+  ".github/workflows/company-development-bootstrap-completion.yml": "23723cf7003feca4c10de014725ca11b3f5dc50e4b2613a44dae0c7082ec3316",
+  ".github/workflows/company-development-inspection.yml": "9be4225ac78954d511fad462bf59a67546ca95412b3a9b1e1cbc97def56ac756",
+});
+export const policyReviewPaths = Object.freeze([
+  ".github/workflows/company-development-foundation.yml",
+  ".github/workflows/company-development-foundation-apply.yml",
+  ".github/tests/company-policy-removal.test.mjs",
+]);
 // Exact repository-wide review surface, separate from the twelve-path runtime
 // manifest. Test-only loaders/helpers must never enter the runtime import graph.
 export const reviewedCompletionPaths = Object.freeze([
@@ -130,7 +147,9 @@ export const reviewedCompletionPaths = Object.freeze([
 ]);
 export function assertSourceReview(intent, root = process.cwd(), checkWorktree = true) {
   const source = intent.kind === "bootstrap-inspection-intent" ? inspectionSource : completionSource;
-  assert.deepEqual(intent.source, source(intent.execution.revision, root, checkWorktree), "Reviewed source closure mismatch");
+  const currentPolicy = [5, 6].includes(intent.source?.version);
+  assert.deepEqual(intent.source, source(intent.execution.revision, root, checkWorktree, intent.source?.version), "Reviewed source closure mismatch");
+  if (intent.kind === "bootstrap-completion-audit-intent") assert.equal(intent.source.version, intent.version === 2 ? 5 : 3, "Intent/source policy mismatch");
   const oldFiles = manifest(original.sha, historicalSourcePaths, root);
   const oldSource = { revision: original.sha, files: oldFiles, sha256: sha256(JSON.stringify(oldFiles)) };
   assert.deepEqual(intent.originalSource, oldSource, "Original source binding mismatch");
@@ -142,13 +161,13 @@ export function assertSourceReview(intent, root = process.cwd(), checkWorktree =
   assert.notEqual(intent.execution.revision, baselineRevision, "New reviewed implementation required");
   // No workflow wildcard. The old workflows remain byte-exact PR166; the new
   // entire workflow is bound by the reviewed mode-specific source closure.
-  for (const [path, digest] of Object.entries(reviewedWorkflowProfiles[baselineRevision])) {
+  for (const [path, digest] of Object.entries(currentPolicy ? policyWorkflowProfile : reviewedWorkflowProfiles[baselineRevision])) {
     assert.equal(sha256(git(["show", `${intent.execution.revision}:${path}`], root)), digest, "Unreviewed existing workflow change");
   }
   assert.equal(intent.baselineChangesSha256, sha256(git(["diff", "--raw", "--no-abbrev", "--no-renames", original.sha, baselineRevision], root)), "Historical repository-wide change review mismatch");
   assert.equal(intent.implementationChangesSha256, sha256(git(["diff", "--raw", "--no-abbrev", "--no-renames", baselineRevision, intent.execution.revision], root)), "Unreviewed repository-wide changes");
   const changed = git(["diff", "--name-only", "--no-renames", baselineRevision, intent.execution.revision], root).toString().trim().split("\n");
-  assert.ok(changed.length && changed.every((p) => reviewedCompletionPaths.includes(p)), "Change outside exact reviewed completion surfaces; no additional workflow exception");
+  assert.ok(changed.length && changed.every((p) => [...reviewedCompletionPaths, ...(currentPolicy ? policyReviewPaths : [])].includes(p)), "Change outside exact reviewed completion surfaces; no additional workflow exception");
   // Immutable Bicep/parser/payload surfaces, even if a caller supplies another
   // diff digest. Owner context cannot authorize a deployment contract change.
   for (const path of [...historicalSourcePaths.slice(0, 3), historicalSourcePaths[8]]) {
@@ -173,21 +192,26 @@ function nativeContext(env, workflow) {
 }
 export const assertNativeContext = (env = process.env) => nativeContext(env, auditWorkflow);
 export function assertIntent(intent, execution, now = Date.now()) {
-  assert.equal(intent?.version, 1, "Missing audit intent");
+  assert.ok([1, 2].includes(intent?.version), "Missing/unknown audit intent version");
+  if (intent.version === 2) {
+    assert.ok(!("freezeReference" in intent) && !("manualUi" in intent), "Obsolete audit policy fields");
+  }
   assert.equal(intent.kind, "bootstrap-completion-audit-intent", "Wrong owner intent contract");
   assert.equal(intent.scope, "audit-only-no-continuation", "Audit-only authorization required");
   assert.equal(intent.owner, "cmbuyamba", "Wrong owner context");
   assert.equal(intent.execution.revision, execution.revision, "Owner exact SHA mismatch");
   assert.deepEqual(intent.original, original, "Wrong historical archive intent");
-  for (const k of ["ownerAuthorizationReference", "freezeReference", "inspectionReference"]) assertReference(intent[k]);
+  for (const k of ["ownerAuthorizationReference", ...(intent.version === 1 ? ["freezeReference"] : []), "inspectionReference"]) assertReference(intent[k]);
   const age = now - Date.parse(intent.authorizedAt);
   assert.ok(age >= 0 && age <= 60 * 60 * 1000, "Stale owner authorization context");
-  assert.equal(intent.manualUi?.owner, "cmbuyamba", "Missing actual owner UI context");
-  assert.equal(intent.manualUi.adminBypass, false, "Manual admin bypass must be OFF");
-  assert.equal(intent.manualUi.reconciledWithApi, true, "Unreconciled UI/API bypass observation");
-  assertReference(intent.manualUi.observationReference);
-  const uiAge = now - Date.parse(intent.manualUi.observedAt);
-  assert.ok(uiAge >= 0 && uiAge <= 60 * 60 * 1000, "Stale manual UI context");
+  if (intent.version === 1) {
+    assert.equal(intent.manualUi?.owner, "cmbuyamba", "Missing actual owner UI context");
+    assert.equal(intent.manualUi.adminBypass, false, "Manual admin bypass must be OFF");
+    assert.equal(intent.manualUi.reconciledWithApi, true, "Unreconciled UI/API bypass observation");
+    assertReference(intent.manualUi.observationReference);
+    const uiAge = now - Date.parse(intent.manualUi.observedAt);
+    assert.ok(uiAge >= 0 && uiAge <= 60 * 60 * 1000, "Stale manual UI context");
+  }
   assert.match(intent.frozenSnapshotSha256 ?? "", /^[a-f0-9]{64}$/, "Missing full frozen snapshot binding");
   assertObserverBinding(intent.observerBinding);
   // Context/reference/hash is deliberately NOT machine-authenticated approval.
@@ -215,7 +239,7 @@ export function controls(intent, execution, github = gh, now = Date.now()) {
   for (const field of ["repository", "head_repository"]) assert.equal(run[field]?.full_name, repository, "Foreign audit repository");
   const started = Date.parse(run.run_started_at);
   assert.ok(Number.isFinite(started) && started <= now && Date.parse(intent.authorizedAt) <= started
-    && Date.parse(intent.manualUi.observedAt) <= started, "Owner authorization/UI intent must precede this dispatch attempt");
+    && (intent.version === 2 || Date.parse(intent.manualUi.observedAt) <= started), "Owner authorization/UI intent must precede this dispatch attempt");
   const quality = ["ci.yml", "security.yml", "dast.yml"].map((workflow) => {
     const response = github(`actions/workflows/${workflow}/runs?head_sha=${execution.revision}&event=push&per_page=100`);
     assert.ok(Array.isArray(response.workflow_runs) && response.workflow_runs.length, "Missing exact-SHA quality runs");
@@ -226,7 +250,9 @@ export function controls(intent, execution, github = gh, now = Date.now()) {
       head_branch: "main", event: "push", status: "completed", conclusion: "success" })) assert.equal(latest[k], v, `Latest exact-SHA ${workflow} ${k} failed`);
     return { workflow, id: latest.id, attempt: latest.run_attempt, sha: latest.head_sha };
   });
-  return { environment, branch, quality, dispatch: { actor: run.actor.login, triggeringActor: run.triggering_actor.login,
+  return { environment, branch, quality,
+    ...(intent.version === 2 ? { adminBypassObservation: "can_admins_bypass" in environment ? environment.can_admins_bypass : "unobservable" } : {}),
+    dispatch: { actor: run.actor.login, triggeringActor: run.triggering_actor.login,
     createdAt: run.created_at, runStartedAt: run.run_started_at, ...execution } };
 }
 // Inspect/extract in memory through the fixed standard-library parser. No shell,
@@ -324,10 +350,11 @@ export function auditCompletion({ intent, execution, originalSource, source, git
     Buffer.isBuffer(value) ? value : typeof value === "string" ? Buffer.from(value) : Buffer.from(`${JSON.stringify(value, null, 2)}\n`)]));
   for (const [path, bytes] of Object.entries(encoded)) assert.ok(bytes.length > 0
     && bytes.length <= (path.endsWith(".zip") ? 16 : 2) * 1024 * 1024, "Oversized/unbounded audit evidence file");
-  const receipt = { version: 1, ...completionAssertions, destination, original, execution, source, resources: projectResources(after.resources),
+  const receipt = { version: intent.version, ...completionAssertions, destination, original, execution, source, resources: projectResources(after.resources),
     observer: { clientId: observerBinding.clientId, principalId: observerBinding.principalId, bindingSha256: stateHash(observerBinding) },
     historicalWriter: { clientId: original.writerClientId, principalId: original.writerPrincipalId, revocationVerified: false },
-    observations, ownerAuthorizationReference: intent.ownerAuthorizationReference, freezeReference: intent.freezeReference,
+    observations, ownerAuthorizationReference: intent.ownerAuthorizationReference,
+    ...(intent.version === 1 ? { freezeReference: intent.freezeReference } : {}),
     inspectionReference: intent.inspectionReference, approvalAuthentication: "external-owner-control-required",
     evidenceHashes: Object.fromEntries(Object.entries(encoded).map(([p, b]) => [p, sha256(b)])),
     unresolvedPrediction: { sha256: "dc69598ff7e2cb03a36f91f92100285cce0edfadd1739fac185f3fcfb26253ff", modifyResources: 3, deleteProperties: 5, acceptedAsNoise: false },
@@ -371,7 +398,9 @@ export function inspectionControls(intent, execution, github = gh, now = Date.no
   const environment = github("environments/company-dev");
   assert.ok(Number.isSafeInteger(environment.id) && environment.node_id, "Missing environment identity");
   assert.equal(environment.name, "company-dev", "Wrong environment");
-  assert.equal(environment.can_admins_bypass, false, "Missing/unsafe API bypass setting; inspection is not a UI observation");
+  if (intent.source.version === 4 || "can_admins_bypass" in environment) {
+    assert.equal(environment.can_admins_bypass, false, "Missing/unsafe API bypass setting; inspection is not a UI observation");
+  }
   assert.deepEqual(environment.deployment_branch_policy, { protected_branches: true, custom_branch_policies: false }, "Wrong environment branch policy");
   assert.ok(Array.isArray(environment.protection_rules)
     && environment.protection_rules.some((r) => r.type === "branch_policy"), "Missing native branch rule");
@@ -403,7 +432,9 @@ export function inspectionControls(intent, execution, github = gh, now = Date.no
   });
   // Job steps/run updated_at legitimately change across prepare/login/inspect.
   // Bind stable native identities, never those mutable progress fields.
-  return { branch, environment, quality, dispatch: {
+  return { branch, environment, quality,
+    ...(intent.source.version === 6 ? { adminBypassObservation: "can_admins_bypass" in environment ? environment.can_admins_bypass : "unobservable" } : {}),
+    dispatch: {
     revision: run.head_sha, runId: String(run.id), runAttempt: String(run.run_attempt),
     actor: run.actor.login, triggeringActor: run.triggering_actor.login,
     createdAt: run.created_at, runStartedAt: run.run_started_at, path: run.path,
@@ -527,8 +558,10 @@ export function loadCompletionReceipt(ref, { github = gh, download = (id) => com
   for (const k of ["archiveSha256", "receiptSha256"]) assert.match(ref[k] ?? "", /^[a-f0-9]{64}$/, "Missing receipt digest");
   const run = github(`actions/runs/${ref.runId}/attempts/${ref.runAttempt}`);
   const artifact = github(`actions/artifacts/${ref.artifactId}`);
+  // Version comes from a closed artifact name AND authenticated receipt bytes.
+  const receiptVersion = artifact.name === `company-dev-bootstrap-completion-v2-${ref.sha}-${ref.runId}-${ref.runAttempt}` ? 2 : 1;
   assertArtifactMetadata(run, artifact, github(`actions/runs/${ref.runId}/artifacts?per_page=100`), ref, auditWorkflow, "success",
-    `company-dev-bootstrap-completion-v1-${ref.sha}-${ref.runId}-${ref.runAttempt}`, now);
+    `company-dev-bootstrap-completion-v${receiptVersion}-${ref.sha}-${ref.runId}-${ref.runAttempt}`, now);
   const archive = download(ref.artifactId);
   assert.equal(archive.length, artifact.size_in_bytes, "Receipt archive size mismatch");
   assert.equal(sha256(archive), ref.archiveSha256, "Receipt archive digest mismatch");
@@ -537,14 +570,16 @@ export function loadCompletionReceipt(ref, { github = gh, download = (id) => com
   const files = readReceiptArchive(archive);
   assert.equal(sha256(files["receipt.json"]), ref.receiptSha256, "Receipt byte digest mismatch");
   const receipt = assertCompletionReceipt(JSON.parse(files["receipt.json"]));
+  assert.equal(receipt.version, receiptVersion, "Artifact/receipt version mismatch");
   assert.deepEqual(receipt.execution, { revision: ref.sha, runId: ref.runId, runAttempt: ref.runAttempt }, "Receipt execution mismatch");
   assert.deepEqual(Object.keys(receipt.evidenceHashes).sort(), receiptFiles.filter((p) => p !== "receipt.json").sort(), "Receipt evidence inventory mismatch");
   for (const [p, digest] of Object.entries(receipt.evidenceHashes)) assert.equal(sha256(files[p]), digest, "Receipt evidence digest mismatch");
   const intent = JSON.parse(files["source-review.json"]);
+  assert.equal(intent.version, receipt.version, "Intent/receipt policy mismatch");
   assertIntent(intent, receipt.execution, Date.parse(receipt.observations[1]));
   assert.deepEqual(receipt.observer, { clientId: intent.observerBinding.clientId, principalId: intent.observerBinding.principalId,
     bindingSha256: stateHash(intent.observerBinding) }, "Receipt observer binding drift");
-  for (const k of ["ownerAuthorizationReference", "freezeReference", "inspectionReference"]) assert.equal(receipt[k], intent[k], "Receipt owner context drift");
+  for (const k of ["ownerAuthorizationReference", ...(receipt.version === 1 ? ["freezeReference"] : []), "inspectionReference"]) assert.equal(receipt[k], intent[k], "Receipt owner context drift");
   for (const t of receipt.observations) assert.ok(Date.parse(t) >= Date.parse(run.created_at)
     && Date.parse(t) <= Date.parse(run.updated_at) && Date.parse(t) <= now, "Receipt observation outside authenticated run");
   historicalObjects(root);
@@ -574,7 +609,9 @@ export function loadCompletionReceipt(ref, { github = gh, download = (id) => com
   assert.equal(run.actor?.login, "cmbuyamba", "Receipt wrong dispatch owner");
   assert.equal(run.triggering_actor?.login, "cmbuyamba", "Receipt wrong attempt owner");
   assert.ok(Date.parse(intent.authorizedAt) <= Date.parse(run.run_started_at)
-    && Date.parse(intent.manualUi.observedAt) <= Date.parse(run.run_started_at), "Receipt authorization after dispatch");
+    && (intent.version === 2 || Date.parse(intent.manualUi.observedAt) <= Date.parse(run.run_started_at)), "Receipt authorization after dispatch");
+  if (receipt.version === 2) assert.equal(context.adminBypassObservation,
+    "can_admins_bypass" in context.environment ? context.environment.can_admins_bypass : "unobservable", "Receipt API assurance mismatch");
   assert.deepEqual(context.quality.map((q) => q.workflow), ["ci.yml", "security.yml", "dast.yml"], "Receipt quality inventory mismatch");
   for (const q of context.quality) {
     assert.equal(q.sha, ref.sha, "Receipt quality SHA mismatch");
@@ -629,6 +666,7 @@ function inputs() {
   const observerBinding = assertObserverBinding(JSON.parse(process.env.AUDIT_OBSERVER_BINDING ?? "null"));
   assert.equal(process.env.AUDIT_CLIENT_ID, observerBinding.clientId, "Wrong protected audit identity before OIDC");
   const intent = JSON.parse(process.env.AUDIT_INTENT ?? "null");
+  assert.equal(intent?.version, 2, "New audit producer requires intent version 2");
   assertIntent(intent, execution);
   assert.deepEqual(intent.observerBinding, observerBinding, "Protected observer binding drift before OIDC");
   return { execution, intent, observerBinding, source: completionSource(execution.revision), originalSource: assertSourceReview(intent) };
@@ -642,7 +680,7 @@ function cli() {
   if (mode === "prepare") {
     assert.ok(process.env.GITHUB_OUTPUT, "Native output required");
     appendFileSync(process.env.GITHUB_OUTPUT, `audit_context=${stateHash({ ...bound, context })}\n`);
-    console.log("Bound GET-only audit context; owner authorization and UI no-bypass are external controls, not inferred approvals.");
+    console.log("Bound GET-only audit context; snapshot approval and fresh owner authorization remain external controls. API bypass absence is unobservable; no manual UI/freeze prerequisite.");
     return;
   }
   function inspectionInputs() {

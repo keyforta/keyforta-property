@@ -10,14 +10,14 @@ const {
   original, baselineRevision, repository, destination, rg, bootstrapInventory, historicalSourcePaths,
   sha256, stateHash, permittedReadActions, auditWorkflow,
 } = await import("../../../scripts/infra/company-development-completion-validation.mjs");
-const { completionSource, endpoints, roleDefinitionEndpoints, readArchive, reviewedCompletionPaths } = await import("../../../scripts/infra/company-development-completion.mjs");
+const { completionSource, endpoints, roleDefinitionEndpoints, readArchive, reviewedCompletionPaths, policyReviewPaths } = await import("../../../scripts/infra/company-development-completion.mjs");
 export { zipFixture } from "./company-zip.mjs";
 
 // Covers direct historical workflow reads and legacy-driver extraction too:
 // every history-dependent worker imports this shared fixture before tests run.
 ensureCompanyHistory();
 
-export function completionFixture() {
+export function completionFixture({ policyVersion = 1 } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "company-completion-fixture-")));
   const repo = resolve(".");
   const git = (...args) => execFileSync("git", ["-C", root, "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false",
@@ -28,17 +28,18 @@ export function completionFixture() {
   // with --shared. Transfer the same authenticated pins from the local source.
   git("fetch", "--quiet", "--no-tags", "--no-write-fetch-head", repo, original.sha, baselineRevision);
   git("checkout", "--quiet", "--detach", baselineRevision);
-  for (const p of reviewedCompletionPaths) {
+  const paths = [...reviewedCompletionPaths, ...(policyVersion === 2 ? policyReviewPaths : [])];
+  for (const p of paths) {
     mkdirSync(dirname(join(root, p)), { recursive: true }); writeFileSync(join(root, p), readFileSync(join(repo, p)));
   }
-  git("add", "--", ...reviewedCompletionPaths); git("commit", "--quiet", "--no-verify", "-m", "Synthetic immutable audit source");
+  git("add", "--", ...paths); git("commit", "--quiet", "--no-verify", "-m", "Synthetic immutable audit source");
   const revision = git("rev-parse", "HEAD").toString().trim();
   const archive = readFileSync(new URL("./company-bootstrap-original.zip", import.meta.url));
   const files = readArchive(archive, ["checkpoint.json", "fresh-what-if.json", "result.json", "reviewed-inputs.json", "submission.json", "template.json"]);
   const checkpoint = JSON.parse(files["checkpoint.json"]);
   const now = Date.parse("2026-10-26T06:00:00.000Z"), timestamp = "2026-10-26T03:20:00.000Z";
   const execution = { revision, runId: "9001", runAttempt: "1" };
-  const source = completionSource(revision, root);
+  const source = completionSource(revision, root, true, policyVersion === 2 ? 5 : 3);
   const originalFiles = historicalSourcePaths.map((path) => ({ path, sha256: sha256(git("show", `${original.sha}:${path}`)) }));
   const originalSource = { revision: original.sha, files: originalFiles, sha256: sha256(JSON.stringify(originalFiles)) };
   const retained = JSON.parse(gunzipSync(readFileSync(new URL("./company-bootstrap-arm.json.gz", import.meta.url))));
@@ -78,6 +79,9 @@ export function completionFixture() {
     frozenSnapshotSha256: stateHash(snapshot),
     baselineChangesSha256: sha256(git("diff", "--raw", "--no-abbrev", "--no-renames", original.sha, baselineRevision)),
     implementationChangesSha256: sha256(git("diff", "--raw", "--no-abbrev", "--no-renames", baselineRevision, revision)) };
+  if (policyVersion === 2) {
+    intent.version = 2; delete intent.freezeReference; delete intent.manualUi;
+  }
   const run = retained.run, artifact = retained.artifact;
   const auditRun = { ...run, id: 9001, head_sha: revision, path: auditWorkflow, name: "Company development bootstrap completion audit", conclusion: null, status: "in_progress",
     actor: { login: "cmbuyamba" }, triggering_actor: { login: "cmbuyamba" }, created_at: "2026-10-26T05:59:30.000Z", run_started_at: "2026-10-26T05:59:30.000Z" };

@@ -3,7 +3,7 @@ name: Company development foundation preview
 # PREPARATION ONLY. Review this new route before activation. It has no deploy
 # operation, bootstrap, provider registration, SQL, images, apps or jobs.
 # No independent environment reviewer is required. Explicit human authorization
-# and operator no-bypass verification remain bound to the exact SHA/run/snapshot;
+# remains bound to the exact SHA/run/snapshot;
 # repository activation flags and context outputs are not authorization.
 on:
   workflow_dispatch:
@@ -22,11 +22,7 @@ on:
         description: Staged evidence schema (legacy full plans are rejected)
         required: true
         type: choice
-        options: ["2"]
-      change_freeze:
-        description: External owner-controlled change-freeze review reference (not an approval assertion)
-        required: true
-        type: string
+        options: ["3"]
       stage_context:
         description: Reviewed JSON baseline, immutable predecessor and human security/functional references; omit only for initial bootstrap
         required: false
@@ -55,7 +51,6 @@ env:
   FOUNDATION_STAGE: ${{ inputs.stage }}
   FOUNDATION_MODE: ${{ inputs.mode }}
   EVIDENCE_VERSION: ${{ inputs.evidence_version }}
-  CHANGE_FREEZE: ${{ inputs.change_freeze }}
   STAGE_CONTEXT: ${{ inputs.stage_context }}
 
 concurrency:
@@ -138,7 +133,7 @@ jobs:
       - name: Preserve SHA-bound preparation evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: company-dev-foundation-${{ inputs.stage }}-${{ inputs.mode }}-v2-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: company-dev-foundation-${{ inputs.stage }}-${{ inputs.mode }}-v3-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             company-dev-plan/evidence.json
             company-dev-plan/inputs.json
