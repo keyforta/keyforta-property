@@ -208,6 +208,78 @@ CI/security/DAST success. Changed stage/evidence/permissions/attempt needs revie
 No AI substitutes for human approval; no customer/app activation before security
 verification and a future separately authorized synthetic scan-result proof.
 
+### Approved bounded verification-only source transition — 2026-10-26 UTC
+
+The owner explicitly approved: **“Prepare and publish the regression-tested,
+verification-only recovery PR; no merge or execution”.** This approves the
+code/test/documentation contract below, not runtime authorization or full ADR
+acceptance. Publication is delegated to the parent operator; this implementation
+does not commit, publish, merge, dispatch, preview against Azure or reconcile
+resources/permissions/settings.
+
+PR #164 corrects bootstrap verification of ARM output Reads without changing
+Bicep. The persisted read-only reconciliation reached **“Completed stage
+sourceSha256 drift”**: the original incomplete checkpoint manifest is
+`48349caeb8e502c75796bc4cddde68d68eb4ca9691b426880b325289c2e18703`,
+while merged-main `5437798d1e892abe145463a40a5d3122f5cbeda8` binds
+`b94093439158494a8aa36e6c46d0f5a71980d21e89f1a3472edf6de6512393cd`.
+No recovery run/artifact was created. That main SHA is historical context, **not
+the future PR's immutable target SHA**.
+
+**Decision:** add only an explicit `stage_context.sourceTransition` of kind
+`bootstrap-verification-only`, version 1, to existing bootstrap
+`reviewed-reentry`. Without it, the identical-source recovery checks remain
+unchanged. Bind `from` and `to` immutable revisions and full nine-path manifests/
+digests to actual Git blobs. Require ancestry and reject repository changes
+outside the three existing verification helpers and the specifically enumerated
+company regression tests/ADR/runbook. These three helpers are necessary because
+preview, apply/artifact/checkpoint generation and their shared decision engine
+must enforce the same route. Bicep, workflows, parser, public contracts,
+authorization packages and other executable/configuration surfaces cannot change.
+The owner review URL is context, **not machine approval or semantic proof of
+arbitrary code changes**; human review of the helper diff remains necessary.
+Existing shallow workflow checkouts may hydrate history by read-only fetch from
+the fixed repository, using the existing job read credential ephemerally; HEAD,
+workflows, identity/federation and credential configuration do not change.
+
+Require the exact nonexpired original failed initial-bootstrap run/attempt and
+immutable apply archive ID/digest; hash and extract the **same ZIP**, bind raw
+incomplete checkpoint bytes, original submitted body, compiled template,
+parameters, preview/source and retained Succeeded result. The original actual
+deployment name/SHA must remain the origin's, never a renamed current-SHA target.
+No chained transition, security handoff, initial mode, partial recovery or
+approved Modify delta is supported. Exact seven typed resources, full projected
+properties and all original tenant/principal/client bindings must equal the
+original checkpoint, not just the reviewed current baseline. Re-run the strict
+recursive bootstrap verifier: resource Creates alone establish provenance;
+context-bound Reads do not. Require root and both nested deployments Succeeded
+with frozen full responses, timestamps/correlation IDs and operation timestamps
+inside the authenticated original run's time bounds. Another deployment history
+entry, existing new-SHA target, incomplete visibility, recreation or drift stops.
+Retain pre-handoff role/Defender checks even though this route cannot submit:
+new human grants or enabled scanning cannot silently become a security handoff.
+
+Before provider what-if, both routes must pass these origin/state checks.
+Fresh preview and apply what-if must contain **only NoChange**, including nested
+deployment records, without diagnostics, potential changes or property deltas;
+post-preview checks must reproduce identical actual state. This route can
+return only **VerifiedNoOp**, never submit. Only the normal successful no-op
+generator emits a new checkpoint/bootstrap-state/result. It records old/new
+source bindings, full original incomplete checkpoint and immutable artifact
+reference, original actual deployment identity and success provenance; it never
+rewrites the original failed artifact or launders it into historical completion.
+
+**Remaining gaps:** no runtime recovery/preview/PUT has been authorized or
+executed by this change. The persisted preview API reports bypass=true and
+apply=false; neither a settings change nor a fresh human UI observation is
+claimed. Preserve freeze and existing resources/authentication configuration.
+Writer removal/no-equivalent-authority proof, grants/security/functional
+handoffs, telemetry, backups/restore tests, SLOs/error budgets and operational
+acceptance remain separate. No services or costs added: $108.35/month estimate,
+$120/month before-tax ceiling remain planning figures. Rollback is withholding
+dispatch and a separately reviewed code revert; never deletion, initial retry
+or reuse of an old preview. See the [bounded recovery runbook](../../infra/README.md#verification-only-source-transition-code-approved-not-execution-authority).
+
 ### Acceptance map and current implementation boundary
 
 Both protected routes now implement the staged contract, with a reachable local

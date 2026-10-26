@@ -294,6 +294,102 @@ data, apps, migrations or cutover are added.
 
 #### V2 stage context, provenance and reviewed recovery
 
+##### Verification-only source transition: code approved, not execution authority
+
+The owner approved preparation/publication of the regression-tested
+verification-only recovery contract, **no merge or execution**. This is not an
+unapproved feature proposal, nor permission to dispatch a workflow, run live
+what-if/apply, change settings/RBAC/authentication, reconcile resources, continue
+foundation provisioning or perform the human security handoff.
+
+The recorded blocker after PR #164 is
+[`Completed stage sourceSha256 drift`](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6407607502).
+ARM succeeded while original workflow verification failed. Retain:
+
+- Original initial-bootstrap apply run `40262729364`, attempt `1`, immutable
+  artifact `12625346104`, archive SHA256
+  `7278e893f44a6fd23633f3bc74ed378c515f8e8576c33c384a72a48243a8d37c`.
+- Original revision `6216a0c95b49f522fecf1c28d8ba3405f1a93a43`,
+  deployment `companydev-bootstrap-6216a0c95b49`, raw checkpoint SHA256
+  `9b9cbb2835a95de67d638da4269968e9cd7cba2511f34036aad9b69f74bd4836`,
+  **completed=false**, bootstrap-state absent.
+- Original compiled template SHA256
+  `b34d57a55b6e7f2d4cdc82403130da8ce58acd3560fa528645b336f3c8468ec0`;
+  parameter/source manifests and success/submission bindings must come from
+  those authentic bytes, never reconstructed claims of completion.
+- Original preview run `40261297459` / artifact `12624720894` remains historical
+  origin context, never the new recovery preview.
+- Original apply client `63b65efc-7e8d-4d82-b13a-53b875df54f1` (SP
+  `e10f9e0f-274f-4643-8a8f-ad8f41b09c64`), destination tenant/subscription/RG/
+  location and all seven resource IDs, properties and principal/client bindings
+  stay unchanged. No new permission or service is required by this contract.
+
+For a **future separately authorized** recovery, the existing optional
+`stage_context` gains these explicit fields. This describes the schema, not
+dispatch-ready input or a manually generated checkpoint:
+
+| Field | Required binding |
+| --- | --- |
+| `sourceTransition.kind`, `.version` | Exactly `bootstrap-verification-only`, `1`; bootstrap + reviewed-reentry only. Unknown transition fields/types/versions stop. |
+| `sourceTransition.from` | `{ revision, files, sha256 }`: original immutable apply SHA, complete ordered nine-file manifest and its digest, matching original checkpoint AND actual Git blobs. |
+| `sourceTransition.to` | Same shape, binding the future merged recovery revision and all its source bytes; **not** historical PR #164 main or uncommitted worktree bytes. |
+| `sourceTransition.ownerReviewReference` | Repository issue/PR/comment URL for owner review context, never approval proof. |
+| `predecessor.archiveSha256` | Additional raw archive digest alongside existing exact run/attempt/artifact/stage/mode/SHA/raw checkpoint digest. Helpers re-read GitHub metadata and hash/extract the same ZIP. |
+| `originalSuccess` | Frozen full GET responses in order: original root, `foundation-keyforta-cdev`, `stamp-keyforta-cdev`. Exact IDs, Succeeded state, timestamps/correlation IDs and successful operation timestamps must correspond to the original authenticated workflow time bounds. Caller JSON alone establishes no success. |
+
+Other existing freeze/inspection references, `inspection`, `deploymentName` and
+`baseline` remain mandatory. Baseline must equal the original complete projected
+checkpoint inventory, including every resource property and UAMI tenant/
+principal/client ID; `approvedChanges` must be empty. A reviewed Modify approval
+cannot authorize a write on this route. Security context, additional inspected
+deployments, new target deployment, incomplete origin, chained transition or
+initial-mode retry stops before provider preview/submission.
+
+The immutable diff may change only the three existing route/state helpers and
+the explicitly enumerated company tests, ADR-016 and this runbook. All three
+helpers are needed to preserve common preview/apply/artifact/checkpoint behavior.
+Git ancestry and full manifests are checked; workflows, Bicep, parser,
+authorization/public contracts and other executable/configuration files must
+remain unchanged. This is a path bound plus human semantic review, **not** a
+generic source-ignore flag or machine proof that arbitrary helper edits are
+verification-only. For shallow checkout the helper fetches history only from
+the fixed repository using the existing job read token through an ephemeral
+credential helper; no settings, stored credentials or checked-out HEAD change.
+
+Both preview and apply check original resources/ARM before what-if. The strict
+seven-resource recursive Create verifier also replays the authentic 17-operation
+shape: seven resource Creates, two nested Creates, five context-bound Reads,
+three output evaluations. Reads never substitute for Creates. Missing, extra,
+recreated or changed resources; failed/canceled/running/unknown ARM; changed
+template/parameters/manifests/origin; foreign caller/stage/destination/artifact;
+or provenance/time/correlation drift all stop. Original root/nested responses
+are frozen and rechecked, not replaced by a new deployment name.
+The existing pre-handoff role/Defender reads also run on this route: human
+bootstrap-principal/exact-resource grants or enabled Defender/on-upload scanning
+stop verification before what-if. No role/settings reconciliation is attempted.
+
+Fresh what-if must contain all expected resources with **only NoChange**,
+including any deployment records, and no diagnostics, potential changes or
+property deltas. Apply repeats the identical actual checks after its own fresh
+what-if. The only possible success is **VerifiedNoOp / NO ARM PUT**. Only then
+does the ordinary workflow generator emit a new completed checkpoint and
+bootstrap-state/result, with current source plus full old/new manifests, original
+incomplete checkpoint/artifact reference, original deployment name/SHA and
+success provenance. Preserve the original ZIP/checkpoint untouched. Without the
+explicit transition, the old same-source guard still rejects source drift.
+
+**Runtime remains unchanged:** no recovery run/artifact has been created by
+this code work. Persisted preview API bypass=true/apply=false does not replace
+fresh human bypass-off verification, and no setting is changed here. Maintain
+the external freeze and withhold dispatch. No Blob operations, resource changes,
+continuation, grants/security handoff, paid services or cost expansion.
+Operational readiness, telemetry, backup/restore tests, SLO/error budgets and
+writer-removal/equivalent-authority proof remain outstanding. Existing
+$108.35/month estimate and $120/month before-tax ceiling are planning figures.
+Rollback: withhold execution and preserve originals; any code revert requires
+review. Never delete/recreate resources, manually fabricate completion, or
+silently upgrade/reuse a stale preview.
+
 The preview's optional `stage_context` input is JSON; **omit it only for initial
 bootstrap**. It is review context, never an approval assertion. Its fields are:
 
