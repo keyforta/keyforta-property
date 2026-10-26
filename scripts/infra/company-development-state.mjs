@@ -130,11 +130,19 @@ export function readSecurity(read, context, predecessor) {
     scanner: { id: scanner.id, identity: scanner.identity }, grants: rows.sort((a, b) => a.id.localeCompare(b.id)),
     bootstrap: projectResources(boot), internalTopology: "UNVERIFIED" });
 }
-// Structural/correlation checks only. The owner observes the harmless test in
-// Azure; the authorized human operator verifies the owner's record.
+// Structural/correlation checks only, never authentication of consent or truth.
+// Legacy records describe human observation; v2 explicitly describes a local
+// owner-directed agent using an existing human operator's actual authority.
 // Blob tags are mutable and NEVER an automated security/data-admission proof.
 export function validateFunctionalTest(test, security, now = Date.now()) {
-  assert.ok(test, "Missing owner-confirmed synthetic functional test");
+  assert.ok(test, "Missing owner-authorized synthetic functional test");
+  const version = test.version === undefined ? 1 : test.version;
+  assert.ok([1, 2].includes(version), "Unknown functional record version");
+  if (version === 1) {
+    for (const field of ["executor", "observer", "operator", "authorization", "machineEvidence"]) {
+      assert.ok(!(field in test), "Agent evidence requires functional record version 2; legacy is human observation only");
+    }
+  }
   assert.equal(test.owner, "cmbuyamba", "Wrong Azure technical owner");
   for (const field of ["observationReference", "executionAuthorizationReference"]) assertReference(test[field], field);
   assert.match(test.testId ?? "", uuid, "Missing unique synthetic test ID");
@@ -154,6 +162,40 @@ export function validateFunctionalTest(test, security, now = Date.now()) {
   });
   for (let i = 1; i < times.length; i++) assert.ok(times[i] >= times[i - 1], "Stale/mismatched scan/upload/enablement/test correlation");
   assert.ok(now - times[1] <= 24 * 60 * 60 * 1000 && now - times[4] <= 24 * 60 * 60 * 1000, "Synthetic evidence older than 24 hours; new owner review required");
+  if (version === 2) {
+    assert.equal(test.executor?.kind, "agent", "V2 requires actual agent executor");
+    assert.equal(test.executor.context, "local", "Only owner-directed local execution, never workflow execution");
+    assert.equal(test.observer?.kind, "agent", "V2 requires actual agent observer");
+    for (const actor of [test.executor, test.observer]) assert.match(actor.id ?? "", /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/, "Missing actual agent identity");
+    assert.equal(test.operator?.type, "user", "Existing authenticated human operator required, not service principal");
+    assert.match(test.operator.principalId ?? "", uuid, "Missing actual operator principal ID");
+    assert.equal(test.operator.tenantId, destination.tenantId, "Wrong operator tenant");
+    assert.equal(test.operator.subscriptionId, destination.subscriptionId, "Wrong operator subscription");
+    const authorization = test.authorization;
+    assert.ok(authorization, "Missing scope-specific human authorization");
+    assert.equal(authorization.authorizer, test.owner, "Owner authorizes; agent does not self-authorize");
+    for (const [field, expected] of Object.entries({
+      operatorPrincipalId: test.operator.principalId, executorId: test.executor.id, observerId: test.observer.id,
+      containerId: test.containerId, testId: test.testId,
+    })) assert.equal(authorization[field], expected, `Authorization ${field} mismatch`);
+    const authorizedAt = Date.parse(authorization.authorizedAt);
+    assert.ok(Number.isFinite(authorizedAt) && new Date(authorizedAt).toISOString() === authorization.authorizedAt
+      && authorizedAt <= times[1], "Invalid/future authorization or authorization after test start");
+    const evidence = test.machineEvidence;
+    assert.ok(evidence, "Missing actual command/readback evidence");
+    assertReference(evidence.reference, "machine evidence");
+    for (const field of ["commandsSha256", "readbackSha256"]) assert.match(evidence[field] ?? "", /^[a-f0-9]{64}$/, `Missing actual ${field}`);
+    assert.deepEqual(evidence.readback, {
+      storageId: test.storageId, containerId: test.containerId, blob: test.blob,
+      operatorPrincipalId: test.operator.principalId, observedAt: test.observedAt,
+      tags: { "Malware scanning scan result": test.result, "Malware scanning scan time": test.scanTime },
+    }, "Actual scan readback/version/hash/size/identity correlation mismatch");
+    assert.equal(evidence.readbackSha256, stateHash(evidence.readback), "Machine readback hash mismatch");
+    return { version, testId: test.testId, authorizer: test.owner, executor: test.executor,
+      observer: test.observer, operator: test.operator, observationReference: test.observationReference,
+      sha256: stateHash(test), authorizationAuthentication: "required in native owner review; references/hashes are not authenticated consent or observation",
+      internalTopology: "UNVERIFIED", automaticDataAdmission: false };
+  }
   return { testId: test.testId, observationReference: test.observationReference, sha256: stateHash(test),
     ownerConfirmation: "required in referenced owner evidence and native human review; not machine authenticated",
     internalTopology: "UNVERIFIED", automaticDataAdmission: false };

@@ -126,6 +126,9 @@ export function prepareHumanGrants(read, deploymentName, predecessor) {
   }));
   return {
     version: 2, stage: "human-grant-preparation", destination, bootstrapDeploymentName: deploymentName,
+    // Historical command/stage name: preparation may be run by an explicitly
+    // owner-directed local agent in this actual user context. Still no execution
+    // authority, authenticated consent, effective-access proof or workflow grants.
     operator: { tenantId: account.tenantId, user: { type: account.user.type, name: account.user.name } }, bindings, assignments, commands,
     observedAssignments: [...observed.values()],
     reviewContextOnly: true, workflowGrantAuthority: false, securityHandoffVerified: false,

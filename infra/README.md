@@ -23,6 +23,62 @@ resource-group-scoped foundation deployment runs.
 
 ## Company DEVELOPMENT preparation — isolated preview and plan-bound apply
 
+### Owner-directed local agent handoff — approved 2026-10-26, code only
+
+The owner selected **option 2** at **2026-10-26T20:38:45.496Z** in the
+human-directed session: permit authorized agent execution of reviewed company-dev
+handoff commands and synthetic verification under the **existing authenticated
+human operator account**, without deployment-workflow role-management privileges.
+See [ADR-016's dated decision](../docs/adr/ADR-016-company-development-private-foundation.md#owner-directed-local-agent-handoff-decision--2026-10-26).
+This supersedes only the human-only **executor/observer** restriction below,
+not human authorization, access proof, finance or deployment gates. Issue
+[#159](https://github.com/keyforta/keyforta-property/issues/159) is context, not
+machine-authenticated approval. This PR authorizes no live action or merge.
+
+After merge and actual runtime conditions are satisfied, a local agent may
+execute only explicitly scope-authorized, reviewed exact argv under that user's
+actual authority: remove identified bootstrap workflow writer assignment(s);
+then the four deterministic grants (API/web/migration AcrPull at the exact ACR,
+API Blob Data Contributor at the application container); separately approved
+existing-design Defender full 100 GB/index configuration; and the bounded
+synthetic check below. Preserve preview/audit identities, human Owner and read
+context. No blanket Owner/Contributor grant, cross-scope operation, unrelated
+data, new identity, operator data grant, continuation writer grant or additional
+grant is authorized. Read back current IDs, tuples, actual caller permissions,
+settings and inventory; stop on drift/conflict/missing visibility. Existing
+`human-grant-plan` is still read-only preparation and still rejects Actions/SP
+contexts. Its historical command name does not require a human at the keyboard.
+Neither workflow nor audit SP gains management writes or Blob data authority.
+
+Equivalent/group/transitive/PIM revocation proof, eligibility/access proof,
+actual narrow ACA permission proof and finance checks remain blocking.
+PIM license errors and Graph `403 ScopeNotGranted` mean **UNKNOWN**, not absent;
+do not add Graph scopes, licenses, roles or export credentials. The current
+catalog estimate **$118.13/month before tax/extras** against the **$120 ceiling**
+is not live credit/offer coverage, billing protection or an invoice guarantee.
+The approved 100 GB scanning limit is not a dollar cap. Prove budget and offer
+coverage before any billable PUT; do not infer finance approval from this policy.
+
+Record the authorizing human separately from the actual executor/observer
+(`human` versus `agent`), actual operator principal/tenant/subscription, exact
+scope, real UTC authorization/execution/observation times, reviewed command and
+readback bytes/hashes and actual native approval/review references. Never claim
+an agent observation was manually performed by the owner. References and JSON
+hashes alone authenticate neither consent nor an observation. Retain actual
+evidence privately; do not generate it from names, guesses or synthetic fixtures.
+No new authorization expiry is imposed by this decision; existing independent
+snapshot/dispatch freshness controls and the 24-hour functional bound remain.
+
+Rollback targets only newly created objects/exact grant tuples under explicit
+authorization; never automatically regrant the revoked bootstrap writer,
+overwrite existing resources, delete data or widen lifecycle policy. Stop and
+preserve evidence on uncertain outcomes. No Azure command, Defender PUT, grant,
+revocation or Blob test was executed by this PR. Handoff remains incomplete.
+Strict NoChange, unresolved three Modify/five Delete predictions, no bootstrap
+retry, original failed checkpoint, immutable archives, source closures **5/6**,
+CI/native-context/drift/destructive guards, telemetry, backups/restore tests,
+SLOs/error budgets and operational runbooks remain unchanged.
+
 ### Current policy — approved 2026-10-26, prepared code only
 
 Issue [#159](https://github.com/keyforta/keyforta-property/issues/159): the owner
@@ -246,9 +302,12 @@ inspection and fresh NoChange produce a verified **no ARM PUT**. Withhold
 dispatch/activation while external readiness is incomplete; no variables were disabled
 or enabled by this implementation.
 
-#### Human handoff evidence — readable machine checks and native owner review
+<a id="human-handoff-evidence--readable-machine-checks-and-native-owner-review"></a>
 
-After bootstrap, the human must first remove workflow bootstrap writer rights
+#### Owner-authorized handoff evidence — readable machine checks and native owner review
+
+After bootstrap, the human or explicitly owner-directed local agent must first
+remove workflow bootstrap writer rights
 and prove no inherited/equivalent access remains. The following are supported
 read operations for inspection, not a machine-complete revocation proof:
 
@@ -262,13 +321,15 @@ read operations for inspection, not a machine-complete revocation proof:
   This API reports that caller's permissions, not another principal's complete
   effective rights; a successful read/activation flag is not revocation proof.
 
-Only the human may then grant the three exact-scope AcrPull roles and API
+Only the human or explicitly owner-directed local agent may then grant the three
+exact-scope AcrPull roles and API
 container Blob Data Contributor described in ADR-016, using actual ServicePrincipal
 object IDs and existing deterministic Bicep `guid(scopeResourceId,
 uamiResourceId, fullRoleDefinitionResourceId)` assignment names.
 
 **Implemented read/command preparation, not grant execution or handoff approval:**
-the manual operator may use the following only under separately authorized
+the local operator (or explicitly owner-directed local agent) may use the
+following only under separately authorized
 operator-read context; it has not been executed against Azure in this work:
 
 ```sh
@@ -304,13 +365,14 @@ transitive/PIM privilege proof or bootstrap-writer revocation. Other principals'
 inherited roles still need human assessment; two successful listings do not
 prove exhaustive effective access. Protected continuation binds actual GitHub
 checkpoint provenance separately and re-reads actual settings/identities/grants/
-caller permissions. The authorized operator verifies genuine owner-authored evidence
+caller permissions. The authorized operator verifies genuine authorization and
+actual observer evidence
 and equivalent/transitive/PIM removal; there is no self-authored approval boolean.
 Do not execute the emitted commands before the owner-approved writer-removal
 condition and actual operator authority have been established. Do not grant
 from client IDs or guessed GUIDs.
 
-Future **human-only action preparation**, not execution authority: after reviewing
+Future **owner-authorized local action preparation**, not execution authority: after reviewing
 actual direct/inherited role definitions and effective contexts, remove each
 identified bootstrap writer assignment using its actual assignment resource ID:
 
@@ -322,10 +384,11 @@ az role assignment delete --ids "<reviewed-actual-bootstrap-writer-assignment-id
 This is not a bulk cleanup or sufficient proof: inherited/group/PIM/equivalent
 rights require owner-specific removal/verification, and continuation must not
 regain bootstrap/security writes. Re-read caller permissions and owner evidence
-before granting. Only the human executes separately authorized argv from
+before granting. Only the human or explicitly owner-directed local agent executes
+separately authorized exact argv from
 `human-grant-plan`; neither workflow can grant.
 
-Defender is a separate human operation requiring reviewed subscription
+Defender is a separately human-authorized local operation requiring reviewed subscription
 datascanners read/write, Event Grid and role-management capabilities. Enabled
 100 GB on-upload/index/no-exclusion settings, actual scanner identity and Storage
 Blob Data **Owner** beyond those four grants are read. Any explicitly reviewed
@@ -348,7 +411,7 @@ az rest --method put \
 
 No command above was executed here. Re-read actual settings/scanner/service grants
 and inventory; the PUT response or missing `operationStatus` alone is not healthy
-backend proof. The owner-confirmed functional record below is additionally required.
+backend proof. The truthfully attributed functional record below is additionally required.
 Never create a guessed scanner/backend topic/Data Owner assignment in a workflow.
 
 **Resolved semantic, with explicit limits:** the documented Defender settings read schema
@@ -361,25 +424,40 @@ replaces that unobservable requirement with an **owner-confirmed harmless
 functional test alongside actual readable configuration/identity/grant checks**.
 It does not claim hidden internal linkage. Missing readable visibility still fails.
 
-After **separate future execution authorization**, cmbuyamba manually follows
+After **separate scope-specific execution authorization**, the human or
+explicitly owner-directed local agent follows
 [Microsoft's test procedure](https://learn.microsoft.com/en-us/azure/defender-for-cloud/defender-for-storage-test)
 and observes “Malware scanning scan result” and “Malware scanning scan time”.
-No helper/workflow uploads, reads, deletes or modifies blobs/tags. Use a harmless
+No repository helper/workflow uploads, reads, deletes or modifies blobs/tags.
+The authorized local check may create ONLY its own harmless
 1–65536-byte `synthetic-<UUID>.txt`, not EICAR or an endpoint exclusion. Record
 exact Storage/container IDs, blob version or ETag, content SHA256/length, ordered
-strict UTC enablement/test-start/upload/scan/owner-observation times and result
-`No threats found`. Test start and owner observation must be within 24 hours
-at both preview and apply; the actual current readable security snapshot hash
+strict UTC enablement/test-start/upload/scan/observation times and result
+`No threats found`. Test start and actual observation must be within 24 hours
+at both preview and apply; never relabel agent observation as owner observation.
+The actual current readable security snapshot hash
 must match. Missing/failed/stale/mismatched correlation stops continuation.
 The 24-hour/64-KiB bounds are evidence limits, not Azure service guarantees.
 
 [Index tags are mutable and not tamper-resistant](https://learn.microsoft.com/en-us/azure/defender-for-cloud/introduction-malware-scanning#blob-index-tags).
 They MUST NOT be the sole security control or automated foundation-ready/
-data-admission signal. The owner confirms the genuine actual result; the
-authorized operator verifies that owner record and its limits. This limited
+data-admission signal. The actual observer records the genuine Microsoft-produced
+result; the
+authorized operator verifies consent, actual evidence and its limits. This limited
 pre-healthy synthetic exception is approved for code only: **no live test is
 authorized by this work**. No new Event Grid topic/diagnostic service, customer
 data, apps, migrations or cutover are added.
+
+For the local-agent check, use Entra `--auth-mode login` only, no account
+keys/SAS/static credentials. Read only its own result tags, ETag/version and
+metadata needed to correlate the actual created content hash/size/version and
+scan time. Never list/read tenant blobs or real tenant content, manufacture tags,
+use EICAR or endpoint-security exclusions, delete arbitrary data or change
+lifecycle settings. Cleanup of the exact synthetic test object requires explicit
+documented authorization, not automatic deletion. If the existing operator lacks
+data access, **stop**; do not grant it just to run the test. Workflows/audit SP
+must never upload/read/test blobs or obtain data authority. Test success cannot
+prove hidden linkage, PIM/equivalent revocation or financial coverage.
 
 #### V2 stage context, provenance and reviewed recovery
 
@@ -1022,6 +1100,27 @@ bootstrap**. It is review context, never an approval assertion. Its fields are:
   `readableSecuritySha256`. `readSecurity()` and canonical `stateHash()` define
   the readable snapshot binding; neither the file nor its hash authenticates
   the owner/result. The authorized operator must verify genuine referenced evidence.
+- Legacy absent `version` or `version: 1` retains **human-observed** semantics;
+  agent fields are rejected. `version: 2` is specifically owner-authorized local
+  agent evidence: `owner` is the **authorizer only**; add
+  `executor: {kind: "agent", id, context: "local"}`, `observer: {kind: "agent", id}`,
+  `operator: {type: "user", principalId, tenantId, subscriptionId}`, and
+  `authorization: {authorizer, authorizedAt, operatorPrincipalId, executorId,
+  observerId, containerId, testId}`. Authorization precedes test start and binds
+  that exact operator, actors, test and container; its genuine native approval
+  is checked through `executionAuthorizationReference`, not asserted by a boolean.
+  Add `machineEvidence: {reference, commandsSha256, readbackSha256, readback}`:
+  commands hash binds actual reviewed/executed argv archive; canonical
+  `stateHash(readback)` binds actual `{storageId, containerId, blob,
+  operatorPrincipalId, observedAt, tags: {"Malware scanning scan result",
+  "Malware scanning scan time"}}`. Values must equal the corresponding record
+  fields, including exact blob hash/length/ETag/version and Microsoft result/time.
+  `reference` locates actual retained evidence, not fabricated machine truth.
+  Unknown versions/observer kinds, missing consent context, scope/operator drift,
+  stale/future times and readback/security hash mismatch fail closed.
+  The validator checks structure/correlation only: native human review still
+  verifies actual authority, consent and raw command/readback evidence. It does
+  not prove harmless bytes, authenticity of mutable tags, PIM or finance.
 
 The shared state helper exports these pure projections/read-only functions so
 operators/tests use the same schema; it is essential shared policy, not new

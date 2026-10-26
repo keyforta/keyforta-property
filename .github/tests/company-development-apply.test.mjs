@@ -677,6 +677,108 @@ test("review fix partial bootstrap rejects container-only human grant before pre
   }
 });
 
+function agentFunctionalRecord(f) {
+  const record = structuredClone(f.context.security.functionalTest);
+  const principalId = "99999999-9999-4999-8999-999999999999";
+  Object.assign(record, {
+    version: 2,
+    executor: { kind: "agent", id: "synthetic-local-agent", context: "local" },
+    observer: { kind: "agent", id: "synthetic-local-agent" },
+    operator: { type: "user", principalId, tenantId: input.tenantId, subscriptionId },
+    authorization: { authorizer: "cmbuyamba", authorizedAt: "2026-10-25T20:09:00.000Z",
+      operatorPrincipalId: principalId, executorId: "synthetic-local-agent", observerId: "synthetic-local-agent",
+      containerId: record.containerId, testId: record.testId },
+    machineEvidence: { reference: record.observationReference, commandsSha256: "a".repeat(64),
+      readback: { storageId: record.storageId, containerId: record.containerId, blob: structuredClone(record.blob),
+        operatorPrincipalId: principalId, observedAt: record.observedAt,
+        tags: { "Malware scanning scan result": record.result, "Malware scanning scan time": record.scanTime } } },
+  });
+  record.machineEvidence.readbackSha256 = f.state.stateHash(record.machineEvidence.readback);
+  return record;
+}
+
+test("agent functional v2 distinguishes authorizer from actual local executor and observer", async () => {
+  const f = await stagedFixture();
+  const record = agentFunctionalRecord(f);
+  const checked = f.state.validateFunctionalTest(record, f.security, f.now);
+  assert.deepEqual(checked.observer, record.observer);
+  assert.deepEqual(checked.operator, record.operator);
+  assert.equal(checked.authorizer, "cmbuyamba");
+  assert.equal(checked.version, 2);
+  assert.equal(checked.ownerConfirmation, undefined, "Never label agent observation human-confirmed");
+  assert.equal(checked.automaticDataAdmission, false);
+});
+
+test("agent functional v2 fails closed on consent, identity, scope, metadata and version drift", async () => {
+  const f = await stagedFixture();
+  for (const mutate of [
+    (r) => { delete r.authorization; },
+    (r) => { r.authorization.authorizer = "agent"; },
+    (r) => { r.executionAuthorizationReference = ""; },
+    (r) => { r.executionAuthorizationReference = "https://example.invalid/approval"; },
+    (r) => { r.authorization.authorizedAt = "2026-10-25T20:11:00.000Z"; },
+    (r) => { r.authorization.authorizedAt = "2026-10-26T20:11:00.000Z"; },
+    (r) => { r.authorization.operatorPrincipalId = "88888888-8888-4888-8888-888888888888"; },
+    (r) => { r.authorization.executorId = "other"; },
+    (r) => { r.authorization.observerId = "other"; },
+    (r) => { r.authorization.containerId = "/foreign"; },
+    (r) => { r.authorization.testId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"; },
+    (r) => { r.operator.type = "servicePrincipal"; },
+    (r) => { r.operator.principalId = "guessed-name"; },
+    (r) => { r.operator.tenantId = "foreign"; },
+    (r) => { r.operator.subscriptionId = "foreign"; },
+    (r) => { r.executor.context = "github-actions"; },
+    (r) => { r.executor.kind = "human"; },
+    (r) => { r.observer.kind = "unknown"; },
+    (r) => { r.version = 99; },
+    (r) => { r.version = 1; },
+    (r) => { delete r.version; },
+    (r) => { delete r.machineEvidence; },
+    (r) => { r.machineEvidence.reference = ""; },
+    (r) => { r.machineEvidence.commandsSha256 = ""; },
+    (r) => { r.machineEvidence.readbackSha256 = "0".repeat(64); },
+    (r) => { r.machineEvidence.readback.tags["Malware scanning scan result"] = "Not scanned"; },
+    (r) => {
+      r.machineEvidence.readback.tags["Malware scanning scan time"] = r.uploadedAt;
+      r.machineEvidence.readbackSha256 = f.state.stateHash(r.machineEvidence.readback);
+    },
+    (r) => { r.machineEvidence.readback.blob.etag = '"foreign"'; },
+    (r) => { r.blob.contentLength = 65537; },
+    (r) => { r.blob.contentLength = 0; },
+    (r) => { r.blob.name = "../tenant.txt"; },
+    (r) => { r.blob.contentSha256 = "0".repeat(64); },
+    (r) => { r.blob.versionId = "foreign-version"; },
+    (r) => { r.readableSecuritySha256 = "0".repeat(64); },
+    (r) => { r.containerId = r.containerId.replace(subscriptionId, "88888888-8888-4888-8888-888888888888"); },
+    (r) => { r.observedAt = "2026-10-25T22:00:00.000Z"; },
+  ]) {
+    const record = agentFunctionalRecord(f); mutate(record);
+    assert.throws(() => f.state.validateFunctionalTest(record, f.security, f.now), mutate.toString());
+  }
+  assert.throws(() => f.state.validateFunctionalTest(agentFunctionalRecord(f), f.security, f.now + 25 * 3600000), /24 hours/);
+  for (const version of [undefined, 1]) {
+    const legacy = { ...f.context.security.functionalTest, version };
+    assert.match(f.state.validateFunctionalTest(legacy, f.security, f.now).ownerConfirmation, /not machine authenticated/);
+  }
+});
+
+test("agent functional v2 uses existing continuation guards without Blob or role write capability", async () => {
+  const f = await stagedFixture();
+  f.context.security.functionalTest = agentFunctionalRecord(f);
+  assert.equal(f.state.assessStage(f.read, f.plan, f.predecessor, f.now).functionalTest.observer.kind, "agent");
+  for (const mutate of [
+    () => { f.context.security.functionalTest.authorization.operatorPrincipalId = "foreign"; },
+    () => { f.transport.permissions[0].actions.push("Microsoft.Authorization/roleAssignments/write"); },
+  ]) {
+    mutate(); let previews = 0, puts = 0;
+    assert.throws(() => f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now,
+      preview: () => { previews++; }, submit: () => { puts++; } }));
+    assert.equal(previews, 0); assert.equal(puts, 0);
+    f.context.security.functionalTest = agentFunctionalRecord(f);
+  }
+  assert.ok(f.calls.every((a) => a[0] !== "storage" && !(a[0] === "role" && a[2] !== "list")));
+});
+
 test("owner-confirmed synthetic handoff is correlated, fresh, non-tag-authoritative and never reads blob data", async () => {
   const f = await stagedFixture();
   const checked = f.state.validateFunctionalTest(f.context.security.functionalTest, f.security, f.now);

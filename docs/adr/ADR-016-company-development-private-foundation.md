@@ -204,7 +204,71 @@ Both this guard/tradeoff and the transient exception have specific informed
 Product Owner approval at the reference above, not merely broad consent;
 required GitHub gates remain. Neither decision authorizes uploads/data/use.
 
+### Owner-directed local agent handoff decision — 2026-10-26
+
+**Approved narrow policy delta, code/doc/test only:** at
+**2026-10-26T20:38:45.496Z** the owner replied **“2”**, selecting the offered
+option permitting owner-authorized agent execution of exact reviewed company-dev
+handoff operations under the existing authenticated human operator account,
+**without giving deployment workflows role-management privileges**. The offered
+instruction was to change human-only policy for reviewed handoff commands and
+synthetic verification, preserving least privilege, budget checks, access proof
+and deployment safeguards. Issue #159 is contextual; this session decision is
+not itself machine-authenticated approval proof for a future operation.
+
+This supersedes historical human-only **execution/observation** requirements in
+Stage 2 and R3, not owner authorization or any substantive security gate.
+After merge and verified runtime conditions, only explicitly authorized exact
+reviewed local argv may remove identified bootstrap workflow writer assignments
+(preserving preview/audit/human Owner/read context), create the four deterministic
+scoped workload grants, configure the separately approved existing Defender
+100 GB/index settings after budget/offer proof, or perform bounded harmless
+synthetic verification. No broader grant, continuation writer, new identity,
+permission scope, workflow grant automation, deployment, merge or external
+setting change is authorized by this PR.
+
+The read-only `human-grant-plan` name is retained for compatibility; it rejects
+Actions and SP contexts. Agent execution is local under the actual existing
+human user's authority, not impersonated human observation. Preserve actual
+reviewed IDs/argv/readbacks/UTC and distinguish human authorizer from executor,
+observer and operator principal. Functional record **2** does this explicitly;
+absent/version **1** remains human evidence, unknown versions/kinds fail closed.
+References/hashes are context and byte binding, not authenticated consent or
+proof of observation. Native owner review must verify actual evidence. See the
+[current runbook and evidence fields](../../infra/README.md#owner-directed-local-agent-handoff--approved-2026-10-26-code-only).
+
+The local agent may create only an explicitly authorized 1–65536-byte harmless
+`synthetic-<UUID>.txt` in the exact application container, using Entra login.
+Read only its own result tags/version/ETag and required metadata; never tenant
+content/listings, manufactured tags, EICAR, endpoint exclusions, keys/SAS or
+implicit operator data grants. Missing existing data authority stops. Cleanup
+requires explicit exact-object authorization; no arbitrary deletion/lifecycle
+change. Preserve real Microsoft result/time and created version/hash/size
+correlation, 24-hour freshness and current readable security snapshot binding.
+Mutable tags/test success do not establish hidden scanner topology, revocation,
+PIM or approval. Workflows/audit SP remain management-read-only for handoff
+and must never acquire data access or perform tests.
+
+Actual equivalent/inherited/group/PIM revocation, eligibility/access, finance
+and narrow ACA permission proof remain mandatory. PIM licensing/Graph
+`403 ScopeNotGranted` is UNKNOWN, not absence; no new Graph scope/license/role.
+$118.13/month catalog estimate before tax/extras versus $120 ceiling is not
+live credit/offer coverage or a billing cap; 100 GB is not a dollar cap.
+No actual observation or live handoff completion is claimed. Receipt is not
+continuation authority. Strict NoChange/three Modify/five Delete, original failed
+checkpoint, no bootstrap retry, source closure 5/inspection 6, source/CI/native
+and destructive guards are unchanged. No historical pins/archive bytes change.
+Rollback is an authorized code revert and exact new-object/tuple rollback only,
+never automatic writer regrant, resource overwrite or deletion. Existing
+telemetry, backups, restore tests, SLO/error budgets, runbooks and cost checks
+remain; no new paid service, library or deployable is introduced.
+
 ### Stage 2 - human permissions and separate Defender verification
+
+The historical heading/anchor is retained. Human-only wording below is
+superseded only by the dated decision
+above; the exact grant tuples, actual permission proof and separate approval
+requirements are unchanged.
 
 The operator reads actual tenant, resource ID, `principalId` AND `clientId` for
 each UAMI from completed ARM deployment operations and live inventory; names or
