@@ -6,6 +6,8 @@ import { createHash } from "node:crypto";
 import { assertNoSecretPayload, assertVerificationSources, assertWhatIfCollections, bootstrapInventory, continuationInventory, destination, securityInventory } from "./company-development.mjs";
 export { continuationInventory } from "./company-development.mjs";
 import { armGuid, assertHumanGrantAssignments, readBootstrapState, recoveryOrigin } from "./company-development-apply.mjs";
+import { projectResources, assertCompletionBasis } from "./company-development-completion-validation.mjs";
+export { projectResources } from "./company-development-completion-validation.mjs";
 
 const scope = `/subscriptions/${destination.subscriptionId}/resourceGroups/${destination.resourceGroup}/providers/`;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -28,20 +30,6 @@ const apiVersions = {
   "Microsoft.OperationalInsights": "2023-09-01", "Microsoft.App": "2024-10-02-preview",
   "Microsoft.Security": "2026-08-01", "Microsoft.EventGrid": "2022-06-15",
 };
-function scrub(value) {
-  if (Array.isArray(value)) return value.map(scrub);
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [
-    k, /^(sharedKey|primarySharedKey|secondarySharedKey)$/i.test(k) ? "<not-retained>" : scrub(v),
-  ]));
-  return typeof value === "string" && value.toLowerCase().startsWith("/subscriptions/") ? value.toLowerCase() : value;
-}
-export function projectResources(resources) {
-  assert.ok(Array.isArray(resources), "Missing actual resource visibility");
-  return resources.map((r) => {
-    assert.ok(r?.id && r.type && (r.properties || (r.type === "Microsoft.Security/dataScanners" && r.identity)), "Incomplete resource visibility");
-    return canonical(scrub(Object.fromEntries(["id", "type", "location", "sku", "kind", "identity", "properties"].filter((k) => r[k] !== undefined).map((k) => [k, r[k]]))));
-  }).sort((a, b) => a.id.localeCompare(b.id));
-}
 function get(read, url) {
   return read(["rest", "--method", "get", "--url", `https://management.azure.com${url}`]);
 }
@@ -271,8 +259,10 @@ export function assertOriginalApplyCaller(read, predecessor) {
   assert.equal(account.id, destination.subscriptionId, "Wrong writer subscription");
   assert.equal(account.tenantId, destination.tenantId, "Wrong writer tenant");
   assert.equal(account.user?.type, "servicePrincipal", "Scoped workflow caller required");
-  assert.match(predecessor.applyClientId ?? "", uuid, "Missing original bootstrap workflow caller");
-  assert.ok(sameId(account.user.name, predecessor.applyClientId), "Must verify original bootstrap workflow caller, not a different SP");
+  const writer = predecessor.kind === "bootstrap-completion-basis"
+    ? assertCompletionBasis(predecessor).historicalWriter.clientId : predecessor.applyClientId;
+  assert.match(writer ?? "", uuid, "Missing original bootstrap workflow caller");
+  assert.ok(sameId(account.user.name, writer), "Must verify original bootstrap workflow caller, not a different SP");
   return account;
 }
 export function assertWriterRevoked(read, predecessor, phase = "apply", securityContext) {
@@ -348,6 +338,7 @@ export function validateStageChanges(preview, plan, completed) {
   for (const r of allowed) assert.ok(ids.has(r.id.toLowerCase()), "Incomplete stage what-if inventory");
 }
 export function assessStage(read, plan, predecessor, now = Date.now(), phase = "apply") {
+  if (predecessor?.kind === "bootstrap-completion-basis") return assessReceiptContinuation(read, plan, predecessor, now, phase);
   const { inputs } = plan, context = inputs.stageContext;
   assert.ok(context && predecessor, "Missing staged predecessor/inventory evidence");
   assert.deepEqual(predecessor.destination, destination, "Wrong predecessor destination");
@@ -368,6 +359,50 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
     assert.deepEqual(context.baseline, projectResources(predecessor.resources), "Verification-only original resource/property/principal drift");
     assert.equal(context.baseline.length, 7, "Verification-only requires complete original inventory");
     assert.equal(context.deploymentName, predecessor.deploymentName, "Verification-only must inspect original deployment");
+  }
+  function assessReceiptContinuation(read, plan, basis, now, phase) {
+    const receipt = assertCompletionBasis(basis), context = plan.inputs.stageContext;
+    assert.ok(Date.parse(receipt.observations[1]) <= now, "Completion evidence cannot be from the future");
+    assert.equal(plan.inputs.stage, "continuation", "Receipt cannot authorize bootstrap re-entry");
+    assert.equal(plan.inputs.mode, "initial", "Receipt is only an initial continuation completion basis");
+    assert.deepEqual(context.predecessor, basis.ref, "Wrong authenticated continuation completion basis");
+    assert.ok(!context.sourceTransition, "Receipt is not a verification-only checkpoint transition");
+    assertReference(context.freezeReference, "change freeze");
+    assertReference(context.inspectionReference, "ARM inspection");
+    // This is a NEW plan with separate reviewed grants/Defender/functional test,
+    // never a pre-handoff receipt snapshot used as current security approval.
+    assert.ok(context.security?.writerRemovalReference, "Fresh independent human security handoff required");
+    const current = readResources(read, "continuation", context.security);
+    assert.deepEqual(current, context.baseline, "Actual reviewed continuation state drift");
+    const boot = current.filter((r) => bootstrapInventory().some((b) => sameId(b.id, r.id)));
+    assert.equal(boot.length, 7, "Missing immutable bootstrap identity inventory");
+    assert.deepEqual(bindings(boot), bindings(receipt.resources), "Recreated bootstrap identities");
+    const readableSecurity = readSecurity(read, context.security, { resources: receipt.resources });
+    const functionalTest = validateFunctionalTest(context.security.functionalTest, readableSecurity, now);
+    // Existing revocation proof remains mandatory on preview AND apply; apply
+    // additionally binds the actual original writer, never the audit observer.
+    const writerPermissions = assertWriterRevoked(read, basis, phase, context.security);
+    const expectedName = `companydev-continuation-${plan.evidence.commitSha.slice(0, 12)}`;
+    assert.equal(context.deploymentName, expectedName, "Wrong separately authorized continuation deployment");
+    const inspection = inspectDeployment(read, expectedName);
+    assert.equal(inspection, null, "Existing continuation requires its own execution checkpoint/re-entry");
+    const predecessorInspection = inspectDeployment(read, receipt.original.deploymentName);
+    assert.equal(predecessorInspection?.status, "Succeeded", "Historical bootstrap state changed");
+    const history = read(["deployment", "group", "list", "--resource-group", destination.resourceGroup]);
+    assert.ok(Array.isArray(history), "Missing complete deployment history");
+    for (const entry of history) {
+      if ([receipt.original.deploymentName, "foundation-keyforta-cdev", "stamp-keyforta-cdev"].includes(entry.name)) {
+        assert.equal(entry.properties?.provisioningState, "Succeeded", "Historical deployment no longer successful");
+      } else {
+        const reviewed = context.deploymentInspections?.find((v) => v.name === entry.name);
+        assert.ok(reviewed, "Unexpected continuation deployment history");
+        assert.deepEqual(inspectDeployment(read, entry.name), reviewed, "Additional history drift");
+      }
+    }
+    const permissionReadiness = readStagePermissionReadiness(read, "continuation", phase, true);
+    return { action: "submit", resources: current, inspection, targetInspection: null, predecessorInspection, history,
+      functionalTest, readableSecurity, writerPermissions, permissionReadiness,
+      completionBasis: basis.ref, receiptIsNotDeploymentAuthorization: true };
   }
   if (phase === "apply") assertOriginalApplyCaller(read, predecessor);
   assert.equal(context.predecessor.stage, predecessor.stage, "Predecessor stage mismatch");

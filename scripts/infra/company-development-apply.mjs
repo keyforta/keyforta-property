@@ -8,9 +8,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import {
   armParameters, assertAzureContext, assertReviewContext, currentRun, destination,
-  foundationSource, guard, normalizedPreview, preserveWhatIfDiagnostics, validateInputs, workflowContext,
+  foundationSource, guard, normalizedPreview, preserveWhatIfDiagnostics, validateInputs, workflowContext, loadStagePredecessor,
   assertBootstrapPreview, assertImplementedStage, assertNoSecretPayload, bootstrapInventory, sourcePaths, stageInventory, validatePreview,
 } from "./company-development.mjs";
+import { manifestPaths, assertCompletionBasis } from "./company-development-completion-validation.mjs";
 
 const repository = "keyforta/keyforta-property";
 const applyEnvironment = "company-dev-apply";
@@ -49,9 +50,12 @@ export function armGuid(...values) {
 }
 
 function identityBindings(state) {
-  assert.equal(state?.version, 2, "Legacy/missing bootstrap predecessor");
-  assert.equal(state.stage, "bootstrap", "Wrong predecessor stage");
-  assert.deepEqual(state.destination, destination, "Wrong predecessor destination");
+  if (state?.kind === "bootstrap-completion-basis") assertCompletionBasis(state);
+  else {
+    assert.equal(state?.version, 2, "Legacy/missing bootstrap predecessor");
+    assert.equal(state.stage, "bootstrap", "Wrong predecessor stage");
+    assert.deepEqual(state.destination, destination, "Wrong predecessor destination");
+  }
   assert.ok(Array.isArray(state.resources), "Missing predecessor resource visibility");
   const inventory = (resources) => resources.map((r) => ({ id: r.id.toLowerCase(), type: r.type.toLowerCase() })).sort((a, b) => a.id.localeCompare(b.id));
   assert.deepEqual(inventory(state.resources), inventory(bootstrapInventory()), "Missing/extra/foreign predecessor resources");
@@ -310,7 +314,7 @@ export function assertPlan(files, run, artifact, expected, currentSourceSha256) 
   assert.equal(evidence.estimatedMonthlyUsdBeforeTax, "108.35", "Unreviewed cost estimate");
   assert.equal(evidence.sourceSha256, expected.sourceSha256, "Reviewed source hash mismatch");
   assert.equal(currentSourceSha256, expected.sourceSha256, "Current foundation source differs from reviewed source");
-  assert.deepEqual(evidence.sourceFiles?.map((file) => file.path), sourcePaths, "Incomplete source dependency manifest");
+  assert.deepEqual(evidence.sourceFiles?.map((file) => file.path), manifestPaths(evidence.sourceManifestVersion), "Incomplete source dependency manifest");
   for (const file of evidence.sourceFiles) assert.match(file.sha256 ?? "", /^[a-f0-9]{64}$/, "Invalid source file hash");
   assert.equal(hash(JSON.stringify(evidence.sourceFiles)), evidence.sourceSha256, "Source manifest hash mismatch");
   for (const [file, field] of [["template.json", "templateSha256"], ["parameters.json", "parametersSha256"], ["what-if.json", "whatIfSha256"], ["inventory.json", "inventorySha256"]]) {
@@ -375,6 +379,7 @@ export function applyRequest(plan, sha) {
 }
 
 export function assertExecutionCheckpoint(bytes, run, artifact, ref) {
+  assert.notEqual(ref?.kind, "bootstrap-completion-receipt-ref", "Receipt is not an apply execution checkpoint");
   assert.equal(hash(bytes), ref.checkpointSha256, "Reviewed predecessor checkpoint hash mismatch");
   for (const [field, value] of Object.entries({ head_sha: ref.sha, head_branch: "main", event: "workflow_dispatch", status: "completed", path: ".github/workflows/company-development-foundation-apply.yml" })) assert.equal(run[field], value, `Predecessor ${field} mismatch`);
   assert.equal(String(run.id), ref.runId, "Predecessor run mismatch");
@@ -388,6 +393,7 @@ export function assertExecutionCheckpoint(bytes, run, artifact, ref) {
   assert.equal(artifact.workflow_run?.head_sha, ref.sha, "Wrong predecessor artifact SHA");
   assert.equal(artifact.name, `company-dev-foundation-${ref.stage}-${ref.mode}-v2-apply-${ref.sha}-${ref.runId}-${ref.runAttempt}`, "Wrong predecessor artifact stage/name");
   const checkpoint = JSON.parse(bytes);
+  assert.ok(!checkpoint.kind && checkpoint.mode !== "audit-readonly", "Receipt cannot be loaded as execution checkpoint");
   assert.equal(checkpoint.version, 2, "Legacy predecessor");
   assert.deepEqual(checkpoint.destination, destination, "Wrong predecessor destination");
   for (const [field, value] of Object.entries({ stage: ref.stage, mode: ref.mode, commitSha: ref.sha, runId: ref.runId, runAttempt: ref.runAttempt })) assert.equal(checkpoint[field], value, `Checkpoint ${field} mismatch`);
@@ -398,7 +404,7 @@ export function assertExecutionCheckpoint(bytes, run, artifact, ref) {
   // never permission to replay: assessStage requires actual Succeeded state,
   // exact resources/payload and fresh NoChange for verified no-PUT recovery.
   assert.match(checkpoint.applyClientId ?? "", uuid, "Missing actual bootstrap/apply caller binding");
-  assert.deepEqual(checkpoint.sourceFiles?.map((v) => v.path), sourcePaths, "Incomplete predecessor source dependencies");
+  assert.deepEqual(checkpoint.sourceFiles?.map((v) => v.path), manifestPaths(checkpoint.sourceManifestVersion), "Incomplete predecessor source dependencies");
   for (const file of checkpoint.sourceFiles) assert.match(file.sha256 ?? "", /^[a-f0-9]{64}$/, "Invalid predecessor source hash");
   assert.equal(hash(JSON.stringify(checkpoint.sourceFiles)), checkpoint.sourceSha256, "Predecessor source manifest hash mismatch");
   for (const key of ["templateSha256", "parametersSha256"]) assert.match(checkpoint[key] ?? "", /^[a-f0-9]{64}$/, `Missing predecessor ${key}`);
@@ -458,6 +464,7 @@ export function recoveryOrigin(checkpoint) {
 
 export function loadExecutionCheckpoint(ref) {
   assert.ok(ref, "Missing execution predecessor");
+  assert.notEqual(ref.kind, "bootstrap-completion-receipt-ref", "Receipt requires authenticated completion loader");
   for (const key of ["runId", "runAttempt", "artifactId"]) assert.match(ref[key] ?? "", /^[1-9]\d*$/, `Missing predecessor ${key}`);
   const run = github(`actions/runs/${ref.runId}/attempts/${ref.runAttempt}`);
   const artifact = github(`actions/artifacts/${ref.artifactId}`);
@@ -543,11 +550,11 @@ function enabled() {
   workflowContext();
   assert.equal(process.env.COMPANY_DEV_APPLY_ENABLED, "true", "Apply route not externally activated");
 }
-function guardApply() {
+async function guardApply() {
   enabled();
   const expected = expectedPlan();
   const plan = loadPlan(expected);
-  if (plan.inputs.stageContext) loadExecutionCheckpoint(plan.inputs.stageContext.predecessor);
+  if (plan.inputs.stageContext) await loadStagePredecessor(plan.inputs.stageContext, plan.inputs.stage);
   const checks = quality();
   guard({ expectedEnvironment: applyEnvironment, enabled: process.env.COMPANY_DEV_APPLY_ENABLED, inventory: plan.inventory });
   appendFileSync(process.env.GITHUB_OUTPUT, `plan_binding=${JSON.stringify(expected)}\n`);
@@ -559,14 +566,14 @@ function guardApply() {
     "```json", JSON.stringify({ ...expected, qualityRuns: checks }, null, 2), "```", "",
   ].join("\n"));
 }
-function verify() {
+async function verify() {
   enabled();
   const expected = expectedPlan();
   assert.deepEqual(JSON.parse(process.env.PLAN_BINDING ?? "null"), expected, "Guarded plan binding drift");
   const context = JSON.parse(process.env.REVIEW_CONTEXT ?? "null");
   assertReviewContext(context, github(`environments/${applyEnvironment}`), currentRun(), applyEnvironment);
   const plan = loadPlan(expected);
-  if (plan.inputs.stageContext) loadExecutionCheckpoint(plan.inputs.stageContext.predecessor);
+  if (plan.inputs.stageContext) await loadStagePredecessor(plan.inputs.stageContext, plan.inputs.stage);
   for (const field of ["stage", "mode", "evidenceVersion"]) assert.equal(context[field], expected[field], `Apply review ${field} drift`);
   assert.equal(context.inventorySha256, hash(JSON.stringify(plan.inventory)), "Apply review inventory drift");
   validateInputs(plan.inputs, {
@@ -595,7 +602,7 @@ function destinationContext(input) {
   }
 }
 
-function humanGrantPlan() {
+async function humanGrantPlan() {
   assert.notEqual(process.env.GITHUB_ACTIONS, "true", "Manual operator command only; never execute grant preparation in a workflow");
   const args = process.argv.slice(3);
   assert.equal(args.length, 6, "Required: --deployment NAME --predecessor FILE --predecessor-sha256 HASH");
@@ -605,18 +612,21 @@ function humanGrantPlan() {
   assert.ok(file.isFile() && !file.isSymbolicLink() && file.size <= 2 * 1024 * 1024, "Invalid predecessor file");
   const bytes = readFileSync(args[3]);
   assert.equal(hash(bytes), args[5], "Reviewed predecessor file hash mismatch");
-  const result = prepareHumanGrants(azure, args[1], JSON.parse(bytes.toString("utf8")));
+  const parsed = JSON.parse(bytes.toString("utf8"));
+  const predecessor = parsed.kind === "bootstrap-completion-receipt-ref"
+    ? await loadStagePredecessor({ predecessor: parsed }, "continuation") : parsed;
+  const result = prepareHumanGrants(azure, args[1], predecessor);
   // Printed argv arrays ONLY; never spawn the prepared create commands.
   // This hash is byte binding/review context, not an authenticated approval.
   console.log(JSON.stringify({ ...result, predecessorFileSha256: args[5] }, null, 2));
 }
 
 async function apply() {
-  const verified = verify(); // supported API checks + actual protected job, no self-attestation
+  const verified = await verify(); // supported API checks + actual protected job, no self-attestation
   destinationContext(verified.plan.inputs);
   const stateEngine = await import("./company-development-state.mjs");
   const predecessor = verified.plan.inputs.stageContext
-    ? loadExecutionCheckpoint(verified.plan.inputs.stageContext.predecessor) : null;
+    ? await loadStagePredecessor(verified.plan.inputs.stageContext, verified.plan.inputs.stage) : null;
   // Bind before any execution evidence/checkpoint can be written. Replays must
   // not launder the bootstrap writer into a replacement caller's checkpoint.
   if (predecessor) stateEngine.assertOriginalApplyCaller(azure, predecessor);
@@ -644,6 +654,7 @@ async function apply() {
       version: 2, stage: verified.plan.inputs.stage, mode: verified.plan.inputs.mode, destination,
       completed, commitSha: currentRun().revision, runId: currentRun().runId, runAttempt: currentRun().runAttempt,
       applyClientId: predecessor?.applyClientId ?? process.env.APPLY_CLIENT_ID, deploymentName: actualDeployment.name, deploymentCommitSha: actualDeployment.commitSha,
+      sourceManifestVersion: verified.plan.evidence.sourceManifestVersion,
       sourceSha256: verified.plan.evidence.sourceSha256, sourceFiles: verified.plan.evidence.sourceFiles,
       templateSha256: verified.plan.evidence.templateSha256, parametersSha256: verified.plan.evidence.parametersSha256,
       resources, predecessor: verified.plan.inputs.stageContext?.predecessor ?? null,
@@ -714,9 +725,9 @@ async function apply() {
 async function main() {
   try {
     switch (process.argv[2]) {
-      case "human-grant-plan": humanGrantPlan(); break;
-      case "guard": guardApply(); break;
-      case "verify": verify(); console.log("Reviewed apply inputs and protected-environment snapshot verified; no Azure write."); break;
+      case "human-grant-plan": await humanGrantPlan(); break;
+      case "guard": await guardApply(); break;
+      case "verify": await verify(); console.log("Reviewed apply inputs and protected-environment snapshot verified; no Azure write."); break;
       case "apply": await apply(); break;
       default: throw new Error("Supported operations: guard, verify, apply; manual-only human-grant-plan (reads/command preparation only); no grant execution or cleanup");
     }

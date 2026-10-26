@@ -4,7 +4,8 @@ import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { foundationSource } from "../../scripts/infra/company-development.mjs";
-import { sourceFixture, sourcePaths } from "./fixtures/company-source.mjs";
+import { sourceFixture } from "./fixtures/company-source.mjs";
+import { currentSourcePaths as sourcePaths } from "../../scripts/infra/company-development-completion-validation.mjs";
 
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
