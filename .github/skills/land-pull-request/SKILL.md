@@ -27,15 +27,16 @@ description: "Drive one open pull request to a genuinely merge-ready state: requ
    not revisit them within this PR's remediation cycles.
 5. Track a fix-verify cycle counter starting at 1. Cap remediation at 3
    cycles total for this PR.
-6. After each cycle's fixes land, re-request review from Pull Request
-   Reviewer (and Security and Privacy Reviewer for security-relevant
-   changes). A new cycle begins only in response to newly surfaced findings,
-   never a re-run of an already-addressed one.
+6. After each cycle's fixes land, verify fresh test/check results and evidence
+   against the findings. Request specialist re-review only when explicitly
+   requested or useful, per [the specialist-review policy](../../../AGENTS.md#specialist-review-policy);
+   it is not a merge-ready or next-cycle gate. Begin another cycle only for
+   newly surfaced or unresolved blockers, not an already-addressed finding.
 7. If cycle 3 completes and a required check or Critical/High finding
    remains, stop immediately, report the exact remaining blockers, and hand
    off to a human. Do not start a 4th cycle under any framing.
 8. Once every required check is green, every Critical/High finding is
-   resolved, and required reviewer/human approvals are recorded, report the
+   resolved, and configured external GitHub approvals are recorded, report the
    PR as merge-ready.
 9. Merge only if a human has explicitly authorized merging this specific PR.
    Never use `--admin`, force flags, or anything that bypasses a required or
@@ -44,8 +45,9 @@ description: "Drive one open pull request to a genuinely merge-ready state: requ
 ## Guardrails
 
 - Do not edit any file yourself; every fix comes from the owning specialist.
-- Do not treat your own triage or another automated pass as satisfying a
-  required human or reviewer-agent approval.
+- No agent analysis or review satisfies a configured GitHub human approval.
+  Do not self-approve or substitute optional specialist sign-off for external
+  GitHub controls.
 - Do not iterate on Medium/Low findings beyond the single pass in step 4.
 - Do not exceed the 3-cycle cap; reaching it is an escalation to surface, not
   a reason to keep looping quietly.

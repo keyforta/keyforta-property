@@ -55,7 +55,9 @@ security remediation for the consumed credential paths, not general upstream
 support for substituting MSAL 7 throughout Azure Identity. A later shared-tree
 verify encountered newly added, concurrently owned foundation-source workflow
 tests; the handoff preserves that failure separately. A current green shared-tree
-verify and independent review are still required before any release decision.
+verify is still required before any release decision. Specialist review is
+optional under [the specialist-review policy](../../AGENTS.md#specialist-review-policy);
+configured external GitHub controls and human release authorization still apply.
 
 ### Removal and review criteria
 
@@ -69,7 +71,9 @@ dependency range that includes an advisory-patched MSAL release. In that change:
    `pnpm audit --audit-level high`, production build, and `pnpm verify`.
 3. Recheck upstream migration notes, runtime requirements, and consumed API
    contracts. A new major, SDK flow, or broker/plugin requires its own review.
-4. Obtain independent review of the actual diff. Do not broaden the selector
+4. Request specialist review of the actual diff when requested or useful under
+   [the specialist-review policy](../../AGENTS.md#specialist-review-policy).
+   Do not broaden the selector
    or retain an unsupported override silently across Azure Identity upgrades.
 
 Keep the existing high-severity audit gate and all authorization, organization

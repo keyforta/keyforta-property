@@ -143,7 +143,7 @@ export function readSecurity(read, context, predecessor) {
     bootstrap: projectResources(boot), internalTopology: "UNVERIFIED" });
 }
 // Structural/correlation checks only. The owner observes the harmless test in
-// Azure; the existing independent native gate verifies the owner's record.
+// Azure; the authorized human operator verifies the owner's record.
 // Blob tags are mutable and NEVER an automated security/data-admission proof.
 export function validateFunctionalTest(test, security, now = Date.now()) {
   assert.ok(test, "Missing owner-confirmed synthetic functional test");

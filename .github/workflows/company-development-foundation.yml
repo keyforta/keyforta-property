@@ -2,9 +2,9 @@ name: Company development foundation preview
 
 # PREPARATION ONLY. Review this new route before activation. It has no deploy
 # operation, bootstrap, provider registration, SQL, images, apps or jobs.
-# GitHub company-dev required-reviewer approval is the authoritative gate.
-# Independent manual no-bypass verification for this exact SHA/run/snapshot must
-# be recorded in that approval; no repository flag is a replacement.
+# No independent environment reviewer is required. Explicit human authorization
+# and operator no-bypass verification remain bound to the exact SHA/run/snapshot;
+# repository activation flags and context outputs are not authorization.
 on:
   workflow_dispatch:
     inputs:
@@ -78,7 +78,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Verify externally configured route activation and reviewers
+      - name: Verify externally configured route activation and environment protection snapshot
         id: review-context
         env:
           GH_TOKEN: ${{ github.token }}
@@ -93,7 +93,7 @@ jobs:
     environment: company-dev
     permissions:
       contents: read
-      actions: read # Recheck environment snapshot after GitHub approval, before OIDC
+      actions: read # Recheck actual environment snapshot before OIDC
       id-token: write
     env:
       PREVIEW_CLIENT_ID: ${{ vars.COMPANY_DEV_PLAN_CLIENT_ID }}

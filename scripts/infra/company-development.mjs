@@ -168,9 +168,9 @@ export function assertEnvironmentProtection(environment, expectedEnvironment = e
   assert.ok(Number.isSafeInteger(environment.id) && environment.id > 0, "Missing actual GitHub environment ID");
   assert.ok(typeof environment.node_id === "string" && environment.node_id.length > 0, "Missing actual GitHub environment node ID");
   assert.equal(environment.deployment_branch_policy?.protected_branches, true, "Environment must restrict protected branches");
-  const reviewers = environment.protection_rules?.find((rule) => rule.type === "required_reviewers");
-  assert.ok(reviewers?.reviewers?.length > 0, "Environment requires external reviewers");
-  assert.equal(reviewers.prevent_self_review, true, "Environment must prevent self review");
+  // An empty rule inventory is valid: independent environment review is not
+  // required. Still reject unreadable metadata and bind every actual rule.
+  assert.ok(Array.isArray(environment.protection_rules), "Missing environment protection rule inventory");
 }
 
 // Review context only: this snapshot is NOT an approval or no-bypass attestation.
@@ -202,7 +202,7 @@ function assertReviewRun(context, current) {
 export function assertReviewContext(context, environment, current, expectedEnvironment = environmentName) {
   assertReviewRun(context, current);
   const snapshot = environmentSnapshot(environment, expectedEnvironment);
-  assert.deepEqual(context.environment, snapshot, "Review environment snapshot changed; independent re-review required");
+  assert.deepEqual(context.environment, snapshot, "Review environment snapshot changed; fresh context required");
 }
 
 const resourceTypes = new Set([
@@ -335,22 +335,22 @@ export function guard({ expectedEnvironment = environmentName, enabled = process
     `Canonical baseline/expected inventory SHA256: \`${context.inventorySha256}\` (review context, NOT security approval).`,
     "```json", JSON.stringify(reviewedInventory, null, 2), "```",
     "",
-    `- An independent required reviewer, OTHER THAN the workflow initiator (and re-run actor), must inspect the live ${expectedEnvironment} environment settings.`,
-    "- Verify required reviewers, prevent self-review, protected branches and that **Allow administrators to bypass configured protection rules is disabled**.",
-    `- Compare this exact SHA/run/attempt and snapshot with the pending ${expectedEnvironment} job; review its foundation-only inputs and scope.`,
+    `- The authorized operator must inspect the live ${expectedEnvironment} environment settings; no independent reviewer or initiator/re-run actor separation is required.`,
+    "- Verify protected branches and that **Allow administrators to bypass configured protection rules is disabled**. The documented API does not prove this UI-only setting.",
+    `- Compare this exact SHA/run/attempt and snapshot with the ${expectedEnvironment} job; review its foundation-only inputs and scope.`,
     "- Confirm required CI/security checks, including dependency audit, pass for this exact SHA. Reject blocked checks; this manual control is not an audit waiver.",
-    "- Record the exact SHA, run/attempt, environment ID, snapshot hash and manual no-bypass verification in the native GitHub environment approval comment before approving.",
-    "- Reject on mismatch, missing evidence or changed settings. Re-run/re-review after any environment or revision change.",
+    "- Preserve the exact SHA, run/attempt, environment ID, snapshot hash and manual no-bypass verification with the operator's explicit human merge/deploy authorization; no native environment approval comment is required.",
+    "- Reject on mismatch, missing evidence or changed settings. Obtain fresh context after any environment or revision change.",
     "- Bootstrap only: review the exact seven-resource inventory, change freeze and stage-scoped effective caller permissions. NO role/Defender/scanner/security writes, apps, uploads, data or migrations. Empty unused Storage before Defender is owner-approved, NOT foundation readiness.",
     "- Before human grants/security handoff, cmbuyamba must verify removal of ALL bootstrap writer authority, including inherited/equivalent/PIM authority. Continuation rechecks the original apply caller's effective permission reads; do not infer completeness from lists.",
     "- For continuation: inspect cmbuyamba's actual harmless synthetic-file result and separate execution authorization, exact blob name/version-or-etag/content hash/UTC scan correlation, and current readable security snapshot hash. Confirm the record is genuinely owner-authored; JSON/hashes alone are NOT approval.",
     "- Blob index tags are mutable, not tamper-resistant: NEVER use them alone as a security/data-admission control. Internal scanner/Event Grid topology stays UNVERIFIED. No apps/customer data/workflow Blob access are authorized.",
     "- Permission review must establish the concrete minimum custom-VNet ACA caller operations without broad subscription RG/Network authority. Missing ACA proof, eligibility or capacity evidence still blocks activation; code/tests do not establish live sufficiency.",
     "",
-    "GitHub required-reviewer approval is authoritative. This summary/output is review context, NOT approval or machine proof of no-admin-bypass. Activation flags cannot replace that approval. Approval is only for this workflow's exact scope and reviewed inputs.",
+    "Explicit human merge/deploy authorization remains required for this workflow's exact scope and reviewed inputs. Independent environment review is not required. This summary/output and activation flags are NOT authorization or machine proof of no-admin-bypass.",
     "",
   ].join("\n"));
-  console.log("GitHub environment approval required: independent reviewer must record manual no-bypass verification for this exact SHA/run/snapshot. No Azure sign-in in guard.");
+  console.log("Environment context bound to exact SHA/run/snapshot; explicit human authorization remains required, not independent environment review. No Azure sign-in in guard.");
   return context;
 }
 
@@ -378,8 +378,8 @@ async function prepare() {
   workflowContext();
   const input = readInputs();
   assert.match(process.env.PREVIEW_CLIENT_ID ?? "", /^[a-fA-F0-9-]{36}$/, "Missing destination preview client UUID");
-  // Runs ONLY inside the company-dev environment job, after GitHub releases its
-  // required-reviewer gate. No boolean/comment parser substitutes for that gate.
+  // Runs ONLY inside the company-dev environment job. Revalidate the actual
+  // snapshot before OIDC even when no reviewer protection rules are configured.
   const reviewContext = JSON.parse(process.env.REVIEW_CONTEXT ?? "null");
   const environment = JSON.parse(command("gh", ["api", `repos/${repository}/environments/${environmentName}`]));
   assertReviewContext(reviewContext, environment, currentRun());
@@ -467,7 +467,7 @@ async function preview() {
     sourceSha256: foundationSource().sha256,
     sourceFiles: foundationSource().files,
     reviewContext,
-    reviewPolicy: "GitHub company-dev required-reviewer approval; manual no-bypass verification required in native approval comment, not machine-verified",
+    reviewPolicy: "Explicit human authorization and operator manual no-bypass verification; no independent environment reviewer required; context is not approval or machine verification",
     ...input,
     planningCeilingUsdBeforeTax: "120.00",
     estimatedMonthlyUsdBeforeTax: "108.35",

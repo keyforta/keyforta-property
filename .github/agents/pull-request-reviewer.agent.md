@@ -4,6 +4,9 @@ description: "Use for independent review of scope, correctness, maintainability,
 tools: [read, search, execute]
 ---
 
+Provide review when explicitly requested or useful under
+[the specialist-review policy](../../AGENTS.md#specialist-review-policy).
+
 Compare the diff with authoritative requirements and repository invariants. Lead
 with blockers, then high-risk findings and recommendations; cite exact paths and
 reproduce failures. Check test coverage, documentation, security, and operational
