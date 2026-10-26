@@ -6,10 +6,126 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import YAML from "yaml";
 import { completionFixture, installCliMocks, zipFixture } from "./fixtures/company-completion.mjs";
+import { syntheticHistorical, syntheticInheritedHumans } from "./fixtures/company-completion-loader.mjs";
 
 const load = () => import("../../scripts/infra/company-development-completion.mjs");
 const pure = () => import("../../scripts/infra/company-development-completion-validation.mjs");
 const hash = (v) => createHash("sha256").update(v).digest("hex");
+
+test("only the 31 diagnosed typed SDK null/absent fields compare compatibly, without rewriting evidence", async () => {
+  const { assertHistoricalState, stateHash } = await pure();
+  const f = completionFixture();
+  try {
+    const raw = structuredClone(f.snapshot), cp = structuredClone(f.checkpoint);
+    // Synthetic API representations; never copy operational resource payloads.
+    const paths = (type) => type.endsWith("/registries") ? ["identity", "kind", "sku.capacity", "sku.family", "sku.model", "sku.size"]
+      : type.endsWith("/userAssignedIdentities") ? ["identity", "kind", "sku"]
+      : type.endsWith("/storageAccounts") ? ["identity", "sku.capacity", "sku.family", "sku.model", "sku.size"]
+      : type.endsWith("/blobServices") ? ["identity", "kind", "location", "sku.capacity", "sku.family", "sku.model", "sku.size"]
+      : ["identity", "kind", "location", "sku"];
+    let count = 0;
+    for (const r of raw.resources) {
+      const old = cp.resources.find((v) => v.id === r.id);
+      for (const path of paths(r.type)) {
+        const [key, child] = path.split(".");
+        if (child) { r[key] ??= {}; old[key] ??= {}; delete r[key][child]; old[key][child] = null; }
+        else { delete r[key]; old[key] = null; }
+        count++;
+      }
+    }
+    assert.equal(count, 31);
+    const rawHash = stateHash(raw), cpHash = stateHash(cp);
+    assert.doesNotThrow(() => assertHistoricalState(raw, cp, f.run));
+    assert.doesNotThrow(() => assertHistoricalState({ ...raw, resources: cp.resources }, { ...cp, resources: raw.resources }, f.run));
+    assert.equal(stateHash(raw), rawHash); assert.equal(stateHash(cp), cpHash);
+    for (const r of raw.resources) for (const path of paths(r.type)) {
+      const changed = structuredClone(raw), item = changed.resources.find((v) => v.id === r.id);
+      const [key, child] = path.split(".");
+      if (child) item[key][child] = "concrete";
+      else item[key] = key === "identity" || key === "sku" ? { type: "concrete" } : "concrete";
+      assert.throws(() => assertHistoricalState(changed, cp, f.run), /property|drift/i, `${r.type}:${path}`);
+      assert.throws(() => assertHistoricalState({ ...raw, resources: cp.resources }, { ...cp, resources: changed.resources }, f.run), /property|drift/i);
+    }
+    // Omitted SKU must not collapse an object (even if it contains only optional nulls).
+    const blob = raw.resources.find((r) => r.type.endsWith("/blobServices"));
+    delete blob.sku;
+    assert.throws(() => assertHistoricalState(raw, cp, f.run), /property|drift/i);
+    blob.sku = {};
+    for (const mutate of [
+      (r) => { r.identity = { type: "SystemAssigned", principalId: "00000000-0000-4000-8000-000000000999" }; },
+      (r) => { r.kind = "concrete"; },
+      (r) => { r.sku.capacity = 1; },
+      (r) => { r.properties.unknown = null; },
+      (r) => { r.properties.adminUserEnabled = true; },
+      (r) => { r.sku.unknown = null; },
+      (r) => { r.id = r.id.replace("/subscriptions/", "/subscriptions/foreign/"); },
+      (r) => { r.type = "Unknown/provider"; },
+    ]) {
+      const changed = structuredClone(raw);
+      mutate(changed.resources.find((r) => r.type.endsWith("/registries")));
+      assert.throws(() => assertHistoricalState(changed, cp, f.run), /property|drift|typed/i);
+    }
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("audit observer must have separately protected exact binding, never preview, writer or user fallback", async () => {
+  const { assertObserverBinding, original } = await pure();
+  assert.equal(typeof assertObserverBinding, "function");
+  for (const binding of [undefined, {}, { clientId: original.previewClientId }, { clientId: original.writerClientId }]) {
+    assert.throws(() => assertObserverBinding(binding), /observer|binding|identity/i);
+  }
+  const f = completionFixture();
+  try {
+    assert.doesNotThrow(() => assertObserverBinding(f.observerBinding));
+    for (const mutate of [
+      (b) => { b.clientId = original.previewClientId; },
+      (b) => { b.clientId = original.writerClientId; },
+      (b) => { b.principalId = original.writerPrincipalId; },
+      (b) => { b.grants[1].assignment.properties.principalId = b.clientId; },
+      (b) => { b.grants[0].assignment.properties.scope += "/foreign"; },
+      (b) => { b.grants[0].roleDefinition.id = b.grants[0].roleDefinition.id.replace("891e5e6e", "00000000"); },
+      (b) => { b.grants[1].roleDefinition.properties.permissions[0].actions.push("Microsoft.Resources/deployments/whatIf/action"); },
+      (b) => { b.grants[1].roleDefinition.properties.permissions[0].actions.push("Microsoft.Resources/deployments/write"); },
+      (b) => { b.grants[1].roleDefinition.properties.permissions[0].actions.push("Unknown.Provider/read"); },
+      (b) => { b.grants[1].roleDefinition.properties.permissions[0].notActions.push("*/write"); },
+      (b) => { b.grants[1].roleDefinition.properties.permissions[0].dataActions.push("*/read"); },
+      (b) => { b.federation.subject += ":foreign"; },
+      (b) => { b.federation.audiences.push("foreign"); },
+      (b) => { b.grants.push(b.grants[0]); },
+    ]) {
+      const binding = structuredClone(f.observerBinding); mutate(binding);
+      assert.throws(() => assertObserverBinding(binding), undefined, "Unreviewed observer binding accepted");
+    }
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("historical grants are exact audit-only evidence, never arbitrary direct or equivalent inherited grants", async () => {
+  const { assertAuditGrants, rg } = await pure();
+  assert.equal(typeof assertAuditGrants, "function");
+  const definitions = syntheticHistorical.map((v) => v.roleDefinition);
+  const roles = [{ scope: rg, assignments: [...syntheticHistorical.map((v) => v.assignment), ...syntheticInheritedHumans] }];
+  const snapshot = { roles, roleDefinitions: definitions };
+  assert.doesNotThrow(() => assertAuditGrants(snapshot));
+  for (const mutate of [
+    (s) => { s.roles[0].assignments[0].properties.principalId = "00000000-0000-4000-8000-000000000999"; },
+    (s) => { s.roles[0].assignments[0].properties.scope += "/foreign"; },
+    (s) => { s.roles[0].assignments[0].id = s.roles[0].assignments[0].id.replace("891e5e6e", "00000000"); },
+    (s) => { s.roles[0].assignments[0].properties.roleDefinitionId = s.roleDefinitions[1].id; },
+    (s) => { s.roleDefinitions[0].properties.permissions[0].actions.push("*/read"); },
+    (s) => { s.roleDefinitions[0].properties.permissions[0].dataActions.push("*/read"); },
+    (s) => { s.roles[0].assignments.push({ ...structuredClone(s.roles[0].assignments[0]), id: `${rg}/unknown` }); },
+    (s) => { s.roles[0].assignments[2].properties.roleDefinitionId = s.roleDefinitions[1].id; },
+    (s) => { s.roles[0].assignments[0].properties.description = "Provenance changed"; },
+    (s) => { s.roles[0].assignments.shift(); },
+    (s) => { s.roles[0].assignments.at(-1).properties.principalId = "00000000-0000-4000-8000-000000000999"; },
+    (s) => { s.roles[0].assignments.push({ id: "unknown-inherited-human", properties: {
+      scope: rg.split("/resourceGroups/")[0], principalId: "00000000-0000-4000-8000-000000000999", principalType: "User",
+    } }); },
+  ]) {
+    const s = structuredClone(snapshot); mutate(s);
+    assert.throws(() => assertAuditGrants(s), /grant|role|historical|visibility|provenance/i);
+  }
+});
 
 // Exact published PR #167 surface, independent of the implementation allowlist.
 const publishedCompletionPaths = [
@@ -90,6 +206,8 @@ test("effective authority is a closed exact-read set, never wildcard subtraction
   assert.throws(() => assertReadPermissions([{ ...row, dataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"] }]), /data/i);
   assert.throws(() => assertReadPermissions([]), /permission/i);
   assert.throws(() => assertReadPermissions([{ ...row, actions: [] }]), /permission/i);
+  assert.throws(() => assertReadPermissions([{ ...row, actions: row.actions.slice(1) }]), /required.*read/i);
+  assert.throws(() => assertReadPermissions([{ ...row, notActions: [row.actions[0]] }]), /required.*read/i);
 });
 
 test("closed transport only accepts enumerated management GETs and complete same-endpoint pagination", async () => {
@@ -144,7 +262,7 @@ test("historical workflow blobs remain exact reviewed bytes, not workflow path e
   }
 });
 
-test("workflow uses existing preview identity, native protected context and success-only distinct evidence", async () => {
+test("workflow uses separate audit identity, native protected context and success-only distinct evidence", async () => {
   const workflow = YAML.parse(readFileSync(new URL("../workflows/company-development-bootstrap-completion.yml", import.meta.url), "utf8"));
   assert.equal(workflow.concurrency.group, "company-dev-foundation");
   assert.equal(workflow.concurrency["cancel-in-progress"], false);
@@ -155,7 +273,9 @@ test("workflow uses existing preview identity, native protected context and succ
   const login = steps.findIndex((s) => s.uses?.startsWith("azure/login@"));
   const audit = steps.findIndex((s) => s.run?.endsWith(" audit"));
   assert.ok(pre >= 0 && pre < login && login < audit);
-  assert.equal(steps[login].with["client-id"], "${{ vars.COMPANY_DEV_PLAN_CLIENT_ID }}");
+  assert.equal(steps[login].with["client-id"], "${{ vars.COMPANY_DEV_AUDIT_CLIENT_ID }}");
+  assert.equal(workflow.jobs.audit.env.AUDIT_OBSERVER_BINDING, "${{ vars.COMPANY_DEV_AUDIT_OBSERVER_BINDING }}");
+  assert.doesNotMatch(JSON.stringify(workflow), /COMPANY_DEV_PLAN_CLIENT_ID|PREVIEW_CLIENT_ID/);
   const upload = steps.find((s) => s.uses?.startsWith("actions/upload-artifact@"));
   assert.equal(upload.with["retention-days"], 7);
   assert.match(upload.with.name, /^company-dev-bootstrap-completion-v1-/);
@@ -352,6 +472,12 @@ test("CLI fails closed before authentication outside approved native dispatch", 
         assert.ok(calls.length >= 60);
         assert.ok(calls.every((c) => c.azure[0] === "rest" && c.azure[2] === "get"));
         assert.doesNotMatch(JSON.stringify(calls), /what-if|validate|listKeys|listCredentials|token|\/blobs\//i);
+        f.snapshot.resources.find((r) => r.type.endsWith("/registries")).identity = null;
+        f.intent.frozenSnapshotSha256 = stateHash(f.snapshot); f.bindResponses();
+        const compatible = auditCompletion(f.options());
+        assert.equal(JSON.parse(compatible.files["actual-state.json"]).resources.find((r) => r.type.endsWith("/registries")).identity, null);
+        assert.equal(hash(compatible.files["historical-incomplete-checkpoint.json"]), original.checkpointSha256);
+        assert.ok(compatible.files["historical-original.zip"].equals(f.archive));
       } finally { rmSync(f.root, { recursive: true, force: true }); }
     });
 
@@ -420,6 +546,12 @@ test("CLI fails closed before authentication outside approved native dispatch", 
         assert.throws(() => auditCompletion(options), /drift|Frozen/i);
         assert.equal(stateHash(f.snapshot), cleanIntent.frozenSnapshotSha256);
         assert.throws(() => auditCompletion({ ...f.options(), account: { ...f.account, user: { type: "servicePrincipal", name: original.writerClientId } } }), /observer/i);
+        assert.throws(() => auditCompletion({ ...f.options(), account: { ...f.account, user: { type: "servicePrincipal", name: original.previewClientId } } }), /observer/i);
+        assert.throws(() => auditCompletion({ ...f.options(), account: { ...f.account, user: { type: "user", name: "synthetic@example.invalid" } } }), /observer/i);
+        assert.throws(() => auditCompletion({ ...f.options(), observerBinding: undefined }), /observer/i);
+        assert.throws(() => auditCompletion({ ...f.options(), observerBinding: { ...f.observerBinding, reviewReference: "https://github.com/keyforta/keyforta-property/issues/160" } }), /binding.*drift/i);
+        assert.throws(() => auditCompletion({ ...f.options(), account: { ...f.account, id: "00000000-0000-4000-8000-000000000999" } }), /subscription/i);
+        assert.throws(() => auditCompletion({ ...f.options(), account: { ...f.account, tenantId: "00000000-0000-4000-8000-000000000999" } }), /tenant/i);
         assert.throws(() => auditCompletion({ ...f.options(), download: () => Buffer.from("bad archive") }), /archive/i);
         assert.throws(() => auditCompletion({ ...f.options(), azure: () => { throw new Error("403"); } }), /403/);
       } finally { rmSync(f.root, { recursive: true, force: true }); }
@@ -438,7 +570,7 @@ test("CLI fails closed before authentication outside approved native dispatch", 
           GITHUB_REF: "refs/heads/main", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_ACTOR: "cmbuyamba", GITHUB_TRIGGERING_ACTOR: "cmbuyamba",
           GITHUB_SHA: f.revision, GITHUB_WORKFLOW_SHA: f.revision, GITHUB_REF_PROTECTED: "true",
           GITHUB_WORKFLOW_REF: "keyforta/keyforta-property/.github/workflows/company-development-bootstrap-completion.yml@refs/heads/main",
-          PREVIEW_CLIENT_ID: original.previewClientId,
+          AUDIT_CLIENT_ID: f.observerBinding.clientId, AUDIT_OBSERVER_BINDING: JSON.stringify(f.observerBinding),
           GITHUB_RUN_ID: f.execution.runId, GITHUB_RUN_ATTEMPT: "1", GITHUB_OUTPUT: join(f.root, "outputs"),
           AUDIT_INTENT: JSON.stringify(f.intent) });
         // The original artifact metadata is synthetic and fresh relative to this
@@ -448,6 +580,8 @@ test("CLI fails closed before authentication outside approved native dispatch", 
         const script = join(f.root, "scripts/infra/company-development-completion.mjs");
         const run = (mode, changes = {}) => spawnSync(process.execPath, [script, mode], { cwd: f.root, encoding: "utf8", env: { ...mocks.env, ...changes } });
         assert.equal(run("prepare", { GITHUB_ACTOR: "foreign" }).status, 1);
+        assert.equal(run("prepare", { AUDIT_OBSERVER_BINDING: "" }).status, 1);
+        assert.equal(run("prepare", { AUDIT_CLIENT_ID: original.previewClientId }).status, 1);
         assert.equal(run("audit", { AUDIT_CONTEXT: "forged" }).status, 1);
         assert.equal(existsSync(join(f.root, "company-dev-completion")), false);
         const prep = run("prepare"); assert.equal(prep.status, 0, prep.stderr);

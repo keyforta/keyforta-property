@@ -294,8 +294,9 @@ current frozen identity/property/provenance observations without falsifying the
 failed workflow/incomplete checkpoint, claiming NoChange or granting deployment,
 security or data authority. The old verification-only v1 gates stay strict.
 
-The new manual `company-development-bootstrap-completion.yml` uses existing
-preview federation, protected `company-dev`, owner context and shared foundation
+The new manual `company-development-bootstrap-completion.yml` uses separately
+configured audit federation (see the correction decision below), protected
+`company-dev`, owner context and shared foundation
 concurrency. Its command imports only transport-free completion validation,
 never the apply/state drivers or a submit-capable transitive module. Shared
 inventory, secret checking and full resource projection preserve old behavior.
@@ -318,11 +319,57 @@ all seven typed resources and full original projection, tenant/distinct UAMI
 principal/client bindings, complete inventory/history, all 17 context-bound
 Succeeded operations and full root/two nested deployment responses, correlation
 and timestamps inside original authenticated run bounds. Resource Creates alone
-establish creation. Pre-handoff grants/scanning or property/principal drift stop.
+establish creation. Unknown pre-handoff grants, enabled scanning or real
+property/principal drift stop; only the exact historical grants below are audit evidence.
 Two complete reads must equal the fresh owner-reviewed frozen snapshot; repeat
 original archive and protected/source/quality checks. Retain the observing
-preview caller separately from historical apply client/principal and explicitly
+audit caller separately from preview and historical apply client/principal and explicitly
 make **no revocation claim**.
+
+#### Approved bounded audit correction — 2026-10-26 13:55:09.016Z
+
+The owner's **“do it”** explicitly approves implementation/publication of this
+narrow correction and a separately reviewed access-change **PLAN ONLY**.
+Diagnosis: [issue 159](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6417627535).
+This does not accept the entire ADR, establish functional deployment readiness,
+authorize merge/dispatch/apply/continuation, or authorize any identity, role,
+federation or GitHub setting mutation.
+
+**Comparison decision:** only for the seven exact typed bootstrap resources,
+compare null with absence at the 31 diagnosed optional SDK paths: ACR identity,
+kind and SKU capacity/family/model/size (6); three UAMIs identity/kind/sku (9);
+Storage identity and those four SKU members (5); Blob service identity/kind/
+location and those four SKU members (7); container identity/kind/location/sku (4).
+The compatibility projection is comparison-only, symmetric, and never collapses
+an omitted/null SKU into a SKU object. Concrete values, other paths, properties,
+security, principals, source and provenance remain strict. Original archive,
+checkpoint, raw observations/journal and their hashes are not normalized.
+Strict NoChange/reapply and unresolved **3 Modify / 5 Delete** remain unchanged.
+
+**Identity/grant decision:** preserve the legitimate preview WhatIf identity and
+its current grants. Require a separate, human-configured audit app/SP, exact
+protected configuration, exact custom read-role contents and fresh effective
+permissions; no fallback to preview, writer, human or an arbitrary caller.
+Role-definition GETs now join the closed transport. Recognize only the complete
+reviewed historical assignment/role-definition hashes for the direct RG preview
+WhatIf and bootstrap writer grants plus their inherited Context grants. Exact
+existing inherited human assignment hashes are state evidence only; human Owner
+rights are never attributed to the preview/audit SP. Reject additional,
+rebound or expanded grants and missing visibility. The bootstrap writer is
+**NOT REVOKED**; `revocationVerified=false` and `securityHandoffVerified=false`.
+Continuation remains blocked pending separate revocation/equivalent-access
+checks and security handoff. Do not remove historical grants blindly.
+
+After correction merge and separately approved access-plan application, obtain
+a **fresh actual-audit-observer** complete snapshot, human approval of its exact
+digest and an actual UI observation timestamp before any separately authorized
+audit. Generic confirmation and this implementation approval are not digest
+approval. The [access plan](../../infra/README.md#separate-read-only-audit-access-change-plan-not-applied)
+records exact actions/scopes, federation, ownership, evidence and rollback.
+No access plan has been applied. Code rollback is a reviewed revert; access
+rollback removes only the newly approved audit access, never preview/historical
+grants. Costs ($108.35 estimate/$120 ceiling), telemetry, backups/restore tests,
+SLOs/error budgets and outstanding operational readiness are unchanged.
 
 A normal successful workflow alone produces a version-1
 `bootstrap-completion-receipt` / `audit-readonly` artifact with unchanged historical

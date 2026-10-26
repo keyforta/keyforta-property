@@ -457,20 +457,128 @@ read actions in `permittedReadActions` are permitted; data actions, what-if,
 validate, write/action and unknown read authority fail closed. Exclusions cannot
 launder broad authority. This is stricter than the old preview readiness
 checker, which remains unchanged. No role/RBAC/federation change is authorized;
-existing preview eligibility is **not established** by these code tests.
+the existing preview principal is **ineligible** for this closed audit role:
+its legitimate WhatIf capability and broader reads remain unchanged.
 
 The audit runs under existing `company-dev` protection and
-`company-dev-foundation` concurrency with the existing preview client
-`684d29f1-1055-4030-b308-872dd2781d39`, never the historical writer. The fixed
+`company-dev-foundation` concurrency with a **separate audit identity**, fail-closed
+until human configuration after separate access-plan approval; never the preview
+client `684d29f1-1055-4030-b308-872dd2781d39` or historical writer. The fixed
 transport permits management GETs only: subscription/RG, generic and seven
 typed resources, original three deployments and their operation lists,
-scope-specific permissions and inherited-at-scope role lists, and the existing
+scope-specific permissions and inherited-at-scope role lists, exact historical/
+observer role-definition objects, and the existing
 Storage Defender setting. Every endpoint/API version/host/scope is enumerated.
 Pagination is confined to that same endpoint and API query; missing, cyclic,
 foreign, unknown or failed pages stop. `az account show` binds the actual
-signed-in preview caller; no token/key export, arbitrary executable,
+signed-in separately protected audit caller; no token/key export, arbitrary executable,
 data-plane read, Blob call, what-if/validate, submission callback or mutation
 exists in this route. GitHub artifact upload stores evidence only.
+
+#### Separate read-only audit access-change PLAN — NOT APPLIED
+
+Owner `cmbuyamba` must separately review and explicitly authorize application.
+The 2026-10-26 13:55:09.016Z **“do it”** approves only this code/docs PR and
+preparation of the plan, not access changes. No identity IDs, role IDs, assignment
+IDs or credentials are fabricated for the future observer.
+
+1. **Preserve existing access.** Do not subtract any preview rights: application
+   `684d29f1-1055-4030-b308-872dd2781d39`, SP
+   `be3a876f-b205-42c7-bd95-4d33bd49a4ff`, inherited Preview Context and direct RG
+   Preview WhatIf remain intact. Their 14 actions outside the closed audit set
+   are legitimate preview authority, not audit-caller authority. They omit
+   permissions/read and roleDefinitions/read; merely adding a role cannot
+   subtract effective rights. Historical writer
+   `e10f9e0f-274f-4643-8a8f-ad8f41b09c64` is **NOT REVOKED**. Its direct RG grant
+   `3fcab962-b128-5c7c-a15a-84b290c06a6f` and preview grant
+   `0d262a5e-e048-47e6-b590-9caa52ac7d7a` are tolerated only as audit state.
+   Complete hashes in `historicalAuditGrants` bind exact principal, scope, role
+   definition/actions/exclusions/data actions, assignment and provenance from the
+   reviewed diagnosis. Their inherited Context assignments are pinned too.
+   Unknown grants, rebindings and privilege expansion are not exceptions.
+   The two exact inherited human Owner assignment hashes are separately pinned,
+   not SP permissions or security-handoff evidence.
+2. **Create a separate Entra application/SP only after approval.** Operator
+   records actual application/client/SP IDs, enabled state, tenant and ownership.
+   No credentials/secrets, workload UAMI, preview/writer reuse, directory
+   application permissions, data access or paid resources. Before/after
+   readbacks and exact change inventory are retained privately by the operator.
+3. **Review/create exactly two custom management roles/assignments.**
+   Subscription scope is
+   `/subscriptions/891e5e6e-8ae3-4455-9184-8d7606223d91`; RG scope is that path
+   plus `/resourceGroups/rg-keyforta-companydev-san`.
+   Each role's `assignableScopes` is exactly its assignment scope. Assign only
+   to the new audit SP; no conditions/delegation. All `notActions`,
+   `dataActions`, `notDataActions` arrays are empty. No wildcard subtraction.
+   Exact ordered action lists (also enforced by `assertObserverBinding`):
+
+   | Scope | Exact management actions |
+   | --- | --- |
+   | Subscription | `Microsoft.Resources/subscriptions/read`; `Microsoft.Authorization/roleDefinitions/read` |
+   | RG | `Microsoft.Resources/subscriptions/resourceGroups/read`; `Microsoft.Resources/subscriptions/resourceGroups/resources/read`; `Microsoft.Resources/deployments/read`; `Microsoft.Resources/deployments/operations/read`; `Microsoft.Authorization/permissions/read`; `Microsoft.Authorization/roleAssignments/read`; `Microsoft.ContainerRegistry/registries/read`; `Microsoft.ManagedIdentity/userAssignedIdentities/read`; `Microsoft.Storage/storageAccounts/read`; `Microsoft.Storage/storageAccounts/blobServices/read`; `Microsoft.Storage/storageAccounts/blobServices/containers/read`; `Microsoft.Security/defenderForStorageSettings/read` |
+
+   Role definitions are subscription objects, so their GET permission is
+   subscription-scoped, not an ineffective RG-only permission. The transport
+   reads only the three pinned historical definitions and the two configured
+   audit definitions by exact ID/API version. Assignments and permissions use
+   complete same-endpoint pagination at the RG/resource scopes. These are
+   management metadata reads, not deployment writes/validate/WhatIf, provider
+   registration, keys, Blob data or settings changes.
+4. **Review effective rights, not just the new role JSON.** New-identity
+   subtraction set must be empty because it starts with no other authority.
+   Inspect direct/inherited/group/PIM/equivalent grants and exclusions, deny
+   effects, directory ownership/permissions and existing federation/credentials;
+   a new extra grant is a stop, not permission to remove it blindly. Effective
+   audit permissions must expose all four arrays, no wildcard or data authority,
+   no unknown actions and all 14 required reads without subtraction. Existing
+   human `*`/elevate pages are not measurements of the preview or audit SP.
+   Missing/403 pages and token/identity uncertainty remain blocking.
+5. **Federation PLAN ONLY.** New audit app gets exactly issuer
+   `https://token.actions.githubusercontent.com`, audience
+   `api://AzureADTokenExchange`, and the evidenced immutable GitHub subject
+   `repo:keyforta@329171003/keyforta-property@1370148176:environment:company-dev`.
+   Do not substitute the older mutable-name subject or change repository OIDC
+   settings/preview federation. This environment subject does not itself isolate
+   workflow code; exact protected source/native-workflow checks remain required.
+   Operator separately reads actual GitHub OIDC configuration, Graph application/
+   SP metadata and the **complete paged** federated-credential inventory to bind
+   actual app/SP IDs and exactly that singleton trust. These are human read
+   evidence, not directory permissions granted to the audit SP. Retain readback
+   hashes privately; do not commit directory dumps or add a diagnostic workflow.
+6. **Protected configuration after explicit settings approval.** In `company-dev`,
+   set `COMPANY_DEV_AUDIT_CLIENT_ID` to the actual new app ID and
+   `COMPANY_DEV_AUDIT_OBSERVER_BINDING` to the reviewed JSON object with exactly
+   `{clientId,principalId,grants,federation,reviewReference}`. `grants` is ordered
+   subscription then RG; each element contains the complete actual ARM
+   `{assignment,roleDefinition}` GET objects, not hand-authored role summaries.
+   `federation` contains exactly `{issuer,subject,audiences}` above;
+   `reviewReference` is the native issue/PR access-review URL, not approval proof.
+   Actual configuration bytes are separately reviewed; no fallback/default ID.
+   Workflow intent must carry an identical `observerBinding`; the receipt binds
+   its hash and distinct client/SP IDs. Pre-OIDC and final checks compare it
+   against the protected configuration; role/assignment raw readbacks must match.
+   Approval references/JSON alone are not machine-authenticated human consent.
+7. **Ownership and rollback.** `cmbuyamba` owns creation, review, least-privilege
+   verification, private evidence retention and later removal. Before applying,
+   record exact new object/assignment/federation/config IDs and previous absent
+   variable state. Review a rollback that removes only that newly created audit
+   access/trust/configuration (and unused audit objects only if explicitly
+   approved). Do not remove preview setup or the historical writer here. Revoke
+   bootstrap writer/equivalent rights only in a separately authorized handoff,
+   never as an automatic audit “fix”. Code rollback is a reviewed revert.
+
+**Remaining execution gates:** merge the correction, separately approve/apply
+the access plan, then separately authorize actual-observer inspection. Obtain
+a fresh full actual-audit-observer snapshot, human approval of that exact digest,
+fresh exact-source audit-only execution consent and actual UI timestamp before
+dispatch. No dispatch now; generic “confirmed” or approval-received time is not
+digest approval/`observedAt`. Bootstrap writer removal/equivalent-access checks,
+Defender/security/functional handoff and continuation remain blocked. Strict
+NoChange/reapply and **3 Modify / 5 Delete** are unchanged. No live success is
+claimed by synthetic tests. No new paid services; existing seven-day Actions
+evidence quota, $108.35/month estimate and $120/month pre-tax ceiling remain
+unchanged. Telemetry, backups/restore tests, SLO/error budgets and operational
+readiness remain separate outstanding requirements.
 
 #### Before a separately authorized audit dispatch
 
@@ -482,7 +590,7 @@ exists in this route. GitHub artifact upload stores evidence only.
    checkpoint remains `completed=false`, and bootstrap-state remains absent.
    Its checkpoint SHA256 is
    `9b9cbb2835a95de67d638da4269968e9cd7cba2511f34036aad9b69f74bd4836`.
-2. Obtain fresh **audit-only** owner authorization for the exact merged main
+2. First complete the separately approved access plan above. Obtain fresh **audit-only** owner authorization for the exact merged main
    SHA, repository-wide diff, full version-3 closure and complete new workflow
    blob. Existing approvals are not reusable runtime approval. Main must still
    be protected at that SHA; latest exact-SHA push CI, Security and DAST must
@@ -496,16 +604,19 @@ exists in this route. GitHub artifact upload stores evidence only.
 4. Under separately approved read-only inspection, review and freeze the
    **complete** canonical snapshot returned by `observe`: subscription/group,
    inventory, seven raw typed resources, full history/root/nested responses,
-   all 17 operations, all scoped permission/role pages and Defender settings.
+   all 17 operations, all scoped permission/role pages, complete historical/audit
+   role definitions and Defender settings, **using the actual separate observer**.
    The approved `frozenSnapshotSha256` is `stateHash(snapshot)`, not a count or
    selected-security-field digest. No resource/property/principal, history,
-   pre-handoff grant or scanning drift is accepted.
+   grant/provenance or scanning drift is accepted. The comparison-only 31-field
+   SDK compatibility does not change this full raw snapshot digest.
 5. Prepare the manual workflow `audit_intent` JSON using these exact fields:
    `version:1`, `kind:"bootstrap-completion-audit-intent"`,
    `scope:"audit-only-no-continuation"`, `owner:"cmbuyamba"`,
    `execution:{revision:<exact merged SHA>}`, the exported `original` binding,
    `originalSource`, `source`, `environment`, `authorizedAt`,
    `ownerAuthorizationReference`, `freezeReference`, `inspectionReference`,
+   `observerBinding` (identical to protected configuration),
    `frozenSnapshotSha256`, `baselineChangesSha256`,
    `implementationChangesSha256`, and
    `manualUi:{owner:"cmbuyamba",adminBypass:false,reconciledWithApi:true,
