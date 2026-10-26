@@ -123,9 +123,18 @@ jobs:
           tenant-id: 8019a048-e7d6-48e8-984a-b902f641a21b
           subscription-id: 891e5e6e-8ae3-4455-9184-8d7606223d91
       - name: Compile and preview exact stage inventory and human handoff
+        id: what-if-route
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/infra/company-development.mjs preview
+      - name: Preserve rejected what-if diagnostics (not plan or approval evidence)
+        if: failure() && steps.what-if-route.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: company-dev-foundation-preview-whatif-diagnostics-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: company-dev-whatif-diagnostics/**/*.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Preserve SHA-bound preparation evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

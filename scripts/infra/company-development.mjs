@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -226,9 +226,59 @@ export function assertNoSecretPayload(value) {
   visit(value);
 }
 
+// ARM 2025-04-01 WhatIfOperationProperties has optional array fields; the
+// flattened CLI/SDK model also emits null for unset collections. Never coerce
+// truthy/falsy values or discard warnings/potential changes.
+export function assertWhatIfCollections(preview) {
+  assert.ok(preview && typeof preview === "object" && !Array.isArray(preview), "Missing what-if response");
+  assert.ok(preview.error === undefined || preview.error === null, "ARM preview failed");
+  assert.ok(preview.status === undefined || preview.status === "Succeeded", "Unsuccessful/unknown what-if status");
+  for (const key of ["diagnostics", "potentialChanges"]) {
+    assert.ok(preview[key] === undefined || preview[key] === null || (Array.isArray(preview[key]) && preview[key].length === 0),
+      "What-if diagnostics/potential changes; stop for review");
+  }
+}
+
+// Diagnostic-only structural JSON, NEVER a plan or execution input. Do not
+// upload arbitrary provider messages, property values, keys, paths or IDs:
+// those can contain personal data/credentials even without a sensitive key.
+// Keep the exact stdout digest, collection shapes and known change enums.
+// The original response remains untouched in memory for all semantic gates.
+export function preserveWhatIfDiagnostics(stdout, phase, root = process.cwd()) {
+  assert.ok(["preview", "apply"].includes(phase), "Unknown diagnostic phase");
+  const response = JSON.parse(stdout); // parsing/provider errors are not fallback success
+  assertNoSecretPayload(response); // no file/directory on resolved secrets
+  const enumValue = (v, allowed) => allowed.includes(v) ? v : "<not-retained>";
+  const shape = (v, project) => v === undefined ? undefined : v === null ? null
+    : Array.isArray(v) ? v.map(project) : { malformed: true };
+  const changes = (v) => shape(v, (c) => ({
+    changeType: enumValue(c?.changeType, ["Create", "NoChange", "Modify", "Delete", "Ignore", "Deploy", "Unsupported"]),
+    delta: shape(c?.delta, (d) => ({ propertyChangeType: enumValue(d?.propertyChangeType, ["Create", "Modify", "Delete", "Array"]) })),
+  }));
+  const record = {
+    version: 1, purpose: "what-if-diagnostic-only", phase, executionApproved: false,
+    responseSha256: createHash("sha256").update(stdout).digest("hex"),
+    sanitization: "Structural projection only; free text, identifiers, paths and property values not retained",
+    response: !response || typeof response !== "object" || Array.isArray(response) ? { malformed: true } : {
+      status: response?.status === undefined ? undefined : enumValue(response.status, ["Succeeded", "Failed", "Canceled", "Running", "Accepted"]),
+      error: response?.error === undefined ? undefined : response.error === null ? null : { present: true },
+      diagnostics: shape(response?.diagnostics, (d) => ({ level: enumValue(d?.level, ["Warning", "Error", "Info"]) })),
+      potentialChanges: changes(response?.potentialChanges), changes: changes(response?.changes),
+    },
+  };
+  const directory = join(root, "company-dev-whatif-diagnostics");
+  if (!existsSync(directory)) mkdirSync(directory, { mode: 0o700 });
+  const stat = lstatSync(directory);
+  assert.ok(stat.isDirectory() && !stat.isSymbolicLink() && (stat.mode & 0o777) === 0o700, "Unsafe diagnostic directory");
+  const folder = mkdtempSync(join(directory, `${phase}-`));
+  const file = join(folder, "response.json");
+  writeFileSync(file, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+  return file;
+}
+
 export function validatePreview(preview, stage = "bootstrap", mode = "initial") {
   assertNoSecretPayload(preview);
-  assert.ok(!preview.error, "ARM preview failed");
+  assertWhatIfCollections(preview);
   assert.ok(Array.isArray(preview.changes) && preview.changes.length > 0, "Missing preview changes");
   const scope = `/subscriptions/${destination.subscriptionId}/resourceGroups/${destination.resourceGroup}/providers/`.toLowerCase();
   for (const change of preview.changes) {
@@ -310,7 +360,11 @@ function command(executable, args) {
   return execFileSync(executable, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 32 * 1024 * 1024 });
 }
 function azure(args) {
-  try { return JSON.parse(command("az", [...args, "--subscription", destination.subscriptionId, "--output", "json", "--only-show-errors"])); }
+  try {
+    const stdout = command("az", [...args, "--subscription", destination.subscriptionId, "--output", "json", "--only-show-errors"]);
+    if (args.slice(0, 3).join(" ") === "deployment group what-if") preserveWhatIfDiagnostics(stdout, "preview");
+    return JSON.parse(stdout);
+  }
   catch (error) {
     const match = /^ERROR: \((ResourceNotFound|DeploymentNotFound)\)/m.exec(error.stderr?.toString() ?? "");
     if (match) error.code = match[1];

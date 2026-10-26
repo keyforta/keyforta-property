@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { chmodSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
@@ -9,6 +10,68 @@ import { sourceFixture } from "./fixtures/company-source.mjs";
 
 const read = (file) => readFileSync(file, "utf8");
 const controls = async () => import("../../scripts/infra/company-development.mjs");
+
+test("what-if diagnostics preserve only a safe structural response before rejection, never raw free text", async () => {
+  const { preserveWhatIfDiagnostics, validatePreview, bootstrapInventory } = await controls();
+  const dir = mkdtempSync(join(tmpdir(), "whatif-diagnostics-"));
+  const value = { status: "Succeeded", error: null, diagnostics: null, potentialChanges: null,
+    changes: bootstrapInventory().map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+  const raw = `${JSON.stringify(value)}\n`;
+  try {
+    const record = preserveWhatIfDiagnostics(raw, "preview", dir);
+    assert.equal(lstatSync(record).mode & 0o777, 0o600);
+    assert.equal(lstatSync(join(dir, "company-dev-whatif-diagnostics")).mode & 0o777, 0o700);
+    const saved = JSON.parse(read(record));
+    assert.equal(saved.responseSha256, createHash("sha256").update(raw).digest("hex"));
+    assert.equal(saved.executionApproved, false);
+    assert.deepEqual(saved.response.diagnostics, null);
+    assert.equal(saved.response.changes.length, 7);
+    assert.equal(saved.response.changes[0].changeType, "Create");
+    validatePreview(value);
+    for (const key of ["diagnostics", "potentialChanges"]) {
+      for (const bad of [[{ message: "private-person@example.invalid Bearer synthetic-token" }], {}, false, 0, "", "unknown"]) {
+        const rejected = { ...value, [key]: bad, unknown: "private-person@example.invalid" };
+        const file = preserveWhatIfDiagnostics(JSON.stringify(rejected), "preview", dir);
+        assert.throws(() => validatePreview(rejected), /diagnostics\/potential changes/);
+        assert.doesNotMatch(read(file), /private-person|synthetic-token|Bearer|unknown":/);
+      }
+    }
+    const secret = { ...value, password: "synthetic-secret-do-not-retain" };
+    const count = readdirSync(join(dir, "company-dev-whatif-diagnostics")).length;
+    assert.throws(() => preserveWhatIfDiagnostics(JSON.stringify(secret), "apply", dir), /Resolved secret/);
+    assert.equal(readdirSync(join(dir, "company-dev-whatif-diagnostics")).length, count);
+    assert.throws(() => preserveWhatIfDiagnostics("{broken", "preview", dir), SyntaxError);
+    assert.throws(() => preserveWhatIfDiagnostics(raw, "../escape", dir));
+    for (const status of ["Failed", "Running", null, {}, "unknown"]) assert.throws(() => validatePreview({ ...value, status }));
+    assert.throws(() => validatePreview({ ...value, error: { code: "ProviderFailure" } }), /ARM preview failed/);
+    const hostile = mkdtempSync(join(tmpdir(), "whatif-symlink-"));
+    try {
+      symlinkSync(dir, join(hostile, "company-dev-whatif-diagnostics"));
+      assert.throws(() => preserveWhatIfDiagnostics(raw, "preview", hostile), /diagnostic directory/);
+    } finally { rmSync(hostile, { recursive: true, force: true }); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("actual workflows upload diagnostics on route failure separately from successful plans/execution", () => {
+  for (const [file, job, operation] of [
+    ["company-development-foundation.yml", "plan", "preview"],
+    ["company-development-foundation-apply.yml", "apply", "apply"],
+  ]) {
+    const steps = YAML.parse(read(`.github/workflows/${file}`)).jobs[job].steps;
+    const route = steps.find((s) => s.run?.endsWith(`.mjs ${operation}`));
+    const diagnostic = steps.find((s) => s.with?.path === "company-dev-whatif-diagnostics/**/*.json");
+    assert.ok(diagnostic, "Failure diagnostics must have a distinct upload");
+    assert.equal(route.id, "what-if-route");
+    assert.equal(diagnostic.if, "failure() && steps.what-if-route.outcome == 'failure'");
+    assert.match(diagnostic.with.name, /-whatif-diagnostics-/);
+    assert.equal(diagnostic.with["retention-days"], 7);
+    assert.equal(diagnostic.with["if-no-files-found"], "ignore");
+    assert.ok(steps.indexOf(diagnostic) > steps.indexOf(route));
+    const approved = steps.find((s) => s.with?.path?.includes(job === "plan" ? "company-dev-plan/" : "company-dev-apply/"));
+    assert.doesNotMatch(approved.with.path, /diagnostics/);
+    if (job === "plan") assert.equal(approved.if, undefined, "Failed previews cannot upload plans");
+  }
+});
 const valid = {
   stage: "bootstrap", mode: "initial", evidenceVersion: 2,
   changeFreeze: "https://github.com/keyforta/keyforta-property/issues/159#issuecomment-123",
@@ -358,7 +421,7 @@ test("company workflow is disabled-by-default, protected, immutable, preview-onl
   assert.equal(workflow.on.workflow_dispatch.inputs.evidence_version.required, true);
   assert.equal(workflow.on.workflow_dispatch.inputs.change_freeze.required, true);
   assert.equal(workflow.env.FOUNDATION_STAGE, "${{ inputs.stage }}");
-  const upload = workflow.jobs.plan.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
+  const upload = workflow.jobs.plan.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@") && step.with?.path.includes("company-dev-plan/"));
   assert.match(upload.with.name, /inputs\.stage.*inputs\.mode.*v2/);
   assert.equal(upload.with.path.trim().split("\n").length, 7);
   assert.ok(upload.with.path.includes("inventory.json"));
@@ -516,6 +579,21 @@ console.log(JSON.stringify(value));
       assert.match(drift.stderr, /parameter.*drift|parameter.*approved/i);
     }
     writeFileSync(parametersPath, originalParameters);
+    const badPreview = { ...JSON.parse(env.FAKE_PREVIEW), diagnostics: [{ message: "synthetic-private@example.invalid" }] };
+    const rejected = run("preview", { FAKE_PREVIEW: JSON.stringify(badPreview) });
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, /diagnostics\/potential changes/);
+    const diagnosticRoot = join(dir, "company-dev-whatif-diagnostics");
+    const diagnosticFiles = readdirSync(diagnosticRoot).map((folder) => join(diagnosticRoot, folder, "response.json"));
+    assert.equal(diagnosticFiles.length, 1);
+    assert.doesNotMatch(read(diagnosticFiles[0]), /synthetic-private/);
+    assert.equal(readdirSync(join(dir, "company-dev-plan")).includes("evidence.json"), false);
+    const secretPreview = { ...JSON.parse(env.FAKE_PREVIEW), accessToken: "synthetic-secret-do-not-retain" };
+    const secretResult = run("preview", { FAKE_PREVIEW: JSON.stringify(secretPreview) });
+    assert.equal(secretResult.status, 1);
+    assert.match(secretResult.stderr, /Resolved secret/);
+    assert.doesNotMatch(secretResult.stderr, /synthetic-secret/);
+    assert.equal(readdirSync(diagnosticRoot).length, 1);
     // Mutation after validation/while compiling cannot affect inline ARM inputs.
     const preview = run("preview", { RACE_PARAMETERS: "true" });
     assert.equal(preview.status, 0, preview.stderr);
