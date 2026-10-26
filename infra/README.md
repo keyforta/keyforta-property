@@ -33,7 +33,8 @@ Storage before verified Defender, and **human removal of all bootstrap workflow
 writer rights, including inherited/equivalent authority, before grants/security
 handoff**. Continuation must never regain UAMI/ACR/Storage writes.
 Follow ADR-016: cmbuyamba owns Azure technical decisions; no second Azure technical review.
-Independent GitHub PR/native human controls remain unchanged.
+Explicit human merge/deploy authorization remains required; independent review
+is no longer an activation prerequisite (see ADR-016's subsequent decision).
 Platform must prove narrow continuation/ACA permissions; sufficiency is unproven.
 Historical run `40223406509` attempt `2` / artifact `12610233452` was reviewed;
 see ADR evidence/expiry. It is **historical only**, never a staged execution input.
@@ -59,13 +60,15 @@ no app attachment, uploads, customer data, migrations or cutover.
 Current routes retain the two native protected environments, separate scoped
 preview/apply federation, manual/main-only entry, immutable checkout, same
 concurrency, latest exact-SHA CI/security/DAST and supported GitHub protection
-snapshot checks. Before releasing either pending job, an independent configured
-reviewer other than initiator **and rerun actor** must inspect actual settings,
-verify prevent-self-review, protected branches and **admin bypass disabled in
-the live UI**, then record exact SHA/run/attempt/environment ID/snapshot hash
-and reviewed stage/inventory in the **native approval comment**. This is the
-existing human contract, not a new Azure technical sign-off. Code does not parse
-comments, invent issuer attestations or treat JSON as independent security proof.
+snapshot checks. The user explicitly approved removing independent environment
+review: neither environment needs required reviewers, prevent-self-review or
+initiator/rerun-actor separation. The authorized operator inspects protected
+branches and **admin bypass disabled in the live UI**, and retains exact
+SHA/run/attempt/environment ID/snapshot hash and reviewed stage/inventory with
+explicit human merge/deploy authorization. No native approval comment is required.
+Code still binds actual rule metadata (including any optional reviewer rules)
+and rejects changes before OIDC; it does not change GitHub settings, parse
+comments, invent issuer attestations or treat JSON as security approval.
 
 Preview additionally requires explicit approved CIDRs/network reference and a
 `change_freeze` repository issue/PR/comment reference. That reference binds
@@ -73,7 +76,7 @@ operator review context; it does not authenticate or prove a freeze. Initial
 bootstrap requires an existing empty company RG **and empty ARM deployment
 history**, and already registered ManagedIdentity/ContainerRegistry/Storage.
 No registration/RG/identity/federation/RBAC setup is performed by the helper.
-Native reviewers must review stage-scoped effective preview/apply permissions
+The authorized operator must review stage-scoped effective preview/apply permissions
 and external freeze ownership. Bootstrap writers must have no security/grant
 authority; do not use Owner/Contributor or subscription workload writers.
 Continuation rechecks original bootstrap apply-caller permissions at bootstrap
@@ -184,7 +187,7 @@ transitive/PIM privilege proof or bootstrap-writer revocation. Other principals'
 inherited roles still need human assessment; two successful listings do not
 prove exhaustive effective access. Protected continuation binds actual GitHub
 checkpoint provenance separately and re-reads actual settings/identities/grants/
-caller permissions. The native reviewer verifies genuine owner-authored evidence
+caller permissions. The authorized operator verifies genuine owner-authored evidence
 and equivalent/transitive/PIM removal; there is no self-authored approval boolean.
 Do not execute the emitted commands before the owner-approved writer-removal
 condition and actual operator authority have been established. Do not grant
@@ -256,7 +259,7 @@ The 24-hour/64-KiB bounds are evidence limits, not Azure service guarantees.
 [Index tags are mutable and not tamper-resistant](https://learn.microsoft.com/en-us/azure/defender-for-cloud/introduction-malware-scanning#blob-index-tags).
 They MUST NOT be the sole security control or automated foundation-ready/
 data-admission signal. The owner confirms the genuine actual result; the
-independent native gate verifies that owner record and its limits. This limited
+authorized operator verifies that owner record and its limits. This limited
 pre-healthy synthetic exception is approved for code only: **no live test is
 authorized by this work**. No new Event Grid topic/diagnostic service, customer
 data, apps, migrations or cutover are added.
@@ -311,7 +314,7 @@ bootstrap**. It is review context, never an approval assertion. Its fields are:
   `enabledAt`, `startedAt`, `uploadedAt`, `scanTime`, `observedAt`, `result` and
   `readableSecuritySha256`. `readSecurity()` and canonical `stateHash()` define
   the readable snapshot binding; neither the file nor its hash authenticates
-  the owner/result. The native reviewer must verify genuine referenced evidence.
+  the owner/result. The authorized operator must verify genuine referenced evidence.
 
 The shared state helper exports these pure projections/read-only functions so
 operators/tests use the same schema; it is essential shared policy, not new
@@ -370,7 +373,7 @@ The user approved private-network **preparation** and a **$120/month before-tax
 planning ceiling**; estimated envelope **$108.35**, headroom **$11.65**. The later
 “I approve” conditionally authorizes the agreed foundation-only provisioning
 **once every prerequisite genuinely passes**; no renewed blanket approval is
-needed. It does not waive audit, independent review, exact network/payer inputs
+needed. It does not waive audit, explicit human authorization, exact network/payer inputs
 or external protected controls. No provider/RG/identity/role bootstrap, workflow
 activation or customer migration occurs during preparation.
 Source `foundation.bicep`, `deploy.yml`, `dev` environment variables,
@@ -397,7 +400,7 @@ quota and remaining credit validity must be established before execution; stop
 if the unchanged stack cannot run within this offer. See ADR-016's offer caveats.
 Prior plans/artifacts and permissions for the superseded subscription must not
 be reused as approval for this destination: obtain a fresh exact-SHA protected
-preview and independent plan-bound apply review. This retarget creates no
+preview and human-authorized plan-bound apply review. This retarget creates no
 resources, OIDC/RBAC, environment configuration, or new publication consent.
 
 The new `.github/workflows/company-development-foundation.yml` is **manual,
@@ -412,39 +415,27 @@ activation, authorized external owners must separately:
    RFC1918 VNet/ACA/PostgreSQL CIDRs and the detailed NSG/platform dependencies.
    The template has **no CIDR defaults**. Local validation cannot inspect all
    corporate networks or establish the identity/authority of an approval author.
-2. Configure `company-dev` with required human reviewers, prevent self-review,
-   admin bypass disabled, and protected-branch restrictions. Protect main with
-   required repository CI/security checks and independent reviews. The guard
-   reads documented reviewer/self-review/branch settings and actual environment
-   IDs, failing closed on missing settings/API access. YAML does **not**
-   configure reviewers. **Admin-bypass cannot be verified by the documented
-   REST/GraphQL environment schemas.** The user explicitly approved
-   **independent manual verification while retaining GitHub required-reviewer
-   protection**. The supported native `company-dev` approval is authoritative;
-   there is no replacement attestation service, approval flag or invented API.
+2. Retain `company-dev` protected-branch restrictions and main's required
+   repository CI/security checks. Independent reviewers, prevent-self-review
+   and initiator/re-run actor separation are **not required**, under the subsequent
+   user-approved ADR-016 decision. No GitHub settings change is part of this work;
+   live environments are reported to have no required-reviewer rules.
+   The guard requires actual environment IDs, protected branches and a readable
+   protection-rule array (empty is valid), failing closed on missing API access.
+   It snapshots every actual rule without requiring a reviewer rule.
 
-   **Mandatory external reviewer procedure:** the guard publishes the exact
-   checkout SHA, run/attempt, actual environment ID/node ID and a hash of the
-   API-verifiable protection snapshot in the run summary. Before releasing the
-   pending `company-dev` job, an independent configured GitHub reviewer OTHER
-   THAN the workflow initiator (and re-run actor) must inspect the live settings,
-   visually verify **Allow administrators to bypass configured protection rules
-   is disabled**, and record that verification plus the exact SHA, run/attempt,
-   environment ID and snapshot hash in the **native environment approval
-   comment**. Verify required CI/security checks, including audit, pass for that
-   same SHA; reject blocked checks, mismatches or changed settings. A new
-   revision/attempt or environment change requires a fresh review, not reuse of
-   an older comment. GitHub's configured prevent-self-review control enforces
-   initiator separation; the independent reviewer owns the manual checklist.
-
-   The protected job cannot start until GitHub releases its actual environment
-   gate. Before Azure login it re-reads the API-verifiable protections and rejects
-   snapshot/run/SHA drift. Code does **not** claim to machine-prove the UI setting,
-   parse approval comments, or independently authenticate a reviewer from a
-   self-authored record. Job outputs/snapshot hashes are context, not approvals.
-   Missing or invented `can_admins_bypass` fields are never treated as proof.
-   Dispatch booleans, repository activation variables and actor self-attestation
-   cannot replace the real required-reviewer control. Do not dispatch during prep.
+   The authorized operator retains the exact checkout SHA, run/attempt,
+   environment ID/node ID and snapshot hash published in the run summary with
+   explicit human merge/deploy authorization. Inspect live settings, including
+   **Allow administrators to bypass configured protection rules is disabled**.
+   That UI-only setting is not exposed by documented REST/GraphQL environment
+   schemas; no invented `can_admins_bypass` field or JSON is proof.
+   Verify exact-SHA CI/security/audit, reviewed scope and inputs; reject missing
+   evidence, blocked checks or mismatches. No independent reviewer or native
+   approval comment is required. Before Azure login, the job re-reads actual
+   protections and rejects snapshot/run/SHA drift. Obtain fresh context for a
+   changed revision/attempt/environment. Outputs and activation variables are
+   context, not human authorization. Do not dispatch during preparation.
 3. Create an approved destination-only OIDC preview identity, verify actual
    immutable repository/environment subject claims and least privilege. Planning
    needs target reads plus `Microsoft.Resources/deployments/whatIf/action` (review
@@ -468,9 +459,9 @@ activation, authorized external owners must separately:
 
    Only after route review, set repository-level `COMPANY_DEV_PLAN_ENABLED=true`
    to enter the pre-OIDC guard. That variable is **not** execution approval
-   and cannot bypass the native required-reviewer approval described above.
-6. Only after external route/bootstrap authorization and independent protected-
-   environment preview approval, supply dispatch CIDRs/reference exactly
+   and cannot replace explicit human authorization described above.
+6. Only after external route/bootstrap authorization and explicit human
+   preview authorization, supply dispatch CIDRs/reference exactly
    matching those variables. The script validates destination context, registered
    providers and empty RG, compiles in memory, requests provider `what-if` with
    `ProviderNoRbac`, and rejects anything except allowed foundation **creates**
@@ -487,7 +478,7 @@ activation, authorized external owners must separately:
    what-if hashes, approval reference, destination, $120 ceiling). Do not promote
    it as an application plan. This was the local-preparation state; see the
    historical successful preview evidence linked in the staged proposal above.
-   Reprice before execution; obtain **separate independent apply-diff review**
+   Reprice before execution; obtain **explicit human apply-diff authorization**
    and the external controls/inputs below. Conditional foundation execution
    consent is already recorded; the preview route itself cannot deploy.
 
@@ -495,15 +486,15 @@ activation, authorized external owners must separately:
 
 `company-development-foundation-apply.yml` has its own native
 **`company-dev-apply` environment** and **distinct federated apply client ID**.
-Externally configure the same required-reviewer, prevent-self-review,
-protected-main and disabled-admin-bypass protections/checklist as for preview.
-YAML does not create reviewers or prove the UI-only bypass setting. The guard
+Retain the same protected-main and disabled-admin-bypass checklist as for preview,
+without mandatory reviewers, prevent-self-review or actor separation.
+YAML does not configure settings or prove the UI-only bypass setting. The guard
 has no OIDC; only the protected job can obtain it, and supported protection/
 SHA/run/snapshot checks execute again **before** Azure login.
 
 External owners must configure `COMPANY_DEV_APPLY_CLIENT_ID` and the four approved
 network variables in that environment, without changing source or preview
-variables. Set repository `COMPANY_DEV_APPLY_ENABLED=true` only after independent
+variables. Set repository `COMPANY_DEV_APPLY_ENABLED=true` only after human-authorized
 route review, quality gates and external readiness; it is an inactive-route
 switch, not human approval. Apply and preview client IDs must differ.
 
@@ -521,14 +512,14 @@ registration/RG/federation setup, or role-grant setup is performed by this route
 If least privilege cannot be satisfied without broader new authority, stop.
 
 Required dispatch inputs have **no defaults**: successful preview run ID,
-attempt, immutable artifact ID, and independently reviewed **source manifest,
+attempt, immutable artifact ID, and operator-reviewed **source manifest,
 template, parameter and what-if SHA256** hashes. They must refer to the apply
 workflow's exact main SHA. The sole accepted, nonexpired artifact name is
 `company-dev-foundation-plan-SHA-RUNID-ATTEMPT`, with exactly six regular JSON
 files (`inputs`, `parameters`, `template`, `what-if`, `review-context`, `evidence`).
 The helper verifies successful same-repository preview provenance, every reviewed
 hash, exact approved parameters/input snapshot and current foundation-source
-digest; its guard output binds all dispatch inputs through protected approval.
+digest; its guard output binds all dispatch inputs through pre-login validation.
 The source manifest is derived from raw Git blobs at the exact workflow SHA,
 not worktree-only hashes. Every targeted foundation file must exist in that
 commit and match its worktree bytes exactly; dirty, missing, untracked-at-SHA or
@@ -537,9 +528,10 @@ untracked worktree changes do not fail this targeted invariant. Local tests use
 temporary synthetic Git repositories; uncommitted preparation files here are
 not represented as already reviewed/committed.
 
-The independent reviewer OTHER THAN initiator/re-run actor records those exact
-plan IDs/hashes with SHA/run/attempt/environment ID/snapshot and manual no-bypass
-verification in the **native apply environment approval comment**. Review actual
+The authorized operator retains those exact plan IDs/hashes with
+SHA/run/attempt/environment ID/snapshot and manual no-bypass verification
+alongside explicit human deployment authorization, not a mandatory native
+environment approval comment or independent reviewer sign-off. Review actual
 what-if resources, network/payer/before-tax budget and expected ACA managed RG/
 LB/two-IP charges, scoped permissions, recovery owner and destination change
 freeze. Do not approve a blocked audit/security check or missing input.
@@ -552,7 +544,7 @@ existing **empty** exact company RG. It performs a fresh provider what-if with
 the reviewed template and approved inline parameters. Only the create-only
 foundation allowlist is accepted; complete canonicalized change payloads must
 equal the reviewed what-if. Platform-provider inventory not expanded by what-if
-still requires the independent external approval above. Shared concurrency
+still requires the external owner approval above. Shared concurrency
 serializes these routes but cannot lock out external writers; an externally
 owned change freeze is required.
 

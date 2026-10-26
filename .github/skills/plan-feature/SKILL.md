@@ -15,7 +15,9 @@ description: "Produce a traceable implementation plan and acceptance-test map. U
 2. Identify owning modules, dependencies, migrations, and documentation changes.
 3. Define authorization, isolation, failure-path, and rollback checks.
 4. Order work into small independently verifiable changes.
-5. Name required specialist and human reviews.
+5. Identify configured external GitHub approvals and human authorizations;
+   suggest optional specialist reviews when requested or useful under
+   [the specialist-review policy](../../../AGENTS.md#specialist-review-policy).
 
 ## Guardrails
 

@@ -22,6 +22,8 @@ Use product-focused specialists from `.github/agents/` and procedures from
 `.github/skills/` when their descriptions match the request. These
 customizations provide guidance only: they do not create approval authority,
 verification status, or permission to bypass repository and GitHub controls.
+For optional specialist PR/security reviews and preserved approval controls,
+follow [AGENTS.md's specialist-review policy](../AGENTS.md#specialist-review-policy).
 
 Update authoritative documentation with consequential changes. Stop for human
 approval before changing requirements, scope, architecture style, technology,

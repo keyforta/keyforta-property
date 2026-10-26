@@ -35,10 +35,11 @@ description: "Coordinate a request end-to-end by delegating to specialist agents
 6. Require each implementation step to follow AGENTS.md's Engineering loop:
    before evidence, a failing (red) test, the change, after evidence, and the
    same test passing (green). Reject any step missing this evidence.
-7. Delegate independent review to **Security and Privacy Reviewer** and
-   **Pull Request Reviewer** (`review-change`). Do not re-perform their
-   review or accept a step as done until they return evidence — only verify
-   that evidence is present and unambiguous.
+7. Request **Security and Privacy Reviewer** or **Pull Request Reviewer**
+   (`review-change`) when explicitly requested or useful, following
+   [the specialist-review policy](../../../AGENTS.md#specialist-review-policy).
+   Acceptance depends on the required implementation evidence, not on
+   optional specialist sign-off or re-review.
 7b. Once a PR is open, delegate driving it to merge-ready to **Pull Request
     Merge Coordinator** (`land-pull-request`): it fixes Critical/High
     findings and failing checks via the owning specialists, bounds itself to

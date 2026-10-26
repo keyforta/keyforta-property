@@ -1,7 +1,8 @@
 name: Company development foundation apply
 
 # PREPARED, NOT ACTIVATED. Conditional user consent does not waive CI/audit,
-# exact plan review or native independent company-dev-apply approval.
+# exact plan review or explicit human deployment authorization.
+# Independent company-dev-apply reviewers are not required.
 on:
   workflow_dispatch:
     inputs:
@@ -97,7 +98,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Verify successful immutable plan and green CI then publish independent review context
+      - name: Verify successful immutable plan and green CI then publish bound environment context
         id: review-context
         env:
           GH_TOKEN: ${{ github.token }}

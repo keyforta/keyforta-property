@@ -83,6 +83,32 @@ executable test applies.
 
 ## Change discipline
 
+### Specialist-review policy
+
+Specialist-agent PR and security reviews are optional: request them when
+specifically asked or useful for the change's risk. Their sign-off or re-review
+is not a delivery, acceptance, or merge-ready gate. Review agents and
+[`review-change`](.github/skills/review-change/SKILL.md) remain available for
+explicit review requests and risk-focused advice.
+
+This policy does not waive mandatory Copilot review requests on every
+agent-opened PR, configured external GitHub controls, tests/CI/security scans,
+before/red/after/green evidence, explicit, PR-specific human merge authorization,
+explicit human deployment authorization, or product-owner approval of new scope.
+Neither an agent's own analysis nor any other agent's review counts as a
+configured GitHub human approval; no self-approval or bypass is authorized.
+
+**Decision record:** on 2026-10-25 the user explicitly approved removing
+mandatory independent specialist-agent reviews ("Remove the independant
+review"; after clarification, "remove all of them"). The accompanying
+company-development environment-reviewer change is owned separately by the Azure
+specialist in company-development infrastructure guidance; this section does
+not assert that live GitHub settings have changed.
+
+**Owner:** repository maintainer. **Review triggers:** changes to review/merge
+guidance, GitHub approval controls, or delivery orchestration must be checked
+against this policy. Keep this section authoritative and link to it elsewhere.
+
 - Make small, reviewable changes with one clear outcome.
 - Do not commit secrets, real tenant data, identity documents, signed leases,
   payment details, model transcripts containing personal data, or production

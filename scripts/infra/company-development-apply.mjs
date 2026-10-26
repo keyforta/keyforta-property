@@ -345,7 +345,7 @@ export function assertQuality(response, workflow, sha) {
   return { id: run.id, runAttempt: run.run_attempt ?? 1, path: run.path, sha };
 }
 export function assertFreshPreview(reviewed, fresh) {
-  assert.equal(normalizedPreview(fresh), normalizedPreview(reviewed), "Fresh provider what-if drift; replan and independently review");
+  assert.equal(normalizedPreview(fresh), normalizedPreview(reviewed), "Fresh provider what-if drift; replan and obtain human authorization");
 }
 export function applyRequest(plan, sha) {
   assert.match(sha, /^[a-f0-9]{40}$/);
@@ -466,7 +466,7 @@ function guardApply() {
   appendFileSync(process.env.GITHUB_OUTPUT, `plan_binding=${JSON.stringify(expected)}\n`);
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
     "\n## Exact reviewed initial bootstrap APPLY inputs",
-    "The independent reviewer must record these plan IDs/hashes with the exact SHA and manual no-bypass verification in the native company-dev-apply approval comment.",
+    "Preserve these exact plan IDs/hashes, SHA and manual no-bypass verification with explicit human deployment authorization. No independent reviewer or native company-dev-apply approval comment is required.",
     "Confirm legal payer/cost owner, externally approved inputs, stage-scoped effective apply permissions, $120/month BEFORE TAX ceiling, and change-freeze owner/reference. Bootstrap MUST NOT grant roles or configure Defender/scanners. It is empty/unused and NOT foundation-ready.",
     "Separate preview and apply principals are mandatory. No apps/jobs/data/customer identity/public DNS/source cleanup. This does not authorize provider/RG/federation bootstrap.",
     "```json", JSON.stringify({ ...expected, qualityRuns: checks }, null, 2), "```", "",

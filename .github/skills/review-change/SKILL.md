@@ -5,6 +5,9 @@ description: "Perform an independent risk-focused review of a change. Use when a
 
 # Review Change
 
+Use this procedure for requested or useful optional specialist reviews; see
+[the specialist-review policy](../../../AGENTS.md#specialist-review-policy).
+
 ## Inputs
 
 - Diff, authoritative requirements, test results, and reviewer independence context.

@@ -43,11 +43,11 @@ agent that owns that area.
    If a named specialist agent is unavailable or its skill is missing, halt
    delegation for that step, report the gap to the human requester, and wait
    for direction rather than performing the work yourself.
-6. Delegate independent review to **Security and Privacy Reviewer** and
-   **Pull Request Reviewer** (`review-change`); confirm each returns the
-   before/after, red/green evidence order from AGENTS.md before accepting a
-   step as done. Do not re-perform their review — only verify the evidence
-   they returned is present and unambiguous.
+6. Verify each implementation step's before/after, red/green evidence from
+   AGENTS.md before accepting it as done. Request **Security and Privacy
+   Reviewer** or **Pull Request Reviewer** (`review-change`) when explicitly
+   requested or useful, under [the specialist-review policy](../../AGENTS.md#specialist-review-policy).
+   Do not require specialist sign-off or re-review to accept a step.
 6b. Once a PR is open, delegate driving it to merge-ready to **Pull Request
    Merge Coordinator** (`land-pull-request`) rather than looping on fixes
    yourself. It fixes Critical/High findings and failing checks via the

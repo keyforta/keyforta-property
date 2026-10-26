@@ -965,7 +965,7 @@ test("mocked apply CLI makes no write on failed quality, drift, nonempty RG or s
   const environment = {
     id: 789, node_id: "apply-environment-node", name: "company-dev-apply",
     deployment_branch_policy: { protected_branches: true },
-    protection_rules: [{ type: "required_reviewers", prevent_self_review: true, reviewers: [{ type: "User", reviewer: { id: 999 } }] }],
+    protection_rules: [],
   };
   const tool = `#!/usr/bin/env node
 const fs=require("node:fs"),path=require("node:path");
@@ -1037,6 +1037,7 @@ console.log(JSON.stringify(value));
     ...process.env, GH_TOKEN: "synthetic-actions-token", PATH: `${dir}:${process.env.PATH}`, TOOL_LOG: join(dir, "tools.jsonl"),
     GITHUB_REPOSITORY: "keyforta/keyforta-property", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
     GITHUB_SHA: revision, GITHUB_RUN_ID: "777", GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_ACTOR: "same-authorized-operator", GITHUB_TRIGGERING_ACTOR: "same-authorized-operator",
     GITHUB_OUTPUT: join(dir, "outputs"), GITHUB_STEP_SUMMARY: join(dir, "summary"),
     COMPANY_DEV_APPLY_ENABLED: "true", PLAN_RUN_ID: "123", PLAN_RUN_ATTEMPT: "1", PLAN_ARTIFACT_ID: "456",
     FOUNDATION_STAGE: "bootstrap", FOUNDATION_MODE: "initial", EVIDENCE_VERSION: "2",
@@ -1056,6 +1057,9 @@ console.log(JSON.stringify(value));
     const run = (operation, changes = {}) => spawnSync(process.execPath, [script, operation], { cwd: dir, env: { ...env, ...changes }, encoding: "utf8" });
     const guard = run("guard");
     assert.equal(guard.status, 0, guard.stderr);
+    const summary = readFileSync(env.GITHUB_STEP_SUMMARY, "utf8");
+    assert.match(summary, /explicit human.*authorization/i);
+    assert.doesNotMatch(summary, /independent required reviewer|must.*approval comment|prevent self-review/i);
     for (const line of readFileSync(env.GITHUB_OUTPUT, "utf8").trim().split("\n")) {
       const split = line.indexOf("=");
       env[line.slice(0, split).toUpperCase()] = line.slice(split + 1);

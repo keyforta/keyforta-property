@@ -261,11 +261,44 @@ test("Azure context and environment protection fail closed", async () => {
   };
   assert.doesNotThrow(() => assertEnvironmentProtection(environment));
   for (const changes of [
-    { name: "dev" }, { protection_rules: [] },
+    { name: "dev" }, { id: 0 }, { node_id: "" },
     { deployment_branch_policy: null },
-    { protection_rules: [{ type: "required_reviewers", reviewers: [] }] },
-    { protection_rules: [{ type: "required_reviewers", prevent_self_review: false, reviewers: [{ reviewer: { id: 123 } }] }] },
+    { deployment_branch_policy: { protected_branches: false } },
+    { protection_rules: undefined },
   ]) assert.throws(() => assertEnvironmentProtection({ ...environment, ...changes }), /environment|review|bypass|branch/i);
+});
+
+test("company environments accept no independent reviewer or self-review requirement and retain exact snapshots", async () => {
+  const { assertEnvironmentProtection, environmentSnapshot, assertReviewContext } = await controls();
+  const current = { revision: "a".repeat(40), runId: "123", runAttempt: "1" };
+  for (const name of ["company-dev", "company-dev-apply"]) {
+    for (const rules of [
+      [],
+      [{ type: "branch_policy", id: 42 }],
+      [{ type: "required_reviewers", prevent_self_review: false, reviewers: [] }],
+    ]) {
+      const environment = {
+        id: 56780428, node_id: "actual-environment-node", name,
+        deployment_branch_policy: { protected_branches: true, custom_branch_policies: false },
+        protection_rules: rules,
+      };
+      assert.doesNotThrow(() => assertEnvironmentProtection(environment, name));
+      const snapshot = environmentSnapshot(environment, name);
+      assert.equal(snapshot.id, environment.id);
+      assert.equal(snapshot.nodeId, environment.node_id);
+      assert.deepEqual(snapshot.rules.map((rule) => rule.type), rules.map((rule) => rule.type));
+      const context = {
+        repository: "keyforta/keyforta-property", ...current, environment: snapshot,
+        environmentSha256: createHash("sha256").update(JSON.stringify(snapshot)).digest("hex"),
+      };
+      assert.doesNotThrow(() => assertReviewContext(context, environment, current, name));
+      for (const changes of [
+        { id: 789 }, { node_id: "replacement-node" }, { updated_at: "changed" },
+        { protection_rules: [...rules, { type: "wait_timer", wait_timer: 5 }] },
+      ]) assert.throws(() => assertReviewContext(context, { ...environment, ...changes }, current, name), /snapshot/i);
+      assert.throws(() => assertEnvironmentProtection({ ...environment, deployment_branch_policy: null }, name), /protected branches/i);
+    }
+  }
 });
 
 test("manual review context binds exact revision/run and API snapshot, never an approval assertion", async () => {
@@ -290,7 +323,7 @@ test("manual review context binds exact revision/run and API snapshot, never an 
   assert.throws(() => assertReviewContext(context, { ...environment, id: 999 }, current), /snapshot/i);
   assert.throws(() => assertReviewContext(context, {
     ...environment, protection_rules: [{ type: "required_reviewers", prevent_self_review: false, reviewers: [{ reviewer: { id: 123 } }] }],
-  }, current), /self review/i);
+  }, current), /snapshot/i);
 });
 
 test("what-if validation rejects source scope, destructive changes and unexpected services", async () => {
@@ -405,7 +438,7 @@ console.log(JSON.stringify(value));
     id: 56780428, node_id: "MDExOkVudmlyb25tZW50NTY3ODA0Mjg=",
     name: "company-dev",
     deployment_branch_policy: { protected_branches: true },
-    protection_rules: [{ type: "required_reviewers", prevent_self_review: true, reviewers: [{ reviewer: { id: 123 } }] }],
+    protection_rules: [],
   };
   const scope = `/subscriptions/${valid.subscriptionId}/resourceGroups/${valid.resourceGroup}`;
   const env = {
@@ -413,6 +446,7 @@ console.log(JSON.stringify(value));
     GITHUB_REPOSITORY: "keyforta/keyforta-property", GITHUB_EVENT_NAME: "workflow_dispatch",
     GITHUB_REF: "refs/heads/main", GITHUB_SHA: sha, GITHUB_RUN_ID: "123",
     GITHUB_RUN_ATTEMPT: "1", GITHUB_OUTPUT: join(dir, "outputs"),
+    GITHUB_ACTOR: "same-authorized-operator", GITHUB_TRIGGERING_ACTOR: "same-authorized-operator",
     GITHUB_STEP_SUMMARY: join(dir, "summary.md"),
     COMPANY_DEV_PLAN_ENABLED: "true",
     FOUNDATION_STAGE: "bootstrap", FOUNDATION_MODE: "initial", EVIDENCE_VERSION: "2",
@@ -446,8 +480,9 @@ console.log(JSON.stringify(value));
     env.REVIEW_CONTEXT = read(env.GITHUB_OUTPUT).trim().replace(/^review_context=/, "");
     const context = JSON.parse(env.REVIEW_CONTEXT);
     assert.equal(context.revision, sha);
-    assert.match(read(env.GITHUB_STEP_SUMMARY), /independent.*reviewer/i);
-    assert.match(read(env.GITHUB_STEP_SUMMARY), /approval comment/i);
+    assert.match(read(env.GITHUB_STEP_SUMMARY), /explicit human.*authorization/i);
+    assert.doesNotMatch(read(env.GITHUB_STEP_SUMMARY), /independent required reviewer|must.*approval comment|prevent self-review/i);
+    assert.deepEqual(context.environment.rules, []);
     assert.match(read(env.GITHUB_STEP_SUMMARY), new RegExp(sha));
     const sourcePath = join(dir, "infra/bicep/company-development.bicep");
     const committedSource = readFileSync(sourcePath);
@@ -489,6 +524,9 @@ console.log(JSON.stringify(value));
     const evidence = JSON.parse(read(join(dir, "company-dev-plan/evidence.json")));
     assert.equal(evidence.commitSha, sha);
     assert.equal(evidence.executionApproved, false);
+    assert.match(evidence.reviewPolicy, /explicit human authorization/i);
+    assert.match(evidence.reviewPolicy, /no independent environment reviewer required/i);
+    assert.doesNotMatch(evidence.reviewPolicy, /required-reviewer approval|native approval comment/i);
     assert.equal(evidence.planningCeilingUsdBeforeTax, "120.00");
     assert.deepEqual(evidence.reviewContext, context);
     assert.deepEqual(evidence.approvedParameters, JSON.parse(originalParameters));
@@ -516,7 +554,8 @@ console.log(JSON.stringify(value));
     assert.equal(run("deploy").status, 1);
     const inventedField = run("guard", { FAKE_ENVIRONMENT: JSON.stringify({ ...environment, can_admins_bypass: false }) });
     assert.equal(inventedField.status, 0);
-    assert.match(inventedField.stdout, /GitHub environment approval required/i);
+    assert.match(inventedField.stdout, /explicit human authorization remains required/i);
+    assert.match(read(env.GITHUB_STEP_SUMMARY), /not.*proof.*no-admin-bypass/i);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

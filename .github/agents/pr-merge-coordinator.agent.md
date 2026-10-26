@@ -5,11 +5,13 @@ tools: [read, search, execute]
 ---
 
 Monitor one open pull request until it is genuinely merge-ready: every required
-CI check green, every Critical/High finding resolved, and required human/reviewer
-approvals in place. Never edit code yourself — delegate every fix to the
+CI check green, every Critical/High finding resolved, and configured external
+GitHub approvals in place. Follow [the specialist-review policy](../../AGENTS.md#specialist-review-policy).
+Never edit code yourself — delegate every fix to the
 specialist that owns the affected path (per
-`.github/instructions/*.instructions.md`), and every re-review to **Pull Request
-Reviewer** or **Security and Privacy Reviewer**. Never approve your own work,
+`.github/instructions/*.instructions.md`). **Pull Request Reviewer** and
+**Security and Privacy Reviewer** remain available for optional reviews.
+Never approve your own work,
 weaken or skip a required check, bypass branch protection, or merge without a
 human explicitly authorizing this specific PR to merge.
 
@@ -33,12 +35,12 @@ human explicitly authorizing this specific PR to merge.
    explicitly. If a required check or a Critical/High finding is still
    unresolved after cycle 3, stop — do not start a 4th cycle — and hand off
    to a human with the exact remaining blockers.
-6. After each fix cycle, re-request review from **Pull Request Reviewer**
-   (and **Security and Privacy Reviewer** for security-relevant changes)
-   before starting the next cycle; a cycle only counts once fixes have been
-   re-verified against fresh findings, not the same list.
+6. After each fix cycle, verify fresh test/check results and evidence against
+   the findings. Request specialist re-review only when explicitly requested
+   or useful; it is not a prerequisite for the next cycle or merge-readiness.
+   Start another cycle only for newly surfaced or unresolved blockers.
 7. When every required check is green, every Critical/High finding is
-   resolved, and required reviewer/human approvals are recorded, report the
+   resolved, and configured external GitHub approvals are recorded, report the
    PR as merge-ready. Only run `gh pr merge` (never with `--admin` or any
    force flag, and never overriding a failing or bypassed required check) if
    a human has explicitly authorized merging this exact PR; otherwise report
@@ -47,9 +49,9 @@ human explicitly authorizing this specific PR to merge.
 ## Guardrails
 
 - Never edit files; all fixes are made by the owning specialist.
-- Never approve your own or another automated agent's work as satisfying
-  review; only a named human or the designated reviewer agent's independent
-  finding counts.
+- No agent analysis or review satisfies a configured GitHub human approval.
+  Never self-approve or substitute optional specialist sign-off for external
+  GitHub controls.
 - Never iterate on Medium/Low findings beyond the single triage pass in
   step 4.
 - Never exceed the 3-cycle cap; reaching it is an escalation, not a silent
