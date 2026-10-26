@@ -120,6 +120,34 @@ artifact includes `bootstrap-state.json`, `checkpoint.json`, submission hash and
 explicitly records **security handoff not verified**. This is not effective-RBAC,
 scanner/backend or readiness evidence. No app/data access is attempted.
 
+ARM may also record successful output-reference `Read` operations: the root
+reads `foundation-keyforta-cdev`, foundation reads `stamp-keyforta-cdev`, and
+stamp reads only the exact bootstrap ACR and API/migration UAMIs. These
+context-bound ID/type checks grant **no Create provenance** and do not recurse;
+all seven exact resource Creates remain required. Missing/foreign/unexpected
+Read targets, failed/incomplete operations and targeted output evaluation stop.
+
+**Recorded postflight incident (2026-10-26 UTC):** apply run `40262729364`,
+attempt 1, SHA `6216a0c95b49f522fecf1c28d8ba3405f1a93a43`, failed workflow
+verification because the original verifier rejected ARM `Read`. The root
+`companydev-bootstrap-6216a0c95b49` and both nested deployments succeeded;
+read-only execution evidence records all seven resources and all 17 successful
+operations, including the five Reads above. Apply artifact `12625346104`
+retains `checkpoint.json` with **completed=false**; `bootstrap-state.json` was
+not generated. ARM success is not workflow/checkpoint completion. Preserve
+the original artifact, caller, resource IDs, identity bindings and state; never
+manufacture completion or overwrite the failed-run evidence. See
+[the recorded outcome](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6407407563).
+This code correction does not reconcile that checkpoint or authorize another
+operation. Future recovery requires merged corrected code and a fresh reviewed
+reentry from actual inventory, the failed workflow/immutable artifact and the
+successful ARM outcome, with source/plan/provenance and original-caller checks
+still enforced. If those checks cannot establish safe recovery, stop for human
+review; never fall back to initial retry. No Blob/data operations, permissions
+expansion or new costs are part of this correction; existing handoff, cost,
+telemetry, backup/restore and readiness constraints remain unchanged. Code
+rollback is a human-reviewed revert, never resource deletion or replay.
+
 Failed/canceled/unknown ARM outcomes and polling timeout stop and retain evidence.
 Inspect the **existing deployment** before any later write; never retry, clean
 up, recreate or delete automatically. Partial and completed inventories both

@@ -206,6 +206,21 @@ export function readBootstrapState(read, deploymentName) {
         assert.ok(!p.targetResource, "Unexpected output-evaluation resource target");
         continue; // Output evaluation establishes no resource creation/provenance.
       }
+      if (p.provisioningOperation === "Read") {
+        // ARM output references: foundation/stamp module outputs, then registry
+        // loginServer and API/migration identity properties. Not arbitrary RG
+        // reads, and never creation credit or another nested-deployment walk.
+        const target = p.targetResource;
+        assert.ok(target?.id && target.resourceType, "Missing actual ARM Read target");
+        const child = name === deploymentName ? "foundation-keyforta-cdev"
+          : name === "foundation-keyforta-cdev" ? "stamp-keyforta-cdev" : null;
+        const allowed = child
+          ? [{ id: `/subscriptions/${destination.subscriptionId}/resourceGroups/${destination.resourceGroup}/providers/Microsoft.Resources/deployments/${child}`, type: "Microsoft.Resources/deployments" }]
+          : expected.filter((r) => r.type === "Microsoft.ContainerRegistry/registries"
+            || (r.type === "Microsoft.ManagedIdentity/userAssignedIdentities" && /-(api|migration)$/.test(r.id)));
+        assert.ok(allowed.some((r) => r.id.toLowerCase() === target.id.toLowerCase() && r.type.toLowerCase() === target.resourceType.toLowerCase()), "Unexpected actual ARM Read target");
+        continue;
+      }
       assert.equal(p.provisioningOperation, "Create", "Unexpected/unknown bootstrap ARM operation");
       const target = p.targetResource;
       assert.ok(target?.id && target.resourceType, "Missing actual ARM operation target");
