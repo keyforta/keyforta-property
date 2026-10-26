@@ -23,6 +23,108 @@ resource-group-scoped foundation deployment runs.
 
 ## Company DEVELOPMENT preparation — isolated preview and plan-bound apply
 
+### Bounded current-authority evidence mode — 2026-10-26
+
+The [dated ADR-016 decision](../docs/adr/ADR-016-company-development-private-foundation.md#bounded-current-authority-evidence-decision--2026-10-26)
+owns approval, rationale, residual-risk acceptance and rollback. This is the
+procedural checklist for `companydev-retired-writer-current-authority-bounded`,
+not a new runtime flag/schema/version or a fail-open path. Use only for the
+previously authorized bounded local handoff (four exact grants, approved-design
+Defender settings and harmless synthetic test), never production or new scope.
+
+**Fixed binding:** tenant `8019a048-e7d6-48e8-984a-b902f641a21b`,
+subscription `891e5e6e-8ae3-4455-9184-8d7606223d91`,
+RG `rg-keyforta-companydev-san`; retired bootstrap SP object
+`e10f9e0f-274f-4643-8a8f-ad8f41b09c64`, client
+`63b65efc-7e8d-4d82-b13a-53b875df54f1`; named removed assignment
+`3fcab962-b128-5c7c-a15a-84b290c06a6f`. These are expected bindings, not a
+fresh absence observation. The original client must still derive from the
+authenticated predecessor at execution, not be guessed from the SP or this table.
+
+**Current authority remains blocking.** Collect complete fresh assigned authority
+for the retired writer and applicable original workflow caller:
+
+- Verify named assignment absence by exact GET at its authenticated original
+  assignment resource ID; retain the real absence response and distinguish it
+  from deletion history. A failed list or authorization error is not absence.
+- Cover applicable direct/inherited assignments at ancestor scopes and
+  protected descendant scopes, not only the RG. Read actual role definitions and evaluate
+  `actions`, `notActions`, `dataActions`, `notDataActions`, assignment conditions
+  and scope/effective context; do not infer authority from role-name heuristics.
+- Collect complete paginated transitive groups and their applicable authority,
+  plus current directory roles, including privileges capable of restoring
+  equivalent authority. Preserve page/endpoint coverage, not just a filtered list.
+- Missing CURRENT visibility still blocks; current equivalent bootstrap/security/data authority blocks.
+  Preserve human Owner and preview/audit metadata-only access and all original-caller
+  runtime checks. Do not manufacture a complete-revocation boolean or use
+  `skipPim`, `allowUnknown`, forged empty arrays or a blanket PIM-unavailable pass.
+
+**Schedule uncertainty is not absence.** Keep each unreadable individual
+eligible/active/future schedule result UNKNOWN, with actual endpoint and error:
+ARM `AadPremiumLicenseRequired`; Graph `Forbidden` / `PermissionScopeNotGranted`
+when actually reported (wrapper `UnknownError` only if actually reported).
+Do not silently normalize errors to empty results or assert the owner inspected
+unseen schedules. Direct **eligible Azure RBAC assignments for service principals
+are unsupported** per
+[Microsoft's role-assignment guidance](https://learn.microsoft.com/en-us/azure/role-based-access-control/role-assignments-portal).
+That narrow eligible-SP N/A is not proof about active/future scheduled assignments,
+directory or group-mediated authority; record those separately.
+
+**Residual risk: Unobservable future scheduled authority.** Currently invisible
+authority may become effective later, INCLUDING during the bounded handoff.
+Fresh checks reduce/detect visible exposure, not prove no future assignments.
+Only after actual measurements and review may the record outcome say:
+“named assignment absent; measured current applicable authority contains no equivalent bootstrap/security/data writer rights; future schedule assurance remains UNKNOWN under bounded alternative policy.”
+Never assert without qualification that the writer is fully revoked.
+
+**Evidence use:** maximum 24 hours from the FIRST complete fresh current-authority snapshot,
+with explicit UTC expiry. Revalidate immediately before and after each authorized mutation phase
+and at final handoff review. Identity/scope/role-definition/group/assignment drift,
+missing current visibility, resumed interrupted execution or expiry invalidates
+the prior record until fresh measurements/review under this same approved policy.
+No standing exemption and no automatic renewal; no arbitrary new human approval
+for the same policy. This evidence-use window is not a new expiry on execution authorization.
+It neither renews nor replaces other authorization/freshness limits.
+
+**Private record checklist (not prefilled operational review):**
+
+- [ ] Mode, ADR link and actual policy-selection timestamp; fixed target/writer
+  IDs above and authenticated original-caller/predecessor binding.
+- [ ] Actual authorizing human separately from agent executor/observer and actual
+  operator principal/context; do not relabel an agent observation as human.
+- [ ] First complete observed UTC, each revalidated UTC and explicit expiry UTC.
+- [ ] Inventory coverage, all pages/endpoints/API versions and private evidence hashes;
+  deletion history versus fresh named-assignment absence and full current authority.
+- [ ] Each individual UNKNOWN and actual error; narrow eligible-SP N/A with the
+  Microsoft basis, residual risk and restrictions, and qualified outcome above.
+- [ ] Record actual native review identity/time/outcome **only when it occurs**; existing
+  runtime review-reference fields require real repository GitHub issue/PR/comment URLs.
+  Hashes/URLs are neither consent nor authenticated proof. The policy choice does
+  not invent a fresh approval or approve an unseen operational record.
+- [ ] Record separately authorized operations, reviewed exact argv and real readbacks;
+  revalidation before/after each phase and at final review, with any invalidation.
+
+**All independent gates remain:** human merge/deployment authorization, configured
+external GitHub controls and Copilot review, CI/security/DAST, latest exact-SHA,
+plan/source/identity/drift binding, strict NoChange and destructive stops.
+The four grants, finance-window validation and offer/credit coverage, Defender backend
+checks, functional record v2, existing operator Blob authority and narrow ACA continuation
+permission proof remain independently required. Source profiles 5/6, workflows,
+schemas, failed checkpoint and immutable evidence are unchanged. The existing
+$120/month before-tax planning ceiling is not a hard billing cap. Native signup
+credit application does not require a free malware-scanning trial; this adds no
+finance scope and discloses no private billing-profile data. No licence purchase,
+new directory scope, broad role/data grant or original bootstrap rerun;
+no automatic writer restoration. Policy selection alone is not deployment readiness.
+
+**Generated-summary caveat:** the existing `scripts/infra/company-development.mjs`
+sentence requiring removal of “ALL bootstrap writer authority, including
+inherited/equivalent/PIM authority” is read subject to the dated ADR exception
+for this exact scope and procedural mode only. The ordinary ALL rule remains the default elsewhere.
+The source sentence and all runtime current-caller/security/grant validators
+are unchanged; this is procedural review enforcement, not machine proof of unseen
+authority. **Owner/review triggers:** follow the dated ADR decision linked above.
+
 ### Owner-directed local agent handoff — approved 2026-10-26, code only
 
 The owner selected **option 2** at **2026-10-26T20:38:45.496Z** in the
@@ -52,7 +154,10 @@ Neither workflow nor audit SP gains management writes or Blob data authority.
 
 Equivalent/group/transitive/PIM revocation proof, eligibility/access proof,
 actual narrow ACA permission proof and finance checks remain blocking.
-PIM license errors and Graph `403 ScopeNotGranted` mean **UNKNOWN**, not absent;
+For the fixed retired writer, only full schedule proof is superseded by the
+[bounded evidence mode](#bounded-current-authority-evidence-mode--2026-10-26);
+complete current-authority evidence remains blocking.
+PIM license errors and actual Graph permission errors mean **UNKNOWN**, not absent;
 do not add Graph scopes, licenses, roles or export credentials. The current
 catalog estimate **$118.13/month before tax/extras** against the **$120 ceiling**
 is not live credit/offer coverage, billing protection or an invoice guarantee.
@@ -311,6 +416,11 @@ remove workflow bootstrap writer rights
 and prove no inherited/equivalent access remains. The following are supported
 read operations for inspection, not a machine-complete revocation proof:
 
+For the fixed retired writer, apply the
+[bounded evidence mode and record checklist](#bounded-current-authority-evidence-mode--2026-10-26)
+to schedule-proof obligations here and below; unreadable schedules remain UNKNOWN.
+These sample reads do not supply the complete current-authority inventory.
+
 - `az account show --subscription 891e5e6e-8ae3-4455-9184-8d7606223d91`;
   verify tenant `8019a048-e7d6-48e8-984a-b902f641a21b`.
 - `az role assignment list --scope <exact-resource-or-RG-ID> --include-inherited --subscription 891e5e6e-8ae3-4455-9184-8d7606223d91`.
@@ -367,7 +477,9 @@ prove exhaustive effective access. Protected continuation binds actual GitHub
 checkpoint provenance separately and re-reads actual settings/identities/grants/
 caller permissions. The authorized operator verifies genuine authorization and
 actual observer evidence
-and equivalent/transitive/PIM removal; there is no self-authored approval boolean.
+and equivalent/transitive/PIM removal, subject only to the
+[fixed-scope schedule-proof exception](#bounded-current-authority-evidence-mode--2026-10-26);
+there is no self-authored approval boolean.
 Do not execute the emitted commands before the owner-approved writer-removal
 condition and actual operator authority have been established. Do not grant
 from client IDs or guessed GUIDs.
@@ -381,8 +493,10 @@ az role assignment delete --ids "<reviewed-actual-bootstrap-writer-assignment-id
   --subscription 891e5e6e-8ae3-4455-9184-8d7606223d91
 ```
 
-This is not a bulk cleanup or sufficient proof: inherited/group/PIM/equivalent
-rights require owner-specific removal/verification, and continuation must not
+This is not a bulk cleanup or sufficient proof: inherited/group/equivalent
+current rights require owner-specific removal/verification; schedule evidence follows
+the [bounded mode only for its fixed scope](#bounded-current-authority-evidence-mode--2026-10-26).
+Continuation must not
 regain bootstrap/security writes. Re-read caller permissions and owner evidence
 before granting. Only the human or explicitly owner-directed local agent executes
 separately authorized exact argv from
@@ -1031,8 +1145,10 @@ solely for reading original identities and printing commands, never executing
 grants. After a human handoff, continuation compares immutable identity bindings
 and its separately approved *current* security state, not the stale pre-handoff
 receipt projection. It still requires actual grants/Defender/functional-test
-evidence, fresh removal of **all** inherited/equivalent/PIM bootstrap writer
-authority, original-writer `assertWriterRevoked`, new exact-SHA preview/plan and
+evidence, fresh bootstrap-writer authority proof under the
+[bounded mode only for its fixed scope](#bounded-current-authority-evidence-mode--2026-10-26)
+(otherwise **all** inherited/equivalent/PIM authority), unchanged original-writer
+`assertWriterRevoked`, new exact-SHA preview/plan and
 explicit human deployment authorization. Templates still forbid bootstrap writes.
 Receipt alone dispatches nothing and provides no grants/security handoff.
 
@@ -1157,7 +1273,8 @@ write/what-if/validate operations only. All
 other effective mutations (including Storage lifecycle policy writes) and data
 actions stop. NotActions/NotDataActions subtract only within their own grant;
 unknown wildcard-set containment fails closed. Owner/native review of equivalent,
-transitive and PIM rights remains required.
+transitive and PIM rights remains required, with only full schedule proof qualified
+by the [fixed-scope bounded mode](#bounded-current-authority-evidence-mode--2026-10-26).
 
 RG caller-permission checks permit only stage template PUT types, deployment
 write/what-if/validate and the existing continuation workspace

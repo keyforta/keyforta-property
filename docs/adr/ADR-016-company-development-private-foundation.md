@@ -7,6 +7,68 @@
 **Owners/reviewers required:** Platform, Network, Security, Finance, repository maintainers
 **Scope:** New empty company DEVELOPMENT foundation only; never production
 
+## Bounded current-authority evidence decision — 2026-10-26
+
+**Approved procedural addendum; not full ADR acceptance.** At
+**2026-10-26T21:54:07.875Z** the user replied **“go with option 2”** to:
+“Change the company-dev requirement: explicitly approve an alternative evidence
+policy that addresses the unreadable future-access risk while preserving least
+privilege and deployment controls.” This approves policy selection, not merge,
+deployment, observed schedules or owner approval of an unseen record; it
+does not prefill operational review. Existing status and historical decisions
+below retain their recorded meaning, subject only to this explicit exception.
+
+**Decision:** procedural evidence mode
+`companydev-retired-writer-current-authority-bounded` supersedes ONLY the full-schedule-proof obligation
+in prior runbook/ADR handoff decisions for this exact destination and retired
+bootstrap identity:
+
+| Binding | Fixed value |
+| --- | --- |
+| Tenant | `8019a048-e7d6-48e8-984a-b902f641a21b` |
+| Subscription | `891e5e6e-8ae3-4455-9184-8d7606223d91` |
+| Resource group | `rg-keyforta-companydev-san` |
+| Retired SP object / client | `e10f9e0f-274f-4643-8a8f-ad8f41b09c64` / `63b65efc-7e8d-4d82-b13a-53b875df54f1` |
+| Named removed assignment to freshly verify absent | `3fcab962-b128-5c7c-a15a-84b290c06a6f` |
+
+This is limited to the previously authorized bounded local security handoff:
+four exact workload grants, approved-design Defender configuration and harmless
+synthetic verification. It adds no production or operational scope. Current
+assigned authority must be completely and freshly measured for the retired writer
+and applicable original workflow caller; missing current visibility or equivalent
+bootstrap/security/data authority still blocks. Preserve authenticated predecessor
+and original-client runtime binding, current-caller/security/grant validation,
+human Owner and preview/audit metadata-only access. No executable bypass, new
+flag, schema or version is introduced: source profiles 5/6, functional record v2,
+workflows and schemas remain unchanged.
+
+**Residual risk — Unobservable future scheduled authority:** individually
+unreadable eligible/active/future schedules remain UNKNOWN. Invisible authority
+may become effective later, including during this bounded handoff. Fresh checks
+reduce/detect visible exposure; they do not prove absence of future assignments.
+The approved tradeoff is weaker future assurance, not complete revocation or
+blanket permission to proceed when PIM is unavailable. The current-authority
+gate stays intact; enforcement of this evidence alternative is procedural review,
+not a claim that runtime code verifies all transitive or scheduled authority.
+
+The [runbook's bounded mode and record checklist](../../infra/README.md#bounded-current-authority-evidence-mode--2026-10-26)
+is authoritative for collection, individual UNKNOWNs, the narrow Microsoft-backed
+eligible-SP N/A, the maximum 24-hour evidence-use window, revalidation/invalidation
+and retained operational gates. Existing generated “ALL … PIM authority” summary
+wording is read subject to this exception only as explained there; all other
+destinations/identities/handoffs retain the ordinary full-proof rule.
+Policy selection is not deployment readiness or a new execution authorization.
+
+**Owner:** cmbuyamba, accountable Azure technical/risk owner; the authorized
+operator collects and revalidates evidence, and repository maintainers own
+documentation consistency. **Review triggers:** identity, scope, role definition,
+group or assignment drift; missing current visibility; interrupted/resumed
+execution; evidence expiry; changes to PIM observability, policy or handoff
+controls. Refresh measurements/review under this same approved policy; no
+arbitrary new human policy approval or automatic renewal is introduced.
+**Rollback:** withdraw prospective policy and stop new use; preserve history and
+evidence. Revert to ordinary proof requirements, with no automatic Azure writer regrant.
+
 ## Approval evidence and limits
 
 In the human-directed planning session, the user selected: **“Approve the
@@ -252,6 +314,10 @@ and must never acquire data access or perform tests.
 Actual equivalent/inherited/group/PIM revocation, eligibility/access, finance
 and narrow ACA permission proof remain mandatory. PIM licensing/Graph
 `403 ScopeNotGranted` is UNKNOWN, not absence; no new Graph scope/license/role.
+For the fixed retired identity only, the
+[bounded current-authority decision](#bounded-current-authority-evidence-decision--2026-10-26)
+supersedes the full-schedule-proof obligation in this historical decision;
+individual unreadable schedules remain UNKNOWN, not verified absent.
 $118.13/month catalog estimate before tax/extras versus $120 ceiling is not
 live credit/offer coverage or a billing cap; 100 GB is not a dollar cap.
 No actual observation or live handoff completion is claimed. Receipt is not
@@ -601,6 +667,10 @@ new exact-SHA preview/plan and explicit deployment authorization. After handoff,
 compare original immutable identities plus independently approved current security
 state, not stale pre-handoff properties. Receipt alone authorizes none of these.
 
+For this fixed retired writer, read that schedule-proof prerequisite subject to
+the [bounded current-authority decision](#bounded-current-authority-evidence-decision--2026-10-26);
+the receipt still supplies no current-authority or operational-review evidence.
+
 The [completion audit runbook](../../infra/README.md#historical-bootstrap-completion-audit-code-approval-not-execution)
 defines exact inputs, source-diff/hash construction, artifact/ref inventory,
 failure stops, manual authorization limits and rollback. Offline tests use only
@@ -626,6 +696,9 @@ synthetic bootstrap-checkpoint → owner handoff → protected continuation → 
 reviewed no-PUT replay. This is **local implementation, not Azure readiness or
 ADR acceptance**. Full effective/transitive/PIM authority and owner observations
 are checked by the already-approved native-human procedure; JSON is not approval.
+The [bounded current-authority decision](#bounded-current-authority-evidence-decision--2026-10-26)
+qualifies only full schedule proof for its fixed scope, including R3 below;
+it does not change the executable acceptance map or attest an observation.
 The small shared `company-development-state.mjs` is essential to use the same
 read-only state/security/re-entry rules in both existing CLI routes, rather than
 duplicate them. It is not another deployable, Bicep surface, service or tool.
