@@ -123,6 +123,128 @@ export const permittedReadActions = Object.freeze([
   "Microsoft.Storage/storageAccounts/read", "Microsoft.Storage/storageAccounts/blobServices/read",
   "Microsoft.Storage/storageAccounts/blobServices/containers/read", "Microsoft.Security/defenderForStorageSettings/read",
 ]);
+// Comparison-only compatibility for the 31 diagnosed SDK fields across seven
+// exact typed resources. Never use this projection for evidence or stateHash.
+function comparableResources(resources) {
+  const sku = ["capacity", "family", "model", "size"].map((k) => `sku.${k}`);
+  const paths = {
+    "Microsoft.ContainerRegistry/registries": ["identity", "kind", ...sku],
+    "Microsoft.ManagedIdentity/userAssignedIdentities": ["identity", "kind", "sku"],
+    "Microsoft.Storage/storageAccounts": ["identity", ...sku],
+    "Microsoft.Storage/storageAccounts/blobServices": ["identity", "kind", "location", ...sku],
+    "Microsoft.Storage/storageAccounts/blobServices/containers": ["identity", "kind", "location", "sku"],
+  };
+  return projectResources(resources).map((r) => {
+    assert.ok(bootstrapInventory().some((b) => sameId(b.id, r.id) && b.type === r.type), "Foreign typed resource");
+    for (const path of paths[r.type]) {
+      const [key, child] = path.split(".");
+      const parent = child ? r[key] : r, field = child ?? key;
+      if (parent && typeof parent === "object" && parent[field] === null) delete parent[field];
+    }
+    return r;
+  });
+}
+// Hashes bind the complete reviewed GET objects, including actions, exclusions,
+// data actions, principal, scope, conditions and creation/update provenance.
+// Historical authority is tolerated ONLY as audit evidence, never as caller rights.
+export const historicalAuditGrants = Object.freeze([
+  { assignmentId: `${rg}/providers/Microsoft.Authorization/roleAssignments/0d262a5e-e048-47e6-b590-9caa52ac7d7a`,
+    assignmentSha256: "ed92f54af0cf960b62e9821cda89a0ceec0a9a8e01e23fd79cc5348e1643e6da",
+    principalId: "be3a876f-b205-42c7-bd95-4d33bd49a4ff", scope: rg,
+    roleDefinitionId: `/subscriptions/${destination.subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/a4a2a929-8360-463a-a7c7-349f2f405f9f`,
+    roleDefinitionSha256: "cafa3989c35396d82f90c097ad1acae7a4841d1438a9b72512f0440a83743a4e" },
+  { assignmentId: `${rg}/providers/Microsoft.Authorization/roleAssignments/3fcab962-b128-5c7c-a15a-84b290c06a6f`,
+    assignmentSha256: "7dcb1ad5d68726c11f1e9cd703da51b62fdbe33cb6cfde8657cf7ac08bfed9a6",
+    principalId: original.writerPrincipalId, scope: rg,
+    roleDefinitionId: `/subscriptions/${destination.subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/6240c808-cbc1-5878-bd33-8a3dbe3972fc`,
+    roleDefinitionSha256: "fc3c048b36a1a6cc24bbaf37d44980b7cc408e0f62abaf6e46b610e6bbcdc3aa" },
+  { assignmentId: `/subscriptions/${destination.subscriptionId}/providers/Microsoft.Authorization/roleAssignments/ded0837f-f187-4da0-a5dd-d6cbdf605c28`,
+    assignmentSha256: "909c25855266d23bcd5cb88b0ea80d565df9cedd8f9517abaee6b3427b17dbca",
+    principalId: "be3a876f-b205-42c7-bd95-4d33bd49a4ff", scope: `/subscriptions/${destination.subscriptionId}`,
+    roleDefinitionId: `/subscriptions/${destination.subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/ab8fd25f-e504-4d0a-ab4f-36d9393b3fb9`,
+    roleDefinitionSha256: "b50c6ee242a4d1e36dead3dbe2790482998f07254fa9dea3bf0f5b041f8b6c54" },
+  { assignmentId: `/subscriptions/${destination.subscriptionId}/providers/Microsoft.Authorization/roleAssignments/e2d4f8b4-bf89-5a4b-9f7f-be7ebb2ca369`,
+    assignmentSha256: "c182354f843df12eae4e2579efaa6d5f53fd5f9b098648a7618d630526217be4",
+    principalId: original.writerPrincipalId, scope: `/subscriptions/${destination.subscriptionId}`,
+    roleDefinitionId: `/subscriptions/${destination.subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/ab8fd25f-e504-4d0a-ab4f-36d9393b3fb9`,
+    roleDefinitionSha256: "b50c6ee242a4d1e36dead3dbe2790482998f07254fa9dea3bf0f5b041f8b6c54" },
+]);
+// Exact existing inherited human assignments only; never attribute their Owner
+// authority to a service principal or use them to authenticate this observer.
+export const historicalInheritedHumanHashes = Object.freeze([
+  "bfc3bae0e6f93c718cd33a19cff7930b4d59747929d6c5491b6756c0585df76f",
+  "d82d11efe3718b3c9952eec7f2c372fefdc821fd78efd8dbe1c626d3d28de10f",
+]);
+export function assertObserverBinding(binding) {
+  assert.ok(binding && typeof binding === "object", "Missing protected observer binding");
+  assert.deepEqual(Object.keys(binding).sort(), ["clientId", "principalId", "grants", "federation", "reviewReference"].sort(), "Unknown observer binding");
+  for (const key of ["clientId", "principalId"]) assert.match(binding[key] ?? "", uuid, "Missing observer identity");
+  assert.ok(![original.previewClientId, original.writerClientId, original.writerPrincipalId,
+    ...historicalAuditGrants.map((g) => g.principalId)].some((id) => sameId(binding.clientId, id) || sameId(binding.principalId, id))
+    && !sameId(binding.clientId, binding.principalId), "Observer identity must be separate");
+  assertReference(binding.reviewReference);
+  assert.deepEqual(binding.federation, { issuer: "https://token.actions.githubusercontent.com",
+    subject: "repo:keyforta@329171003/keyforta-property@1370148176:environment:company-dev",
+    audiences: ["api://AzureADTokenExchange"] }, "Wrong observer federation");
+  assert.ok(Array.isArray(binding.grants) && binding.grants.length === 2, "Exact observer grants required");
+  const subscription = `/subscriptions/${destination.subscriptionId}`;
+  for (const [i, scope] of [subscription, rg].entries()) {
+    const { assignment: a, roleDefinition: d } = binding.grants[i] ?? {};
+    assert.ok(a?.properties && d?.properties, "Missing observer role visibility");
+    assert.equal(a.properties.scope, scope, "Wrong observer scope");
+    assert.equal(a.properties.principalId, binding.principalId, "Wrong observer principal");
+    assert.equal(a.properties.principalType, "ServicePrincipal", "Wrong observer principal type");
+    assert.ok(!a.properties.condition && !a.properties.conditionVersion && !a.properties.delegatedManagedIdentityResourceId, "Conditional/delegated observer grant forbidden");
+    assert.equal(a.properties.roleDefinitionId, d.id, "Observer role binding mismatch");
+    for (const [id, prefix] of [[a.id, `${scope}/providers/Microsoft.Authorization/roleAssignments/`],
+      [d.id, `${subscription}/providers/Microsoft.Authorization/roleDefinitions/`]]) {
+      assert.ok(typeof id === "string" && id.startsWith(prefix) && uuid.test(id.slice(prefix.length)), "Wrong observer role/assignment ID");
+    }
+    assert.equal(d.properties.type, "CustomRole", "Exact custom observer role required");
+    assert.deepEqual(d.properties.assignableScopes, [scope], "Wrong observer assignable scope");
+    const subscriptionReads = ["Microsoft.Resources/subscriptions/read", "Microsoft.Authorization/roleDefinitions/read"];
+    const actions = i === 0 ? subscriptionReads : permittedReadActions.filter((a) => !subscriptionReads.includes(a));
+    assert.deepEqual(d.properties.permissions, [{ actions, notActions: [], dataActions: [], notDataActions: [] }], "Wrong observer exact read role contents");
+  }
+  assert.notEqual(binding.grants[0].roleDefinition.id, binding.grants[1].roleDefinition.id, "Observer role isolation required");
+  return binding;
+}
+export function assertAuditGrants(snapshot, binding) {
+  if (binding) assertObserverBinding(binding);
+  assert.ok(Array.isArray(snapshot.roles) && Array.isArray(snapshot.roleDefinitions), "Missing role visibility");
+  const pins = [...historicalAuditGrants, ...(binding?.grants ?? []).map(({ assignment: a, roleDefinition: d }) => ({
+    assignmentId: a.id, assignmentSha256: stateHash(a), principalId: a.properties.principalId, scope: a.properties.scope,
+    roleDefinitionId: d.id, roleDefinitionSha256: stateHash(d),
+  }))];
+  const expectedDefinitions = [...new Set(pins.map((p) => p.roleDefinitionId))].sort();
+  assert.deepEqual(snapshot.roleDefinitions.map((d) => d.id).sort(), expectedDefinitions, "Incomplete/extra role definitions");
+  const seen = new Set(), humans = new Set();
+  for (const rows of snapshot.roles) {
+    assert.ok(Array.isArray(rows.assignments), "Missing pre-handoff role visibility");
+    const ids = new Set(), rowHumans = new Set();
+    for (const a of rows.assignments) {
+      assert.ok(a.properties?.scope && a.properties.principalId && !ids.has(a.id), "Incomplete/duplicate grant visibility"); ids.add(a.id);
+      const pin = pins.find((p) => p.assignmentId === a.id);
+      if (pin) {
+        assert.equal(stateHash(a), pin.assignmentSha256, "Historical/observer grant provenance drift");
+        assert.equal(stateHash(snapshot.roleDefinitions.find((d) => d.id === pin.roleDefinitionId)), pin.roleDefinitionSha256, "Historical/observer role contents drift");
+        seen.add(a.id);
+      } else {
+        // No arbitrary inherited grant exception, including human grants.
+        const hash = stateHash(a);
+        assert.ok(a.properties.principalType === "User"
+          && sameId(a.properties.scope, `/subscriptions/${destination.subscriptionId}`)
+          && historicalInheritedHumanHashes.includes(hash), "Unknown pre-handoff grant");
+        humans.add(hash);
+        rowHumans.add(hash);
+      }
+    }
+    assert.ok(pins.every((p) => ids.has(p.assignmentId)), "Missing scoped historical/observer grant visibility");
+    assert.deepEqual([...rowHumans].sort(), [...historicalInheritedHumanHashes].sort(), "Missing scoped inherited human grant visibility");
+  }
+  assert.deepEqual([...seen].sort(), pins.map((p) => p.assignmentId).sort(), "Missing historical/observer grants");
+  assert.deepEqual([...humans].sort(), [...historicalInheritedHumanHashes].sort(), "Missing inherited human grant visibility");
+}
 export function assertReadPermissions(rows) {
   assert.ok(Array.isArray(rows) && rows.length, "Missing permission visibility");
   const allowed = new Set(permittedReadActions.map((a) => a.toLowerCase()));
@@ -136,6 +258,8 @@ export function assertReadPermissions(rows) {
     for (const action of [...row.actions, ...row.notActions]) assert.ok(allowed.has(action.toLowerCase()), `Authority outside closed exact read set: ${action}`);
   }
   assert.ok(rows.some((r) => r.actions.some((a) => !r.notActions.some((n) => n.toLowerCase() === a.toLowerCase()))), "Missing effective read permission visibility");
+  const effective = new Set(rows.flatMap((r) => r.actions.filter((a) => !r.notActions.some((n) => sameId(n, a)))).map((a) => a.toLowerCase()));
+  assert.ok([...allowed].every((a) => effective.has(a)), "Missing required effective read operation");
 }
 export const historicalFiles = Object.freeze(["checkpoint.json", "fresh-what-if.json", "result.json", "reviewed-inputs.json", "submission.json", "template.json"]);
 export function assertArtifactMetadata(run, artifact, listing, ref, workflow, conclusion, name, now = Date.now()) {
@@ -197,7 +321,7 @@ export function assertOriginalFiles(files, source) {
   return { checkpoint: cp, submission, result, fileHashes: Object.fromEntries(Object.entries(files).map(([p, b]) => [p, sha256(b)])) };
 }
 export function assertHistoricalState(snapshot, checkpoint, run) {
-  assert.deepEqual(projectResources(snapshot.resources), projectResources(checkpoint.resources), "Original property/principal drift");
+  assert.deepEqual(comparableResources(snapshot.resources), comparableResources(checkpoint.resources), "Original property/principal drift");
   assert.equal(snapshot.resources.length, 7, "Missing bootstrap resource");
   const inv = (rows) => rows.map((r) => ({ id: r.id.toLowerCase(), type: r.type.toLowerCase() })).sort((a, b) => a.id.localeCompare(b.id));
   assert.deepEqual(inv(snapshot.resources), inv(bootstrapInventory()), "Foreign typed resource");
@@ -266,13 +390,6 @@ export function assertHistoricalState(snapshot, checkpoint, run) {
     assert.deepEqual(actualSignatures.sort(), expectedSignatures.sort(), "Incomplete/duplicate context-bound operation set");
   }
   assert.deepEqual({ count, reads, outputs, nested, resources: creates.size }, { count: 17, reads: 5, outputs: 3, nested: 2, resources: 7 }, "Incomplete original operation set");
-  for (const rows of snapshot.roles) {
-    assert.ok(Array.isArray(rows.assignments), "Missing pre-handoff role visibility");
-    for (const a of rows.assignments) {
-      assert.ok(a.properties?.scope && a.properties.principalId, "Incomplete role visibility");
-      assert.ok(!sameId(a.properties.scope, rows.scope) && !principals.has(a.properties.principalId.toLowerCase()), "Unexpected pre-handoff grant");
-    }
-  }
   assert.equal(snapshot.defender?.properties?.isEnabled, false, "Missing/active Defender");
   assert.notEqual(snapshot.defender.properties.malwareScanning?.onUpload?.isEnabled, true, "Scanning enabled");
   return projectResources(snapshot.resources);
@@ -301,7 +418,14 @@ export function assertCompletionReceipt(receipt) {
   for (const f of receipt.source.files) assert.match(f.sha256, /^[a-f0-9]{64}$/, "Missing source blob");
   for (const k of ["runId", "runAttempt"]) assert.match(receipt.execution[k] ?? "", /^[1-9]\d*$/, "Missing receipt run");
   assert.deepEqual(receipt.destination, destination, "Wrong receipt destination");
-  assert.deepEqual(receipt.observer, { clientId: original.previewClientId }, "Wrong observer");
+  assert.deepEqual(Object.keys(receipt.observer ?? {}).sort(), ["clientId", "principalId", "bindingSha256"].sort(), "Missing separate observer binding");
+  for (const key of ["clientId", "principalId"]) {
+    assert.match(receipt.observer[key] ?? "", uuid, "Missing observer identity");
+    assert.ok(![original.previewClientId, original.writerClientId, original.writerPrincipalId,
+      ...historicalAuditGrants.map((g) => g.principalId)].some((id) => sameId(id, receipt.observer[key])), "Wrong observer identity");
+  }
+  assert.notEqual(receipt.observer.clientId, receipt.observer.principalId, "Observer principal/client substitution");
+  assert.match(receipt.observer.bindingSha256 ?? "", /^[a-f0-9]{64}$/, "Missing observer binding hash");
   assert.deepEqual(receipt.historicalWriter, { clientId: original.writerClientId, principalId: original.writerPrincipalId, revocationVerified: false }, "Wrong historical writer/revocation assertion");
   for (const k of ["ownerAuthorizationReference", "freezeReference", "inspectionReference"]) assertReference(receipt[k]);
   assert.ok(receipt.observations.length === 2 && receipt.observations.every((t) => Number.isFinite(Date.parse(t)))

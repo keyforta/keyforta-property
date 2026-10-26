@@ -1,5 +1,5 @@
 // Local-only generated SYNTHETIC source/archive/API fixture. No live evidence.
-import "./company-completion-loader.mjs";
+import { syntheticHistorical, syntheticInheritedHumans } from "./company-completion-loader.mjs";
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +10,7 @@ const {
   original, baselineRevision, repository, destination, rg, bootstrapInventory, historicalSourcePaths,
   sha256, stateHash, permittedReadActions, auditWorkflow,
 } = await import("../../../scripts/infra/company-development-completion-validation.mjs");
-const { completionSource, endpoints, readArchive, reviewedCompletionPaths } = await import("../../../scripts/infra/company-development-completion.mjs");
+const { completionSource, endpoints, roleDefinitionEndpoints, readArchive, reviewedCompletionPaths } = await import("../../../scripts/infra/company-development-completion.mjs");
 export { zipFixture } from "./company-zip.mjs";
 
 // Covers direct historical workflow reads and legacy-driver extraction too:
@@ -44,17 +44,35 @@ export function completionFixture() {
   const retained = JSON.parse(gunzipSync(readFileSync(new URL("./company-bootstrap-arm.json.gz", import.meta.url))));
   const { deployments, operations } = retained;
   const roleScopes = [rg, ...bootstrapInventory().filter((r) => /\/(registries|storageAccounts|containers)$/.test(r.type)).map((r) => r.id)];
+  const subscription = `/subscriptions/${destination.subscriptionId}`;
+  const uid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const observerBinding = { clientId: uid(801), principalId: uid(802), reviewReference: "https://github.com/keyforta/keyforta-property/issues/159",
+    federation: { issuer: "https://token.actions.githubusercontent.com", subject: "repo:keyforta@329171003/keyforta-property@1370148176:environment:company-dev",
+      audiences: ["api://AzureADTokenExchange"] },
+    grants: [subscription, rg].map((scope, i) => {
+      const roleDefinition = { id: `${subscription}/providers/Microsoft.Authorization/roleDefinitions/${uid(810 + i)}`,
+        properties: { type: "CustomRole", roleName: `Synthetic audit ${i}`, assignableScopes: [scope],
+          permissions: [{ actions: i ? permittedReadActions.filter((a) => !["Microsoft.Resources/subscriptions/read", "Microsoft.Authorization/roleDefinitions/read"].includes(a))
+            : ["Microsoft.Resources/subscriptions/read", "Microsoft.Authorization/roleDefinitions/read"], notActions: [], dataActions: [], notDataActions: [] }] } };
+      return { roleDefinition, assignment: { id: `${scope}/providers/Microsoft.Authorization/roleAssignments/${uid(820 + i)}`,
+        properties: { scope, principalId: uid(802), principalType: "ServicePrincipal", roleDefinitionId: roleDefinition.id } } };
+    }) };
+  const grants = [...structuredClone(syntheticHistorical), ...structuredClone(observerBinding.grants)];
   const snapshot = { subscription: { subscriptionId: destination.subscriptionId, tenantId: destination.tenantId, state: "Enabled" },
     group: { id: rg, location: destination.location }, inventory: retained.inventory,
     resources: retained.resources, history: retained.history, deployments, operations,
     permissions: [rg, ...bootstrapInventory().map((r) => r.id)].map((scope) => ({ scope, permissions: [{
       actions: [...permittedReadActions], notActions: [], dataActions: [], notDataActions: [],
-    }] })), roles: roleScopes.map((scope) => ({ scope, assignments: [] })), defender: { properties: { isEnabled: false } } };
+    }] })), roles: roleScopes.map((scope) => ({ scope, assignments: [
+      ...grants.filter((g) => scope.startsWith(g.assignment.properties.scope)).map((g) => g.assignment),
+      ...structuredClone(syntheticInheritedHumans),
+    ] })),
+    roleDefinitions: grants.map((g) => g.roleDefinition), defender: { properties: { isEnabled: false } } };
   const environment = { id: 123, node_id: "synthetic-environment", name: "company-dev", updated_at: timestamp,
     deployment_branch_policy: { protected_branches: true, custom_branch_policies: false }, protection_rules: [], can_admins_bypass: false };
   const reference = "https://github.com/keyforta/keyforta-property/issues/159#issuecomment-123";
   const intent = { version: 1, kind: "bootstrap-completion-audit-intent", scope: "audit-only-no-continuation", owner: "cmbuyamba",
-    execution: { revision }, original, originalSource, source, environment, authorizedAt: new Date(now - 60000).toISOString(),
+    execution: { revision }, original, originalSource, source, environment, observerBinding, authorizedAt: new Date(now - 60000).toISOString(),
     ownerAuthorizationReference: reference, freezeReference: reference, inspectionReference: reference,
     manualUi: { owner: "cmbuyamba", adminBypass: false, reconciledWithApi: true, observedAt: new Date(now - 60000).toISOString(), observationReference: reference },
     frozenSnapshotSha256: stateHash(snapshot),
@@ -94,6 +112,7 @@ export function completionFixture() {
     for (const g of snapshot.operations) responses[endpoints[`${g.deploymentName}/operations`]] = { value: g.operations };
     for (const p of snapshot.permissions) responses[endpoints[`${p.scope}/permissions`]] = { value: p.permissions };
     for (const p of snapshot.roles) responses[endpoints[`${p.scope}/roles`]] = { value: p.assignments };
+    for (const url of roleDefinitionEndpoints(observerBinding)) responses[url] = snapshot.roleDefinitions.find((d) => url.startsWith(`https://management.azure.com${d.id}?`));
   };
   bindResponses();
   const calls = [];
@@ -102,11 +121,11 @@ export function completionFixture() {
     calls.push({ azure: args }); assertFound(JSON.stringify(args.slice(0, 4)) === JSON.stringify(["rest", "--method", "get", "--url"]), args);
     const value = responses[args[4]]; assertFound(value, args[4]); return structuredClone(value);
   };
-  const account = { id: destination.subscriptionId, tenantId: destination.tenantId, user: { type: "servicePrincipal", name: original.previewClientId } };
-  const options = () => ({ intent, execution, originalSource, source, github, azure, account, now,
+  const account = { id: destination.subscriptionId, tenantId: destination.tenantId, user: { type: "servicePrincipal", name: observerBinding.clientId } };
+  const options = () => ({ intent, execution, originalSource, source, github, azure, account, observerBinding, now,
     download: (id) => { assertFound(id === original.artifactId, id); return Buffer.from(archive); }, clock: () => new Date(now).toISOString() });
   return { root, git, revision, archive, files, checkpoint, now, snapshot, source, originalSource, intent, execution,
-    metadata, responses, calls, github, azure, account, options, bindResponses, environment, run, artifact,
+    metadata, responses, calls, github, azure, account, observerBinding, options, bindResponses, environment, run, artifact,
     unresolvedWhatIfRaw: retained.unresolvedWhatIfRaw };
 }
 function assertFound(value, key) { if (!value) throw new Error(`Unexpected synthetic transport request: ${JSON.stringify(key)}`); }

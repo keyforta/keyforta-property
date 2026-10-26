@@ -11,6 +11,7 @@ import {
   historicalSourcePaths, currentSourcePaths, sha256, stateHash, sameId, bootstrapInventory,
   assertAuditPayload as assertNoSecretPayload, assertReadPermissions, assertReference, assertArtifactMetadata, historicalFiles,
   assertOriginalFiles, assertHistoricalState, completionAssertions, assertCompletionReceipt, authenticateCompletion, projectResources,
+  historicalAuditGrants, assertObserverBinding, assertAuditGrants,
 } from "./company-development-completion-validation.mjs";
 
 const host = "https://management.azure.com";
@@ -39,8 +40,13 @@ const listEndpoints = new Set([endpoints.resources, endpoints.deployments,
   ...names.map((n) => endpoints[`${n}/operations`]),
   ...[rg, ...bootstrapInventory().map((r) => r.id)].map((s) => endpoints[`${s}/permissions`]),
   ...roleScopes.map((s) => endpoints[`${s}/roles`])]);
-export function createManagementReader(invoke, journal, clock = () => new Date().toISOString()) {
-  const allowed = new Set(Object.values(endpoints));
+export function roleDefinitionEndpoints(binding) {
+  if (binding) assertObserverBinding(binding);
+  return [...new Set([...historicalAuditGrants.map((g) => g.roleDefinitionId),
+    ...(binding?.grants ?? []).map((g) => g.roleDefinition.id)])].map((id) => arm(id, "2022-04-01"));
+}
+export function createManagementReader(invoke, journal, clock = () => new Date().toISOString(), binding) {
+  const allowed = new Set([...Object.values(endpoints), ...roleDefinitionEndpoints(binding)]);
   const request = (url, base) => {
     assert.ok(typeof url === "string" && (url === base || (url.startsWith(`${base}&$skiptoken=`)
       && /^[A-Za-z0-9%._~-]{1,4096}$/.test(url.slice(`${base}&$skiptoken=`.length)))), "Unknown pagination URL/endpoint");
@@ -175,6 +181,7 @@ export function assertIntent(intent, execution, now = Date.now()) {
   const uiAge = now - Date.parse(intent.manualUi.observedAt);
   assert.ok(uiAge >= 0 && uiAge <= 60 * 60 * 1000, "Stale manual UI context");
   assert.match(intent.frozenSnapshotSha256 ?? "", /^[a-f0-9]{64}$/, "Missing full frozen snapshot binding");
+  assertObserverBinding(intent.observerBinding);
   // Context/reference/hash is deliberately NOT machine-authenticated approval.
 }
 export function controls(intent, execution, github = gh, now = Date.now()) {
@@ -249,7 +256,7 @@ export function loadOriginal(github = gh, download = (id) => command("gh", ["api
   const files = readArchive(archive, historicalFiles);
   return { ...assertOriginalFiles(files, source), files, archive, run, artifact };
 }
-export function observe(reader) {
+export function observe(reader, binding) {
   const resources = bootstrapInventory().map((r) => reader.get(endpoints[r.id]));
   return {
     subscription: reader.get(endpoints.subscription), group: reader.get(endpoints.group),
@@ -258,6 +265,7 @@ export function observe(reader) {
     operations: names.map((n) => ({ deploymentName: n, operations: reader.list(endpoints[`${n}/operations`]) })),
     permissions: [rg, ...bootstrapInventory().map((r) => r.id)].map((scope) => ({ scope, permissions: reader.list(endpoints[`${scope}/permissions`]) })),
     roles: roleScopes.map((scope) => ({ scope, assignments: reader.list(endpoints[`${scope}/roles`]) })),
+    roleDefinitions: roleDefinitionEndpoints(binding).map((url) => reader.get(url)),
     defender: reader.get(endpoints.defender),
   };
 }
@@ -268,25 +276,30 @@ function validateObservation(snapshot, origin, intent) {
   assert.ok(sameId(snapshot.group.id, rg) && snapshot.group.location === destination.location, "Wrong resource group");
   assert.equal(snapshot.permissions.length, 8, "Missing scoped permissions");
   for (const p of snapshot.permissions) assertReadPermissions(p.permissions);
+  assert.ok(snapshot.resources.every((r) => ![r.properties?.clientId, r.properties?.principalId]
+    .some((id) => sameId(id, intent.observerBinding.clientId) || sameId(id, intent.observerBinding.principalId))), "Observer cannot be a bootstrap workload identity");
+  assertAuditGrants(snapshot, intent.observerBinding);
   assertHistoricalState(snapshot, origin.checkpoint, origin.run);
   assert.equal(stateHash(snapshot), intent.frozenSnapshotSha256, "Frozen complete state/provenance drift");
 }
-export function auditCompletion({ intent, execution, originalSource, source, github = gh, download, azure, account,
+export function auditCompletion({ intent, execution, originalSource, source, github = gh, download, azure, account, observerBinding,
   clock = () => new Date().toISOString(), now = Date.now() }) {
   assert.ok(typeof azure === "function", "Closed GET transport required");
   const firstControls = controls(intent, execution, github, now);
+  assertObserverBinding(observerBinding);
+  assert.deepEqual(intent.observerBinding, observerBinding, "Protected observer binding drift");
   assert.deepEqual(source, intent.source, "Execution source drift");
   assert.equal(account.id, destination.subscriptionId, "Wrong observer subscription");
   assert.equal(account.tenantId, destination.tenantId, "Wrong observer tenant");
-  assert.equal(account.user?.type, "servicePrincipal", "Federated preview observer required");
-  assert.equal(account.user.name.toLowerCase(), original.previewClientId, "Wrong observer identity");
+  assert.equal(account.user?.type, "servicePrincipal", "Federated separate audit observer required");
+  assert.equal(account.user.name.toLowerCase(), observerBinding.clientId.toLowerCase(), "Wrong observer identity");
   const observerAccount = { subscriptionId: account.id, tenantId: account.tenantId,
     user: { type: account.user.type, name: account.user.name.toLowerCase() } };
   const origin = loadOriginal(github, download, originalSource, now);
-  const journal = [], reader = createManagementReader(azure, journal, clock), observations = [];
+  const journal = [], reader = createManagementReader(azure, journal, clock, observerBinding), observations = [];
   observations.push(clock());
-  const before = observe(reader); validateObservation(before, origin, intent);
-  const after = observe(reader); validateObservation(after, origin, intent);
+  const before = observe(reader, observerBinding); validateObservation(before, origin, intent);
+  const after = observe(reader, observerBinding); validateObservation(after, origin, intent);
   observations.push(clock());
   assert.deepEqual(after, before, "Final state/provenance drift");
   const finalTime = Date.parse(observations[1]);
@@ -304,7 +317,8 @@ export function auditCompletion({ intent, execution, originalSource, source, git
   for (const [path, bytes] of Object.entries(encoded)) assert.ok(bytes.length > 0
     && bytes.length <= (path.endsWith(".zip") ? 16 : 2) * 1024 * 1024, "Oversized/unbounded audit evidence file");
   const receipt = { version: 1, ...completionAssertions, destination, original, execution, source, resources: projectResources(after.resources),
-    observer: { clientId: original.previewClientId }, historicalWriter: { clientId: original.writerClientId, principalId: original.writerPrincipalId, revocationVerified: false },
+    observer: { clientId: observerBinding.clientId, principalId: observerBinding.principalId, bindingSha256: stateHash(observerBinding) },
+    historicalWriter: { clientId: original.writerClientId, principalId: original.writerPrincipalId, revocationVerified: false },
     observations, ownerAuthorizationReference: intent.ownerAuthorizationReference, freezeReference: intent.freezeReference,
     inspectionReference: intent.inspectionReference, approvalAuthentication: "external-owner-control-required",
     evidenceHashes: Object.fromEntries(Object.entries(encoded).map(([p, b]) => [p, sha256(b)])),
@@ -340,6 +354,8 @@ export function loadCompletionReceipt(ref, { github = gh, download = (id) => com
   for (const [p, digest] of Object.entries(receipt.evidenceHashes)) assert.equal(sha256(files[p]), digest, "Receipt evidence digest mismatch");
   const intent = JSON.parse(files["source-review.json"]);
   assertIntent(intent, receipt.execution, Date.parse(receipt.observations[1]));
+  assert.deepEqual(receipt.observer, { clientId: intent.observerBinding.clientId, principalId: intent.observerBinding.principalId,
+    bindingSha256: stateHash(intent.observerBinding) }, "Receipt observer binding drift");
   for (const k of ["ownerAuthorizationReference", "freezeReference", "inspectionReference"]) assert.equal(receipt[k], intent[k], "Receipt owner context drift");
   for (const t of receipt.observations) assert.ok(Date.parse(t) >= Date.parse(run.created_at)
     && Date.parse(t) <= Date.parse(run.updated_at) && Date.parse(t) <= now, "Receipt observation outside authenticated run");
@@ -357,7 +373,7 @@ export function loadCompletionReceipt(ref, { github = gh, download = (id) => com
   }, "Original evidence bindings drift");
   const context = JSON.parse(files["controls.json"]);
   assert.deepEqual(context.observerAccount, { subscriptionId: destination.subscriptionId, tenantId: destination.tenantId,
-    user: { type: "servicePrincipal", name: original.previewClientId } }, "Receipt observing caller binding drift");
+    user: { type: "servicePrincipal", name: intent.observerBinding.clientId.toLowerCase() } }, "Receipt observing caller binding drift");
   assert.deepEqual(context.environment, intent.environment, "Receipt environment context drift");
   assert.equal(context.branch.protected, true, "Receipt unprotected branch");
   assert.equal(context.branch.commit?.sha, ref.sha, "Receipt branch SHA mismatch");
@@ -389,9 +405,9 @@ export function loadCompletionReceipt(ref, { github = gh, download = (id) => com
     assert.ok(Date.parse(entry.time) >= Date.parse(receipt.observations[0])
       && Date.parse(entry.time) <= Date.parse(receipt.observations[1]), "Journal observation time mismatch");
     return entry.response;
-  }, []);
-  assert.deepEqual(observe(replay), snapshot, "First journal state/provenance mismatch");
-  assert.deepEqual(observe(replay), snapshot, "Final journal state/provenance mismatch");
+  }, [], undefined, intent.observerBinding);
+  assert.deepEqual(observe(replay, intent.observerBinding), snapshot, "First journal state/provenance mismatch");
+  assert.deepEqual(observe(replay, intent.observerBinding), snapshot, "Final journal state/provenance mismatch");
   assert.equal(index, journal.length, "Unknown/extra journal reads");
   for (const [p, bytes] of Object.entries(files)) if (!p.endsWith(".zip")) assertNoSecretPayload(JSON.parse(bytes));
   return authenticateCompletion(receipt, ref);
@@ -422,10 +438,12 @@ print(json.dumps(result))
 }
 function inputs() {
   const execution = assertNativeContext();
-  assert.equal(process.env.PREVIEW_CLIENT_ID, original.previewClientId, "Wrong configured preview identity before OIDC");
+  const observerBinding = assertObserverBinding(JSON.parse(process.env.AUDIT_OBSERVER_BINDING ?? "null"));
+  assert.equal(process.env.AUDIT_CLIENT_ID, observerBinding.clientId, "Wrong protected audit identity before OIDC");
   const intent = JSON.parse(process.env.AUDIT_INTENT ?? "null");
   assertIntent(intent, execution);
-  return { execution, intent, source: completionSource(execution.revision), originalSource: assertSourceReview(intent) };
+  assert.deepEqual(intent.observerBinding, observerBinding, "Protected observer binding drift before OIDC");
+  return { execution, intent, observerBinding, source: completionSource(execution.revision), originalSource: assertSourceReview(intent) };
 }
 function cli() {
   const mode = process.argv[2];
