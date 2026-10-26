@@ -3,9 +3,9 @@
 // helpers. No Azure SDK, Blob data transport, grant or deployment capability.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { assertNoSecretPayload, bootstrapInventory, continuationInventory, destination, securityInventory } from "./company-development.mjs";
+import { assertNoSecretPayload, assertVerificationSources, bootstrapInventory, continuationInventory, destination, securityInventory } from "./company-development.mjs";
 export { continuationInventory } from "./company-development.mjs";
-import { armGuid, assertHumanGrantAssignments } from "./company-development-apply.mjs";
+import { armGuid, assertHumanGrantAssignments, readBootstrapState, recoveryOrigin } from "./company-development-apply.mjs";
 
 const scope = `/subscriptions/${destination.subscriptionId}/resourceGroups/${destination.resourceGroup}/providers/`;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -318,6 +318,10 @@ export function assertWriterRevoked(read, predecessor, phase = "apply", security
 }
 export function validateStageChanges(preview, plan, completed) {
   assertNoSecretPayload(preview);
+  if (plan.inputs.stageContext?.sourceTransition) {
+    for (const key of ["diagnostics", "potentialChanges"]) assert.ok(preview[key] === undefined || (Array.isArray(preview[key]) && preview[key].length === 0), "Verification-only what-if diagnostics/potential changes");
+    assert.ok(preview.changes?.every((c) => c.changeType === "NoChange" && (!c.delta || c.delta.length === 0)), "Verification-only requires exclusively NoChange without property deltas");
+  }
   assert.ok(!preview.error && Array.isArray(preview.changes) && preview.changes.length, "Missing/failed staged what-if");
   const context = plan.inputs.stageContext;
   const allowed = plan.inputs.stage === "bootstrap" ? bootstrapInventory() : continuationInventory();
@@ -348,6 +352,23 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
   assert.ok(context && predecessor, "Missing staged predecessor/inventory evidence");
   assert.deepEqual(predecessor.destination, destination, "Wrong predecessor destination");
   assert.equal(predecessor.version, 2, "Legacy predecessor");
+  const transition = context.sourceTransition;
+  let origin = null;
+  if (transition) {
+    assert.ok(inputs.stage === "bootstrap" && inputs.mode === "reviewed-reentry", "Verification-only bootstrap re-entry required");
+    origin = recoveryOrigin(predecessor);
+    assert.deepEqual(context.predecessor, origin.ref, "Foreign recovery artifact context");
+    assert.ok(!context.security && !context.targetInspection && !context.deploymentInspections?.length, "Verification-only cannot include security/target/additional transitions");
+    assert.deepEqual(context.approvedChanges, [], "Verification-only cannot authorize property changes");
+    assertVerificationSources(transition, plan.evidence, predecessor);
+    assert.deepEqual(plan.inventory.expected, bootstrapInventory(), "Verification-only expected inventory drift");
+    for (const key of ["templateSha256", "parametersSha256"]) assert.equal(plan.evidence[key], predecessor[key], `Verification-only ${key} drift`);
+    const body = { properties: { mode: "Incremental", template: plan.template, parameters: plan.parameters.parameters } };
+    assert.equal(createHash("sha256").update(JSON.stringify(body)).digest("hex"), origin.submission.bodySha256, "Original submitted template/parameters differ");
+    assert.deepEqual(context.baseline, projectResources(predecessor.resources), "Verification-only original resource/property/principal drift");
+    assert.equal(context.baseline.length, 7, "Verification-only requires complete original inventory");
+    assert.equal(context.deploymentName, predecessor.deploymentName, "Verification-only must inspect original deployment");
+  }
   if (phase === "apply") assertOriginalApplyCaller(read, predecessor);
   assert.equal(context.predecessor.stage, predecessor.stage, "Predecessor stage mismatch");
   assert.equal(context.predecessor.sha, predecessor.commitSha, "Predecessor SHA mismatch");
@@ -387,6 +408,7 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
   if (predecessor.completed) assert.equal(predecessorInspection.status, "Succeeded", "Completed predecessor ARM state changed");
   const history = read(["deployment", "group", "list", "--resource-group", destination.resourceGroup]);
   assert.ok(Array.isArray(history), "Missing complete deployment history visibility");
+  if (transition) assert.ok(history.every((e) => [predecessor.deploymentName, "foundation-keyforta-cdev", "stamp-keyforta-cdev"].includes(e.name) && e.properties?.provisioningState === "Succeeded"), "Verification-only foreign/unsuccessful deployment history");
   for (const entry of history) {
     assert.ok(entry?.name && entry.properties?.provisioningState, "Incomplete deployment history");
     if ([expectedName, predecessor.deploymentName, `companydev-bootstrap-${plan.evidence.commitSha.slice(0, 12)}`, `companydev-bootstrap-${predecessorDeploymentSha.slice(0, 12)}`, "foundation-keyforta-cdev", "stamp-keyforta-cdev"].includes(entry.name)) {
@@ -410,12 +432,35 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
   }
   const completed = predecessor.stage === inputs.stage && inspection?.status === "Succeeded"
     && current.length === plan.inventory.expected.length;
+  let originalSuccess = null, verifiedBootstrap = null;
+  if (transition) {
+    assert.ok(completed && !targetInspection, "Verification-only requires successful original ARM and absent current target; never submit");
+    assert.deepEqual(current, projectResources(predecessor.resources), "Verification-only original actual inventory drift");
+    const verified = readBootstrapState(read, predecessor.deploymentName);
+    verifiedBootstrap = verified;
+    assert.deepEqual(projectResources(verified.resources), current, "Verification-only typed resource drift");
+    const inOriginalRun = (timestamp) => {
+      const t = Date.parse(timestamp);
+      assert.ok(Number.isFinite(t) && t >= origin.start && t <= origin.end, "Success provenance outside original failed workflow");
+    };
+    for (const group of verified.operations) for (const op of group.operations) inOriginalRun(op.properties.timestamp);
+    originalSuccess = [predecessor.deploymentName, "foundation-keyforta-cdev", "stamp-keyforta-cdev"].map((name) => {
+      const d = read(["deployment", "group", "show", "--resource-group", destination.resourceGroup, "--name", name]);
+      assert.equal(d.id?.toLowerCase(), `${scope}Microsoft.Resources/deployments/${name}`.toLowerCase(), "Foreign original successful deployment");
+      assert.equal(d.name, name, "Wrong original deployment name");
+      assert.equal(d.properties?.provisioningState, "Succeeded", "Original root/nested ARM not successful");
+      assert.match(d.properties.correlationId ?? "", uuid, "Missing original success correlation");
+      inOriginalRun(d.properties.timestamp);
+      return d;
+    });
+    assert.deepEqual(originalSuccess, context.originalSuccess, "Frozen original success provenance drift");
+  }
   if (predecessor.stage === inputs.stage && predecessor.completed) {
     assert.ok(completed, "Completed same-stage checkpoint requires verified no-op with complete inventory; no write recovery");
   }
   if (completed) {
     assert.equal(inputs.mode, "reviewed-reentry", "Completed stage requires reviewed inspection/no-op");
-    for (const key of ["sourceSha256", "templateSha256", "parametersSha256"]) assert.equal(plan.evidence[key], predecessor[key], `Completed stage ${key} drift`);
+    for (const key of (transition ? ["templateSha256", "parametersSha256"] : ["sourceSha256", "templateSha256", "parametersSha256"])) assert.equal(plan.evidence[key], predecessor[key], `Completed stage ${key} drift`);
     if (predecessor.completed) assert.deepEqual(current, predecessor.resources, "Completed inventory drift");
     assertCompletedResources(current, inputs.stage);
   }
@@ -425,7 +470,7 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
     readableSecurity = readSecurity(read, context.security, { ...predecessor, resources: current });
     functionalTest = validateFunctionalTest(context.security.functionalTest, readableSecurity, now);
     writerPermissions = assertWriterRevoked(read, predecessor, phase, context.security);
-  } else if (!completed) {
+  } else if (!completed || transition) {
     assert.equal(predecessor.stage, "bootstrap", "Wrong bootstrap recovery predecessor");
     assert.equal(predecessor.completed, false, "Completed bootstrap must never regain write authority");
     assert.ok(!context.security, "Bootstrap cannot resume after human security handoff");
@@ -445,7 +490,8 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
     }
   }
   const permissionReadiness = readStagePermissionReadiness(read, inputs.stage, phase, !completed);
-  return { action: completed ? "noop" : "submit", resources: current, inspection, targetInspection, predecessorInspection, history, functionalTest, readableSecurity, writerPermissions, permissionReadiness };
+  return { action: completed ? "noop" : "submit", resources: current, inspection, targetInspection, predecessorInspection, history, functionalTest, readableSecurity, writerPermissions, permissionReadiness,
+    ...(transition ? { sourceTransition: transition, originalSuccess, verifiedBootstrap, originalCheckpoint: { ...context.predecessor, completed: false, deploymentName: predecessor.deploymentName, deploymentCommitSha: predecessor.commitSha } } : {}) };
 }
 export function executeReviewedStage({ plan, predecessor, read, preview, submit, now = Date.now(), phase = "apply" }) {
   const before = assessStage(read, plan, predecessor, now, phase);

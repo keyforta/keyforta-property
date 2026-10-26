@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 import YAML from "yaml";
 import { sourceFixture, sourcePaths } from "./fixtures/company-source.mjs";
 
@@ -161,6 +161,281 @@ async function bootstrapRecoveryFixture() {
   f.plan.whatIf = { changes: bootstrapInventory().map(({ id, type }) => ({ resourceId: id, changeType: "NoChange", after: { type } })) };
   return f;
 }
+
+let verificationSources;
+after(() => { if (verificationSources) rmSync(verificationSources.root, { recursive: true, force: true }); });
+async function verificationRecoveryFixture(from, to, root) {
+  const f = await bootstrapRecoveryFixture();
+  const { committedSource, armParameters } = await import("../../scripts/infra/company-development.mjs");
+  if (!from) {
+    if (!verificationSources) {
+      verificationSources = sourceFixture();
+      verificationSources.from = committedSource(verificationSources.revision, verificationSources.root);
+      writeFileSync(join(verificationSources.root, "scripts/infra/company-development-apply.mjs"), "// synthetic verifier correction\n");
+      verificationSources.git("add", "--", "scripts/infra/company-development-apply.mjs");
+      verificationSources.git("commit", "--quiet", "--no-verify", "-m", "Synthetic verifier correction");
+      verificationSources.to = committedSource(verificationSources.git("rev-parse", "HEAD"), verificationSources.root);
+    }
+    ({ from, to, root } = verificationSources);
+  }
+  from = structuredClone(from); to = structuredClone(to);
+  // Exercise the public engine against a real immutable synthetic Git history,
+  // including on shallow CI checkouts. No private function/hash bypass.
+  f.execute = (args) => {
+    const previous = process.cwd();
+    try { process.chdir(root); return f.state.executeReviewedStage(args); }
+    finally { process.chdir(previous); }
+  };
+  const prior = f.predecessor;
+  Object.assign(prior, { commitSha: from.revision, sourceSha256: from.sha256, sourceFiles: from.files,
+    deploymentName: `companydev-bootstrap-${from.revision.slice(0, 12)}` });
+  f.plan.template = JSON.parse(fixture().files["template.json"]);
+  f.plan.parameters = armParameters(input);
+  Object.assign(prior, { templateSha256: hash(encode(f.plan.template)), parametersSha256: hash(encode(f.plan.parameters)) });
+  Object.assign(f.plan.evidence, { commitSha: to.revision, sourceSha256: to.sha256, sourceFiles: to.files,
+    templateSha256: prior.templateSha256, parametersSha256: prior.parametersSha256 });
+  Object.assign(f.context.predecessor, { sha: from.revision });
+  f.context.deploymentName = prior.deploymentName;
+  const replay = await bootstrapOutputReadFixture();
+  replay.rows[prior.deploymentName] = replay.rows[replay.root]; delete replay.rows[replay.root];
+  f.operations = replay.rows;
+  for (const rows of Object.values(f.operations)) for (const op of rows) {
+    op.properties.timestamp = "2026-10-25T20:00:00.000Z";
+    op.id = op.id.replace(replay.root, prior.deploymentName);
+  }
+  f.deployments = [prior.deploymentName, replay.foundation, replay.stamp].map((name) => ({
+    name, id: `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.Resources/deployments/${name}`,
+    properties: { provisioningState: "Succeeded", timestamp: "2026-10-25T20:00:01.000Z", correlationId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" },
+  }));
+  f.transport.predecessorDeployment = f.deployments[0];
+  const baseRead = f.read;
+  f.read = (args) => {
+    if (args[0] === "deployment" && args[1] === "operation") return f.operations[args[args.indexOf("--name") + 1]];
+    if (args[0] === "deployment" && args[2] === "show") {
+      const found = f.deployments.find((d) => d.name === args[args.indexOf("--name") + 1]);
+      if (found) return found;
+    }
+    return baseRead(args);
+  };
+  f.context.inspection = f.state.inspectDeployment(f.read, prior.deploymentName);
+  f.context.originalSuccess = structuredClone(f.deployments);
+  f.context.sourceTransition = { kind: "bootstrap-verification-only", version: 1, from, to, ownerReviewReference: input.changeFreeze };
+  const executionRun = { revision: from.revision, runId: prior.runId, runAttempt: prior.runAttempt };
+  const originalWhatIf = { changes: f.plan.whatIf.changes.map((c) => ({ ...c, changeType: "Create" })) };
+  const reviewed = { stage: "bootstrap", mode: "initial", evidenceVersion: 2, sha: from.revision,
+    runId: "122", runAttempt: "1", artifactId: "455", inventorySha256: "c".repeat(64), evidenceSha256: "d".repeat(64),
+    sourceSha256: from.sha256, templateSha256: prior.templateSha256, parametersSha256: prior.parametersSha256,
+    whatIfSha256: hash(encode(originalWhatIf)) };
+  f.originalFiles = {
+    "checkpoint.json": encode(prior), "template.json": encode(f.plan.template), "fresh-what-if.json": encode(originalWhatIf),
+    "reviewed-inputs.json": encode(reviewed),
+    "submission.json": encode({ url: `https://management.azure.com${f.deployments[0].id}?api-version=2025-04-01`,
+      bodySha256: hash(JSON.stringify({ properties: { mode: "Incremental", template: f.plan.template, parameters: f.plan.parameters.parameters } })), executionRun, reviewed }),
+    "result.json": encode({ state: "Succeeded", deploymentId: f.deployments[0].id, executionRun, reviewed }),
+  };
+  f.archive = execFileSync("python3", ["-c", "import sys,json,zipfile,io; b=io.BytesIO(); z=zipfile.ZipFile(b,'w'); [(z.writestr(k,v)) for k,v in json.load(sys.stdin).items()]; z.close(); sys.stdout.buffer.write(b.getvalue())"], { input: JSON.stringify(f.originalFiles) });
+  Object.assign(f.context.predecessor, { checkpointSha256: hash(f.originalFiles["checkpoint.json"]), archiveSha256: hash(f.archive) });
+  f.run = { id: Number(prior.runId), run_attempt: 1, head_sha: from.revision, head_branch: "main",
+    event: "workflow_dispatch", status: "completed", conclusion: "failure",
+    path: ".github/workflows/company-development-foundation-apply.yml",
+    repository: { full_name: "keyforta/keyforta-property" }, head_repository: { full_name: "keyforta/keyforta-property" },
+    created_at: "2026-10-25T19:59:00.000Z", updated_at: "2026-10-25T20:01:00.000Z" };
+  f.artifact = { id: 456, expired: false, digest: `sha256:${hash(f.archive)}`,
+    name: `company-dev-foundation-bootstrap-initial-v2-apply-${from.revision}-${prior.runId}-1`,
+    workflow_run: { id: Number(prior.runId), head_sha: from.revision } };
+  f.authenticate = () => {
+    f.predecessor = (f.controls.assertRecoveryArtifact)(f.originalFiles, f.run, f.artifact, f.context.predecessor, hash(f.archive));
+  };
+  f.controls = await controls();
+  f.authenticate();
+  return f;
+}
+
+test("verification-only transition replays the successful ARM / incomplete checkpoint source-binding block", async () => {
+  const f = await verificationRecoveryFixture();
+  let previews = 0, puts = 0;
+  const original = structuredClone(f.predecessor);
+  const result = f.execute({
+    plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now,
+    preview: () => { previews++; return f.plan.whatIf; }, submit: () => { puts++; },
+  });
+  assert.equal(result.action, "noop");
+  assert.equal(previews, 1); assert.equal(puts, 0);
+  assert.deepEqual(f.predecessor, original);
+  assert.equal(f.predecessor.completed, false);
+  assert.equal(Object.values(f.operations).flat().length, 17);
+});
+
+test("verification-only transition rejects every origin/state mismatch before preview and never submits", async () => {
+  const mutations = [
+    (f) => { delete f.context.sourceTransition; },
+    (f) => { f.context.sourceTransition.version = 2; },
+    (f) => { f.context.sourceTransition.kind = "ignore-source"; },
+    (f) => { f.context.sourceTransition.allowSourceDrift = true; },
+    (f) => { delete f.context.sourceTransition.ownerReviewReference; },
+    (f) => { f.context.sourceTransition.from.revision = "f".repeat(40); },
+    (f) => { f.context.sourceTransition.to.revision = "f".repeat(40); },
+    (f) => { f.context.sourceTransition.from.files[0].sha256 = "f".repeat(64); },
+    (f) => { f.context.sourceTransition.to.sha256 = "f".repeat(64); },
+    (f) => { f.plan.evidence.sourceFiles = []; },
+    (f) => { f.plan.evidence.templateSha256 = "f".repeat(64); },
+    (f) => { f.plan.evidence.parametersSha256 = "f".repeat(64); },
+    (f) => { f.plan.parameters.parameters.vnetCidr.value = "10.85.0.0/24"; },
+    (f) => { f.plan.template.resources[0].resourceGroup = "foreign"; },
+    (f) => { f.plan.inventory.expected = f.plan.inventory.expected.slice(1); },
+    (f) => { f.context.predecessor.artifactId = "999"; },
+    (f) => { f.context.predecessor.archiveSha256 = "f".repeat(64); },
+    (f) => { f.predecessor.completed = true; },
+    (f) => { f.predecessor.resources[0].properties.changed = true; },
+    (f) => { f.predecessor = structuredClone(f.predecessor); },
+    (f) => { f.plan.inputs.mode = "initial"; },
+    (f) => { f.plan.inputs.stage = "continuation"; },
+    (f) => { f.context.security = {}; },
+    (f) => { f.transport.defender.properties.isEnabled = true; },
+    (f) => { f.transport.assignments = [{ scope: f.boot.find((r) => r.type.endsWith("/containers")).id }]; },
+    (f) => { f.context.approvedChanges = [{ changeType: "Modify" }]; },
+    (f) => { f.context.baseline.pop(); },
+    (f) => { f.transport.resources.pop(); },
+    (f) => { f.transport.resources.push({ id: "/foreign", type: "Microsoft.Storage/storageAccounts", properties: {} }); },
+    (f) => { f.transport.resources[0].properties.adminUserEnabled = true; },
+    (f) => { f.transport.resources.find((r) => r.type.endsWith("/userAssignedIdentities")).properties.principalId = "ffffffff-ffff-4fff-8fff-ffffffffffff"; },
+    ...["Failed", "Canceled", "Running", "Unknown"].map((s) => (f) => { f.deployments[0].properties.provisioningState = s; }),
+    (f) => { f.deployments[1].properties.provisioningState = "Failed"; },
+    (f) => { f.deployments[0].properties.timestamp = "2026-10-26T20:00:00Z"; },
+    (f) => { f.deployments[1].properties.correlationId = "ffffffff-ffff-4fff-8fff-ffffffffffff"; },
+    (f) => { f.operations["stamp-keyforta-cdev"].pop(); f.operations["stamp-keyforta-cdev"][0].properties.provisioningState = "Failed"; },
+    (f) => { f.operations["stamp-keyforta-cdev"][0].properties.timestamp = "2026-10-26T20:00:00Z"; },
+    (f) => { f.transport.extraDeployments = [{ name: "foreign", properties: { provisioningState: "Succeeded" } }]; },
+    (f) => { f.context.deploymentName = `companydev-bootstrap-${f.plan.evidence.commitSha.slice(0, 12)}`; },
+  ];
+  for (const [i, mutate] of mutations.entries()) {
+    const f = await verificationRecoveryFixture(); mutate(f);
+    let previews = 0, puts = 0;
+    assert.throws(() => f.execute({ plan: f.plan, predecessor: f.predecessor, read: f.read,
+      preview: () => { previews++; return f.plan.whatIf; }, submit: () => { puts++; } }), i === 0 ? /Completed stage sourceSha256 drift/ : undefined, `mutation ${i}`);
+    assert.equal(previews, 0, `mutation ${i}`); assert.equal(puts, 0, `mutation ${i}`);
+  }
+});
+
+test("verification-only artifact parser rejects forged/stale metadata, origin and success bindings", async () => {
+  for (const mutate of [
+    (f) => { f.run.conclusion = "success"; },
+    (f) => { f.run.status = "in_progress"; },
+    (f) => { f.run.head_sha = "f".repeat(40); },
+    (f) => { f.run.run_attempt = 2; },
+    (f) => { f.run.repository.full_name = "foreign/repo"; },
+    (f) => { f.run.head_repository.full_name = "foreign/repo"; },
+    (f) => { f.run.created_at = ""; },
+    (f) => { f.artifact.expired = true; },
+    (f) => { f.artifact.digest = `sha256:${"f".repeat(64)}`; },
+    (f) => { f.artifact.workflow_run.id = 999; },
+    (f) => { f.artifact.name += "-foreign"; },
+    (f) => { f.originalFiles["bootstrap-state.json"] = "{}"; },
+    (f) => { f.originalFiles["template.json"] = "{}"; },
+    (f) => { const v = JSON.parse(f.originalFiles["result.json"]); v.state = "Failed"; f.originalFiles["result.json"] = encode(v); },
+    (f) => { const v = JSON.parse(f.originalFiles["submission.json"]); v.executionRun.revision = "f".repeat(40); f.originalFiles["submission.json"] = encode(v); },
+    (f) => { const v = JSON.parse(f.originalFiles["checkpoint.json"]); v.sourceTransition = {}; f.originalFiles["checkpoint.json"] = encode(v); f.context.predecessor.checkpointSha256 = hash(f.originalFiles["checkpoint.json"]); },
+  ]) {
+    const f = await verificationRecoveryFixture(); mutate(f);
+    assert.throws(f.authenticate);
+  }
+});
+
+test("verification-only fresh what-if must be diagnostic-free NoChange; post-preview drift never submits", async () => {
+  for (const change of [
+    (p) => { p.changes[0].changeType = "Create"; },
+    (p) => { p.changes[0].changeType = "Modify"; },
+    (p) => { p.changes[0].changeType = "Delete"; },
+    (p) => { p.changes[0].changeType = "Ignore"; },
+    (p) => { p.changes[0].delta = [{ path: "x", propertyChangeType: "Modify" }]; },
+    (p) => { p.diagnostics = [{ message: "unresolved" }]; },
+    (p) => { p.potentialChanges = [{}]; },
+    (p) => { p.changes.push({ resourceId: "/foreign", changeType: "NoChange", after: { type: "Unknown" } }); },
+    (p) => { p.changes.pop(); },
+  ]) {
+    const f = await verificationRecoveryFixture();
+    const fresh = structuredClone(f.plan.whatIf); change(fresh);
+    let puts = 0;
+    assert.throws(() => f.execute({ plan: f.plan, predecessor: f.predecessor, read: f.read,
+      preview: () => fresh, submit: () => { puts++; } }));
+    assert.equal(puts, 0);
+  }
+  const f = await verificationRecoveryFixture();
+  let puts = 0;
+  assert.throws(() => f.execute({ plan: f.plan, predecessor: f.predecessor, read: f.read,
+    preview: () => { f.deployments[1].properties.timestamp = "2026-10-25T20:00:02Z"; return f.plan.whatIf; },
+    submit: () => { puts++; } }));
+  assert.equal(puts, 0);
+});
+
+test("verification-only immutable source boundary rejects workflows, Bicep, parser, auth and other executable changes", async () => {
+  const { committedSource } = await import("../../scripts/infra/company-development.mjs");
+  const script = resolve("scripts/infra/company-development.mjs");
+  for (const changed of [
+    ".github/workflows/company-development-foundation.yml", "infra/bicep/company-development.bicep",
+    "scripts/verify/company-foundation-parser.py", "packages/auth/foreign.mjs", "package.json",
+  ]) {
+    const fixture = sourceFixture();
+    try {
+      const from = committedSource(fixture.revision, fixture.root);
+      writeFileSync(join(fixture.root, "scripts/infra/company-development-apply.mjs"), "// synthetic verifier change\n");
+      // git hash-object permits an exact committed tree addition without
+      // creating directories or executing any fixture source.
+      const blob = execFileSync("git", ["-C", fixture.root, "hash-object", "-w", "--stdin"], { input: "// forbidden executable change\n", encoding: "utf8" }).trim();
+      fixture.git("add", "--", "scripts/infra/company-development-apply.mjs");
+      fixture.git("update-index", "--add", "--cacheinfo", "100644", blob, changed);
+      fixture.git("commit", "--quiet", "--no-verify", "-m", "Synthetic forbidden transition");
+      const to = committedSource(fixture.git("rev-parse", "HEAD"), fixture.root);
+      const transition = { kind: "bootstrap-verification-only", version: 1, from, to, ownerReviewReference: input.changeFreeze };
+      const evidence = { commitSha: to.revision, sourceSha256: to.sha256, sourceFiles: to.files };
+      const predecessor = { commitSha: from.revision, sourceSha256: from.sha256, sourceFiles: from.files };
+      const result = spawnSync(process.execPath, ["--input-type=module", "-e",
+        `import {assertVerificationSources} from ${JSON.stringify(script)}; assertVerificationSources(${JSON.stringify(transition)},${JSON.stringify(evidence)},${JSON.stringify(predecessor)});`],
+      { cwd: fixture.root, encoding: "utf8" });
+      assert.equal(result.status, 1, changed);
+      assert.match(result.stderr, /outside approved verification-only|Workflow\/Bicep\/parser contract changed/, changed);
+    } finally { rmSync(fixture.root, { recursive: true, force: true }); }
+  }
+});
+
+test("verification-only source history works with unchanged shallow workflow checkout and fixed read-only fetch", async () => {
+  const { committedSource } = await import("../../scripts/infra/company-development.mjs");
+  const fixture = sourceFixture(), shallow = sourceFixture();
+  const actualGit = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  try {
+    fixture.git("branch", "-M", "main");
+    const from = committedSource(fixture.revision, fixture.root);
+    writeFileSync(join(fixture.root, "scripts/infra/company-development-apply.mjs"), "// synthetic verifier correction\n");
+    fixture.git("add", "--", "scripts/infra/company-development-apply.mjs");
+    fixture.git("commit", "--quiet", "--no-verify", "-m", "Synthetic shallow verifier transition");
+    const to = committedSource(fixture.git("rev-parse", "HEAD"), fixture.root);
+    rmSync(shallow.root, { recursive: true, force: true });
+    execFileSync(actualGit, ["clone", "--quiet", "--depth=1", `file://${fixture.root}`, shallow.root]);
+    const shim = join(shallow.root, "git");
+    writeFileSync(shim, `#!/usr/bin/env node
+const fs=require("node:fs"),cp=require("node:child_process"),a=process.argv.slice(2);
+let args=a;
+if(a.includes("fetch")){
+ if(JSON.stringify(a)!==JSON.stringify(["-c","credential.helper=!gh auth git-credential","fetch","--no-tags","--unshallow","https://github.com/keyforta/keyforta-property.git","main"]))process.exit(9);
+ fs.writeFileSync("fetch-proof",JSON.stringify(a));
+ args=["fetch","--no-tags","--unshallow",${JSON.stringify(`file://${fixture.root}`)},"main"];
+}
+const r=cp.spawnSync(${JSON.stringify(actualGit)},args,{stdio:"inherit"});process.exit(r.status??1);
+`);
+    chmodSync(shim, 0o700);
+    const transition = { kind: "bootstrap-verification-only", version: 1, from, to, ownerReviewReference: input.changeFreeze };
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e",
+      `import {assertVerificationSources} from ${JSON.stringify(resolve("scripts/infra/company-development.mjs"))};
+      assertVerificationSources(${JSON.stringify(transition)},${JSON.stringify({ commitSha: to.revision, sourceSha256: to.sha256, sourceFiles: to.files })},${JSON.stringify({ commitSha: from.revision, sourceSha256: from.sha256, sourceFiles: from.files })});`],
+    { cwd: shallow.root, env: { ...process.env, PATH: `${shallow.root}:${process.env.PATH}` }, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(readFileSync(join(shallow.root, "fetch-proof"), "utf8"), /keyforta-property\.git/);
+    assert.equal(execFileSync(actualGit, ["-C", shallow.root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim(), to.revision);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+    rmSync(shallow.root, { recursive: true, force: true });
+  }
+});
 
 test("PR161 output evaluation without a target is valid only when successful; Create targets remain exact", async () => {
   const f = await stagedFixture();
@@ -1072,7 +1347,15 @@ test("apply route has a distinct protected environment/principal, no bootstrap o
 
 test("mocked apply CLI makes no write on failed quality, drift, nonempty RG or shared principal; success PUT uses exact reviewed in-memory body", async () => {
   const { foundationSource } = await import("../../scripts/infra/company-development.mjs");
-  const { root: dir, revision } = sourceFixture();
+  const source = sourceFixture();
+  const { root: dir } = source;
+  const { committedSource } = await import("../../scripts/infra/company-development.mjs");
+  const recoveryFrom = committedSource(source.revision, dir);
+  writeFileSync(join(dir, "scripts/infra/company-development-apply.mjs"), "// synthetic verification-only correction\n");
+  source.git("add", "--", "scripts/infra/company-development-apply.mjs");
+  source.git("commit", "--quiet", "--no-verify", "-m", "Synthetic verifier transition");
+  const revision = source.git("rev-parse", "HEAD");
+  const recoveryTo = committedSource(revision, dir);
   const f = fixture(revision);
   f.expected.sourceSha256 = foundationSource({ root: dir, revision }).sha256;
   const evidence = JSON.parse(f.files["evidence.json"]);
@@ -1102,6 +1385,7 @@ if(name==="gh"){
  }
  const api=a[1];
  if(api.includes("/environments/"))value=json("FAKE_ENVIRONMENT");
+ else if(e.RECOVERY==="true" && api.endsWith("/zip")){process.stdout.write(Buffer.from(e.FAKE_ARCHIVE,"base64"));process.exit(0)}
  else if(e.STAGED==="true" && api.includes("/attempts/"))value=json("FAKE_PREDECESSOR_RUN");
  else if(e.STAGED==="true" && api.includes("/actions/artifacts/"+e.PREDECESSOR_ARTIFACT_ID))value=json("FAKE_PREDECESSOR_ARTIFACT");
  else if(e.STAGED==="true" && api.includes("/actions/runs/"+e.PREDECESSOR_RUN_ID+"/artifacts?"))value={total_count:1,artifacts:[json("FAKE_PREDECESSOR_ARTIFACT")]};
@@ -1140,11 +1424,16 @@ if(name==="gh"){
    else {console.error("Unsupported synthetic GET");process.exit(2)}
   }else {fs.writeFileSync(e.STAGED==="true"?"continued":"submitted","true");process.exit(0)}
  }
- else if(a[1]==="operation")value=json(e.STAGED==="true" && a[a.indexOf("--name")+1].includes("-continuation-")?"FAKE_CONTINUATION_RESOURCES":"FAKE_RESOURCES").map(r=>({properties:{provisioningState:"Succeeded",provisioningOperation:"Create",targetResource:{id:r.id,resourceType:r.type}}}));
- else if(a[2]==="list")value=e.STAGED==="true"?[{name:e.BOOTSTRAP_DEPLOYMENT,properties:{provisioningState:"Succeeded"}},...(fs.existsSync("continued")?[{name:e.CONTINUATION_DEPLOYMENT,properties:{provisioningState:"Succeeded"}}]:[])]:e.EXISTING_DEPLOYMENT==="true"?[{name:"previous",properties:{provisioningState:e.PREVIOUS_STATE||"Running"}}]:[];
+ else if(a[1]==="operation")value=e.RECOVERY==="true"?json("FAKE_OPERATIONS")[a[a.indexOf("--name")+1]]:json(e.STAGED==="true" && a[a.indexOf("--name")+1].includes("-continuation-")?"FAKE_CONTINUATION_RESOURCES":"FAKE_RESOURCES").map(r=>({properties:{provisioningState:"Succeeded",provisioningOperation:"Create",targetResource:{id:r.id,resourceType:r.type}}}));
+ else if(a[2]==="list")value=e.RECOVERY==="true"?json("FAKE_DEPLOYMENTS"):e.STAGED==="true"?[{name:e.BOOTSTRAP_DEPLOYMENT,properties:{provisioningState:"Succeeded"}},...(fs.existsSync("continued")?[{name:e.CONTINUATION_DEPLOYMENT,properties:{provisioningState:"Succeeded"}}]:[])]:e.EXISTING_DEPLOYMENT==="true"?[{name:"previous",properties:{provisioningState:e.PREVIOUS_STATE||"Running"}}]:[];
  else if(a[2]==="what-if"){value=json("FAKE_WHAT_IF");if(e.DRIFT==="true")value.changes[0].after.name="drift"}
  else if(a[2]==="show"){
   const name=a[a.indexOf("--name")+1];
+  if(e.RECOVERY==="true"){
+   const deployment=json("FAKE_DEPLOYMENTS").find(d=>d.name===name);
+   if(!deployment){console.error("ERROR: (DeploymentNotFound) synthetic absent");process.exit(3)}
+   console.log(JSON.stringify(deployment));process.exit(0)
+  }
   if(e.STAGED==="true" && name!==e.BOOTSTRAP_DEPLOYMENT && !fs.existsSync("continued")){console.error("ERROR: (DeploymentNotFound) synthetic absent");process.exit(3)}
   value={name,id:"companydev-test-deployment",properties:{provisioningState:e.RESULT_STATE||"Succeeded",outputs:{}}};
  }
@@ -1311,6 +1600,73 @@ console.log(JSON.stringify(value));
     assert.equal(JSON.parse(noopCheckpoint).completed, true);
     assert.equal(JSON.parse(readFileSync(join(dir, "company-dev-apply/result.json"), "utf8")).state, "VerifiedNoOp");
     assert.equal(calls().slice(beforeNoop).filter((c) => c.name === "az" && c.args[0] === "rest" && c.args.includes("put")).length, 0);
+    // New explicit cross-source route: real preview and apply entry points,
+    // original failed workflow + exact ZIP metadata, authentic 17-op shape.
+    const recovery = await verificationRecoveryFixture(recoveryFrom, recoveryTo, dir);
+    recovery.context.predecessor.artifactId = "888";
+    recovery.artifact.id = 888;
+    recovery.authenticate();
+    rmSync(join(dir, "continued"));
+    rmSync(join(dir, "company-dev-apply/bootstrap-state.json"));
+    const beforeRecovery = calls().length;
+    Object.assign(env, {
+      RECOVERY: "true", FOUNDATION_STAGE: "bootstrap", FOUNDATION_MODE: "reviewed-reentry", STAGE_CONTEXT: JSON.stringify(recovery.context),
+      BOOTSTRAP_DEPLOYMENT: recovery.predecessor.deploymentName, GITHUB_RUN_ID: "126", PREVIEW_PHASE: "true",
+      FAKE_ENVIRONMENT: JSON.stringify({ ...environment, name: "company-dev" }),
+      PREDECESSOR_RUN_ID: recovery.predecessor.runId, PREDECESSOR_ARTIFACT_ID: "888",
+      FAKE_PREDECESSOR_RUN: JSON.stringify(recovery.run), FAKE_PREDECESSOR_ARTIFACT: JSON.stringify(recovery.artifact),
+      FAKE_ARCHIVE: recovery.archive.toString("base64"), FAKE_OPERATIONS: JSON.stringify(recovery.operations),
+      FAKE_DEPLOYMENTS: JSON.stringify(recovery.deployments), FAKE_WHAT_IF: JSON.stringify(recovery.plan.whatIf),
+      FAKE_STAGE_PERMISSIONS: JSON.stringify(recovery.transport.stagePermissions),
+      FAKE_ASSIGNMENTS: JSON.stringify(recovery.transport.assignments), FAKE_DEFENDER: JSON.stringify(recovery.transport.defender),
+    });
+    const previewScript = resolve("scripts/infra/company-development.mjs");
+    const previewRun = (op, changes = {}) => spawnSync(process.execPath, [previewScript, op], { cwd: dir, env: { ...env, ...changes }, encoding: "utf8" });
+    for (const op of ["guard", "prepare"]) {
+      const result = previewRun(op); assert.equal(result.status, 0, result.stderr); outputs();
+    }
+    const whatIfCalls = () => calls().filter((c) => c.name === "az" && c.args.includes("what-if")).length;
+    const beforeBadPreview = whatIfCalls();
+    const badDeployments = structuredClone(recovery.deployments);
+    badDeployments[0].properties.provisioningState = "Failed";
+    const badPreview = previewRun("preview", { FAKE_DEPLOYMENTS: JSON.stringify(badDeployments) });
+    assert.equal(badPreview.status, 1);
+    assert.equal(whatIfCalls(), beforeBadPreview, "Origin mismatch stops before provider preview");
+    const freshPreview = previewRun("preview");
+    assert.equal(freshPreview.status, 0, freshPreview.stderr);
+    const recoveryFiles = Object.fromEntries(Object.keys(f.files).map((name) => [name, readFileSync(join(dir, "company-dev-plan", name), "utf8")]));
+    const recoveryEvidence = JSON.parse(recoveryFiles["evidence.json"]);
+    assert.deepEqual(recoveryEvidence.stageContext.sourceTransition, recovery.context.sourceTransition);
+    Object.assign(env, { PREVIEW_PHASE: "false", GITHUB_RUN_ID: "1002", FAKE_ENVIRONMENT: JSON.stringify(environment),
+      PLAN_RUN_ID: "126", FAKE_FILES: JSON.stringify(recoveryFiles),
+      FAKE_RUN: JSON.stringify({ ...f.run, id: 126 }),
+      FAKE_ARTIFACT: JSON.stringify({ ...f.artifact, name: `company-dev-foundation-bootstrap-reviewed-reentry-v2-plan-${revision}-126-1`, workflow_run: { id: 126, head_sha: revision } }),
+      REVIEWED_SOURCE_SHA256: recoveryEvidence.sourceSha256, REVIEWED_TEMPLATE_SHA256: recoveryEvidence.templateSha256,
+      REVIEWED_PARAMETERS_SHA256: recoveryEvidence.parametersSha256, REVIEWED_WHAT_IF_SHA256: recoveryEvidence.whatIfSha256,
+      REVIEWED_INVENTORY_SHA256: recoveryEvidence.inventorySha256, REVIEWED_EVIDENCE_SHA256: hash(recoveryFiles["evidence.json"]) });
+    for (const op of ["guard", "verify"]) {
+      const result = run(op); assert.equal(result.status, 0, `${op}: ${result.stderr}`); outputs();
+    }
+    const badApply = run("apply", { FAKE_DEPLOYMENTS: JSON.stringify(badDeployments) });
+    assert.equal(badApply.status, 1);
+    assert.equal(whatIfCalls(), beforeBadPreview + 1, "Apply origin mismatch stops before fresh preview");
+    assert.equal(readFileSync(join(dir, "company-dev-apply/checkpoint.json"), "utf8"), noopCheckpoint, "Rejected transition cannot replace checkpoint");
+    const recovered = run("apply");
+    assert.equal(recovered.status, 0, recovered.stderr);
+    const recoveredCheckpoint = JSON.parse(readFileSync(join(dir, "company-dev-apply/checkpoint.json"), "utf8"));
+    assert.equal(recoveredCheckpoint.completed, true);
+    assert.equal(recoveredCheckpoint.commitSha, revision);
+    assert.equal(recoveredCheckpoint.deploymentCommitSha, recoveryFrom.revision);
+    assert.equal(recoveredCheckpoint.deploymentName, recovery.predecessor.deploymentName);
+    assert.deepEqual(recoveredCheckpoint.originalCheckpoint, recovery.predecessor);
+    assert.equal(recoveredCheckpoint.originalCheckpoint.completed, false);
+    assert.deepEqual(recoveredCheckpoint.sourceTransition, recovery.context.sourceTransition);
+    const recoveredState = JSON.parse(readFileSync(join(dir, "company-dev-apply/bootstrap-state.json"), "utf8"));
+    assert.equal(recoveredState.securityHandoffVerified, false);
+    assert.equal(recoveredState.operations.flatMap((v) => v.operations).length, 17);
+    assert.deepEqual(recoveredState.resources, recovery.boot);
+    assert.equal(calls().slice(beforeRecovery).filter((c) => c.name === "az" && c.args[0] === "rest" && c.args.includes("put")).length, 0);
+    assert.equal(whatIfCalls(), beforeBadPreview + 2, "Fresh preview then fresh apply what-if");
     assert.ok(calls().slice(beforeContinuation).filter((c) => c.name === "az").every((c) => c.args[0] !== "storage" && (c.args[0] !== "role" || c.args[2] === "list")), "No workflow Blob access or role grant");
     for (const call of calls().filter((call) => call.name === "az" && call.args[0] !== "bicep")) assert.equal(call.args[call.args.indexOf("--subscription") + 1], subscriptionId);
   } finally { rmSync(dir, { recursive: true, force: true }); }

@@ -32,6 +32,7 @@ export function assertImplementedStage(input) {
   assert.equal(input.evidenceVersion, 2, "Only evidence version 2 is supported; legacy full plans cannot apply");
   assert.ok(["bootstrap", "continuation"].includes(input.stage), "Unknown foundation stage");
   assert.ok(["initial", "reviewed-reentry"].includes(input.mode), "Unknown stage mode");
+  if (input.stageContext?.sourceTransition) assert.ok(input.stage === "bootstrap" && input.mode === "reviewed-reentry", "Source transition is verification-only bootstrap re-entry");
 }
 
 export function continuationInventory() {
@@ -239,6 +240,48 @@ export function validatePreview(preview, stage = "bootstrap", mode = "initial") 
   }
 }
 
+// Historical manifests are read from immutable Git blobs, never supplied hashes.
+export function committedSource(revision, root = process.cwd()) {
+  assert.match(revision ?? "", /^[a-f0-9]{40}$/, "Immutable source revision required");
+  const files = sourcePaths.map((path) => ({ path, sha256: createHash("sha256").update(
+    execFileSync("git", ["-C", root, "show", `${revision}:${path}`], { stdio: ["ignore", "pipe", "pipe"] }),
+  ).digest("hex") }));
+  return { revision, files, sha256: hashJson(files) };
+}
+
+export function assertVerificationSources(transition, evidence, predecessor) {
+  assert.deepEqual(Object.keys(transition).sort(), ["from", "kind", "ownerReviewReference", "to", "version"], "Unsupported source transition fields");
+  assert.equal(transition.version, 1, "Unsupported source transition version");
+  assert.equal(transition.kind, "bootstrap-verification-only", "Unsupported source transition");
+  assert.match(transition.ownerReviewReference ?? "", /^https:\/\/github\.com\/keyforta\/keyforta-property\/(?:issues|pull)\/[1-9]\d*(?:#issuecomment-[1-9]\d*)?$/, "Missing transition owner review context (not approval proof)");
+  assert.equal(transition.from.revision, predecessor.commitSha, "Foreign transition origin");
+  assert.equal(transition.to.revision, evidence.commitSha, "Foreign transition target");
+  assert.notEqual(transition.from.revision, transition.to.revision, "Source transition requires distinct revisions");
+  // Existing workflows deliberately retain checkout defaults. A shallow checkout
+  // needs historical objects for byte/ancestry checks. Read only the fixed
+  // repository; the ephemeral helper uses the job's existing read token, never
+  // changes credentials/settings or the checked-out HEAD.
+  if (execFileSync("git", ["rev-parse", "--is-shallow-repository"], { encoding: "utf8" }).trim() === "true") {
+    execFileSync("git", ["-c", "credential.helper=!gh auth git-credential", "fetch", "--no-tags", "--unshallow",
+      "https://github.com/keyforta/keyforta-property.git", "main"], { stdio: ["ignore", "pipe", "pipe"] });
+  }
+  for (const binding of [transition.from, transition.to]) assert.deepEqual(binding, committedSource(binding.revision), "Transition manifest differs from immutable source");
+  assert.deepEqual(transition.from.files, predecessor.sourceFiles, "Original source manifest drift");
+  assert.equal(transition.from.sha256, predecessor.sourceSha256, "Original source digest drift");
+  assert.deepEqual(transition.to.files, evidence.sourceFiles, "Current source manifest drift");
+  assert.equal(transition.to.sha256, evidence.sourceSha256, "Current source digest drift");
+  execFileSync("git", ["merge-base", "--is-ancestor", transition.from.revision, transition.to.revision]);
+  const code = ["scripts/infra/company-development.mjs", "scripts/infra/company-development-apply.mjs", "scripts/infra/company-development-state.mjs"];
+  const nonExecutable = [".github/tests/company-development-apply.test.mjs", ".github/tests/company-development.test.mjs",
+    ".github/tests/company-development-source.test.mjs", "infra/README.md", "docs/adr/ADR-016-company-development-private-foundation.md"];
+  const changed = execFileSync("git", ["diff", "--name-only", "--no-renames", transition.from.revision, transition.to.revision], { encoding: "utf8" }).trim().split("\n");
+  assert.ok(changed.some((p) => code.includes(p)), "No verifier source transition");
+  assert.ok(changed.every((p) => [...code, ...nonExecutable].includes(p)), "Change outside approved verification-only surfaces");
+  for (const file of transition.from.files) if (!code.includes(file.path)) {
+    assert.deepEqual(transition.to.files.find((v) => v.path === file.path), file, "Workflow/Bicep/parser contract changed");
+  }
+}
+
 export function foundationSource({ root = process.cwd(), revision = process.env.GITHUB_SHA } = {}) {
   assert.match(revision ?? "", /^[a-f0-9]{40}$/, "Source revision must be the exact workflow SHA");
   assert.equal(command("git", ["-C", root, "rev-parse", "HEAD"]).trim(), revision, "Source HEAD must equal reviewed workflow SHA");
@@ -434,6 +477,14 @@ async function preview() {
   const template = JSON.parse(command("az", ["bicep", "build", "--file", "infra/bicep/company-development.bicep", "--stdout"]));
   assertNoSecretPayload(template);
   writeJson("company-dev-plan/template.json", template);
+  const predecessor = input.stageContext
+    ? (await import("./company-development-apply.mjs")).loadExecutionCheckpoint(input.stageContext.predecessor) : null;
+  const plan = { inputs: input, inventory: stageInventory(input), template, parameters,
+    evidence: { commitSha: process.env.GITHUB_SHA, sourceSha256: foundationSource().sha256, sourceFiles: foundationSource().files,
+      templateSha256: digest("company-dev-plan/template.json"), parametersSha256: createHash("sha256").update(consumedParameters).digest("hex") } };
+  // The new route must stop BEFORE provider what-if on any origin/state mismatch.
+  const before = input.stageContext?.sourceTransition
+    ? stateEngine.assessStage(azure, plan, predecessor, Date.now(), "preview") : null;
   const result = azure([
     "deployment", "group", "what-if",
     "--resource-group", destination.resourceGroup,
@@ -447,12 +498,8 @@ async function preview() {
   if (!input.stageContext) assertBootstrapPreview(result);
   else {
     const { assessStage, validateStageChanges } = await import("./company-development-state.mjs");
-    const { loadExecutionCheckpoint } = await import("./company-development-apply.mjs");
-    const predecessor = loadExecutionCheckpoint(input.stageContext.predecessor);
-    const plan = { inputs: input, inventory: stageInventory(input), whatIf: result,
-      evidence: { commitSha: process.env.GITHUB_SHA, sourceSha256: foundationSource().sha256,
-        templateSha256: digest("company-dev-plan/template.json"), parametersSha256: createHash("sha256").update(consumedParameters).digest("hex") } };
     const checked = assessStage(azure, plan, predecessor, Date.now(), "preview");
+    if (before) assert.deepEqual(checked, before, "Post-preview original recovery state drift");
     validateStageChanges(result, plan, checked.action === "noop");
   }
   // Empty RG / creates only: no existing resource keys or data are queried.

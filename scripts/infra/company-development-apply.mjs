@@ -402,6 +402,56 @@ export function assertExecutionCheckpoint(bytes, run, artifact, ref) {
   return checkpoint;
 }
 
+const recoveryOrigins = new WeakMap();
+// Public artifact parser shared by the real loader and synthetic metadata tests.
+// No caller-supplied boolean can establish this provenance.
+export function assertRecoveryArtifact(files, run, artifact, ref, archiveSha256) {
+  assert.match(ref.archiveSha256 ?? "", /^[a-f0-9]{64}$/, "Missing original archive digest");
+  assert.equal(archiveSha256, ref.archiveSha256, "Original archive byte digest drift");
+  assert.equal(artifact.digest, `sha256:${archiveSha256}`, "Original immutable artifact digest drift");
+  assert.deepEqual(Object.keys(files).sort(), ["checkpoint.json", "fresh-what-if.json", "result.json", "reviewed-inputs.json", "submission.json", "template.json"], "Original failed verification artifact inventory mismatch");
+  const checkpoint = assertExecutionCheckpoint(files["checkpoint.json"], run, artifact, ref);
+  assert.equal(run.conclusion, "failure", "Transition requires terminal failed original workflow");
+  assert.equal(checkpoint.completed, false, "Transition requires original incomplete checkpoint");
+  assert.equal(checkpoint.stage, "bootstrap", "Transition requires bootstrap origin");
+  assert.equal(checkpoint.mode, "initial", "Additional source transitions unsupported");
+  assert.ok(!checkpoint.predecessor && !checkpoint.sourceTransition && !checkpoint.securityHandoff, "Additional transition/security handoff unsupported");
+  assert.equal(checkpoint.deploymentCommitSha ?? checkpoint.commitSha, checkpoint.commitSha, "Original deployment source changed");
+  const submission = JSON.parse(files["submission.json"]), result = JSON.parse(files["result.json"]);
+  const execution = { revision: ref.sha, runId: ref.runId, runAttempt: ref.runAttempt };
+  for (const item of [submission, result]) {
+    assert.deepEqual(item.executionRun, execution, "Original execution context mismatch");
+    for (const key of ["sourceSha256", "templateSha256", "parametersSha256"]) assert.equal(item.reviewed[key], checkpoint[key], "Original reviewed payload binding drift");
+    assert.equal(item.reviewed.sha, ref.sha, "Original preview source mismatch");
+    assert.equal(item.reviewed.stage, "bootstrap", "Original preview stage mismatch");
+    assert.equal(item.reviewed.mode, "initial", "Original preview mode mismatch");
+  }
+  assert.deepEqual(submission.reviewed, result.reviewed, "Original success/submission plan mismatch");
+  assert.equal(submission.reviewed.evidenceVersion, 2, "Original preview evidence version mismatch");
+  for (const key of ["runId", "runAttempt", "artifactId"]) assert.match(submission.reviewed[key] ?? "", /^[1-9]\d*$/, "Missing original preview provenance");
+  for (const key of ["inventorySha256", "evidenceSha256"]) assert.match(submission.reviewed[key] ?? "", /^[a-f0-9]{64}$/, "Missing original preview binding");
+  const reviewed = JSON.parse(files["reviewed-inputs.json"]);
+  for (const key of Object.keys(submission.reviewed)) assert.deepEqual(reviewed[key], submission.reviewed[key], "Original reviewed-inputs mismatch");
+  const deploymentId = `/subscriptions/${destination.subscriptionId}/resourceGroups/${destination.resourceGroup}/providers/Microsoft.Resources/deployments/${checkpoint.deploymentName}`;
+  assert.equal(submission.url, `https://management.azure.com${deploymentId}?api-version=2025-04-01`, "Original submission destination mismatch");
+  assert.equal(result.deploymentId, deploymentId, "Original success deployment mismatch");
+  assert.equal(result.state, "Succeeded", "Original ARM result not successful");
+  assert.equal(hash(files["template.json"]), checkpoint.templateSha256, "Original compiled template drift");
+  assert.equal(hash(files["fresh-what-if.json"]), submission.reviewed.whatIfSha256, "Original what-if drift");
+  assertBootstrapPreview(JSON.parse(files["fresh-what-if.json"]));
+  const start = Date.parse(run.created_at), end = Date.parse(run.updated_at);
+  assert.ok(Number.isFinite(start) && Number.isFinite(end) && start < end, "Missing original workflow time bounds");
+  recoveryOrigins.set(checkpoint, { checkpointSha256: hash(JSON.stringify(checkpoint)), archiveSha256,
+    ref: structuredClone(ref), submission, result, start, end });
+  return checkpoint;
+}
+export function recoveryOrigin(checkpoint) {
+  const origin = recoveryOrigins.get(checkpoint);
+  assert.ok(origin, "Verification transition requires authenticated original failed-run archive");
+  assert.equal(hash(JSON.stringify(checkpoint)), origin.checkpointSha256, "Original checkpoint manipulated after validation");
+  return structuredClone(origin);
+}
+
 export function loadExecutionCheckpoint(ref) {
   assert.ok(ref, "Missing execution predecessor");
   for (const key of ["runId", "runAttempt", "artifactId"]) assert.match(ref[key] ?? "", /^[1-9]\d*$/, `Missing predecessor ${key}`);
@@ -414,6 +464,24 @@ export function loadExecutionCheckpoint(ref) {
   assert.equal(String(matches[0].id), ref.artifactId, "Predecessor immutable artifact drift");
   const directory = mkdtempSync(join(tmpdir(), "companydev-predecessor-"));
   try {
+    if (ref.archiveSha256) {
+      // Hash and extract the SAME immutable archive, rather than hashing one
+      // download and trusting different bytes from a name-selected download.
+      const archive = execFileSync("gh", ["api", `repos/${repository}/actions/artifacts/${ref.artifactId}/zip`], { maxBuffer: 16 * 1024 * 1024 });
+      assert.equal(hash(archive), ref.archiveSha256, "Original archive byte digest drift");
+      const zip = join(directory, "original.zip");
+      writeFileSync(zip, archive, { mode: 0o600 });
+      const names = command("unzip", ["-Z1", zip]).trim().split("\n");
+      assert.equal(new Set(names).size, names.length, "Duplicate archive entry");
+      const expected = ["checkpoint.json", "fresh-what-if.json", "result.json", "reviewed-inputs.json", "submission.json", "template.json"];
+      assert.deepEqual([...names].sort(), expected, "Unexpected original archive entries");
+      const files = Object.fromEntries(names.map((name) => {
+        const text = command("unzip", ["-p", zip, name]);
+        assert.ok(Buffer.byteLength(text) <= 2 * 1024 * 1024, "Oversized original artifact file");
+        return [name, text];
+      }));
+      return assertRecoveryArtifact(files, run, artifact, ref, hash(archive));
+    }
     command("gh", ["run", "download", ref.runId, "--repo", repository, "--name", artifact.name, "--dir", directory]);
     const allowed = ["reviewed-inputs.json", "template.json", "fresh-what-if.json", "submission.json", "result.json", "bootstrap-state.json", "checkpoint.json"];
     for (const file of readdirSync(directory)) {
@@ -566,7 +634,7 @@ async function apply() {
   };
   const request = applyRequest(verified.plan, currentRun().revision);
   const name = `companydev-${verified.plan.inputs.stage}-${currentRun().revision.slice(0, 12)}`;
-  function checkpoint(completed, resources, actualDeployment = { name, commitSha: currentRun().revision }) {
+  function checkpoint(completed, resources, actualDeployment = { name, commitSha: currentRun().revision }, recovery = null) {
     writeJson("company-dev-apply/checkpoint.json", {
       version: 2, stage: verified.plan.inputs.stage, mode: verified.plan.inputs.mode, destination,
       completed, commitSha: currentRun().revision, runId: currentRun().runId, runAttempt: currentRun().runAttempt,
@@ -576,6 +644,8 @@ async function apply() {
       resources, predecessor: verified.plan.inputs.stageContext?.predecessor ?? null,
       securityHandoff: verified.plan.inputs.stageContext?.security ?? null,
       internalTopology: "UNVERIFIED", automaticDataAdmission: false,
+      ...(recovery ? { sourceTransition: recovery.sourceTransition, originalCheckpoint: predecessor,
+        originalCheckpointBinding: verified.plan.inputs.stageContext.predecessor, originalSuccess: recovery.originalSuccess } : {}),
     });
   }
   const submit = () => {
@@ -589,8 +659,12 @@ async function apply() {
   if (verified.plan.inputs.stageContext) {
     const decision = stateEngine.executeReviewedStage({ plan: verified.plan, predecessor, read: azure, preview, submit });
     if (decision.action === "noop") {
-      checkpoint(true, decision.resources, { name: decision.inspection.name, commitSha: decision.inspection.name === predecessor.deploymentName ? (predecessor.deploymentCommitSha ?? predecessor.commitSha) : currentRun().revision });
-      writeJson("company-dev-apply/result.json", { state: "VerifiedNoOp", deploymentName: decision.inspection.name, executionRun: currentRun(), reviewed: verified.expected });
+      checkpoint(true, decision.resources, { name: decision.inspection.name, commitSha: decision.inspection.name === predecessor.deploymentName ? (predecessor.deploymentCommitSha ?? predecessor.commitSha) : currentRun().revision }, decision.sourceTransition ? decision : null);
+      if (decision.sourceTransition) writeJson("company-dev-apply/bootstrap-state.json", { ...decision.verifiedBootstrap,
+        sourceTransition: decision.sourceTransition, originalCheckpointBinding: verified.plan.inputs.stageContext.predecessor,
+        originalSuccess: decision.originalSuccess });
+      writeJson("company-dev-apply/result.json", { state: "VerifiedNoOp", deploymentName: decision.inspection.name, executionRun: currentRun(), reviewed: verified.expected,
+        ...(decision.sourceTransition ? { sourceTransition: decision.sourceTransition, originalCheckpointBinding: verified.plan.inputs.stageContext.predecessor, originalSuccess: decision.originalSuccess } : {}) });
       console.log("Exact completed stage verified: NO ARM PUT. No Blob/data/app activation; internal topology UNVERIFIED.");
       return;
     }
