@@ -5,12 +5,17 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, realpat
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
+import { ensureCompanyHistory } from "./company-history.mjs";
 const {
-  original, baselineRevision, repository, destination, rg, bootstrapInventory, currentSourcePaths, historicalSourcePaths,
+  original, baselineRevision, repository, destination, rg, bootstrapInventory, historicalSourcePaths,
   sha256, stateHash, permittedReadActions, auditWorkflow,
 } = await import("../../../scripts/infra/company-development-completion-validation.mjs");
-const { completionSource, endpoints, readArchive } = await import("../../../scripts/infra/company-development-completion.mjs");
+const { completionSource, endpoints, readArchive, reviewedCompletionPaths } = await import("../../../scripts/infra/company-development-completion.mjs");
 export { zipFixture } from "./company-zip.mjs";
+
+// Covers direct historical workflow reads and legacy-driver extraction too:
+// every history-dependent worker imports this shared fixture before tests run.
+ensureCompanyHistory();
 
 export function completionFixture() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "company-completion-fixture-")));
@@ -19,11 +24,14 @@ export function completionFixture() {
     "-c", "user.name=Synthetic fixture", "-c", "user.email=fixture@example.invalid", ...args],
   { env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" }, stdio: ["ignore", "pipe", "pipe"] });
   execFileSync("git", ["clone", "--shared", "--no-checkout", "--quiet", repo, root], { stdio: "pipe" });
+  // A clone from a shallow source omits fetched objects without refs, even
+  // with --shared. Transfer the same authenticated pins from the local source.
+  git("fetch", "--quiet", "--no-tags", "--no-write-fetch-head", repo, original.sha, baselineRevision);
   git("checkout", "--quiet", "--detach", baselineRevision);
-  for (const p of currentSourcePaths) {
+  for (const p of reviewedCompletionPaths) {
     mkdirSync(dirname(join(root, p)), { recursive: true }); writeFileSync(join(root, p), readFileSync(join(repo, p)));
   }
-  git("add", "--", ...currentSourcePaths); git("commit", "--quiet", "--no-verify", "-m", "Synthetic immutable audit source");
+  git("add", "--", ...reviewedCompletionPaths); git("commit", "--quiet", "--no-verify", "-m", "Synthetic immutable audit source");
   const revision = git("rev-parse", "HEAD").toString().trim();
   const archive = readFileSync(new URL("./company-bootstrap-original.zip", import.meta.url));
   const files = readArchive(archive, ["checkpoint.json", "fresh-what-if.json", "result.json", "reviewed-inputs.json", "submission.json", "template.json"]);

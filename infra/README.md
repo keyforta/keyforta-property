@@ -522,6 +522,25 @@ exists in this route. GitHub artifact upload stores evidence only.
    BASELINE is `6fccaa9ca066e32fde2870858adc1334525a7423`.
    `completionSource` and `assertSourceReview` provide offline byte checks.
    **Do not invent the final implementation SHA or digest before publication.**
+
+   The exact repository-wide reviewed surface also includes the published
+   completion fixture test, loader, ZIP helper and generator, plus the pinned
+   history setup/regression. Synthetic completion repositories commit that
+   entire surface, not just the twelve runtime paths. These test-only files
+   remain outside the runtime import closure; their bytes are bound by the
+   repository-wide implementation diff digest. Unknown paths/workflows and
+   deployment payload/parser changes still fail closed.
+
+   For local/CI workflow tests in a depth-1 checkout, shared test setup retrieves
+   missing objects at exactly ORIGINAL and BASELINE from the fixed GitHub HTTPS
+   repository (using `gh` credentials if requested). Git commit identities,
+   ancestry and existing exact workflow/source hashes authenticate historical
+   bytes; no current-file substitution, skipped assertions or fallback is
+   permitted. A failed retrieval stops tests. This changes neither checkout
+   configuration nor runtime authorization, and moves no branch or HEAD.
+   Fixture generation is deterministic/offline once those objects are local;
+   an initially shallow checkout requires read-only network access.
+
 7. Only after explicit execution consent, manually dispatch this new workflow
    on that exact protected main. It checks source/quality/actual context before
    OIDC and again at finalization; compares two complete state observations;

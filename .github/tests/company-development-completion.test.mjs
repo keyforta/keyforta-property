@@ -11,6 +11,48 @@ const load = () => import("../../scripts/infra/company-development-completion.mj
 const pure = () => import("../../scripts/infra/company-development-completion-validation.mjs");
 const hash = (v) => createHash("sha256").update(v).digest("hex");
 
+// Exact published PR #167 surface, independent of the implementation allowlist.
+const publishedCompletionPaths = [
+  ".github/tests/company-completion-fixtures.test.mjs",
+  ".github/tests/company-development-apply.test.mjs",
+  ".github/tests/company-development-completion.test.mjs",
+  ".github/tests/company-development-source.test.mjs",
+  ".github/tests/fixtures/company-bootstrap-arm.json.gz",
+  ".github/tests/fixtures/company-bootstrap-original.zip",
+  ".github/tests/fixtures/company-completion-loader.mjs",
+  ".github/tests/fixtures/company-completion.mjs",
+  ".github/tests/fixtures/company-source.mjs",
+  ".github/tests/fixtures/company-zip.mjs",
+  ".github/tests/fixtures/generate-company-completion.mjs",
+  ".github/workflows/company-development-bootstrap-completion.yml",
+  "docs/adr/ADR-016-company-development-private-foundation.md",
+  "infra/README.md",
+  "scripts/infra/company-development-apply.mjs",
+  "scripts/infra/company-development-completion-validation.mjs",
+  "scripts/infra/company-development-completion.mjs",
+  "scripts/infra/company-development-state.mjs",
+  "scripts/infra/company-development.mjs",
+];
+
+test("source review accepts the complete published PR surface, including exact test support paths", async () => {
+  const { assertSourceReview, completionSource } = await load();
+  const { baselineRevision } = await pure();
+  const f = completionFixture();
+  try {
+    const revision = f.git("rev-parse", "HEAD").toString().trim();
+    f.intent.execution.revision = revision;
+    f.intent.source = completionSource(revision, f.root);
+    f.intent.implementationChangesSha256 = hash(f.git("diff", "--raw", "--no-abbrev", "--no-renames", baselineRevision, revision));
+    const changed = f.git("diff", "--name-only", baselineRevision, revision).toString().trim().split("\n");
+    for (const path of [...publishedCompletionPaths, ".github/tests/company-completion-history.test.mjs",
+      ".github/tests/fixtures/company-history.mjs"]) {
+      assert.ok(changed.includes(path), `Fixture omitted published/final support path: ${path}`);
+      assert.equal(hash(f.git("show", `${revision}:${path}`)), hash(readFileSync(path)), `Fixture changed bytes: ${path}`);
+    }
+    assert.doesNotThrow(() => assertSourceReview(f.intent, f.root));
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
 test("synthetic bindings still reject archive, checkpoint and template hash manipulation", async () => {
   const { loadOriginal } = await load();
   const { original, assertOriginalFiles } = await pure();
@@ -144,13 +186,14 @@ test("audit rejects evidence amplification and incomplete exact-SHA run metadata
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
-test("repository-wide source profile rejects extra workflows even with matching caller input hashes", async () => {
+for (const path of [".github/workflows/unreviewed-extra.yml", ".github/tests/fixtures/unreviewed-extra.mjs"]) {
+test(`repository-wide source profile rejects ${path} even with matching caller input hashes`, async () => {
   const { assertSourceReview, completionSource } = await load();
   const { baselineRevision } = await pure();
   const f = completionFixture();
   try {
-    writeFileSync(join(f.root, ".github/workflows/unreviewed-extra.yml"), "name: Unreviewed extra workflow\n");
-    f.git("add", ".github/workflows/unreviewed-extra.yml");
+    writeFileSync(join(f.root, path), "// Synthetic unauthorized surface\n");
+    f.git("add", path);
     f.git("commit", "--quiet", "--no-verify", "-m", "Synthetic forbidden extra workflow");
     const revision = f.git("rev-parse", "HEAD").toString().trim();
     f.intent.execution.revision = revision;
@@ -159,6 +202,7 @@ test("repository-wide source profile rejects extra workflows even with matching 
     assert.throws(() => assertSourceReview(f.intent, f.root), /outside|surface|workflow/i);
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
+}
 
 test("CLI fails closed before authentication outside approved native dispatch", async () => {
   await load();

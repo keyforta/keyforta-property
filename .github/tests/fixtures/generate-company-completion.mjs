@@ -8,8 +8,10 @@ import {
   destination, rg, bootstrapInventory, historicalSourcePaths, original as runtimeOriginal, sha256,
 } from "../../../scripts/infra/company-development-completion-validation.mjs";
 import { zipFixture } from "./company-zip.mjs";
+import { ensureCompanyHistory } from "./company-history.mjs";
 
 export function generateCompletionFixtures() {
+  ensureCompanyHistory();
   const json = (value) => `${JSON.stringify(value)}\n`;
   const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
   // Git source revision and destination IDs are public contract, not run data.

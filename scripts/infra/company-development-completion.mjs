@@ -103,6 +103,19 @@ export function completionSource(revision, root = process.cwd(), checkWorktree =
   }
   return { version: 3, revision, files, sha256: sha256(JSON.stringify(files)) };
 }
+// Exact repository-wide review surface, separate from the twelve-path runtime
+// manifest. Test-only loaders/helpers must never enter the runtime import graph.
+export const reviewedCompletionPaths = Object.freeze([
+  ...historicalSourcePaths.slice(3, 6), ...currentSourcePaths.slice(9),
+  ".github/tests/company-development-completion.test.mjs", ".github/tests/company-development-apply.test.mjs",
+  ".github/tests/company-development-source.test.mjs", ".github/tests/company-development.test.mjs",
+  ".github/tests/company-completion-fixtures.test.mjs", ".github/tests/company-completion-history.test.mjs",
+  ".github/tests/fixtures/company-source.mjs", ".github/tests/fixtures/company-completion.mjs",
+  ".github/tests/fixtures/company-completion-loader.mjs", ".github/tests/fixtures/company-zip.mjs",
+  ".github/tests/fixtures/generate-company-completion.mjs", ".github/tests/fixtures/company-history.mjs",
+  ".github/tests/fixtures/company-bootstrap-original.zip", ".github/tests/fixtures/company-bootstrap-arm.json.gz",
+  "infra/README.md", "docs/adr/ADR-016-company-development-private-foundation.md",
+]);
 export function assertSourceReview(intent, root = process.cwd(), checkWorktree = true) {
   assert.deepEqual(intent.source, completionSource(intent.execution.revision, root, checkWorktree), "Reviewed source closure mismatch");
   const oldFiles = manifest(original.sha, historicalSourcePaths, root);
@@ -121,16 +134,8 @@ export function assertSourceReview(intent, root = process.cwd(), checkWorktree =
   }
   assert.equal(intent.baselineChangesSha256, sha256(git(["diff", "--raw", "--no-abbrev", "--no-renames", original.sha, baselineRevision], root)), "Historical repository-wide change review mismatch");
   assert.equal(intent.implementationChangesSha256, sha256(git(["diff", "--raw", "--no-abbrev", "--no-renames", baselineRevision, intent.execution.revision], root)), "Unreviewed repository-wide changes");
-  const reviewedSurfaces = [
-    ...historicalSourcePaths.slice(3, 6), ...currentSourcePaths.slice(9),
-    ".github/tests/company-development-completion.test.mjs", ".github/tests/company-development-apply.test.mjs",
-    ".github/tests/company-development-source.test.mjs", ".github/tests/company-development.test.mjs",
-    ".github/tests/fixtures/company-source.mjs", ".github/tests/fixtures/company-completion.mjs",
-    ".github/tests/fixtures/company-bootstrap-original.zip", ".github/tests/fixtures/company-bootstrap-arm.json.gz",
-    "infra/README.md", "docs/adr/ADR-016-company-development-private-foundation.md",
-  ];
   const changed = git(["diff", "--name-only", "--no-renames", baselineRevision, intent.execution.revision], root).toString().trim().split("\n");
-  assert.ok(changed.length && changed.every((p) => reviewedSurfaces.includes(p)), "Change outside exact reviewed completion surfaces; no additional workflow exception");
+  assert.ok(changed.length && changed.every((p) => reviewedCompletionPaths.includes(p)), "Change outside exact reviewed completion surfaces; no additional workflow exception");
   // Immutable Bicep/parser/payload surfaces, even if a caller supplies another
   // diff digest. Owner context cannot authorize a deployment contract change.
   for (const path of [...historicalSourcePaths.slice(0, 3), historicalSourcePaths[8]]) {
