@@ -338,11 +338,12 @@ export function validateStageChanges(preview, plan, completed) {
   for (const r of allowed) assert.ok(ids.has(r.id.toLowerCase()), "Incomplete stage what-if inventory");
 }
 export function assessStage(read, plan, predecessor, now = Date.now(), phase = "apply") {
+  assert.ok([2, 3].includes(plan.inputs.evidenceVersion), "Unknown staged policy version");
   if (predecessor?.kind === "bootstrap-completion-basis") return assessReceiptContinuation(read, plan, predecessor, now, phase);
   const { inputs } = plan, context = inputs.stageContext;
   assert.ok(context && predecessor, "Missing staged predecessor/inventory evidence");
   assert.deepEqual(predecessor.destination, destination, "Wrong predecessor destination");
-  assert.equal(predecessor.version, 2, "Legacy predecessor");
+  assert.ok([2, 3].includes(predecessor.version), "Unknown predecessor version");
   const transition = context.sourceTransition;
   let origin = null;
   if (transition) {
@@ -367,7 +368,8 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
     assert.equal(plan.inputs.mode, "initial", "Receipt is only an initial continuation completion basis");
     assert.deepEqual(context.predecessor, basis.ref, "Wrong authenticated continuation completion basis");
     assert.ok(!context.sourceTransition, "Receipt is not a verification-only checkpoint transition");
-    assertReference(context.freezeReference, "change freeze");
+    if (plan.inputs.evidenceVersion === 2) assertReference(context.freezeReference, "change freeze");
+    else assert.ok(!("freezeReference" in context), "Obsolete freezeReference");
     assertReference(context.inspectionReference, "ARM inspection");
     // This is a NEW plan with separate reviewed grants/Defender/functional test,
     // never a pre-handoff receipt snapshot used as current security approval.
@@ -410,7 +412,8 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
   assert.equal(context.predecessor.runId, predecessor.runId, "Predecessor run mismatch");
   assert.equal(context.predecessor.runAttempt, predecessor.runAttempt, "Predecessor attempt mismatch");
   assert.equal(context.predecessor.mode, predecessor.mode, "Predecessor mode mismatch");
-  assertReference(context.freezeReference, "change freeze");
+  if (inputs.evidenceVersion === 2) assertReference(context.freezeReference, "change freeze");
+  else assert.ok(inputs.evidenceVersion === 3 && !("freezeReference" in context), "Unknown policy/obsolete freezeReference");
   assertReference(context.inspectionReference, "ARM inspection");
   const expectedName = `companydev-${inputs.stage}-${plan.evidence.commitSha.slice(0, 12)}`;
   const predecessorDeploymentSha = predecessor.deploymentCommitSha ?? predecessor.commitSha;

@@ -7,6 +7,7 @@ import test, { after } from "node:test";
 import YAML from "yaml";
 import { completionFixture } from "./fixtures/company-completion.mjs";
 import { sourceFixture, sourcePaths } from "./fixtures/company-source.mjs";
+import { zipFixture } from "./fixtures/company-zip.mjs";
 
 const controls = () => import("../../scripts/infra/company-development-apply.mjs");
 const hash = (text) => createHash("sha256").update(text).digest("hex");
@@ -727,6 +728,25 @@ test("positive human handoff reaches continuation submission; completed replay i
   assert.equal(puts, 1);
 });
 
+test("v3 recovery/continuation remove freeze only; inspection and security handoff remain mandatory", async () => {
+  const recovery = await bootstrapRecoveryFixture();
+  recovery.plan.inputs.evidenceVersion = 3;
+  delete recovery.plan.inputs.changeFreeze;
+  delete recovery.context.freezeReference;
+  assert.doesNotThrow(() => recovery.state.assessStage(recovery.read, recovery.plan, recovery.predecessor, recovery.now));
+  const ref = recovery.context.inspectionReference;
+  delete recovery.context.inspectionReference;
+  assert.throws(() => recovery.state.assessStage(recovery.read, recovery.plan, recovery.predecessor, recovery.now), /inspection/i);
+  recovery.context.inspectionReference = ref;
+  recovery.context.freezeReference = ref;
+  assert.throws(() => recovery.state.assessStage(recovery.read, recovery.plan, recovery.predecessor, recovery.now), /obsolete/i);
+  const f = await stagedFixture();
+  f.plan.inputs.evidenceVersion = 3; delete f.plan.inputs.changeFreeze; delete f.context.freezeReference;
+  assert.doesNotThrow(() => f.state.assessStage(f.read, f.plan, { ...f.predecessor, version: 3 }, f.now));
+  delete f.context.security.writerRemovalReference;
+  assert.throws(() => f.state.assessStage(f.read, f.plan, f.predecessor, f.now));
+});
+
 test("continuation blocks missing/changed security, grants, writer rights and foreign/recreated predecessor before PUT", async () => {
   for (const mutate of [
     (f) => { delete f.context.security.functionalTest; },
@@ -1403,14 +1423,15 @@ test("apply route has a distinct protected environment/principal, no bootstrap o
   assert.deepEqual(Object.keys(workflow.on), ["workflow_dispatch"]);
   assert.equal(workflow.concurrency.group, "company-dev-foundation");
   assert.equal(workflow.concurrency["cancel-in-progress"], false);
-  for (const key of ["stage", "mode", "evidence_version", "reviewed_inventory_sha256", "reviewed_evidence_sha256"]) {
+  for (const key of ["stage", "mode", "evidence_version", "vnet_cidr", "network_approval"]) {
     assert.equal(workflow.on.workflow_dispatch.inputs[key].required, true);
   }
   assert.equal(workflow.env.FOUNDATION_STAGE, "${{ inputs.stage }}");
   assert.equal(workflow.jobs.apply.environment, "company-dev-apply");
-  assert.equal(workflow.jobs.guard.permissions["id-token"], undefined);
+  assert.equal(workflow.jobs.apply_guard.permissions["id-token"], undefined);
+  assert.equal(workflow.jobs.preview_guard.permissions["id-token"], undefined);
   assert.equal(workflow.jobs.apply.permissions["id-token"], "write");
-  assert.deepEqual(workflow.jobs.apply.needs, ["guard"]);
+  assert.deepEqual(workflow.jobs.apply.needs, ["apply_guard"]);
   const steps = workflow.jobs.apply.steps;
   const login = steps.find((step) => step.uses?.startsWith("azure/login@"));
   assert.equal(login.with["subscription-id"], subscriptionId);
@@ -1426,7 +1447,7 @@ test("apply route has a distinct protected environment/principal, no bootstrap o
 });
 
 test("mocked apply CLI makes no write on failed quality, drift, nonempty RG or shared principal; success PUT uses exact reviewed in-memory body", async () => {
-  const { foundationSource } = await import("../../scripts/infra/company-development.mjs");
+  const { foundationSource, stageInventory, armParameters, environmentSnapshot } = await import("../../scripts/infra/company-development.mjs");
   const source = sourceFixture();
   const { root: dir } = source;
   const { committedSource } = await import("../../scripts/infra/company-development.mjs");
@@ -1441,7 +1462,24 @@ test("mocked apply CLI makes no write on failed quality, drift, nonempty RG or s
   const evidence = JSON.parse(f.files["evidence.json"]);
   evidence.sourceSha256 = f.expected.sourceSha256;
   evidence.sourceFiles = foundationSource({ root: dir, revision }).files;
-  evidence.sourceManifestVersion = 3;
+  evidence.sourceManifestVersion = 5;
+  evidence.evidenceVersion = 3; evidence.runId = "777"; delete evidence.changeFreeze;
+  const orderedInput = { ...input, evidenceVersion: 3 }; delete orderedInput.changeFreeze;
+  const inventory = stageInventory(orderedInput);
+  const previewEnvironment = { id: 456, node_id: "preview-environment-node", name: "company-dev",
+    deployment_branch_policy: { protected_branches: true }, protection_rules: [] };
+  const previewSnapshot = environmentSnapshot(previewEnvironment);
+  const previewContext = { ...JSON.parse(f.files["review-context.json"]), runId: "777", evidenceVersion: 3,
+    inventorySha256: hash(JSON.stringify(inventory)), environment: previewSnapshot,
+    environmentSha256: hash(JSON.stringify(previewSnapshot)) };
+  f.files["inputs.json"] = encode(orderedInput);
+  f.files["inventory.json"] = encode(inventory);
+  f.files["parameters.json"] = encode(armParameters(orderedInput));
+  f.files["review-context.json"] = encode(previewContext);
+  evidence.reviewContext = previewContext;
+  for (const [file, field] of [["inputs", "inputs"], ["inventory", "inventory"], ["parameters", "parameters"], ["review-context", "reviewContext"]]) {
+    evidence[`${field}Sha256`] = hash(f.files[`${file}.json`]);
+  }
   f.files["evidence.json"] = encode(evidence);
   f.expected.evidenceSha256 = hash(f.files["evidence.json"]);
   let script = resolve("scripts/infra/company-development-apply.mjs");
@@ -1465,14 +1503,19 @@ if(name==="gh"){
   process.exit(0)
  }
  const api=a[1];
- if(api.includes("/environments/"))value=json("FAKE_ENVIRONMENT");
+ if(e.RECOVERY!=="true" && e.PREVIEW_PHASE!=="true" && api.endsWith("/environments/company-dev"))value=json("FAKE_PREVIEW_ENVIRONMENT");
+ else if(api.includes("/environments/"))value=json("FAKE_ENVIRONMENT");
+ else if(api.endsWith("/branches/main"))value={protected:true,commit:{sha:e.GITHUB_SHA}};
+ else if(api.endsWith("/jobs?per_page=100"))value=json("FAKE_PLAN_JOBS");
+ else if(e.RECOVERY!=="true" && api.endsWith("/actions/artifacts/"+e.ORDERED_ARTIFACT_ID+"/zip")){process.stdout.write(Buffer.from(e.ORDERED_ARCHIVE,"base64"));process.exit(0)}
  else if(e.RECOVERY==="true" && api.endsWith("/zip")){process.stdout.write(Buffer.from(e.FAKE_ARCHIVE,"base64"));process.exit(0)}
- else if(e.STAGED==="true" && api.includes("/attempts/"))value=json("FAKE_PREDECESSOR_RUN");
+ else if(e.STAGED==="true" && api.includes("/actions/runs/"+e.PREDECESSOR_RUN_ID+"/attempts/"))value=json("FAKE_PREDECESSOR_RUN");
  else if(e.STAGED==="true" && api.includes("/actions/artifacts/"+e.PREDECESSOR_ARTIFACT_ID))value=json("FAKE_PREDECESSOR_ARTIFACT");
  else if(e.STAGED==="true" && api.includes("/actions/runs/"+e.PREDECESSOR_RUN_ID+"/artifacts?"))value={total_count:1,artifacts:[json("FAKE_PREDECESSOR_ARTIFACT")]};
  else if(api.includes("/actions/workflows/")){
   const workflow=/workflows\\/([^/]+)\\//.exec(api)[1];
-  value={workflow_runs:[{id:999,head_sha:e.GITHUB_SHA,head_branch:"main",event:"push",status:"completed",conclusion:e.FAIL_QUALITY==="true"?"failure":"success",path:".github/workflows/"+workflow}]};
+  value={workflow_runs:[{id:999,head_sha:e.GITHUB_SHA,head_branch:"main",event:"push",status:"completed",conclusion:e.FAIL_QUALITY==="true" || (e.FAIL_PRESUBMIT_QUALITY==="true" && fs.existsSync("previewed"))?"failure":"success",path:".github/workflows/"+workflow}]};
+  if(e.PENDING_QUALITY==="true" || (e.PENDING_PRESUBMIT_QUALITY==="true" && fs.existsSync("previewed")))value.workflow_runs.unshift({...value.workflow_runs[0],id:1000,status:"in_progress",conclusion:null});
  }else if(api.includes("/artifacts?"))value={total_count:1,artifacts:[json("FAKE_ARTIFACT")]};
  else if(api.includes("/actions/artifacts/"))value=json("FAKE_ARTIFACT");
  else value=json("FAKE_RUN");
@@ -1509,7 +1552,8 @@ if(name==="gh"){
  else if(a[2]==="list")value=e.RECOVERY==="true"?json("FAKE_DEPLOYMENTS"):e.STAGED==="true"?[{name:e.BOOTSTRAP_DEPLOYMENT,properties:{provisioningState:"Succeeded"}},...(fs.existsSync("continued")?[{name:e.CONTINUATION_DEPLOYMENT,properties:{provisioningState:"Succeeded"}}]:[])]:e.EXISTING_DEPLOYMENT==="true"?[{name:"previous",properties:{provisioningState:e.PREVIOUS_STATE||"Running"}}]:[];
  else if(a[2]==="what-if"){
   if(e.PROVIDER_ERROR==="true"){console.error("ERROR: (ProviderFailure) synthetic original provider error");process.exit(3)}
-  value=json("FAKE_WHAT_IF");if(e.DRIFT==="true")value.changes[0].after.name="drift"
+  value=json("FAKE_WHAT_IF");if(e.DRIFT==="true")value.changes[0].after.name="drift";
+  if(e.FAIL_PRESUBMIT_QUALITY==="true" || e.PENDING_PRESUBMIT_QUALITY==="true")fs.writeFileSync("previewed","true");
  }
  else if(a[2]==="show"){
   const name=a[a.indexOf("--name")+1];
@@ -1529,10 +1573,13 @@ console.log(JSON.stringify(value));
     ...process.env, GH_TOKEN: "synthetic-actions-token", PATH: `${dir}:${process.env.PATH}`, TOOL_LOG: join(dir, "tools.jsonl"),
     GITHUB_REPOSITORY: "keyforta/keyforta-property", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
     GITHUB_SHA: revision, GITHUB_RUN_ID: "777", GITHUB_RUN_ATTEMPT: "1",
-    GITHUB_ACTOR: "same-authorized-operator", GITHUB_TRIGGERING_ACTOR: "same-authorized-operator",
+    GITHUB_ACTOR: "cmbuyamba", GITHUB_TRIGGERING_ACTOR: "cmbuyamba", GITHUB_ACTIONS: "true",
+    GITHUB_REF_PROTECTED: "true", GITHUB_WORKFLOW_SHA: revision,
+    GITHUB_WORKFLOW_REF: "keyforta/keyforta-property/.github/workflows/company-development-foundation-apply.yml@refs/heads/main",
+    GITHUB_JOB: "apply_guard", ORDERED_PLAN_RESULT: "success",
     GITHUB_OUTPUT: join(dir, "outputs"), GITHUB_STEP_SUMMARY: join(dir, "summary"),
     COMPANY_DEV_APPLY_ENABLED: "true", PLAN_RUN_ID: "123", PLAN_RUN_ATTEMPT: "1", PLAN_ARTIFACT_ID: "456",
-    FOUNDATION_STAGE: "bootstrap", FOUNDATION_MODE: "initial", EVIDENCE_VERSION: "2",
+    FOUNDATION_STAGE: "bootstrap", FOUNDATION_MODE: "initial", EVIDENCE_VERSION: "3",
     REVIEWED_SOURCE_SHA256: f.expected.sourceSha256, REVIEWED_TEMPLATE_SHA256: f.expected.templateSha256,
     REVIEWED_PARAMETERS_SHA256: f.expected.parametersSha256, REVIEWED_WHAT_IF_SHA256: f.expected.whatIfSha256,
     REVIEWED_INVENTORY_SHA256: f.expected.inventorySha256, REVIEWED_EVIDENCE_SHA256: f.expected.evidenceSha256,
@@ -1541,9 +1588,29 @@ console.log(JSON.stringify(value));
     APPLY_CLIENT_ID: "22222222-2222-4222-8222-222222222222",
     FAKE_FILES: JSON.stringify(f.files), FAKE_RUN: JSON.stringify(f.run), FAKE_ARTIFACT: JSON.stringify(f.artifact),
     FAKE_ENVIRONMENT: JSON.stringify(environment), FAKE_WHAT_IF: JSON.stringify(f.whatIf),
+    FAKE_PREVIEW_ENVIRONMENT: JSON.stringify(previewEnvironment),
     FAKE_RESOURCES: JSON.stringify(actualResources(JSON.parse(f.files["inventory.json"]).expected)),
     FAKE_STAGE_PERMISSIONS: JSON.stringify([{ actions: ["*/read", ...new Set(JSON.parse(f.files["inventory.json"]).expected.map((r) => `${r.type}/write`)), "Microsoft.Resources/deployments/write", "Microsoft.Resources/deployments/whatIf/action"], notActions: [], dataActions: [], notDataActions: [] }]),
   };
+  const bindOrdered = (files, runId, stage = "bootstrap", mode = "initial") => {
+    const archive = zipFixture(files), end = Date.now() - 1000, start = end - 10000;
+    const run = { ...f.run, id: Number(runId), path: ".github/workflows/company-development-foundation-apply.yml",
+      status: "in_progress", conclusion: null, actor: { login: "cmbuyamba" }, triggering_actor: { login: "cmbuyamba" },
+      repository: { full_name: "keyforta/keyforta-property", id: 42 }, head_repository: { full_name: "keyforta/keyforta-property", id: 42 },
+      run_started_at: new Date(start - 10000).toISOString() };
+    const artifact = { ...f.artifact, name: `company-dev-foundation-${stage}-${mode}-v3-plan-${revision}-${runId}-1`,
+      workflow_run: { id: Number(runId), head_sha: revision, head_branch: "main", repository_id: 42, head_repository_id: 42 },
+      digest: `sha256:${hash(archive)}`, size_in_bytes: archive.length, created_at: new Date(end - 500).toISOString(),
+      expires_at: new Date(end + 86400000).toISOString() };
+    const jobs = { total_count: 1, jobs: [{ id: 8001, run_id: Number(runId), run_attempt: 1, head_sha: revision,
+      name: "plan", status: "completed", conclusion: "success", started_at: new Date(start).toISOString(), completed_at: new Date(end).toISOString(),
+      steps: [{ name: "Upload immutable ordered plan", status: "completed", conclusion: "success",
+        started_at: new Date(end - 1000).toISOString(), completed_at: new Date(end).toISOString() }] }] };
+    Object.assign(env, { FAKE_FILES: JSON.stringify(files), FAKE_RUN: JSON.stringify(run), FAKE_ARTIFACT: JSON.stringify(artifact),
+      FAKE_PLAN_JOBS: JSON.stringify(jobs), ORDERED_ARTIFACT_ID: "456", ORDERED_ARCHIVE_SHA256: hash(archive),
+      ORDERED_ARCHIVE: archive.toString("base64") });
+  };
+  bindOrdered(f.files, "777");
   try {
     for (const name of ["gh", "az"]) { writeFileSync(join(dir, name), tool); chmodSync(join(dir, name), 0o700); }
     const run = (operation, changes = {}) => spawnSync(process.execPath, [script, operation], { cwd: dir, env: { ...env, ...changes }, encoding: "utf8" });
@@ -1556,6 +1623,7 @@ console.log(JSON.stringify(value));
       const split = line.indexOf("=");
       env[line.slice(0, split).toUpperCase()] = line.slice(split + 1);
     }
+    env.GITHUB_JOB = "apply";
     assert.equal(run("verify").status, 0);
     const sourcePath = join(dir, "infra/bicep/company-development.bicep");
     const committedSource = readFileSync(sourcePath);
@@ -1599,6 +1667,24 @@ console.log(JSON.stringify(value));
     }
     const calls = () => readFileSync(env.TOOL_LOG, "utf8").trim().split("\n").map(JSON.parse);
     assert.equal(calls().filter((call) => call.name === "az" && call.args[0] === "rest" && call.args.includes("put")).length, 0);
+    for (const flag of ["PENDING_QUALITY", "FAIL_PRESUBMIT_QUALITY", "PENDING_PRESUBMIT_QUALITY"]) {
+      const failed = run("apply", { [flag]: "true" });
+      assert.equal(failed.status, 1, failed.stderr);
+      assert.match(failed.stderr, /quality|workflow/i);
+      rmSync(join(dir, "previewed"), { force: true });
+    }
+    for (const key of ["FAKE_ENVIRONMENT", "FAKE_PREVIEW_ENVIRONMENT"]) {
+      const before = JSON.parse(env[key]); before.id++;
+      assert.equal(run("verify", { [key]: JSON.stringify(before) }).status, 1, key);
+    }
+    assert.equal(run("verify", { GITHUB_RUN_ATTEMPT: "2" }).status, 1, "Apply-only rerun must reject old plan binding");
+    for (const outcome of ["failure", "skipped", null]) {
+      const jobs = JSON.parse(env.FAKE_PLAN_JOBS); jobs.jobs[0].conclusion = outcome;
+      assert.equal(run("verify", { FAKE_PLAN_JOBS: JSON.stringify(jobs) }).status, 1);
+    }
+    const archiveBad = Buffer.from(env.ORDERED_ARCHIVE, "base64"); archiveBad[0] ^= 1;
+    assert.equal(run("verify", { ORDERED_ARCHIVE: archiveBad.toString("base64") }).status, 1);
+    assert.equal(calls().filter((call) => call.name === "az" && call.args[0] === "rest" && call.args.includes("put")).length, 0);
     const result = run("apply");
     assert.equal(result.status, 0, result.stderr);
     const state = JSON.parse(readFileSync(join(dir, "company-dev-apply/bootstrap-state.json"), "utf8"));
@@ -1630,7 +1716,7 @@ console.log(JSON.stringify(value));
     // seven-file plan -> native apply context -> single continuation PUT -> a
     // fresh reviewed-reentry plan and verified completed NO-PUT replay.
     const staged = await stagedFixture();
-    const stageContext = staged.context;
+    const stageContext = staged.context; delete stageContext.freezeReference;
     stageContext.baseline = JSON.parse(validatedBootstrapCheckpoint).resources;
     stageContext.deploymentName = `companydev-continuation-${revision.slice(0, 12)}`;
     const setPredecessor = (bytes, runId, artifactId) => {
@@ -1638,13 +1724,13 @@ console.log(JSON.stringify(value));
       stageContext.predecessor = { runId, runAttempt: "1", artifactId, stage: cp.stage, mode: cp.mode, sha: revision, checkpointSha256: hash(bytes) };
       Object.assign(env, { FAKE_CHECKPOINT: bytes, PREDECESSOR_RUN_ID: runId, PREDECESSOR_ARTIFACT_ID: artifactId,
         FAKE_PREDECESSOR_RUN: JSON.stringify({ ...f.run, id: Number(runId), path: ".github/workflows/company-development-foundation-apply.yml" }),
-        FAKE_PREDECESSOR_ARTIFACT: JSON.stringify({ id: Number(artifactId), expired: false, name: `company-dev-foundation-${cp.stage}-${cp.mode}-v2-apply-${revision}-${runId}-1`, workflow_run: { id: Number(runId), head_sha: revision } }) });
+        FAKE_PREDECESSOR_ARTIFACT: JSON.stringify({ id: Number(artifactId), expired: false, name: `company-dev-foundation-${cp.stage}-${cp.mode}-v${cp.version}-apply-${revision}-${runId}-1`, workflow_run: { id: Number(runId), head_sha: revision } }) });
     };
     setPredecessor(validatedBootstrapCheckpoint, "777", "888");
     const relativeUtc = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
     Object.assign(stageContext.security.functionalTest, { enabledAt: relativeUtc(60), startedAt: relativeUtc(50), uploadedAt: relativeUtc(49), scanTime: relativeUtc(48), observedAt: relativeUtc(47) });
     const runtime = continuationResources(staged.state);
-    Object.assign(env, { STAGED: "true", FOUNDATION_STAGE: "continuation", CHANGE_FREEZE: input.changeFreeze,
+    Object.assign(env, { STAGED: "true", FOUNDATION_STAGE: "continuation",
       COMPANY_DEV_PLAN_ENABLED: "true", PREVIEW_CLIENT_ID: evidence.previewClientId,
       VNET_CIDR: input.vnetCidr, ACA_SUBNET_CIDR: input.acaSubnetCidr, POSTGRES_SUBNET_CIDR: input.postgresSubnetCidr, NETWORK_APPROVAL: input.networkApproval,
       BOOTSTRAP_DEPLOYMENT: JSON.parse(validatedBootstrapCheckpoint).deploymentName, CONTINUATION_DEPLOYMENT: stageContext.deploymentName,
@@ -1658,7 +1744,7 @@ console.log(JSON.stringify(value));
       }
     };
     const protectedStage = (mode, previewId, applyId) => {
-      Object.assign(env, { FOUNDATION_MODE: mode, STAGE_CONTEXT: JSON.stringify(stageContext), GITHUB_RUN_ID: previewId,
+      Object.assign(env, { FOUNDATION_MODE: mode, STAGE_CONTEXT: JSON.stringify(stageContext), GITHUB_RUN_ID: applyId,
         PREVIEW_PHASE: "true", FAKE_ENVIRONMENT: JSON.stringify({ ...environment, name: "company-dev" }) });
       env.FAKE_WHAT_IF = JSON.stringify({ changes: staged.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: mode === "initial" ? "Create" : "NoChange", after: { type } })) });
       const previewScript = resolve("scripts/infra/company-development.mjs");
@@ -1683,13 +1769,16 @@ console.log(JSON.stringify(value));
       const files = Object.fromEntries(Object.keys(f.files).map((name) => [name, readFileSync(join(dir, "company-dev-plan", name), "utf8")]));
       const planEvidence = JSON.parse(files["evidence.json"]);
       Object.assign(env, { GITHUB_RUN_ID: applyId, PREVIEW_PHASE: "false", FAKE_ENVIRONMENT: JSON.stringify(environment),
+        FAKE_PREVIEW_ENVIRONMENT: JSON.stringify({ ...environment, name: "company-dev" }),
         PLAN_RUN_ID: previewId, FAKE_FILES: JSON.stringify(files),
         FAKE_RUN: JSON.stringify({ ...f.run, id: Number(previewId) }),
         FAKE_ARTIFACT: JSON.stringify({ ...f.artifact, name: `company-dev-foundation-continuation-${mode}-v2-plan-${revision}-${previewId}-1`, workflow_run: { id: Number(previewId), head_sha: revision } }),
         REVIEWED_SOURCE_SHA256: planEvidence.sourceSha256, REVIEWED_TEMPLATE_SHA256: planEvidence.templateSha256,
         REVIEWED_PARAMETERS_SHA256: planEvidence.parametersSha256, REVIEWED_WHAT_IF_SHA256: planEvidence.whatIfSha256,
         REVIEWED_INVENTORY_SHA256: planEvidence.inventorySha256, REVIEWED_EVIDENCE_SHA256: hash(files["evidence.json"]) });
+      bindOrdered(files, applyId, "continuation", mode);
       for (const op of ["guard", "verify", "apply"]) {
+        env.GITHUB_JOB = op === "guard" ? "apply_guard" : "apply";
         const result = run(op); assert.equal(result.status, 0, `${mode} ${op}: ${result.stderr}`); outputs();
       }
       return readFileSync(join(dir, "company-dev-apply/checkpoint.json"), "utf8");
@@ -1726,6 +1815,7 @@ console.log(JSON.stringify(value));
     const beforeRecovery = calls().length;
     Object.assign(env, {
       RECOVERY: "true", FOUNDATION_STAGE: "bootstrap", FOUNDATION_MODE: "reviewed-reentry", STAGE_CONTEXT: JSON.stringify(recovery.context),
+      EVIDENCE_VERSION: "2", CHANGE_FREEZE: input.changeFreeze,
       BOOTSTRAP_DEPLOYMENT: recovery.predecessor.deploymentName, GITHUB_RUN_ID: "126", PREVIEW_PHASE: "true",
       FAKE_ENVIRONMENT: JSON.stringify({ ...environment, name: "company-dev" }),
       PREDECESSOR_RUN_ID: recovery.predecessor.runId, PREDECESSOR_ARTIFACT_ID: "888",

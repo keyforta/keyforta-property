@@ -73,6 +73,60 @@ environment-settings change or reuse of stale plans is authorized.
 
 ## Proposed staged company-foundation contract
 
+### Approved bounded policy removal — 2026-10-26 UTC
+
+For issue [#159](https://github.com/keyforta/keyforta-property/issues/159), the
+owner explicitly said **“change those requirements... remove them”**, then
+**“remove those 2 blockers”**. The approved scope is exactly (a) manual freeze/
+UI-observation prerequisites for completion audit and (b) the separate manually
+reviewed exact-SHA preview run/digest handoff prerequisite for apply.
+This decision supersedes only those requirements in the historical text below;
+the full ADR remains **Proposed**, not Accepted. It approves local implementation,
+tests and publication, not a live audit, deployment, merge or permission/settings
+change. Existing audit access is APPLIED and unchanged.
+
+**Decision:** keep one explicit owner dispatch on the existing apply workflow,
+ordered `preview_guard → plan → apply_guard → apply`. Reuse the existing preview
+steps/identity/environment and separate writer steps/identity/environment.
+Consume the immutable current-attempt plan artifact automatically using
+`ordered-plan-apply-v1`, not manual PLAN/REVIEWED fields or a second dispatch.
+The standalone preview remains preview-only. Current native workflow is in
+progress; only the plan producer job/upload must already be successful.
+Preserve strict completed-success semantics for historical standalone plans.
+
+New evidence/input/inventory and checkpoint versions are 3; audit intent/receipt
+are 2; current source profiles are 5 (plan/audit) and 6 (inspection). Historical
+versions and exact workflow byte pins retain their old meanings. New producers
+omit freeze/UI fields and new validators reject them. Source profiles bind exact
+workflow blobs and closed changed paths, never wildcard workflows or a
+self-referential manifest-file hash.
+
+**Retained invariant:** a genuine authorized execution and successful plan must
+precede any scoped apply; native protected-main/source/actor/attempt, latest
+exact-SHA CI/security/DAST, authenticated archive/payload binding, separate
+identities, live environment and fresh provider drift checks remain mandatory.
+Current-attempt job metadata, fixed successful `needs`, upload artifact ID/digest
+outputs, archive-by-ID hashing/bounded validation and temporal metadata form the
+producer assurance. GitHub does **not** cryptographically attest artifact producer
+job/attempt. Reauthenticate before writer sign-in and immediately before PUT.
+No automatic second workflow dispatch, uncertain PUT retry or destructive
+recovery is introduced.
+
+**Consequences/risks:** there is no human plan-review pause or manual UI assurance.
+Reject an observed API admin-bypass true value; absence is unobservable, not proof
+of false. Human snapshot approval (`frozenSnapshotSha256`), fresh one-hour
+pre-dispatch owner authorization, inspection reference, original archive
+provenance, observer isolation, security/functional handoff and writer revocation
+are **not removed**. Inspection cannot become a receipt/checkpoint or deployment
+authority. No three-Modify/five-Delete override, Defender waiver, PIM inference or
+full-stack readiness is approved. Original failed-run checkpoint stays false.
+
+No cost/resource/paid-service changes: retain $108.35 estimate and $120/month
+before-tax ceiling, telemetry, backup/restore-test, SLO/error-budget and runbook
+requirements. Rollback is an authorized code revert and fresh exact-source
+operation/plan, never stale artifact reuse, archive mutation or automatic live
+settings reconciliation. See the [current infrastructure contract](../../infra/README.md#current-policy--approved-2026-10-26-prepared-code-only).
+
 The heading retains the proposal's historical anchor. The current authorization
 is [explicit Product Owner approval](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6402966949)
 for local implementation/tests of this staged contract, including **both**

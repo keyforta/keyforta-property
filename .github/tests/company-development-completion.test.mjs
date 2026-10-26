@@ -157,7 +157,7 @@ test("source review accepts the complete published PR surface, including exact t
   try {
     const revision = f.git("rev-parse", "HEAD").toString().trim();
     f.intent.execution.revision = revision;
-    f.intent.source = completionSource(revision, f.root);
+    f.intent.source = completionSource(revision, f.root, true, 3);
     f.intent.implementationChangesSha256 = hash(f.git("diff", "--raw", "--no-abbrev", "--no-renames", baselineRevision, revision));
     const changed = f.git("diff", "--name-only", baselineRevision, revision).toString().trim().split("\n");
     for (const path of [...publishedCompletionPaths, ".github/tests/company-completion-history.test.mjs",
@@ -278,7 +278,7 @@ test("workflow uses separate audit identity, native protected context and succes
   assert.doesNotMatch(JSON.stringify(workflow), /COMPANY_DEV_PLAN_CLIENT_ID|PREVIEW_CLIENT_ID/);
   const upload = steps.find((s) => s.uses?.startsWith("actions/upload-artifact@"));
   assert.equal(upload.with["retention-days"], 7);
-  assert.match(upload.with.name, /^company-dev-bootstrap-completion-v1-/);
+  assert.match(upload.with.name, /^company-dev-bootstrap-completion-v2-/);
   assert.doesNotMatch(JSON.stringify(workflow), /company-dev-apply|what-if|deployment group|APPLY_CLIENT_ID/);
 });
 
@@ -317,7 +317,7 @@ test(`repository-wide source profile rejects ${path} even with matching caller i
     f.git("commit", "--quiet", "--no-verify", "-m", "Synthetic forbidden extra workflow");
     const revision = f.git("rev-parse", "HEAD").toString().trim();
     f.intent.execution.revision = revision;
-    f.intent.source = completionSource(revision, f.root);
+    f.intent.source = completionSource(revision, f.root, true, 3);
     f.intent.implementationChangesSha256 = hash(f.git("diff", "--raw", "--no-abbrev", "--no-renames", baselineRevision, revision));
     assert.throws(() => assertSourceReview(f.intent, f.root), /outside|surface|workflow/i);
   } finally { rmSync(f.root, { recursive: true, force: true }); }
@@ -559,10 +559,10 @@ test("CLI fails closed before authentication outside approved native dispatch", 
 
     test("actual CLI and YAML route use exact committed blobs and refuse any unknown executable branch", async () => {
       const { original, stateHash } = await pure();
-      const f = completionFixture();
+      const f = completionFixture({ policyVersion: 2 });
       try {
         const now = new Date(Date.now() - 60000).toISOString();
-        f.intent.authorizedAt = now; f.intent.manualUi.observedAt = now;
+        f.intent.authorizedAt = now;
         const auditRun = f.metadata[`actions/runs/${f.execution.runId}/attempts/1`];
         auditRun.created_at = new Date(Date.now() - 30000).toISOString();
         auditRun.run_started_at = auditRun.created_at;
@@ -608,7 +608,7 @@ test("CLI fails closed before authentication outside approved native dispatch", 
         Object.assign(auditRun, { status: "completed", conclusion: "success", updated_at: new Date().toISOString() });
         const artifact = { ...f.artifact, id: 9002, size_in_bytes: f.receiptArchive.length, digest: `sha256:${ref.archiveSha256}`,
           created_at: auditRun.updated_at, expires_at: new Date(Date.now() + 86400000).toISOString(),
-          name: `company-dev-bootstrap-completion-v1-${f.revision}-${ref.runId}-1`,
+          name: `company-dev-bootstrap-completion-v2-${f.revision}-${ref.runId}-1`,
           workflow_run: { id: Number(ref.runId), head_sha: f.revision } };
         f.metadata["actions/artifacts/9002"] = artifact;
         f.metadata[`actions/runs/${ref.runId}/artifacts?per_page=100`] = { total_count: 1, artifacts: [artifact] };

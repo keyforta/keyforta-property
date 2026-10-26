@@ -419,10 +419,10 @@ test("company workflow is disabled-by-default, protected, immutable, preview-onl
   assert.equal(workflow.on.workflow_dispatch.inputs.stage.required, true);
   assert.equal(workflow.on.workflow_dispatch.inputs.mode.required, true);
   assert.equal(workflow.on.workflow_dispatch.inputs.evidence_version.required, true);
-  assert.equal(workflow.on.workflow_dispatch.inputs.change_freeze.required, true);
+  assert.equal(workflow.on.workflow_dispatch.inputs.change_freeze, undefined);
   assert.equal(workflow.env.FOUNDATION_STAGE, "${{ inputs.stage }}");
   const upload = workflow.jobs.plan.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@") && step.with?.path.includes("company-dev-plan/"));
-  assert.match(upload.with.name, /inputs\.stage.*inputs\.mode.*v2/);
+  assert.match(upload.with.name, /inputs\.stage.*inputs\.mode.*v3/);
   assert.equal(upload.with.path.trim().split("\n").length, 7);
   assert.ok(upload.with.path.includes("inventory.json"));
   assert.equal(workflow.jobs.plan.environment, "company-dev");
@@ -512,8 +512,7 @@ console.log(JSON.stringify(value));
     GITHUB_ACTOR: "same-authorized-operator", GITHUB_TRIGGERING_ACTOR: "same-authorized-operator",
     GITHUB_STEP_SUMMARY: join(dir, "summary.md"),
     COMPANY_DEV_PLAN_ENABLED: "true",
-    FOUNDATION_STAGE: "bootstrap", FOUNDATION_MODE: "initial", EVIDENCE_VERSION: "2",
-    CHANGE_FREEZE: valid.changeFreeze,
+    FOUNDATION_STAGE: "bootstrap", FOUNDATION_MODE: "initial", EVIDENCE_VERSION: "3",
     PREVIEW_CLIENT_ID: "11111111-1111-4111-8111-111111111111",
     VNET_CIDR: valid.vnetCidr, ACA_SUBNET_CIDR: valid.acaSubnetCidr,
     POSTGRES_SUBNET_CIDR: valid.postgresSubnetCidr, NETWORK_APPROVAL: valid.networkApproval,
@@ -559,7 +558,6 @@ console.log(JSON.stringify(value));
     assert.equal(run("prepare", { APPROVED_NETWORK_REFERENCE: "" }).status, 1);
     assert.equal(run("prepare", { REVIEW_CONTEXT: JSON.stringify({ ...context, revision: "b".repeat(40) }) }).status, 1);
     assert.equal(run("prepare", { FAKE_ENVIRONMENT: JSON.stringify({ ...environment, id: 999 }) }).status, 1);
-    assert.equal(run("prepare", { CHANGE_FREEZE: valid.changeFreeze.replace("123", "456") }).status, 1);
     for (const field of ["stage", "mode", "evidenceVersion", "inventorySha256"]) {
       const changed = run("prepare", { REVIEW_CONTEXT: JSON.stringify({ ...context, [field]: "drift" }) });
       assert.equal(changed.status, 1);
@@ -602,8 +600,9 @@ console.log(JSON.stringify(value));
     const evidence = JSON.parse(read(join(dir, "company-dev-plan/evidence.json")));
     assert.equal(evidence.commitSha, sha);
     assert.equal(evidence.executionApproved, false);
-    assert.match(evidence.reviewPolicy, /explicit human authorization/i);
-    assert.match(evidence.reviewPolicy, /no independent environment reviewer required/i);
+    assert.match(evidence.reviewPolicy, /explicit human execution authorization/i);
+    assert.match(evidence.reviewPolicy, /no manual freeze, UI evidence or copied plan review/i);
+    assert.equal("changeFreeze" in evidence, false);
     assert.doesNotMatch(evidence.reviewPolicy, /required-reviewer approval|native approval comment/i);
     assert.equal(evidence.planningCeilingUsdBeforeTax, "120.00");
     assert.deepEqual(evidence.reviewContext, context);

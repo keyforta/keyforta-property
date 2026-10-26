@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       audit_intent:
-        description: Exact-source owner audit-only context, full source manifests, actual environment/UI observation and frozen snapshot digest
+        description: Intent v2 exact-source fresh owner audit-only authorization, actual API environment and human-approved snapshot digest
         required: true
         type: string
 
@@ -42,7 +42,7 @@ jobs:
       - name: Verify protected exact source, latest quality and actual owner/environment context before authentication
         id: context
         run: node scripts/infra/company-development-completion.mjs prepare
-      - name: Sign in with separately approved read-only audit federation (unconfigured until access-plan approval)
+      - name: Sign in with existing applied read-only audit federation
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
         with:
           client-id: ${{ vars.COMPANY_DEV_AUDIT_CLIENT_ID }}
@@ -55,7 +55,7 @@ jobs:
       - name: Preserve distinct success receipt and unchanged historical evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: company-dev-bootstrap-completion-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: company-dev-bootstrap-completion-v2-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             company-dev-completion/receipt.json
             company-dev-completion/historical-original.zip

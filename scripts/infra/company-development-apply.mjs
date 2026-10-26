@@ -12,6 +12,7 @@ import {
   assertBootstrapPreview, assertImplementedStage, assertNoSecretPayload, bootstrapInventory, sourcePaths, stageInventory, validatePreview,
 } from "./company-development.mjs";
 import { manifestPaths, assertCompletionBasis } from "./company-development-completion-validation.mjs";
+import { readArchive } from "./company-development-completion.mjs";
 
 const repository = "keyforta/keyforta-property";
 const applyEnvironment = "company-dev-apply";
@@ -52,7 +53,7 @@ export function armGuid(...values) {
 function identityBindings(state) {
   if (state?.kind === "bootstrap-completion-basis") assertCompletionBasis(state);
   else {
-    assert.equal(state?.version, 2, "Legacy/missing bootstrap predecessor");
+    assert.ok([2, 3].includes(state?.version), "Legacy/unknown/missing bootstrap predecessor");
     assert.equal(state.stage, "bootstrap", "Wrong predecessor stage");
     assert.deepEqual(state.destination, destination, "Wrong predecessor destination");
   }
@@ -286,6 +287,7 @@ export function readBootstrapState(read, deploymentName) {
 export function assertPlan(files, run, artifact, expected, currentSourceSha256) {
   assert.deepEqual(Object.keys(files).sort(), [...fileNames].sort(), "Unexpected artifact file inventory");
   assertImplementedStage(expected);
+  assert.equal(expected.evidenceVersion, 2, "Legacy standalone plan requires evidence version 2");
   assert.equal(String(run.id), expected.runId, "Preview run ID mismatch");
   assert.equal(String(run.run_attempt), expected.runAttempt, "Preview run attempt mismatch");
   assert.equal(run.head_sha, expected.sha, "Preview SHA mismatch");
@@ -301,6 +303,10 @@ export function assertPlan(files, run, artifact, expected, currentSourceSha256) 
   assert.equal(artifact.name, `company-dev-foundation-${expected.stage}-${expected.mode}-v2-plan-${expected.sha}-${expected.runId}-${expected.runAttempt}`, "Wrong artifact name");
   assert.equal(String(artifact.workflow_run?.id), expected.runId, "Artifact belongs to another run");
   assert.equal(artifact.workflow_run?.head_sha, expected.sha, "Artifact SHA mismatch");
+  return assertPlanPayload(files, expected, currentSourceSha256);
+}
+function assertPlanPayload(files, expected, currentSourceSha256) {
+  assert.deepEqual(Object.keys(files).sort(), [...fileNames].sort(), "Unexpected artifact file inventory");
   const evidence = JSON.parse(files["evidence.json"]);
   assert.equal(hash(files["evidence.json"]), expected.evidenceSha256, "Reviewed evidence.json hash mismatch");
   for (const field of ["stage", "mode", "evidenceVersion"]) assert.equal(evidence[field], expected[field], `Evidence ${field} mismatch`);
@@ -322,6 +328,13 @@ export function assertPlan(files, run, artifact, expected, currentSourceSha256) 
     assert.equal(evidence[field], expected[field], `Evidence ${file} hash mismatch`);
   }
   const inputs = JSON.parse(files["inputs.json"]);
+  for (const field of ["stage", "mode", "evidenceVersion"]) assert.equal(inputs[field], expected[field], `Input ${field} mismatch`);
+  if (expected.evidenceVersion === 3) {
+    assert.equal(evidence.sourceManifestVersion, 5, "Ordered plan requires current source profile");
+    for (const item of [evidence, inputs, JSON.parse(files["inventory.json"])]) {
+      assert.ok(!("changeFreeze" in item) && !("freezeReference" in item) && !("manualUi" in item), "Obsolete manual policy fields");
+    }
+  }
   assert.equal(hash(files["inputs.json"]), evidence.inputsSha256, "Evidence inputs.json hash mismatch");
   validateInputs(inputs, inputs); // structural only; external CIDR approval checked in protected job
   for (const key of Object.keys(inputs)) assert.deepEqual(evidence[key], inputs[key], `Evidence input mismatch: ${key}`);
@@ -391,10 +404,14 @@ export function assertExecutionCheckpoint(bytes, run, artifact, ref) {
   assert.equal(artifact.expired, false, "Predecessor artifact expired");
   assert.equal(String(artifact.workflow_run?.id), ref.runId, "Wrong predecessor artifact run");
   assert.equal(artifact.workflow_run?.head_sha, ref.sha, "Wrong predecessor artifact SHA");
-  assert.equal(artifact.name, `company-dev-foundation-${ref.stage}-${ref.mode}-v2-apply-${ref.sha}-${ref.runId}-${ref.runAttempt}`, "Wrong predecessor artifact stage/name");
   const checkpoint = JSON.parse(bytes);
   assert.ok(!checkpoint.kind && checkpoint.mode !== "audit-readonly", "Receipt cannot be loaded as execution checkpoint");
-  assert.equal(checkpoint.version, 2, "Legacy predecessor");
+  assert.ok([2, 3].includes(checkpoint.version), "Unknown predecessor version");
+  assert.equal(artifact.name, `company-dev-foundation-${ref.stage}-${ref.mode}-v${checkpoint.version}-apply-${ref.sha}-${ref.runId}-${ref.runAttempt}`, "Checkpoint artifact policy version mismatch");
+  if (checkpoint.version === 3) {
+    assert.equal(checkpoint.sourceManifestVersion, 5, "Wrong current checkpoint source profile");
+    assert.ok(!("freezeReference" in checkpoint) && !("manualUi" in checkpoint), "Obsolete checkpoint fields");
+  }
   assert.deepEqual(checkpoint.destination, destination, "Wrong predecessor destination");
   for (const [field, value] of Object.entries({ stage: ref.stage, mode: ref.mode, commitSha: ref.sha, runId: ref.runId, runAttempt: ref.runAttempt })) assert.equal(checkpoint[field], value, `Checkpoint ${field} mismatch`);
   assert.match(checkpoint.deploymentCommitSha ?? checkpoint.commitSha, /^[a-f0-9]{40}$/, "Invalid actual deployment SHA");
@@ -503,42 +520,139 @@ export function loadExecutionCheckpoint(ref) {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
-function expectedPlan() {
-  const expected = {
-    stage: process.env.FOUNDATION_STAGE, mode: process.env.FOUNDATION_MODE, evidenceVersion: Number(process.env.EVIDENCE_VERSION),
-    sha: currentRun().revision, runId: process.env.PLAN_RUN_ID, runAttempt: process.env.PLAN_RUN_ATTEMPT, artifactId: process.env.PLAN_ARTIFACT_ID,
-    sourceSha256: process.env.REVIEWED_SOURCE_SHA256, templateSha256: process.env.REVIEWED_TEMPLATE_SHA256,
-    parametersSha256: process.env.REVIEWED_PARAMETERS_SHA256, whatIfSha256: process.env.REVIEWED_WHAT_IF_SHA256,
-    inventorySha256: process.env.REVIEWED_INVENTORY_SHA256, evidenceSha256: process.env.REVIEWED_EVIDENCE_SHA256,
-  };
-  assertImplementedStage(expected);
-  for (const key of ["runId", "runAttempt", "artifactId"]) assert.match(expected[key] ?? "", /^[1-9]\d*$/, `Missing plan ${key}`);
-  for (const key of ["sourceSha256", "templateSha256", "parametersSha256", "whatIfSha256", "inventorySha256", "evidenceSha256"]) assert.match(expected[key] ?? "", /^[a-f0-9]{64}$/, `Missing reviewed ${key}`);
-  return expected;
+const orderedWorkflow = ".github/workflows/company-development-foundation-apply.yml";
+const digestFields = ["sourceSha256", "templateSha256", "parametersSha256", "whatIfSha256", "inventorySha256", "evidenceSha256"];
+export function assertOrderedNativeContext(env = process.env) {
+  for (const [key, value] of Object.entries({
+    GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: repository, GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_REF: "refs/heads/main", GITHUB_REF_PROTECTED: "true",
+    GITHUB_WORKFLOW_REF: `${repository}/${orderedWorkflow}@refs/heads/main`,
+    GITHUB_ACTOR: "cmbuyamba", GITHUB_TRIGGERING_ACTOR: "cmbuyamba",
+  })) assert.equal(env[key], value, `Ordered native ${key} mismatch`);
+  assert.equal(env.GITHUB_WORKFLOW_SHA, env.GITHUB_SHA, "Ordered workflow SHA mismatch");
+  assert.match(env.GITHUB_SHA ?? "", /^[a-f0-9]{40}$/, "Ordered source SHA required");
+  for (const key of ["GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"]) assert.match(env[key] ?? "", /^[1-9]\d*$/, "Ordered native run/attempt required");
+  return { sha: env.GITHUB_SHA, runId: env.GITHUB_RUN_ID, runAttempt: env.GITHUB_RUN_ATTEMPT };
 }
-function loadPlan(expected) {
-  const run = github(`actions/runs/${expected.runId}`);
-  const artifact = github(`actions/artifacts/${expected.artifactId}`);
-  // gh run download selects by name: require that exact immutable ID to be the
-  // sole matching artifact, then revalidate every downloaded byte/hash.
-  const listing = github(`actions/runs/${expected.runId}/artifacts?per_page=100`);
-  assert.ok(listing.total_count <= 100, "Ambiguous artifact inventory; stop for review");
-  const matches = listing.artifacts.filter((item) => item.name === artifact.name);
-  assert.equal(matches.length, 1, "Ambiguous named preview artifact");
-  assert.equal(String(matches[0].id), expected.artifactId, "Named artifact ID drift");
-  const directory = mkdtempSync(join(tmpdir(), "companydev-reviewed-plan-"));
-  try {
-    command("gh", ["run", "download", expected.runId, "--repo", repository, "--name", artifact.name, "--dir", directory]);
-    const files = {};
-    for (const file of readdirSync(directory)) {
-      const info = lstatSync(join(directory, file));
-      assert.ok(fileNames.includes(file) && info.isFile() && !info.isSymbolicLink() && info.size <= 2 * 1024 * 1024, "Invalid artifact file");
-      files[file] = readFileSync(join(directory, file), "utf8");
+function orderedControls() {
+  const current = assertOrderedNativeContext();
+  const branch = github("branches/main");
+  assert.equal(branch.protected, true, "Protected main required");
+  assert.equal(branch.commit?.sha, current.sha, "Latest main moved; new operation required");
+  quality();
+  return current;
+}
+// Artifact metadata does NOT identify a producer job/attempt cryptographically.
+// Assurance: exact approved workflow's sole matching producer + native attempt
+// job, fixed needs success, upload outputs and temporal/artifact correlations.
+export function assertOrderedPlan(files, run, artifact, listing, jobs, expected, currentSourceSha256, now = Date.now()) {
+  assert.equal(expected.contract, "ordered-plan-apply-v1", "Unknown ordered contract");
+  assert.equal(expected.evidenceVersion, 3, "Ordered evidence version required");
+  assertImplementedStage(expected);
+  for (const key of ["runId", "runAttempt", "artifactId"]) assert.match(expected[key] ?? "", /^[1-9]\d*$/, `Missing ordered ${key}`);
+  assert.match(expected.sha ?? "", /^[a-f0-9]{40}$/, "Missing ordered source SHA");
+  for (const value of [run.id, run.run_attempt, artifact.id]) assert.ok(Number.isSafeInteger(value) && value > 0, "Invalid native run/artifact ID");
+  assert.match(expected.archiveSha256 ?? "", /^[a-f0-9]{64}$/, "Missing upload archive digest");
+  for (const [key, value] of Object.entries({
+    id: Number(expected.runId), run_attempt: Number(expected.runAttempt), head_sha: expected.sha,
+    head_branch: "main", event: "workflow_dispatch", path: orderedWorkflow, status: "in_progress", conclusion: null,
+  })) assert.equal(run[key], value, `Ordered run ${key} mismatch`);
+  for (const key of ["repository", "head_repository"]) assert.equal(run[key]?.full_name, repository, "Foreign ordered repository");
+  for (const key of ["actor", "triggering_actor"]) assert.equal(run[key]?.login, "cmbuyamba", "Ordered owner actor required");
+  assert.ok(Number.isSafeInteger(jobs.total_count) && jobs.total_count <= 100 && jobs.total_count === jobs.jobs?.length, "Incomplete attempt job inventory");
+  const jobNames = new Set();
+  for (const nativeJob of jobs.jobs) {
+    assert.ok(["preview_guard", "plan", "apply_guard", "apply"].includes(nativeJob.name) && !jobNames.has(nativeJob.name), "Unknown/duplicate ordered job");
+    jobNames.add(nativeJob.name);
+    for (const [key, value] of Object.entries({ run_id: Number(expected.runId), run_attempt: Number(expected.runAttempt), head_sha: expected.sha })) {
+      assert.equal(nativeJob[key], value, "Foreign/prior-attempt job");
     }
-    return assertPlan(files, run, artifact, expected, foundationSource().sha256);
-  } finally {
-    rmSync(directory, { recursive: true, force: true }); // local downloaded copies only, NEVER Azure resources
   }
+  const producers = jobs.jobs.filter((job) => job.name === "plan");
+  assert.equal(producers.length, 1, "Missing/ambiguous current-attempt plan job");
+  const job = producers[0];
+  assert.ok(Number.isSafeInteger(job.id) && job.id > 0, "Missing producer job ID");
+  for (const [key, value] of Object.entries({
+    run_id: Number(expected.runId), run_attempt: Number(expected.runAttempt), head_sha: expected.sha,
+    status: "completed", conclusion: "success",
+  })) assert.equal(job[key], value, `Ordered producer ${key} mismatch`);
+  const start = Date.parse(job.started_at), end = Date.parse(job.completed_at), runStart = Date.parse(run.run_started_at);
+  assert.ok(Number.isFinite(start) && Number.isFinite(end) && Number.isFinite(runStart)
+    && runStart <= start && start < end && end <= now, "Invalid producer time bounds");
+  const uploads = job.steps?.filter((s) => s.name === "Upload immutable ordered plan") ?? [];
+  assert.equal(uploads.length, 1, "Missing/ambiguous upload step");
+  assert.equal(uploads[0].status, "completed", "Upload pending");
+  assert.equal(uploads[0].conclusion, "success", "Upload failed/skipped");
+  const uploadStart = Date.parse(uploads[0].started_at), uploadEnd = Date.parse(uploads[0].completed_at);
+  assert.ok(start <= uploadStart && uploadStart <= uploadEnd && uploadEnd <= end, "Upload outside producer bounds");
+  assert.equal(String(artifact.id), expected.artifactId, "Ordered artifact ID mismatch");
+  assert.equal(artifact.name, `company-dev-foundation-${expected.stage}-${expected.mode}-v3-plan-${expected.sha}-${expected.runId}-${expected.runAttempt}`, "Ordered artifact name mismatch");
+  assert.equal(artifact.expired, false, "Ordered artifact expired");
+  assert.ok(Date.parse(artifact.expires_at) > now, "Ordered artifact expiry missing/stale");
+  assert.equal(artifact.digest, `sha256:${expected.archiveSha256}`, "Upload artifact digest mismatch");
+  assert.ok(Number.isSafeInteger(artifact.size_in_bytes) && artifact.size_in_bytes > 0 && artifact.size_in_bytes <= 16 * 1024 * 1024, "Invalid ordered artifact size");
+  const created = Date.parse(artifact.created_at);
+  assert.ok(uploadStart <= created && created <= uploadEnd && created <= now, "Artifact outside producer upload bounds");
+  assert.equal(artifact.workflow_run?.id, Number(expected.runId), "Ordered artifact run mismatch");
+  assert.equal(artifact.workflow_run?.head_sha, expected.sha, "Ordered artifact SHA mismatch");
+  assert.equal(artifact.workflow_run?.head_branch, "main", "Ordered artifact branch mismatch");
+  assert.equal(artifact.workflow_run?.repository_id, run.repository.id, "Ordered artifact repository mismatch");
+  assert.equal(artifact.workflow_run?.head_repository_id, run.head_repository.id, "Ordered artifact head repository mismatch");
+  for (const repo of [run.repository, run.head_repository]) assert.ok(Number.isSafeInteger(repo.id) && repo.id > 0, "Missing native repository ID");
+  assert.ok(Number.isSafeInteger(listing.total_count) && listing.total_count <= 100 && listing.total_count === listing.artifacts?.length, "Incomplete artifact membership inventory");
+  const matches = listing.artifacts.filter((a) => a.name === artifact.name);
+  assert.equal(matches.length, 1, "Ambiguous ordered artifact membership");
+  assert.deepEqual(matches[0], artifact, "Ordered artifact listing drift");
+  const evidence = JSON.parse(files["evidence.json"]);
+  const binding = { contract: expected.contract, evidenceVersion: 3, sha: expected.sha, stage: expected.stage, mode: expected.mode,
+    runId: expected.runId, runAttempt: expected.runAttempt, producerJobId: String(job.id), artifactId: expected.artifactId,
+    archiveSha256: expected.archiveSha256,
+    sourceSha256: evidence.sourceSha256, templateSha256: hash(files["template.json"]),
+    parametersSha256: hash(files["parameters.json"]), whatIfSha256: hash(files["what-if.json"]),
+    inventorySha256: hash(files["inventory.json"]), evidenceSha256: hash(files["evidence.json"]) };
+  for (const field of digestFields) {
+    assert.match(binding[field] ?? "", /^[a-f0-9]{64}$/, "Invalid derived execution digest");
+    if (field in expected) assert.equal(binding[field], expected[field], `Derived ${field} drift`);
+  }
+  if ("producerJobId" in expected) assert.equal(binding.producerJobId, expected.producerJobId, "Producer job drift");
+  const plan = assertPlanPayload(files, binding, currentSourceSha256);
+  return { plan, binding };
+}
+function loadOrderedPlan(expected) {
+  const native = orderedControls();
+  for (const key of ["sha", "runId", "runAttempt"]) assert.equal(expected[key], native[key], "Prior/foreign attempt plan; re-run the whole operation");
+  const run = github(`actions/runs/${native.runId}/attempts/${native.runAttempt}`);
+  const jobs = github(`actions/runs/${native.runId}/attempts/${native.runAttempt}/jobs?per_page=100`);
+  const artifact = github(`actions/artifacts/${expected.artifactId}`);
+  const listing = github(`actions/runs/${native.runId}/artifacts?per_page=100`);
+  const archive = execFileSync("gh", ["api", `repos/${repository}/actions/artifacts/${expected.artifactId}/zip`], { maxBuffer: 16 * 1024 * 1024 });
+  assert.equal(archive.length, artifact.size_in_bytes, "Ordered archive size mismatch");
+  assert.equal(hash(archive), expected.archiveSha256, "Ordered archive byte digest mismatch");
+  const files = readArchive(archive, fileNames); // same bytes, bounded extraction
+  const authenticated = assertOrderedPlan(files, run, artifact, listing, jobs, expected, foundationSource().sha256);
+  assertReviewContext(authenticated.plan.evidence.reviewContext, github("environments/company-dev"), currentRun());
+  return authenticated;
+}
+function expectedPlan() {
+  // New dispatch is exclusively ordered v3. Historical v2 validators/loaders
+  // stay strict for archives/tests; no manual PLAN_/REVIEWED_ execution route.
+  assert.equal(Number(process.env.EVIDENCE_VERSION), 3, "New operation requires evidence version 3");
+  const native = assertOrderedNativeContext();
+  if (process.env.GITHUB_JOB === "apply_guard") {
+    assert.equal(process.env.ORDERED_PLAN_RESULT, "success", "Plan needs result must be success");
+    assert.match(process.env.ORDERED_ARTIFACT_ID ?? "", /^[1-9]\d*$/, "Missing immutable upload artifact ID");
+    assert.match(process.env.ORDERED_ARCHIVE_SHA256 ?? "", /^[a-f0-9]{64}$/, "Missing immutable upload digest");
+    return { contract: "ordered-plan-apply-v1", evidenceVersion: 3, ...native,
+      stage: process.env.FOUNDATION_STAGE, mode: process.env.FOUNDATION_MODE,
+      artifactId: process.env.ORDERED_ARTIFACT_ID, archiveSha256: process.env.ORDERED_ARCHIVE_SHA256 };
+  }
+  assert.equal(process.env.GITHUB_JOB, "apply", "Wrong ordered consumer job");
+  const binding = JSON.parse(process.env.PLAN_BINDING ?? "null");
+  assert.ok(binding, "Missing guarded plan binding");
+  assert.deepEqual(Object.keys(binding).sort(), ["contract", "evidenceVersion", "sha", "stage", "mode", "runId", "runAttempt", "producerJobId", "artifactId", "archiveSha256", ...digestFields].sort(), "Unknown/missing ordered binding fields");
+  for (const key of ["sha", "runId", "runAttempt"]) assert.equal(binding[key], native[key], "Prior-attempt plan binding");
+  for (const [key, value] of Object.entries({ stage: process.env.FOUNDATION_STAGE, mode: process.env.FOUNDATION_MODE, evidenceVersion: 3 })) assert.equal(binding[key], value, "Ordered dispatch input drift");
+  return binding;
 }
 function quality() {
   return ["ci.yml", "security.yml", "dast.yml"].map((workflow) => assertQuality(
@@ -552,16 +666,16 @@ function enabled() {
 }
 async function guardApply() {
   enabled();
-  const expected = expectedPlan();
-  const plan = loadPlan(expected);
+  const authenticated = loadOrderedPlan(expectedPlan());
+  const { plan, binding: expected } = authenticated;
   if (plan.inputs.stageContext) await loadStagePredecessor(plan.inputs.stageContext, plan.inputs.stage);
   const checks = quality();
   guard({ expectedEnvironment: applyEnvironment, enabled: process.env.COMPANY_DEV_APPLY_ENABLED, inventory: plan.inventory });
   appendFileSync(process.env.GITHUB_OUTPUT, `plan_binding=${JSON.stringify(expected)}\n`);
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
     "\n## Exact reviewed initial bootstrap APPLY inputs",
-    "Preserve these exact plan IDs/hashes, SHA and manual no-bypass verification with explicit human deployment authorization. No independent reviewer or native company-dev-apply approval comment is required.",
-    "Confirm legal payer/cost owner, externally approved inputs, stage-scoped effective apply permissions, $120/month BEFORE TAX ceiling, and change-freeze owner/reference. Bootstrap MUST NOT grant roles or configure Defender/scanners. It is empty/unused and NOT foundation-ready.",
+    "Automatically authenticated execution bindings, NOT human-reviewed digests. Explicit human deployment authorization remains required; no manual freeze/UI/copied-plan handoff.",
+    "Confirm legal payer/cost owner, externally approved inputs, stage-scoped effective apply permissions and $120/month BEFORE TAX ceiling. Bootstrap MUST NOT grant roles or configure Defender/scanners. It is empty/unused and NOT foundation-ready.",
     "Separate preview and apply principals are mandatory. No apps/jobs/data/customer identity/public DNS/source cleanup. This does not authorize provider/RG/federation bootstrap.",
     "```json", JSON.stringify({ ...expected, qualityRuns: checks }, null, 2), "```", "",
   ].join("\n"));
@@ -572,7 +686,8 @@ async function verify() {
   assert.deepEqual(JSON.parse(process.env.PLAN_BINDING ?? "null"), expected, "Guarded plan binding drift");
   const context = JSON.parse(process.env.REVIEW_CONTEXT ?? "null");
   assertReviewContext(context, github(`environments/${applyEnvironment}`), currentRun(), applyEnvironment);
-  const plan = loadPlan(expected);
+  const { plan, binding } = loadOrderedPlan(expected);
+  assert.deepEqual(binding, expected, "Reauthenticated plan binding drift");
   if (plan.inputs.stageContext) await loadStagePredecessor(plan.inputs.stageContext, plan.inputs.stage);
   for (const field of ["stage", "mode", "evidenceVersion"]) assert.equal(context[field], expected[field], `Apply review ${field} drift`);
   assert.equal(context.inventorySha256, hash(JSON.stringify(plan.inventory)), "Apply review inventory drift");
@@ -651,7 +766,7 @@ async function apply() {
   const name = `companydev-${verified.plan.inputs.stage}-${currentRun().revision.slice(0, 12)}`;
   function checkpoint(completed, resources, actualDeployment = { name, commitSha: currentRun().revision }, recovery = null) {
     writeJson("company-dev-apply/checkpoint.json", {
-      version: 2, stage: verified.plan.inputs.stage, mode: verified.plan.inputs.mode, destination,
+      version: 3, stage: verified.plan.inputs.stage, mode: verified.plan.inputs.mode, destination,
       completed, commitSha: currentRun().revision, runId: currentRun().runId, runAttempt: currentRun().runAttempt,
       applyClientId: predecessor?.applyClientId ?? process.env.APPLY_CLIENT_ID, deploymentName: actualDeployment.name, deploymentCommitSha: actualDeployment.commitSha,
       sourceManifestVersion: verified.plan.evidence.sourceManifestVersion,
@@ -665,6 +780,9 @@ async function apply() {
     });
   }
   const submit = () => {
+    const reauthenticated = loadOrderedPlan(verified.expected);
+    assert.deepEqual(reauthenticated.binding, verified.expected, "Pre-PUT execution binding drift");
+    assertReviewContext(verified.context, github(`environments/${applyEnvironment}`), currentRun(), applyEnvironment);
     quality(); workflowContext(); destinationContext(verified.plan.inputs);
     writeJson("company-dev-apply/fresh-what-if.json", acceptedPreview);
     writeJson("company-dev-apply/submission.json", { url: request.url, bodySha256: hash(JSON.stringify(request.body)), executionRun: currentRun(), reviewed: verified.expected });
@@ -725,6 +843,14 @@ async function apply() {
 async function main() {
   try {
     switch (process.argv[2]) {
+      case "preview-guard":
+        enabled(); orderedControls();
+        assert.equal(process.env.GITHUB_JOB, "preview_guard", "Wrong ordered preview guard");
+        guard(); break;
+      case "plan-verify":
+        enabled(); orderedControls();
+        assert.equal(process.env.GITHUB_JOB, "plan", "Wrong ordered producer");
+        break;
       case "human-grant-plan": await humanGrantPlan(); break;
       case "guard": await guardApply(); break;
       case "verify": await verify(); console.log("Reviewed apply inputs and protected-environment snapshot verified; no Azure write."); break;

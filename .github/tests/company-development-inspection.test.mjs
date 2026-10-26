@@ -10,11 +10,11 @@ const route = await import("../../scripts/infra/company-development-completion.m
 const pure = await import("../../scripts/infra/company-development-completion-validation.mjs");
 
 function fixture() {
-  const f = completionFixture();
+  const f = completionFixture({ policyVersion: 2 });
   const intent = structuredClone(f.intent);
   for (const key of ["manualUi", "frozenSnapshotSha256", "freezeReference", "inspectionReference"]) delete intent[key];
   Object.assign(intent, { kind: "bootstrap-inspection-intent", scope: "inspection-only-no-authority",
-    reviewReferences: [intent.ownerAuthorizationReference] });
+    version: 1, reviewReferences: [intent.ownerAuthorizationReference] });
   const workflow = ".github/workflows/company-development-inspection.yml";
   const run = f.metadata[`actions/runs/${f.execution.runId}/attempts/1`];
   Object.assign(run, { path: workflow, name: "Company development inspection" });
@@ -95,6 +95,17 @@ test("native source, owner, job and protected runtime guards reject before OIDC"
       assert.throws(() => route.inspectionControls({ ...f.intent, [key]: "invented" }, f.execution, f.github, f.now));
     }
     assert.throws(() => route.assertIntent(f.intent, f.execution, f.now), /intent|contract/i);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("inspection6 reports absent API bypass as unobservable; legacy4 still requires its original API evidence", () => {
+  const f = fixture();
+  try {
+    delete f.environment.can_admins_bypass;
+    delete f.intent.environment.can_admins_bypass;
+    assert.equal(route.inspectionControls(f.intent, f.execution, f.github, f.now).adminBypassObservation, "unobservable");
+    const legacy = structuredClone(f.intent); legacy.source.version = 4;
+    assert.throws(() => route.inspectionControls(legacy, f.execution, f.github, f.now), /bypass/i);
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
@@ -252,11 +263,11 @@ test("actual inspector CLI rejects omitted history evidence without inspection a
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
-test("inspection v4 closes exact new workflow and full published source; unknown workflow/helper and worktree tamper reject", () => {
+test("inspection v6 closes exact current workflows and full published source; unknown workflow/helper and worktree tamper reject", () => {
   assert.equal(typeof route.inspectionSource, "function");
   const f = fixture();
   try {
-    assert.equal(f.intent.source.version, 4);
+    assert.equal(f.intent.source.version, 6);
     assert.deepEqual(f.intent.source.files.map((v) => v.path), [...pure.currentSourcePaths, ".github/workflows/company-development-inspection.yml"]);
     assert.doesNotThrow(() => route.assertSourceReview(f.intent, f.root));
     for (const path of ["unexpected-helper.mjs", ".github/workflows/unexpected.yml"]) {

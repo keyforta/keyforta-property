@@ -10,7 +10,7 @@ const environmentName = "company-dev";
 const repository = "keyforta/keyforta-property";
 const cidrNames = ["vnetCidr", "acaSubnetCidr", "postgresSubnetCidr"];
 const approvalNames = [...cidrNames, "networkApproval"];
-const stageInputNames = ["stage", "mode", "evidenceVersion", "changeFreeze"];
+const stageInputNames = ["stage", "mode", "evidenceVersion"];
 export const sourcePaths = Object.freeze([
   "infra/bicep/company-development.bicep",
   "infra/bicep/modules/company-development-resources.bicep",
@@ -24,7 +24,11 @@ export const sourcePaths = Object.freeze([
 ]);
 
 export function assertImplementedStage(input) {
-  assert.equal(input.evidenceVersion, 2, "Only evidence version 2 is supported; legacy full plans cannot apply");
+  assert.ok([2, 3].includes(input.evidenceVersion), "Unknown evidence version; legacy full plans cannot apply");
+  if (input.evidenceVersion === 3) {
+    for (const field of ["changeFreeze", "freezeReference", "manualUi"]) assert.ok(!(field in input), `Obsolete ${field} field in v3`);
+    assert.ok(!input.stageContext || !("freezeReference" in input.stageContext), "Obsolete freezeReference field in v3");
+  }
   assert.ok(["bootstrap", "continuation"].includes(input.stage), "Unknown foundation stage");
   assert.ok(["initial", "reviewed-reentry"].includes(input.mode), "Unknown stage mode");
   if (input.stageContext?.sourceTransition) assert.ok(input.stage === "bootstrap" && input.mode === "reviewed-reentry", "Source transition is verification-only bootstrap re-entry");
@@ -67,15 +71,16 @@ export function stageInventory(input) {
     const expected = input.stage === "bootstrap" ? bootstrapInventory() : [...bootstrapInventory(), ...continuationInventory(), ...securityInventory(context.security)];
     for (const resource of context.baseline) assert.ok(expected.some((r) => r.id.toLowerCase() === resource.id?.toLowerCase() && r.type.toLowerCase() === resource.type?.toLowerCase()), "Unexpected baseline resource");
     if (input.stage === "continuation") assert.ok(context.security?.functionalTest && context.security.writerRemovalReference, "Missing human security/functional handoff");
-    return { version: 2, stage: input.stage, mode: input.mode, destination, baseline: context.baseline, expected,
-      predecessor: context.predecessor, securityHandoff: context.security ?? null, changeFreeze: input.changeFreeze, stageContext: context };
+    return { version: input.evidenceVersion, stage: input.stage, mode: input.mode, destination, baseline: context.baseline, expected,
+      predecessor: context.predecessor, securityHandoff: context.security ?? null,
+      ...(input.evidenceVersion === 2 ? { changeFreeze: input.changeFreeze } : {}), stageContext: context };
   }
 
   assert.equal(input.stageContext, undefined, "Initial bootstrap must not consume a populated-stage context");
   return {
-    version: 2, stage: input.stage, mode: input.mode, destination,
+    version: input.evidenceVersion, stage: input.stage, mode: input.mode, destination,
     baseline: [], expected: bootstrapInventory(),
-    predecessor: null, securityHandoff: null, changeFreeze: input.changeFreeze,
+    predecessor: null, securityHandoff: null, ...(input.evidenceVersion === 2 ? { changeFreeze: input.changeFreeze } : {}),
   };
 }
 
@@ -121,7 +126,7 @@ export function validateInputs(input, approved) {
   }
   assertImplementedStage(input);
   stageInventory(input);
-  assert.match(input.changeFreeze ?? "", /^https:\/\/github\.com\/keyforta\/keyforta-property\/(?:issues|pull)\/[1-9]\d*(?:#issuecomment-[1-9]\d*)?$/, "Missing external change-freeze review reference (not an attestation)");
+  if (input.evidenceVersion === 2) assert.match(input.changeFreeze ?? "", /^https:\/\/github\.com\/keyforta\/keyforta-property\/(?:issues|pull)\/[1-9]\d*(?:#issuecomment-[1-9]\d*)?$/, "Missing external change-freeze review reference (not an attestation)");
   assert.match(input.networkApproval ?? "", /^https:\/\/github\.com\/keyforta\/keyforta-property\/(?:issues|pull)\/[1-9]\d*$/, "Missing network-owner approval reference");
   for (const name of approvalNames) {
     assert.ok(approved[name] && input[name] === approved[name], `Missing or mismatched external approval: ${name}`);
@@ -141,6 +146,7 @@ export function validateInputs(input, approved) {
     assert.ok(!overlaps(ranges.vnetCidr, cidr(reserved)), `VNet CIDR overlaps platform range ${reserved}`);
   }
   return { ...Object.fromEntries([...Object.keys(destination), ...approvalNames, ...stageInputNames].map((name) => [name, input[name]])),
+    ...(input.evidenceVersion === 2 ? { changeFreeze: input.changeFreeze } : {}),
     ...(input.stageContext === undefined ? {} : { stageContext: input.stageContext }) };
 }
 
@@ -159,6 +165,7 @@ export function assertEnvironmentProtection(environment, expectedEnvironment = e
   // An empty rule inventory is valid: independent environment review is not
   // required. Still reject unreadable metadata and bind every actual rule.
   assert.ok(Array.isArray(environment.protection_rules), "Missing environment protection rule inventory");
+  if ("can_admins_bypass" in environment) assert.equal(environment.can_admins_bypass, false, "Unsafe API admin bypass setting");
 }
 
 // Review context only: this snapshot is NOT an approval or no-bypass attestation.
@@ -167,6 +174,7 @@ export function environmentSnapshot(environment, expectedEnvironment = environme
   return {
     id: environment.id, nodeId: environment.node_id, name: environment.name,
     updatedAt: environment.updated_at ?? null,
+    adminBypass: "can_admins_bypass" in environment ? environment.can_admins_bypass : "unobservable",
     branchPolicy: environment.deployment_branch_policy,
     rules: environment.protection_rules.map((rule) => ({
       id: rule.id ?? null, type: rule.type,
@@ -308,10 +316,10 @@ export function assertVerificationSources(transition, evidence, predecessor) {
   }
 }
 
-export function foundationSource({ root = process.cwd(), revision = process.env.GITHUB_SHA, version = 3 } = {}) {
+export function foundationSource({ root = process.cwd(), revision = process.env.GITHUB_SHA, version = 5 } = {}) {
   assert.match(revision ?? "", /^[a-f0-9]{40}$/, "Source revision must be the exact workflow SHA");
   assert.equal(command("git", ["-C", root, "rev-parse", "HEAD"]).trim(), revision, "Source HEAD must equal reviewed workflow SHA");
-  assert.ok(version === 1 || version === 3, "Unknown source manifest version");
+  assert.ok([1, 3, 5].includes(version), "Unknown source manifest version");
   const files = (version === 1 ? sourcePaths : currentSourcePaths).map((path) => {
     // Raw committed blob bytes, not git diff/status (which can hide index flags)
     // or worktree-only hashes. Missing/untracked-at-revision paths fail closed.
@@ -378,7 +386,6 @@ function readInputs() {
     stage: process.env.FOUNDATION_STAGE,
     mode: process.env.FOUNDATION_MODE,
     evidenceVersion: Number(process.env.EVIDENCE_VERSION),
-    changeFreeze: process.env.CHANGE_FREEZE,
     stageContext: process.env.STAGE_CONTEXT ? JSON.parse(process.env.STAGE_CONTEXT) : undefined,
     vnetCidr: process.env.VNET_CIDR,
     acaSubnetCidr: process.env.ACA_SUBNET_CIDR,
@@ -403,7 +410,7 @@ export function guard({ expectedEnvironment = environmentName, enabled = process
     evidenceVersion: Number(process.env.EVIDENCE_VERSION),
   };
   assertImplementedStage(stage);
-  const reviewedInventory = inventory ?? stageInventory({ ...stage, changeFreeze: process.env.CHANGE_FREEZE,
+  const reviewedInventory = inventory ?? stageInventory({ ...stage,
     stageContext: process.env.STAGE_CONTEXT ? JSON.parse(process.env.STAGE_CONTEXT) : undefined });
   const context = {
     repository, ...currentRun(), ...stage, inventorySha256: hashJson(reviewedInventory),
@@ -412,7 +419,7 @@ export function guard({ expectedEnvironment = environmentName, enabled = process
   assert.ok(process.env.GITHUB_OUTPUT && process.env.GITHUB_STEP_SUMMARY, "Native GitHub job output/summary required");
   appendFileSync(process.env.GITHUB_OUTPUT, `review_context=${JSON.stringify(context)}\n`);
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-    `## Independent ${expectedEnvironment} reviewer checklist`,
+    `## ${expectedEnvironment} execution context`,
     `Repository: \`${repository}\`; exact SHA: \`${context.revision}\`.`,
     `Run: \`${context.runId}\`; attempt: \`${context.runAttempt}\`.`,
     `Environment: \`${snapshot.name}\`; ID: \`${snapshot.id}\`; node ID: \`${snapshot.nodeId}\`.`,
@@ -421,19 +428,18 @@ export function guard({ expectedEnvironment = environmentName, enabled = process
     `Canonical baseline/expected inventory SHA256: \`${context.inventorySha256}\` (review context, NOT security approval).`,
     "```json", JSON.stringify(reviewedInventory, null, 2), "```",
     "",
-    `- The authorized operator must inspect the live ${expectedEnvironment} environment settings; no independent reviewer or initiator/re-run actor separation is required.`,
-    "- Verify protected branches and that **Allow administrators to bypass configured protection rules is disabled**. The documented API does not prove this UI-only setting.",
+    `API admin bypass observation: \`${snapshot.adminBypass}\`; absence is unobservable, not a bypass-off claim.`,
     `- Compare this exact SHA/run/attempt and snapshot with the ${expectedEnvironment} job; review its foundation-only inputs and scope.`,
     "- Confirm required CI/security checks, including dependency audit, pass for this exact SHA. Reject blocked checks; this manual control is not an audit waiver.",
-    "- Preserve the exact SHA, run/attempt, environment ID, snapshot hash and manual no-bypass verification with the operator's explicit human merge/deploy authorization; no native environment approval comment is required.",
+    "- Preserve the exact SHA, run/attempt, environment ID and snapshot hash with explicit human execution authorization.",
     "- Reject on mismatch, missing evidence or changed settings. Obtain fresh context after any environment or revision change.",
-    "- Bootstrap only: review the exact seven-resource inventory, change freeze and stage-scoped effective caller permissions. NO role/Defender/scanner/security writes, apps, uploads, data or migrations. Empty unused Storage before Defender is owner-approved, NOT foundation readiness.",
+    "- Bootstrap only: exact seven-resource inventory and stage-scoped effective caller permissions. NO role/Defender/scanner/security writes, apps, uploads, data or migrations. Empty unused Storage before Defender is owner-approved, NOT foundation readiness.",
     "- Before human grants/security handoff, cmbuyamba must verify removal of ALL bootstrap writer authority, including inherited/equivalent/PIM authority. Continuation rechecks the original apply caller's effective permission reads; do not infer completeness from lists.",
     "- For continuation: inspect cmbuyamba's actual harmless synthetic-file result and separate execution authorization, exact blob name/version-or-etag/content hash/UTC scan correlation, and current readable security snapshot hash. Confirm the record is genuinely owner-authored; JSON/hashes alone are NOT approval.",
     "- Blob index tags are mutable, not tamper-resistant: NEVER use them alone as a security/data-admission control. Internal scanner/Event Grid topology stays UNVERIFIED. No apps/customer data/workflow Blob access are authorized.",
     "- Permission review must establish the concrete minimum custom-VNet ACA caller operations without broad subscription RG/Network authority. Missing ACA proof, eligibility or capacity evidence still blocks activation; code/tests do not establish live sufficiency.",
     "",
-    "Explicit human merge/deploy authorization remains required for this workflow's exact scope and reviewed inputs. Independent environment review is not required. This summary/output and activation flags are NOT authorization or machine proof of no-admin-bypass.",
+    "Explicit human execution authorization remains required. This summary/output and activation flags are NOT authorization or proof of no-admin-bypass when the API is unobservable. No manual freeze or UI evidence prerequisite.",
     "",
   ].join("\n"));
   console.log("Environment context bound to exact SHA/run/snapshot; explicit human authorization remains required, not independent environment review. No Azure sign-in in guard.");
@@ -522,7 +528,7 @@ async function preview() {
   const predecessor = input.stageContext
     ? await loadStagePredecessor(input.stageContext, input.stage) : null;
   const plan = { inputs: input, inventory: stageInventory(input), template, parameters,
-    evidence: { commitSha: process.env.GITHUB_SHA, sourceManifestVersion: 3, sourceSha256: foundationSource().sha256, sourceFiles: foundationSource().files,
+    evidence: { commitSha: process.env.GITHUB_SHA, sourceManifestVersion: 5, sourceSha256: foundationSource().sha256, sourceFiles: foundationSource().files,
       templateSha256: digest("company-dev-plan/template.json"), parametersSha256: createHash("sha256").update(consumedParameters).digest("hex") } };
   // The new route must stop BEFORE provider what-if on any origin/state mismatch.
   const before = input.stageContext?.sourceTransition || predecessor?.kind === "bootstrap-completion-basis"
@@ -553,10 +559,10 @@ async function preview() {
     runId: process.env.GITHUB_RUN_ID,
     runAttempt: process.env.GITHUB_RUN_ATTEMPT,
     previewClientId: process.env.PREVIEW_CLIENT_ID,
-    sourceManifestVersion: 3, sourceSha256: foundationSource().sha256,
+    sourceManifestVersion: 5, sourceSha256: foundationSource().sha256,
     sourceFiles: foundationSource().files,
     reviewContext,
-    reviewPolicy: "Explicit human authorization and operator manual no-bypass verification; no independent environment reviewer required; context is not approval or machine verification",
+    reviewPolicy: "Explicit human execution authorization; automatic plan binding, live API controls; no manual freeze, UI evidence or copied plan review; context is not approval",
     ...input,
     planningCeilingUsdBeforeTax: "120.00",
     estimatedMonthlyUsdBeforeTax: "108.35",
@@ -569,7 +575,7 @@ async function preview() {
     reviewContextSha256: digest("company-dev-plan/review-context.json"),
     executionApproved: false,
   });
-  console.log(`Version 2 ${input.stage}/${input.mode} preview validated. No CI security/Blob writes or app/data activation; internal topology UNVERIFIED.`);
+  console.log(`Version 3 ${input.stage}/${input.mode} preview validated. No CI security/Blob writes or app/data activation; internal topology UNVERIFIED.`);
 }
 
 async function main() {

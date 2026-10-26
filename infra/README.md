@@ -23,7 +23,96 @@ resource-group-scoped foundation deployment runs.
 
 ## Company DEVELOPMENT preparation — isolated preview and plan-bound apply
 
-### Current staged company-foundation implementation — local only, not activated
+### Current policy — approved 2026-10-26, prepared code only
+
+Issue [#159](https://github.com/keyforta/keyforta-property/issues/159): the owner
+said **“change those requirements... remove them”**, then **“remove those 2
+blockers”**. This removes only manual freeze/UI-observation evidence blocking
+completion audit and the separate manually reviewed exact-SHA preview/digest
+handoff blocking apply. It does not accept all of ADR-016 or authorize execution,
+merge, settings/RBAC/federation changes, uploads, or resource writes.
+
+New producers use evidence/input/inventory **3**, apply checkpoint **3**,
+completion intent/receipt **2**, completion/plan source closure **5**, and
+inspection closure **6**. Legacy evidence/checkpoint 2, intent/receipt 1 and source
+closures 1 (historical implicit), 3 and inspection 4 retain their original strict
+contracts, including old freeze/UI fields and completed successful standalone
+preview checks. Unknown versions fail closed. New contracts reject obsolete
+`changeFreeze`, `freezeReference`, and `manualUi` fields instead of silently
+consuming them. Historical archive bytes and workflow blob pins are unchanged.
+
+**Execution:** one explicit owner `workflow_dispatch` of
+`company-development-foundation-apply.yml` runs
+`preview_guard → plan → apply_guard → apply`. The plan runs in `company-dev`
+with the existing preview federation; only apply uses the distinct
+`company-dev-apply` writer. Both share `company-dev-foundation` concurrency with
+cancel-in-progress false. The standalone preview remains **preview only**; its
+success never dispatches or authorizes an apply. No `actions: write` is added.
+
+There are no manual `plan_run_*`, `plan_artifact_id`, `reviewed_*` or
+`change_freeze` dispatch inputs. The successful plan upload exports immutable
+artifact ID and archive digest through fixed `needs` job outputs.
+`ordered-plan-apply-v1` binds evidenceVersion, SHA, stage/mode, native run/attempt,
+producer job ID, artifact ID, archive SHA256 and six recomputed source/template/
+parameters/what-if/inventory/evidence digests. These are **execution bindings,
+not human-reviewed hashes**. The overall run must be **in progress**, while its
+unique current-attempt plan job and upload step must be completed/successful.
+No optional-success exception is added to legacy standalone plan validation.
+
+Before writer sign-in and again immediately before ARM PUT, the consumer
+reauthenticates native owner/triggering actor, workflow/ref/SHA/repository/main,
+current-attempt jobs, artifact metadata and unique bounded listing, expiry,
+size/digest and upload/job time bounds. It downloads **by artifact ID**, hashes
+and bounded-parses the **same archive bytes**, and cross-binds all payloads to
+current committed source. An apply-only rerun cannot consume a previous-attempt
+plan. Latest exact-SHA push CI/security/DAST (including a newer pending/failed
+run), live environment drift, caller separation, approved network inputs,
+stage/scope inventory and fresh what-if remain fail-closed.
+
+**Assurance limit/risk:** GitHub artifact metadata does not cryptographically
+identify a producer job or attempt. This route relies on the exact approved
+workflow's sole matching producer, native attempt job, fixed successful `needs`,
+upload outputs and temporal metadata correlations. There is no human plan
+review pause. Manual UI evidence is no longer required. If the API exposes
+`can_admins_bypass: true`, stop; an absent field is recorded as **unobservable**,
+not false or a claim that bypass is off. Actual environment identities, protected
+branches, readable actual rule inventories and live snapshot revalidation remain.
+
+**Still blocking, not removed:** actual human approval of the complete
+`frozenSnapshotSha256`; `inspectionReference`; authenticated original archive/
+predecessor; `ownerAuthorizationReference` and `authorizedAt` (not future,
+no older than one hour, before dispatch); observer isolation; narrow effective
+permissions; security/functional handoff and proven writer revocation before
+continuation. A comment URL is context, not authenticated approval. Inspection
+evidence is never a completion receipt, checkpoint or deployment authority.
+The audit access plan is **APPLIED**; this change does not reopen or alter it.
+
+No live audit or deployment was run for this change. Original run
+`40262729364/1` retains `completed:false`; all archives remain immutable.
+Inspection `40379515709`, artifact `12676608644`, snapshot
+`23400cec3380e068222ee8e6bce389d3fbe7f470dfe767c22480f8e17deef8ed`
+is observation only, not snapshot approval or a receipt. Known three Modify/five
+Delete-property predictions have no override; strict NoChange recovery,
+destructive stops and no automatic retry of uncertain PUT outcomes remain.
+Defender is disabled, writer NOT REVOKED/PIM unknown; no full-stack readiness.
+
+**Operations/cost/rollback:** unchanged $108.35/month estimate before tax and
+$120 ceiling, not a guarantee; no resource/Bicep/service/library/identity change.
+Telemetry, seven-day backup/soft-delete, restore-test requirements, SLOs/error
+budgets and existing incident/security/backup runbooks are unchanged and are not
+claimed operationally verified by these tests. On failure preserve evidence and
+inspect exact operations/inventory; never auto-delete/retry or recover
+destructively. Roll back by an authorized code revert restoring the old workflow
+profile and obtain a fresh exact-source authorized operation/plan. Do not reuse
+old plan artifacts or mutate archived evidence/settings to fit reverted code.
+
+**Local validation:** use a disposable PostgreSQL cluster/database containing
+synthetic data only, with `TEST_DATABASE_URL` pointing to that local instance;
+run `pnpm verify`. Do not reuse production or a shared operational database.
+No Bicep payload changes are included here, so no resource compilation/deployment
+is required for this policy-only executable change.
+
+### Historical v2 staged implementation — superseded only as noted above
 
 The authoritative [staged proposal in ADR-016](../docs/adr/ADR-016-company-development-private-foundation.md#proposed-staged-company-foundation-contract)
 remains a **Proposed ADR awaiting external acceptance**, but the

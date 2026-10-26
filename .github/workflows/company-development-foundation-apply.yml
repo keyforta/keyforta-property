@@ -1,67 +1,50 @@
 name: Company development foundation apply
 
-# PREPARED, NOT ACTIVATED. Conditional user consent does not waive CI/audit,
-# exact plan review or explicit human deployment authorization.
-# Independent company-dev-apply reviewers are not required.
+# One explicit deployment operation. No workflow_run trigger, second dispatch,
+# manual copied plan fields or reuse of a standalone preview. Execution consent
+# is still required; flags/context are not consent. Prepared, not activated here.
 on:
   workflow_dispatch:
     inputs:
       stage:
-        description: Exact reviewed bootstrap or human-handoff-verified continuation plan
+        description: Bootstrap or human-handoff-verified continuation
         required: true
         type: choice
         options: [bootstrap, continuation]
       mode:
-        description: Initial stage or inventory-bound reviewed recovery or verified no-PUT no-op
+        description: Initial stage or exact inventory-bound recovery
         required: true
         type: choice
         options: [initial, reviewed-reentry]
       evidence_version:
-        description: Staged evidence schema (legacy full plans are rejected)
+        description: Ordered execution-binding policy
         required: true
         type: choice
-        options: ["2"]
-      plan_run_id:
-        description: Successful company foundation PREVIEW run for this exact main SHA
+        options: ["3"]
+      stage_context:
+        description: Authenticated predecessor, inspected baseline and security handoff; omit only for initial bootstrap
+        required: false
+        type: string
+      vnet_cidr:
+        description: Network-owner-approved RFC1918 VNet CIDR
         required: true
         type: string
-      plan_run_attempt:
-        description: Exact successful preview attempt
+      aca_subnet_cidr:
+        description: Approved ACA infrastructure /26
         required: true
         type: string
-      plan_artifact_id:
-        description: Exact immutable non-expired preview artifact ID
+      postgres_subnet_cidr:
+        description: Approved separate PostgreSQL /28
         required: true
         type: string
-      reviewed_source_sha256:
-        description: Reviewed foundation source manifest SHA256 from evidence
-        required: true
-        type: string
-      reviewed_template_sha256:
-        description: Reviewed exact compiled template SHA256
-        required: true
-        type: string
-      reviewed_parameters_sha256:
-        description: Reviewed exact approved parameters SHA256
-        required: true
-        type: string
-      reviewed_what_if_sha256:
-        description: Reviewed exact provider what-if artifact SHA256
-        required: true
-        type: string
-      reviewed_inventory_sha256:
-        description: Reviewed exact baseline and expected inventory SHA256
-        required: true
-        type: string
-      reviewed_evidence_sha256:
-        description: Reviewed evidence envelope SHA256 (binds all remaining files and source dependencies)
+      network_approval:
+        description: Repository issue or PR recording network-owner approval
         required: true
         type: string
 
 permissions:
   contents: read
 
-# Shared with preview, but never source dev. External change freeze also required.
 concurrency:
   group: company-dev-foundation
   cancel-in-progress: false
@@ -70,19 +53,15 @@ env:
   FOUNDATION_STAGE: ${{ inputs.stage }}
   FOUNDATION_MODE: ${{ inputs.mode }}
   EVIDENCE_VERSION: ${{ inputs.evidence_version }}
+  STAGE_CONTEXT: ${{ inputs.stage_context }}
   COMPANY_DEV_APPLY_ENABLED: ${{ vars.COMPANY_DEV_APPLY_ENABLED }}
-  PLAN_RUN_ID: ${{ inputs.plan_run_id }}
-  PLAN_RUN_ATTEMPT: ${{ inputs.plan_run_attempt }}
-  PLAN_ARTIFACT_ID: ${{ inputs.plan_artifact_id }}
-  REVIEWED_SOURCE_SHA256: ${{ inputs.reviewed_source_sha256 }}
-  REVIEWED_TEMPLATE_SHA256: ${{ inputs.reviewed_template_sha256 }}
-  REVIEWED_PARAMETERS_SHA256: ${{ inputs.reviewed_parameters_sha256 }}
-  REVIEWED_WHAT_IF_SHA256: ${{ inputs.reviewed_what_if_sha256 }}
-  REVIEWED_INVENTORY_SHA256: ${{ inputs.reviewed_inventory_sha256 }}
-  REVIEWED_EVIDENCE_SHA256: ${{ inputs.reviewed_evidence_sha256 }}
+  VNET_CIDR: ${{ inputs.vnet_cidr }}
+  ACA_SUBNET_CIDR: ${{ inputs.aca_subnet_cidr }}
+  POSTGRES_SUBNET_CIDR: ${{ inputs.postgres_subnet_cidr }}
+  NETWORK_APPROVAL: ${{ inputs.network_approval }}
 
 jobs:
-  guard:
+  preview_guard:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -90,22 +69,118 @@ jobs:
       contents: read
       actions: read
     outputs:
-      review_context: ${{ steps.review-context.outputs.review_context }}
-      plan_binding: ${{ steps.review-context.outputs.plan_binding }}
+      review_context: ${{ steps.context.outputs.review_context }}
     steps:
-      - name: Check out exact reviewed main revision
+      - name: Check out exact main revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Verify successful immutable plan and green CI then publish bound environment context
-        id: review-context
+      - name: Validate native deployment operation and preview environment
+        id: context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPANY_DEV_PLAN_ENABLED: ${{ vars.COMPANY_DEV_PLAN_ENABLED }}
+        run: node scripts/infra/company-development-apply.mjs preview-guard
+
+  plan:
+    needs: [preview_guard]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: company-dev
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    outputs:
+      artifact_id: ${{ steps.plan-upload.outputs.artifact-id }}
+      archive_sha256: ${{ steps.plan-upload.outputs.artifact-digest }}
+    env:
+      PREVIEW_CLIENT_ID: ${{ vars.COMPANY_DEV_PLAN_CLIENT_ID }}
+      REVIEW_CONTEXT: ${{ needs.preview_guard.outputs.review_context }}
+      APPROVED_VNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_VNET_CIDR }}
+      APPROVED_ACA_SUBNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_ACA_SUBNET_CIDR }}
+      APPROVED_POSTGRES_SUBNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_POSTGRES_SUBNET_CIDR }}
+      APPROVED_NETWORK_REFERENCE: ${{ vars.COMPANY_DEV_NETWORK_APPROVAL_REFERENCE }}
+    steps:
+      - name: Check out exact main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Revalidate native operation before preview sign-in
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/infra/company-development-apply.mjs plan-verify
+      - name: Validate explicit destination inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/infra/company-development.mjs prepare
+      - name: Sign in with existing preview federation
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
+        with:
+          client-id: ${{ env.PREVIEW_CLIENT_ID }}
+          tenant-id: 8019a048-e7d6-48e8-984a-b902f641a21b
+          subscription-id: 891e5e6e-8ae3-4455-9184-8d7606223d91
+      - name: Compile and preview exact stage
+        id: what-if-route
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/infra/company-development.mjs preview
+      - name: Preserve rejected what-if diagnostics (not a plan)
+        if: failure() && steps.what-if-route.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: company-dev-foundation-ordered-whatif-diagnostics-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: company-dev-whatif-diagnostics/**/*.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload immutable ordered plan
+        id: plan-upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: company-dev-foundation-${{ inputs.stage }}-${{ inputs.mode }}-v3-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            company-dev-plan/evidence.json
+            company-dev-plan/inputs.json
+            company-dev-plan/parameters.json
+            company-dev-plan/review-context.json
+            company-dev-plan/template.json
+            company-dev-plan/what-if.json
+            company-dev-plan/inventory.json
+          if-no-files-found: error
+          retention-days: 7
+
+  apply_guard:
+    needs: [plan]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      review_context: ${{ steps.context.outputs.review_context }}
+      plan_binding: ${{ steps.context.outputs.plan_binding }}
+    env:
+      ORDERED_ARTIFACT_ID: ${{ needs.plan.outputs.artifact_id }}
+      ORDERED_ARCHIVE_SHA256: ${{ needs.plan.outputs.archive_sha256 }}
+      ORDERED_PLAN_RESULT: ${{ needs.plan.result }}
+    steps:
+      - name: Check out exact main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Authenticate current attempt plan and bind apply context
+        id: context
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/infra/company-development-apply.mjs guard
 
   apply:
-    needs: [guard]
+    needs: [apply_guard]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -115,20 +190,20 @@ jobs:
       actions: read
       id-token: write
     env:
-      REVIEW_CONTEXT: ${{ needs.guard.outputs.review_context }}
-      PLAN_BINDING: ${{ needs.guard.outputs.plan_binding }}
+      REVIEW_CONTEXT: ${{ needs.apply_guard.outputs.review_context }}
+      PLAN_BINDING: ${{ needs.apply_guard.outputs.plan_binding }}
       APPLY_CLIENT_ID: ${{ vars.COMPANY_DEV_APPLY_CLIENT_ID }}
       APPROVED_VNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_VNET_CIDR }}
       APPROVED_ACA_SUBNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_ACA_SUBNET_CIDR }}
       APPROVED_POSTGRES_SUBNET_CIDR: ${{ vars.COMPANY_DEV_APPROVED_POSTGRES_SUBNET_CIDR }}
       APPROVED_NETWORK_REFERENCE: ${{ vars.COMPANY_DEV_NETWORK_APPROVAL_REFERENCE }}
     steps:
-      - name: Check out approved immutable revision
+      - name: Check out exact main revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Revalidate reviewed inputs and live environment before sign-in
+      - name: Reauthenticate plan and live controls before writer sign-in
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/infra/company-development-apply.mjs verify
@@ -138,12 +213,12 @@ jobs:
           client-id: ${{ env.APPLY_CLIENT_ID }}
           tenant-id: 8019a048-e7d6-48e8-984a-b902f641a21b
           subscription-id: 891e5e6e-8ae3-4455-9184-8d7606223d91
-      - name: Re-preview reject drift and apply exact reviewed foundation
+      - name: Re-preview reject drift and apply exact bound foundation
         id: what-if-route
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/infra/company-development-apply.mjs apply
-      - name: Preserve rejected what-if diagnostics (not execution or approval evidence)
+      - name: Preserve rejected what-if diagnostics (not execution evidence)
         if: failure() && steps.what-if-route.outcome == 'failure'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -155,7 +230,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: company-dev-foundation-${{ inputs.stage }}-${{ inputs.mode }}-v2-apply-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: company-dev-foundation-${{ inputs.stage }}-${{ inputs.mode }}-v3-apply-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             company-dev-apply/reviewed-inputs.json
             company-dev-apply/template.json
