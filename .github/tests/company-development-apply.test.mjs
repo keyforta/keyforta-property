@@ -807,6 +807,125 @@ test("staged apply rejects legacy evidence, wrong stage/version, incomplete depe
   }
 });
 
+// Synthetic replay of the 17-operation ARM shape from run 40262729364:
+// seven resource Creates, two module Creates, five output Reads, three evaluations.
+// No live operation IDs, principal/client bindings, timestamps or response bodies.
+async function bootstrapOutputReadFixture() {
+  const { bootstrapInventory } = await import("../../scripts/infra/company-development.mjs");
+  const resources = actualResources(bootstrapInventory());
+  const root = "companydev-bootstrap-synthetic";
+  const foundation = "foundation-keyforta-cdev", stamp = "stamp-keyforta-cdev";
+  const scope = `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/`;
+  const nested = (name) => ({ id: `${scope}Microsoft.Resources/deployments/${name}`, type: "Microsoft.Resources/deployments" });
+  let sequence = 0;
+  const operation = (name, kind, resource = null) => {
+    const operationId = `synthetic-${++sequence}`;
+    return {
+      id: `${nested(name).id}/operations/${operationId}`, operationId, resourceGroup,
+      properties: {
+        provisioningOperation: kind, provisioningState: "Succeeded",
+        statusCode: kind === "Create" ? "Created" : "OK",
+        request: null, response: null, statusMessage: null,
+        targetResource: resource && {
+          id: resource.id, resourceType: resource.type, resourceGroup,
+          resourceName: resource.id.split("/").at(-1),
+          apiVersion: resource.type === "Microsoft.Resources/deployments" ? "2025-04-01"
+            : resource.type.startsWith("Microsoft.ContainerRegistry/") ? "2023-11-01-preview"
+              : resource.type.startsWith("Microsoft.ManagedIdentity/") ? "2023-01-31" : "2023-05-01",
+          extension: null, identifiers: null, symbolicName: null,
+        },
+      },
+    };
+  };
+  const outputResources = [
+    resources.find((r) => r.type.endsWith("/registries")),
+    ...["migration", "api"].map((name) => resources.find((r) => r.id.endsWith(`-${name}`))),
+  ];
+  const rows = {
+    [root]: [operation(root, "Create", nested(foundation)), operation(root, "Read", nested(foundation)), operation(root, "EvaluateDeploymentOutput")],
+    [foundation]: [operation(foundation, "Create", nested(stamp)), operation(foundation, "Read", nested(stamp)), operation(foundation, "EvaluateDeploymentOutput")],
+    [stamp]: [
+      ...resources.map((r) => operation(stamp, "Create", r)),
+      ...outputResources.map((r) => operation(stamp, "Read", r)),
+      operation(stamp, "EvaluateDeploymentOutput"),
+    ],
+  };
+  const read = (args) => {
+    if (args[0] === "deployment") return rows[args[args.indexOf("--name") + 1]];
+    if (args[1] === "list") return resources.filter((r) => !r.type.includes("/blobServices"));
+    assert.equal(args[0], "resource"); assert.equal(args[1], "show");
+    assert.ok(args.includes("--api-version"));
+    return resources.find((r) => r.id === args[args.indexOf("--ids") + 1]);
+  };
+  return { root, foundation, stamp, rows, resources, read };
+}
+
+test("bootstrap ARM output Read replay preserves exact resources and all 17 operations", async () => {
+  const { readBootstrapState } = await controls();
+  const f = await bootstrapOutputReadFixture();
+  const result = readBootstrapState(f.read, f.root);
+  assert.deepEqual(result.resources, f.resources);
+  assert.deepEqual(result.operations, [f.root, f.foundation, f.stamp].map((deploymentName) => ({ deploymentName, operations: f.rows[deploymentName] })));
+  assert.equal(result.operations.flatMap((r) => r.operations).length, 17);
+  assert.equal(result.securityHandoffVerified, false);
+});
+
+test("bootstrap ARM output Reads never supply missing Create provenance", async () => {
+  const { readBootstrapState } = await controls();
+  for (const name of ["api", "migration", "registries"]) {
+    const f = await bootstrapOutputReadFixture();
+    f.rows[f.stamp] = f.rows[f.stamp].filter(({ properties: p }) =>
+      !(p.provisioningOperation === "Create" && (name === "registries" ? p.targetResource.resourceType.endsWith("/registries") : p.targetResource.id.endsWith(`-${name}`))));
+    assert.throws(() => readBootstrapState(f.read, f.root), /do not establish all seven/);
+  }
+});
+
+test("bootstrap ARM output Reads fail closed on missing, foreign, unrelated or unsuccessful targets", async () => {
+  const { readBootstrapState } = await controls();
+  for (const mutate of [
+    (p) => { p.provisioningOperation = "Unknown"; },
+    (p) => { p.targetResource = null; },
+    (p) => { delete p.targetResource.id; },
+    (p) => { delete p.targetResource.resourceType; },
+    (p) => { p.targetResource.id = p.targetResource.id.replace(subscriptionId, "foreign"); },
+    (p) => { p.targetResource.resourceType = "Microsoft.Storage/storageAccounts"; },
+    (p) => { p.targetResource.id += "-extra"; },
+    ...["Failed", "Running", "Canceled", undefined].map((state) => (p) => { p.provisioningState = state; }),
+  ]) {
+    const f = await bootstrapOutputReadFixture();
+    mutate(f.rows[f.stamp].find((r) => r.properties.provisioningOperation === "Read").properties);
+    assert.throws(() => readBootstrapState(f.read, f.root));
+  }
+  // Even other bootstrap resources (web/Storage), or a valid target at the
+  // wrong module scope, are not output Reads in the authoritative template.
+  for (const suffix of ["-web", "/stakeyfortacdevmxv24i2qh"]) {
+    const f = await bootstrapOutputReadFixture();
+    const resource = f.resources.find((r) => r.id.endsWith(suffix));
+    const p = f.rows[f.stamp].find((r) => r.properties.provisioningOperation === "Read").properties;
+    p.targetResource = { id: resource.id, resourceType: resource.type };
+    assert.throws(() => readBootstrapState(f.read, f.root), /Read target/);
+  }
+  for (const name of ["root", "foundation"]) {
+    const f = await bootstrapOutputReadFixture();
+    f.rows[f[name]].find((r) => r.properties.provisioningOperation === "Read").properties.targetResource =
+      f.rows[f.stamp].find((r) => r.properties.provisioningOperation === "Read").properties.targetResource;
+    assert.throws(() => readBootstrapState(f.read, f.root), /Read target/);
+  }
+  for (const kind of ["Create", "EvaluateDeploymentOutput"]) {
+    const f = await bootstrapOutputReadFixture();
+    const extra = structuredClone(f.rows[f.stamp][0]);
+    extra.properties.provisioningOperation = kind;
+    extra.properties.targetResource.id += "-extraneous";
+    f.rows[f.stamp].push(extra);
+    assert.throws(() => readBootstrapState(f.read, f.root), /target/i);
+  }
+  const f = await bootstrapOutputReadFixture();
+  assert.throws(() => readBootstrapState((args) => {
+    if (args[0] === "deployment" && args.includes(f.stamp)) throw new Error("403 operation visibility");
+    return f.read(args);
+  }, f.root), /403 operation visibility/);
+});
+
 test("bootstrap actual reads reject foreign tenant, wrong destination, duplicated principals, failed provisioning and security drift", async () => {
   const { readBootstrapState } = await controls();
   const { bootstrapInventory } = await import("../../scripts/infra/company-development.mjs");
