@@ -4,22 +4,25 @@ This report records decisions without changing requirements.
 
 ## Proposed single-owner company-development operating model
 
-**Status: proposal only; not an approved replacement for enforced controls.**
+**Status: historical proposal; independent-review requirements superseded by the
+approved 2026-10-25 (America/Chicago) decision, recorded as 2026-10-26 UTC in ADR-016.**
 
 In the owner-directed session on 2026-10-25 (America/Chicago), cmbuyamba
 stated that the company has one operator and requested removal of mandatory
 second-person environment and PR approvals. The user subsequently requested
-help documenting a replacement operating model. This records the request and
-its unresolved boundaries; it does not supersede
-[ADR-016](../adr/ADR-016-company-development-private-foundation.md),
-[AGENTS.md](../../AGENTS.md), or GitHub protections.
+help documenting a replacement operating model. The subsequent
+[approved removal decision in ADR-016](../adr/ADR-016-company-development-private-foundation.md#subsequent-user-approved-removal-of-independent-review--2026-10-26-utc)
+is authoritative for company-development environment controls;
+[AGENTS.md](../../AGENTS.md#specialist-review-policy) owns the specialist-review
+policy. This report does not change GitHub settings or waive other configured
+external GitHub controls.
 
 **Outcome sought:** the sole owner can prepare, inspect and explicitly authorize
 company-development work without depending on an unavailable second operator.
 Ownership, technical review and execution authorization must be described
 accurately; owner confirmation is not independent review.
 
-Candidate acceptance boundary for policy review:
+Retained-control boundary (details and implementation limits remain in ADR-016):
 
 1. The single-owner scope is limited to company DEVELOPMENT. Production,
    customer-data use, payments and unrelated environments are excluded.
@@ -38,21 +41,35 @@ Candidate acceptance boundary for policy review:
 6. Settings/code mismatches and changed protection snapshots remain failures,
    not grounds to reuse old approvals or silently fall back to weaker checks.
 
-**Decisions still required:** whether the owner accepts this retained-control
-boundary; separate preview/apply authorization mechanics; exact company-only
-PR scope versus repository-wide branch protection; and policy approval,
-migration and rollback ownership. The earlier request to remove all controls
-does not resolve these questions. No replacement has been implemented or
-approved by this entry. Existing enforced requirements remain authoritative.
+**Historical pending decisions (superseded):** policy approval and the
+independent-review replacement boundary were unresolved when this proposal was
+written. The subsequent ADR-016 decision approves their removal and records the
+local implementation; it does not accept the full ADR or authorize execution.
+Mandatory independent reviewers, prevent-self-review and human actor separation
+are no longer prerequisites for the company-development routes. Retained:
+separate explicit owner preview/apply authorization, protected branches and actual environment ID/rule snapshots,
+manual live UI no-admin-bypass checks, and exact SHA/run/attempt/plan binding.
+Optional reviewer rules, when present, remain part of the actual snapshot;
+missing metadata or changed protection snapshots still stop execution.
+Preview/apply principal separation remains least privilege, not human reviewer
+separation. Repository-wide controls are not waived by this company-only decision.
 
-**Observed mismatch:** after the owner removed company environment reviewer
-rules, preview run
+**Historical observed mismatch (superseded):** after the owner removed company
+environment reviewer rules, preview run
 [40255897071](https://github.com/keyforta/keyforta-property/actions/runs/40255897071)
-failed with no plan steps executed. Current code requires reviewer protections,
-so changing GitHub settings alone does not implement a replacement model.
-Reconcile policy, tests, documentation and actual settings before claiming
-readiness. This proposal authorizes no workflow dispatch, settings/RBAC changes,
-uploads, deployment, commit, merge or activation.
+failed with no plan steps executed because the code then required reviewer
+protections. ADR-016 now records local implementation accepting an empty actual
+rule inventory while retaining the safeguards above. This is not proof of live
+settings, a successful preview or readiness. ADR-016 remains Proposed; capacity,
+offer, network/security, actual grants/permission sufficiency and activation
+blockers remain. This entry authorizes no workflow dispatch, settings/RBAC
+changes, uploads, deployment, commit, merge or activation.
+
+**Owners:** cmbuyamba owns Azure technical/risk decisions and explicit owner
+authorization; repository maintainers own GitHub-control implementation and
+guidance. **Review triggers:** changes to reviewer policy, protection snapshots,
+stage, SHA/run/attempt/plan, permissions or security evidence require checking
+this summary against the authoritative decisions linked above.
 
 ## Proposed staged company-foundation contract
 
@@ -76,10 +93,10 @@ activation or workflow dispatch is authorized by this entry.
 
 | Gap | Evidence | Potential technical impact | Decision owner | Status |
 | --- | --- | --- | --- | --- |
-| Company bootstrap security exception and authority handoff | Specific owner approval linked above covers empty unused Storage before Defender and human removal of bootstrap write rights before grants/security handoff. Current-caller actual permission reads cover bootstrap resources, readable security scopes and RG stage allowlists; original bootstrap apply client is bound. | Bootstrap is never foundation-ready; inherited/equivalent/PIM authority must be removed by the owner and genuinely reviewed in the existing native human gate. Machine checks do not prove unseen transitive authority. | cmbuyamba (Product Owner / sole Azure technical owner) | Decisions APPROVED for local implementation; readable revocation checks and protected handoff implemented; live owner proof and native independent controls remain external prerequisites |
+| Company bootstrap security exception and authority handoff | Specific owner approval linked above covers empty unused Storage before Defender and human removal of bootstrap write rights before grants/security handoff. Current-caller actual permission reads cover bootstrap resources, readable security scopes and RG stage allowlists; original bootstrap apply client is bound. | Bootstrap is never foundation-ready; inherited/equivalent/PIM authority must be removed by the owner and genuinely verified through the retained human procedure, not an independent-review gate. Machine checks do not prove unseen transitive authority. | cmbuyamba (Product Owner / sole Azure technical owner) | Decisions APPROVED for local implementation; readable revocation checks and protected handoff implemented; live owner proof, explicit human authorization and retained protection/no-bypass checks remain external prerequisites under the ADR-016 decision above |
 | Exact human grants and Defender functional evidence | Actual-ID manual command preparation, ARM UUIDv5/full-role-ID tuples, exact-match idempotency, current direct/inherited grant reads, scanner identity/Storage Data Owner and settings/no-exclusion/100 GB/index checks implemented. Official schemas lack hidden topology/success fields; the specific owner resolution above replaces that unobservable requirement with bounded owner-confirmed harmless functional evidence. | Missing/failed/stale/wrong blob/UTC/configuration correlation, unknown roles, changed principal or missing readable visibility stops. Four grants are not the complete service access inventory. Tags are mutable; no tag-only data-admission proof or workflow Blob access. | cmbuyamba / existing Platform-Security operator responsibilities; no second technical reviewer | Concrete semantic question RESOLVED for code contract by comment 6403538260; internal topology remains UNVERIFIED. No actual synthetic test execution authorized or performed. Owner identity/observation/equivalent rights are checked natively by humans, never authenticated by self-authored JSON |
 | Narrow custom-VNet ACA caller authority | ADR-016 records minimum effective continuation permissions as unproven. | No generic Owner/Contributor, subscription RG/Network writer or paid-component workaround; stop without concrete proof. | Platform/Network with Security | Open; capability boundaries are not verified executable role definitions |
-| Staged evidence and native company gates | Historical full-plan artifact remains unusable. V2 seven-file plans and execution checkpoints bind stage/mode, complete source dependencies, actual GitHub predecessor run/attempt/artifact identity, baseline/expected inventory, functional/security references and hashes. Both protected CLIs have a positive synthetic continuation and no-PUT replay. | Fresh exact canonical deltas and frozen terminal ARM inspection required for recovery; unknown/running/timeout needs inspection, never automatic retry. Native reviewer separation/live bypass-off/exact SHA/run/attempt/environment snapshot remain required. | Repository maintainers and configured independent human reviewers | Local staged implementation complete for approved observable contract; actual controls/offer/capacity/ACA minimum permissions remain external readiness blockers. Older general GitHub-protection limitation below is historical, not proof for company environments |
+| Staged evidence and native company gates | Historical full-plan artifact remains unusable. V2 seven-file plans and execution checkpoints bind stage/mode, complete source dependencies, actual GitHub predecessor run/attempt/artifact identity, baseline/expected inventory, functional/security references and hashes. Both protected CLIs have a positive synthetic continuation and no-PUT replay. | Fresh exact canonical deltas and frozen terminal ARM inspection required for recovery; unknown/running/timeout needs inspection, never automatic retry. Mandatory independent reviewer/self-review/actor separation is removed by the ADR-016 decision above; explicit owner preview/apply authorization, live UI bypass-off checks, protected branches and exact SHA/run/attempt/plan/environment snapshot binding remain required. | Repository maintainers and authorized human owner/operator | Local staged implementation complete for approved observable contract; actual retained controls/offer/capacity/ACA minimum permissions remain external readiness blockers. Older general GitHub-protection limitation below is historical, not proof for company environments |
 
 | Gap                                  | Evidence                                                                                                                                                                      | Potential technical impact                                                                              | Decision owner                           | Status                                               |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------- |
