@@ -4,6 +4,8 @@ import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { TextDecoder } from "node:util";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { destination, bootstrapInventory, assertNoSecretPayload, currentSourcePaths } from "./company-development-completion-validation.mjs";
 export { destination, bootstrapInventory, assertNoSecretPayload } from "./company-development-completion-validation.mjs";
 const environmentName = "company-dev";
@@ -11,6 +13,68 @@ const repository = "keyforta/keyforta-property";
 const cidrNames = ["vnetCidr", "acaSubnetCidr", "postgresSubnetCidr"];
 const approvalNames = [...cidrNames, "networkApproval"];
 const stageInputNames = ["stage", "mode", "evidenceVersion"];
+const contextTransportKind = "companydev-stage-context-transport";
+const contextTransportKeys = ["version", "kind", "encoding", "uncompressedBytes", "sha256", "payload"];
+const contextMaxBytes = 1024 * 1024;
+const contextEncodedMaxBytes = 60 * 1024; // Reserve native dispatch space for fixed inputs/JSON headers.
+const contextDigest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const hasTransportFields = (value) => contextTransportKeys.some((key) => Object.hasOwn(value, key));
+function contextObject(text) {
+  let value;
+  try { value = JSON.parse(text); } catch { throw new Error("Stage context requires valid object JSON"); }
+  assert.ok(value !== null && typeof value === "object" && !Array.isArray(value), "Stage context requires object JSON");
+  return value;
+}
+function contextBytes(text) {
+  assert.ok(typeof text === "string" && Buffer.byteLength(text) <= contextMaxBytes, "Stage context exceeds UTF8 size limit");
+  const bytes = Buffer.from(text, "utf8");
+  assert.ok(bytes.toString("utf8") === text, "Stage context requires lossless UTF8");
+  return bytes;
+}
+// Transport only: no omission, authentication, authorization, semantic waiver,
+// network/file loading or native-header substitution. Legacy object JSON stays raw.
+export function decodeStageContext(text) {
+  if (text === undefined || text === "") return undefined;
+  contextBytes(text);
+  const envelope = contextObject(text);
+  if (!hasTransportFields(envelope)) return envelope;
+  assert.ok(Buffer.byteLength(text) <= contextEncodedMaxBytes, "Encoded stage context exceeds size limit");
+  assert.ok(Object.keys(envelope).sort().join(",") === [...contextTransportKeys].sort().join(","), "Unknown/missing stage-context transport fields");
+  // Compact envelope JSON avoids duplicate keys/escaped aliases; outer JSON
+  // whitespace is harmless. Raw legacy JSON formatting is not restricted.
+  assert.ok(JSON.stringify(envelope) === text.trim(), "Noncanonical or ambiguous stage-context transport JSON");
+  assert.ok(envelope.version === 1 && envelope.kind === contextTransportKind && envelope.encoding === "gzip+base64",
+    "Unknown stage-context transport version/kind/encoding");
+  assert.ok(Number.isSafeInteger(envelope.uncompressedBytes) && envelope.uncompressedBytes > 0
+    && envelope.uncompressedBytes <= contextMaxBytes, "Invalid stage-context uncompressed size limit");
+  assert.ok(typeof envelope.sha256 === "string" && /^[a-f0-9]{64}$/.test(envelope.sha256), "Invalid stage-context SHA256");
+  assert.ok(typeof envelope.payload === "string" && envelope.payload.length > 0
+    && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(envelope.payload),
+  "Invalid canonical stage-context base64");
+  const compressed = Buffer.from(envelope.payload, "base64");
+  assert.ok(compressed.toString("base64") === envelope.payload, "Noncanonical stage-context base64");
+  let inflated;
+  try { inflated = gunzipSync(compressed, { maxOutputLength: contextMaxBytes, info: true }); }
+  catch { throw new Error("Invalid or oversized bounded gzip stage context"); }
+  assert.ok(inflated.engine.bytesWritten === compressed.length, "Trailing stage-context gzip data");
+  const bytes = inflated.buffer;
+  assert.ok(bytes.length === envelope.uncompressedBytes, "Stage-context uncompressed byte count mismatch");
+  assert.ok(contextDigest(bytes) === envelope.sha256, "Stage-context SHA256 integrity mismatch");
+  let raw;
+  try { raw = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); }
+  catch { throw new Error("Stage context requires valid UTF8"); }
+  const value = contextObject(raw);
+  assert.ok(!hasTransportFields(value), "Nested/ambiguous stage-context transport forbidden");
+  return value;
+}
+export function packStageContext(text) {
+  const bytes = contextBytes(text), value = contextObject(text);
+  assert.ok(!hasTransportFields(value), "Nested stage-context transport forbidden");
+  const packed = JSON.stringify({ version: 1, kind: contextTransportKind, encoding: "gzip+base64",
+    uncompressedBytes: bytes.length, sha256: contextDigest(bytes), payload: gzipSync(bytes, { level: 9 }).toString("base64") });
+  assert.ok(Buffer.byteLength(packed) <= contextEncodedMaxBytes, "Encoded stage context exceeds size limit; no truncation permitted");
+  return packed;
+}
 export const sourcePaths = Object.freeze([
   "infra/bicep/company-development.bicep",
   "infra/bicep/modules/company-development-resources.bicep",
@@ -391,7 +455,7 @@ function readInputs() {
     stage: process.env.FOUNDATION_STAGE,
     mode: process.env.FOUNDATION_MODE,
     evidenceVersion: Number(process.env.EVIDENCE_VERSION),
-    stageContext: process.env.STAGE_CONTEXT ? JSON.parse(process.env.STAGE_CONTEXT) : undefined,
+    stageContext: decodeStageContext(process.env.STAGE_CONTEXT),
     vnetCidr: process.env.VNET_CIDR,
     acaSubnetCidr: process.env.ACA_SUBNET_CIDR,
     postgresSubnetCidr: process.env.POSTGRES_SUBNET_CIDR,
@@ -416,7 +480,7 @@ export function guard({ expectedEnvironment = environmentName, enabled = process
   };
   assertImplementedStage(stage);
   const reviewedInventory = inventory ?? stageInventory({ ...stage,
-    stageContext: process.env.STAGE_CONTEXT ? JSON.parse(process.env.STAGE_CONTEXT) : undefined });
+    stageContext: decodeStageContext(process.env.STAGE_CONTEXT) });
   const context = {
     repository, ...currentRun(), ...stage, inventorySha256: hashJson(reviewedInventory),
     environment: snapshot, environmentSha256: hashJson(snapshot),
@@ -589,7 +653,20 @@ async function main() {
       case "guard": guard(); break;
       case "prepare": await prepare(); break;
       case "preview": await preview(); break;
-      default: throw new Error("Supported operations: guard, prepare, preview (no deploy operation)");
+      case "pack-stage-context": {
+        assert.notEqual(process.env.GITHUB_ACTIONS, "true", "Stage-context packing is local operator only");
+        const args = process.argv.slice(3);
+        assert.ok(args.length === 4 && args[0] === "--input" && args[2] === "--output", "Required: --input FILE --output FILE");
+        const stat = lstatSync(args[1]);
+        assert.ok(stat.isFile() && !stat.isSymbolicLink() && stat.size <= contextMaxBytes, "Invalid stage-context input file/size");
+        let text;
+        try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync(args[1])); }
+        catch { throw new Error("Stage context requires valid UTF8"); }
+        writeFileSync(args[3], packStageContext(text), { mode: 0o600, flag: "wx" });
+        console.log("Stage context packed privately; compression is NOT encryption, authentication or execution consent. No external operations.");
+        break;
+      }
+      default: throw new Error("Supported operations: guard, prepare, preview, pack-stage-context (no deploy operation)");
     }
   } catch (error) {
     console.error(error.message);

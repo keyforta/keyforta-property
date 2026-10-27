@@ -6,10 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import {
   armParameters, assertAzureContext, assertReviewContext, currentRun, destination,
   foundationSource, guard, normalizedPreview, preserveWhatIfDiagnostics, validateInputs, workflowContext, loadStagePredecessor,
-  assertBootstrapPreview, assertImplementedStage, assertNoSecretPayload, bootstrapInventory, sourcePaths, stageInventory, validatePreview,
+  assertBootstrapPreview, assertImplementedStage, assertNoSecretPayload, bootstrapInventory, sourcePaths, stageInventory, validatePreview, decodeStageContext,
 } from "./company-development.mjs";
 import { manifestPaths, assertCompletionBasis } from "./company-development-completion-validation.mjs";
 import { readArchive } from "./company-development-completion.mjs";
@@ -633,6 +634,8 @@ function loadOrderedPlan(expected) {
   assert.equal(hash(archive), expected.archiveSha256, "Ordered archive byte digest mismatch");
   const files = readArchive(archive, fileNames); // same bytes, bounded extraction
   const authenticated = assertOrderedPlan(files, run, artifact, listing, jobs, expected, foundationSource().sha256);
+  assert.ok(isDeepStrictEqual(authenticated.plan.inputs.stageContext, decodeStageContext(process.env.STAGE_CONTEXT)),
+    "Ordered decoded stage context differs from dispatch");
   assertReviewContext(authenticated.plan.evidence.reviewContext, github("environments/company-dev"), currentRun());
   return authenticated;
 }

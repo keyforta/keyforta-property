@@ -1462,8 +1462,50 @@ Any code revert, authority/settings change or future deployment needs separate
 human review/approval. No deletion, recreation, retry or original-template PUT
 is a rollback action.
 
-The preview's optional `stage_context` input is JSON; **omit it only for initial
-bootstrap**. It is review context, never an approval assertion. Its fields are:
+#### Packing stage context for native dispatch
+
+For a large complete stage-context JSON object, pack it locally:
+
+```sh
+node scripts/infra/company-development.mjs pack-stage-context \
+  --input /private/context.json \
+  --output /private/context.packed.json
+```
+
+Input must be a regular, nonsymlink UTF-8 file containing the complete original
+object, not dispatch inputs or an already packed envelope. Output is exclusively
+created with mode `0600`; an existing output is never overwritten. The original
+input is untouched. Packing is local-only (rejects `GITHUB_ACTIONS=true`) and
+requires no network, GitHub authentication or Azure login.
+
+Use the **complete packed file text** as the existing `stage_context` input in
+the normal protected native workflow. Keep both files local/private and unlogged;
+do not echo the payload or place actual evidence in shell arguments. The CLI
+prints only a safety message. Packing does not upload, dispatch, grant authority
+or start the temporary-access clock.
+
+The bounded envelope has exactly `version:1`,
+`kind:"companydev-stage-context-transport"`, `encoding:"gzip+base64"`,
+`uncompressedBytes`, `sha256` and `payload`. It losslessly preserves original
+UTF-8 bytes; the count and lowercase SHA256 bind those uncompressed bytes.
+Limits are **60 KiB (61,440 UTF-8 bytes) for the encoded envelope** and
+**1 MiB (1,048,576 bytes) decoded**. The entire dispatch body, including other
+inputs and escaping, must still fit GitHub's 65,535-character limit; do not omit
+evidence to fit. Malformed, mismatched, oversized or nested envelopes fail closed.
+
+Compression is **not encryption, authentication or authorization**. Preview and
+apply decode the original object before unchanged semantic authorization/source
+guards; apply also requires equality with the authenticated ordered plan's
+decoded context. Integrity hashes are not consent or observation proof.
+Legacy raw JSON remains supported within the 1 MiB bound. Transport version 1
+changes no evidence/functional/authority version, source profile or workflow.
+**Owner:** infrastructure maintainers. **Review triggers:** codec/limit/input
+changes or native dispatch constraints; preserve all semantic guards.
+
+The preview's optional `stage_context` input is raw JSON or the
+[packed transport above](#packing-stage-context-for-native-dispatch);
+**omit it only for initial bootstrap**. Its decoded object is review context,
+never an approval assertion. Its fields are:
 
 - `predecessor`: exact `runId`, `runAttempt`, immutable `artifactId`, `stage`,
   `mode`, `sha` and raw `checkpointSha256` from a v2 **apply** artifact. Helpers
