@@ -745,6 +745,8 @@ async function apply() {
   const stateEngine = await import("./company-development-state.mjs");
   const predecessor = verified.plan.inputs.stageContext
     ? await loadStagePredecessor(verified.plan.inputs.stageContext, verified.plan.inputs.stage) : null;
+  const continuation = stateEngine.continuationSelection(verified.plan);
+  const boundedLifetime = () => stateEngine.assertContinuationLifetime(continuation);
   // Bind before any execution evidence/checkpoint can be written. Replays must
   // not launder the bootstrap writer into a replacement caller's checkpoint.
   if (predecessor) stateEngine.assertOriginalApplyCaller(azure, predecessor);
@@ -792,6 +794,7 @@ async function apply() {
     checkpoint(false, verified.plan.inventory.baseline);
     // The only write: reviewed ARM template/parameters inline. Never grants,
     // Defender/scanner writes, Blob/data operations, cleanup or automatic retry.
+    boundedLifetime(); // real clock immediately before PUT, after slow quality/API checks
     command("az", ["rest", "--method", "put", "--url", request.url, "--body", JSON.stringify(request.body), "--subscription", destination.subscriptionId, "--output", "none", "--only-show-errors"]);
   };
   if (verified.plan.inputs.stageContext) {
@@ -813,6 +816,7 @@ async function apply() {
     submit();
   }
   for (let attempt = 0; attempt < 180; attempt++) {
+    boundedLifetime(); // unconditional management grants do NOT expire by themselves
     const deployment = azure(["deployment", "group", "show", "--resource-group", destination.resourceGroup, "--name", name]);
     const state = deployment.properties?.provisioningState;
     writeJson("company-dev-apply/result.json", { state, deploymentId: deployment.id, outputs: deployment.properties?.outputs, executionRun: currentRun(), reviewed: verified.expected });
@@ -828,12 +832,16 @@ async function apply() {
       stateEngine.assertCompletedResources(resources, verified.plan.inputs.stage);
       assert.equal(stateEngine.inspectDeployment(azure, name)?.status, "Succeeded", "Actual terminal stage operation verification missing");
       if (verified.plan.inputs.stage === "continuation") {
+        boundedLifetime();
         const security = stateEngine.readSecurity(azure, verified.plan.inputs.stageContext.security, { resources });
-        stateEngine.validateFunctionalTest(verified.plan.inputs.stageContext.security.functionalTest, security);
-        stateEngine.assertWriterRevoked(azure, predecessor, "apply", verified.plan.inputs.stageContext.security);
+        stateEngine.validateFunctionalTest(verified.plan.inputs.stageContext.security.functionalTest, security, Date.now(), continuation);
+        stateEngine.assertWriterRevoked(azure, predecessor, "apply", verified.plan.inputs.stageContext.security, continuation);
+        stateEngine.readStagePermissionReadiness(azure, "continuation", "apply", false, continuation);
       }
+      boundedLifetime(); // includes post-ARM verification, not just submission
       checkpoint(true, resources);
       console.log("Stage ARM completion verified. No apps/customer data/data-admission authority. Human/native controls remain mandatory; internal topology UNVERIFIED.");
+      if (continuation) console.log("BOUNDED_BASELINE only; ACA minimum remains EXTERNAL_REQUIRED. Attempt (including verification/checkpoint) ended: human operator must IMMEDIATELY remove the six temporary assignments and verify absence before absolute deadline. This helper has not cleaned up. Cleanup failure means overall operation UNVERIFIED; completed checkpoint is historical, not replay-ready after grant/hash drift. No automatic rollback or writer regrant.");
       return;
     }
     assert.ok(!["Failed", "Canceled"].includes(state), `Foundation ${state}; retain evidence, stop; no automatic rollback/deletion`);
@@ -862,6 +870,7 @@ async function main() {
     }
   } catch (error) {
     console.error(error.message);
+    if (process.argv[2] === "apply") console.error("If bounded temporary access was granted, this failure ends the attempt: human operator must immediately remove exactly the six C assignments and verify absence within the original deadline. Helpers do not clean up; overall operation remains UNVERIFIED until actual cleanup evidence. No retry, renewal, resource rollback or writer regrant.");
     process.exitCode = 1;
   }
 }

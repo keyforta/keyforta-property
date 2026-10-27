@@ -23,6 +23,282 @@ resource-group-scoped foundation deployment runs.
 
 ## Company DEVELOPMENT preparation — isolated preview and plan-bound apply
 
+### Approved three-change company-dev runbook — 2026-10-27
+
+The [dated ADR decision](../docs/adr/ADR-016-company-development-private-foundation.md#approved-three-change-access-decision--2026-10-27)
+owns approval, narrow supersession, consequences, owners and review triggers.
+This is the operational contract aligned to the completed code/test handoff,
+not a claim that runtime input bytes were reviewed or services are active.
+Preserve historical text below, subject only to that decision. No new runtime
+module, CLI flag, outer schema version, source profile or workflow is introduced;
+existing closed source profiles **5/6** already include this README and ADR.
+Record shapes below specify implemented fields, not prefilled runtime evidence.
+
+**Fixed target:** tenant `8019a048-e7d6-48e8-984a-b902f641a21b`, subscription
+`891e5e6e-8ae3-4455-9184-8d7606223d91`, RG `rg-keyforta-companydev-san`.
+Below, S is that subscription resource ID, G that RG resource ID, and D is
+`S/providers/Microsoft.Security/datascanners/StorageDataScanner`.
+Keep approved VNet `10.84.0.0/24`, ACA `10.84.0.0/26` and PostgreSQL
+`10.84.0.64/28` unchanged. This is foundation continuation, not apps/jobs,
+migrations, tenant-data access or full-stack activation.
+
+#### A — exact scanner profile, no replacement grant
+
+Select `stageContext.security.scannerAccessProfile` exactly as
+`{version:1, mode:"defender-storage-malware-data-scanner"}` for actual `BuiltInRole`
+`cd50fd1f-0421-46f2-8cce-afc587dbcc77`. Require exact live observed sets
+(order-independent comparison, no additional permissions or exclusions):
+
+```text
+Actions:
+ Microsoft.Storage/storageAccounts/blobServices/containers/read
+ Microsoft.Storage/storageAccounts/fileServices/shares/read
+DataActions:
+ Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read
+ Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/write
+ Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/read
+ Microsoft.Storage/storageAccounts/fileServices/fileshares/files/read
+ Microsoft.Storage/storageAccounts/fileServices/readFileBackupSemantics/action
+ Microsoft.EventGrid/events/send/action
+NotActions: []
+NotDataActions: []
+```
+
+Explicit legacy selection is `{version:1, mode:"legacy-storage-blob-data-owner"}`;
+omitting the profile retains legacy Owner behavior.
+`1e7ca9b1-60d1-4db8-a914-f2ca1ff27c40` is a different role, not interchangeable.
+No manual Owner grant or unexplained extra scanner grant. Correlate actual
+Storage, scanner resource/principal/tenant, exact storage-scoped assignment,
+Defender settings, network `resourceAccessRules` and actual Event Grid system
+topic Storage source. Compare only known identity spellings `SystemAssigned` /
+`systemassigned` equivalently; preserve raw response bytes. Retain the already
+accepted BlobIndexTags spellings, full enabled/on-upload/100 GB/no-exclusion
+checks and actual healthy readable state. This proves scan/tag capability,
+not Owner equivalence, service execution or hidden topology. Genuine correlated
+`No threats found` remains required; mutable tags are not sole admission proof,
+and internal topology remains **UNVERIFIED**.
+
+#### C — qualified continuation authority and exact tuples
+
+Require `stageContext.continuationAuthority` with these exact fields:
+
+```js
+{
+  version: 1, mode: "companydev-continuation-bounded-baseline",
+  destination, originalIdentity,
+  approval: {authorizer, approvedAt, reference},
+  source: {commitSha, sourceSha256},
+  attempt: {mode: "single-initial-attempt", completionBasis},
+  firstGrantAt, deadline,
+  removalOwner: {principalId, fallbackAvailable, reference},
+  providerAssumption, definitions, assignments,
+  collection: {
+    kind: "operator-collected", principalId, tenantId, subscriptionId,
+    reference, commandsSha256, collectedAt,
+    inventories: [{
+      scope, complete: true, nextLink: null,
+      includeInherited: true, includeDescendants, assignments
+    }]
+  }
+}
+```
+
+`completionBasis` equals the entire authenticated `stageContext.predecessor`
+reference, including run/artifact binding. Actual runtime run ID must be positive
+and attempt `"1"`; do not predict a future run ID. `approval.approvedAt` is
+`2026-10-27T00:09:09.558Z`; its actual session reference is
+`session:673fdb9d-901b-4774-87a7-55f375793b45/2026-10-27T00:09:09.558Z`,
+not a fabricated GitHub/native approval.
+`providerAssumption` is exactly
+`Microsoft.App manages ME_keyforta_cdev_mxv24i2qhtib6; first additional authority requirement stops the attempt`.
+`definitions` contains four actual ARM GET objects with raw metadata;
+`assignments` contains six actual flattened CLI objects with
+`id,name,scope,roleDefinitionId,principalId,principalType,createdOn` and metadata.
+Collect complete inventories at S, G and D, all including inherited rows,
+G additionally including descendants. Applicable tuples must appear consistently
+in every relevant inventory. Preserve native UTC timestamps unmodified.
+Fallback availability must be genuinely established, not copied from fixtures.
+
+Preserve original apply SP
+`e10f9e0f-274f-4643-8a8f-ad8f41b09c64` / client
+`63b65efc-7e8d-4d82-b13a-53b875df54f1`; preview SP
+`be3a876f-b205-42c7-bd95-4d33bd49a4ff` remains metadata-only.
+All six assignments are `ServicePrincipal`, unconditioned, with full
+`S/providers/Microsoft.Authorization/roleDefinitions/<role-ID>` bindings:
+
+| Custom role ID | Exact Actions contract | Scope / principal / assignment ID |
+| --- | --- | --- |
+| `bf872e6a-3956-5e63-a78e-32f6eac66cd8` | Continuation management baseline | G / apply / `b5ac29f1-10dc-5c07-b211-25a1f2c5578e` |
+| `1da8e8e3-8b63-50b6-bd68-dae38dfab689` | `Microsoft.Authorization/permissions/read`, `Microsoft.EventGrid/systemTopics/read` | G / preview / `53f4cca3-2794-5964-a63c-75bfde969056` |
+| `c4f33b99-089a-5317-b4a7-941a276a5935` | `Microsoft.Authorization/roleDefinitions/read` | S / apply / `3bbb1331-93ab-5b29-8f95-ac5778e492a0`; S / preview / `ade85cfb-1c37-5851-8856-e6079eca176a` |
+| `f8eeb9a7-a177-5a0d-b6b0-dbb01620e323` | `Microsoft.Security/datascanners/read`, `Microsoft.Authorization/permissions/read` | D / apply / `bf5bb09c-999b-5ab8-ba02-e8f15464c9e4`; D / preview / `f99db001-99ec-548d-a682-3d3b8a4590b2` |
+
+The continuation role has exactly 42 Actions; across all four definitions the
+closed union is **44 distinct management Actions**:
+the existing nine foundation writes, deployment write/what-if/validate and reads,
+workspace shared-key dependency and exact inventory/security/permission reads,
+plus only these four dependency-selected joins:
+
+```text
+Microsoft.Network/networkSecurityGroups/join/action
+Microsoft.Network/virtualNetworks/join/action
+Microsoft.Network/privateDnsZones/join/action
+Microsoft.Network/virtualNetworks/subnets/join/action
+```
+
+Use the exact definition allowlists delivered with the reviewed implementation,
+not this summary as a role generator. All exclusions and DataActions are empty;
+no wildcards, role-management, new identity, Graph or audit rights. Current
+effective-permission and actual role-definition checks remain blocking. Both
+stage-readiness and original-writer guards require these exact joins only for
+apply continuation with validated authority mode and fixed original client,
+using live effective permissions; bootstrap, preview and no selection reject them.
+Keep `acaMinimumPermissionProof` **EXTERNAL_REQUIRED**, with separate bounded
+baseline qualification `BOUNDED_BASELINE`, not PROVEN or an unknown-permissions bypass.
+At D, workflow assignment GET visibility is not assumed: retain authorized
+operator-observed exact tuple proof plus actual workflow definition/current
+effective-permission reads. Do not claim independent workflow live D-tuple
+proof or add read authority to obtain it.
+
+`ME_keyforta_cdev_mxv24i2qhtib6` is RP-only managed inventory scope: no caller
+grant, precreation, adoption, repair or deletion. G grants are type-scoped,
+not exact-resource-name RBAC filters. The workspace shared-key action is
+secret-bearing; never independently retrieve/log a key. Stop on the first
+additional 403/action/scope requirement, drift, destructive prediction or
+uncertain outcome; preserve evidence, no extra grant or retry.
+
+#### Common lifetime and B — one root object only
+
+Before any temporary grant, establish an authorized local cleanup operator/
+agent and available human fallback; availability is a runtime precondition,
+not a recorded user confirmation. GET proposed role/assignment IDs first;
+unknown/conflicting bytes stop, never overwrite. Verify exact live definitions,
+tuples, conditions and effective authority. Immutable **T0** is actual first
+ANY new temporary grant, B or C; the common deadline is **T0+60 minutes**.
+Record T0 before the next grant. Implemented `firstGrantAt` is the minimum
+actual six C `createdOn` observations; B must be created later in the S0/S1
+chronology, never used to restart this clock. No extension, renewal or second attempt.
+Workflow helpers perform no RBAC mutations or Blob writes; the authorized local
+operator/agent performs exact mutations and GET absence verification.
+
+B permits only the existing authorized operator, privately bound by actual
+principal, on the existing `tenant-applications` container of
+`stakeyfortacdevmxv24i2qh`. Custom role `bb60fd06-bbaa-56a9-a35c-a6a246597d9e`,
+assignment `16d6d244-a6ae-590d-b73d-d547d49ca16e`: no Actions, only:
+
+```text
+Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write
+Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read
+Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/read
+```
+
+Condition version 2.0 must conjunct **exact root path**
+`synthetic-c06587c9-df56-5258-a9ca-dc29608a4167.txt`
+AND **NOT (read action AND Blob.List suboperation)** AND
+**UtcNow > firstGrantAt** AND **UtcNow < deadline**.
+Derive UTC bounds at real execution, within the common clock; do not reuse an
+expired draft window or the old folder-prefixed path. Private diagnosis/plan
+JSON and checksum manifests are provenance, not approved runtime exact bytes
+or evidence that the human reviewed checksums.
+
+Use Entra only, harmless 1–65536 bytes, conditional create `If-None-Match: *`.
+No listing, delete, tag-write, EICAR, tenant data, keys/SAS or lifecycle change.
+Write authority permits mutation of **that one object** during the window;
+conditional creation is operational protection, not an immutable-object primitive.
+Retain the test blob under existing retention. ABAC blocks data access after
+the bound, but assignment metadata must still be removed and absence verified.
+C management grants have **no automatic expiry**.
+
+#### Implemented transient-access proof fields
+
+Use `stageContext.security.functionalTest.machineEvidence.accessEvidence`:
+
+```js
+{
+  version: 1, mode: "companydev-synthetic-transient-access",
+  source: {commitSha, sourceSha256}, authoritySha256, testId,
+  window: {firstGrantAt, deadline},
+  grant, definition,
+  s0: {snapshot, sha256, observedAt, reference},
+  s1: {snapshot, sha256, observedAt, reference},
+  grantReadbackAt, removedAt,
+  absence: {
+    assignmentId, observedAt, reference, result: "RoleAssignmentNotFound",
+    scope, complete: true, nextLink: null, assignments
+  },
+  upload: {ifNoneMatch:"*", path, contentSha256, contentLength, commandsSha256}
+}
+```
+
+`testId` is `c06587c9-df56-5258-a9ca-dc29608a4167`. `grant` is the actual
+flattened B assignment, including `conditionVersion:"2.0"`, `createdOn` and
+the exact condition; `definition` is its actual ARM custom-role GET.
+`absence.assignments` is the complete final direct container inventory, matching
+final security and excluding both B's role and assignment. Independently
+recompute both snapshot hashes; S0 equals S1 and S1 equals fresh actual security.
+The new functional v2 record hashes S1. Keep this proof outside hashed snapshots.
+Bounded selection requires this proof; an unselected record cannot carry it.
+Legacy v1/v2 records without this mode retain their ordinary checks.
+
+#### Functional evidence, attempt completion and cleanup order
+
+1. Make C exact and stable with B absent; collect **C stable / B absent → fresh passing S0**.
+2. Grant/read back B, then perform the real conditional test and read back its
+   actual content/ETag or version, result tags and scan time under authorized
+   operator context. Attribute actual executor/observer truthfully.
+3. Remove B and GET-verify absence. Collect fresh passing **S1**; require canonical
+   **S0 == S1**. Never hide B presence in a snapshot or retag an older hash.
+4. Produce a **NEW real functional v2** record bound to hash S1 with the actual
+   earlier upload/scan/observation times and existing temporal/correlation bounds.
+   Carry versioned transient-access proof on
+   `functionalTest.machineEvidence.accessEvidence` **outside the hashed security
+   projection**, never self-referentially inside it.
+   Bind exact role/actions/condition, private principal, root path/window,
+   grant/removal readbacks and test correlation. Keep actual source/provenance
+   and native consent references; references/hashes are not human observations.
+   Final `readSecurity` still rejects any leftover B assignment.
+5. After reviewed source and separate actual PR-specific merge/deploy consent,
+   use the existing protected ordered plan/apply route with current native CI,
+   exact SHA, authorization freshness, finance/credit forecast, plan/source/
+   inventory/permission/drift bindings and strict NoChange/destructive stops.
+   No scope reapproval is requested. No new bounded-outcome completion route.
+6. The attempt includes existing post-ARM resource/security/functional verification
+   and a **completed checkpoint BEFORE immediate C cleanup**. Do not remove C
+   at ARM Succeeded and thereby prevent all checkpoints. Immediately after that
+   attempt, remove all six C assignments and verify exact GET absence. Failure,
+   cancellation, fail-stop or the absolute deadline requires cleanup even without
+   a completed checkpoint. At deadline do not cancel/retry/repair the deployment;
+   preserve evidence and observe only under separately available read authority.
+7. Cleanup failure makes the overall handoff **unverified**, even if historical
+   `completed=true`. Revocation-induced hash drift never rewrites the historical
+   checkpoint and is not current replay readiness. Keep inert definitions;
+   no automatic role-definition/resource/data cleanup or bootstrap regrant.
+
+`assertContinuationLifetime` checks after preview, immediately before PUT
+(including after slow quality/API checks), during polling, post-ARM verification
+and before completion. It does not clean up or grant access. The ordinary
+`completed:true` checkpoint remains the completion route; authorized operator
+cleanup follows the attempt, not an automatic workflow cleanup.
+The code-owner handoff reports **11/11 focused regressions and 130/130 company
+tests passing** on synthetic transports, not live Azure observations or full
+`pnpm verify`; documentation alignment did not rerun those tests.
+
+All pre-existing controls and the [bounded current-authority policy](#bounded-current-authority-evidence-mode--2026-10-26)
+remain. Original bootstrap assignment `3fcab962-b128-5c7c-a15a-84b290c06a6f`
+must stay absent. The $120/month before-tax ceiling is unchanged, not a billing
+cap or proof that later apps fit; forecast/credits gates still apply. No licence
+purchase or Owner/Contributor workaround. Stop/retain evidence on cleanup,
+authority or state uncertainty; owners/review triggers are in the dated ADR.
+
+**Prospective company-dev disposability:** the
+[subsequent recovery direction](../docs/adr/ADR-016-company-development-private-foundation.md#prospective-company-dev-disposability--2026-10-27)
+permits considering a separately safe reset after recording a definitive failure
+and checking exact ownership/no real data. It is not an immediate delete,
+automatic reset, hidden replay or implicit bootstrap/security regrant.
+Preserve evidence/checkpoints and excluded environments/shared resources/Entra;
+any actual reset uses a fresh reviewed cycle. Existing first-error stop and
+temporary-access cleanup remain; this package implements no reset feature.
+
 ### Bounded current-authority evidence mode — 2026-10-26
 
 The [dated ADR-016 decision](../docs/adr/ADR-016-company-development-private-foundation.md#bounded-current-authority-evidence-decision--2026-10-26)
