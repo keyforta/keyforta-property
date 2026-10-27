@@ -14,6 +14,7 @@ import {
 } from "./company-development.mjs";
 import { manifestPaths, assertCompletionBasis } from "./company-development-completion-validation.mjs";
 import { readArchive } from "./company-development-completion.mjs";
+import { accessRecoveryCommentId, assertAccessRecoveryAuthorization } from "./company-development-state.mjs";
 
 const repository = "keyforta/keyforta-property";
 const applyEnvironment = "company-dev-apply";
@@ -538,11 +539,51 @@ export function assertOrderedNativeContext(env = process.env) {
   for (const key of ["GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"]) assert.match(env[key] ?? "", /^[1-9]\d*$/, "Ordered native run/attempt required");
   return { sha: env.GITHUB_SHA, runId: env.GITHUB_RUN_ID, runAttempt: env.GITHUB_RUN_ATTEMPT };
 }
+export function authenticateAccessRecovery(context, source, read = github, now = Date.now()) {
+  const authority = context?.continuationAuthority;
+  if (authority?.attempt?.mode !== "reviewed-access-setup-recovery") return null;
+  const id = accessRecoveryCommentId(authority, source);
+  // contents:read; exact-source commit comment only. Never fetch an issue,
+  // accept an operator-provided API response, or mutate the approval record.
+  return assertAccessRecoveryAuthorization(authority, read(`comments/${id}`), source, now);
+}
+export function assertAccessRecoveryNativeRun(authority, run, listing, current) {
+  for (const [key, expected] of Object.entries({ id: Number(current.runId), run_attempt: 1, head_sha: current.sha,
+    head_branch: "main", event: "workflow_dispatch", path: orderedWorkflow, status: "in_progress", conclusion: null })) {
+    assert.equal(run[key], expected, `Recovery native run ${key} mismatch`);
+  }
+  assert.equal(current.runAttempt, "1", "Recovery is not a job rerun");
+  for (const key of ["actor", "triggering_actor"]) {
+    assert.equal(run[key]?.login, "cmbuyamba", "Native human recovery dispatch required");
+    assert.equal(run[key]?.type, "User", "Agent/bot recovery dispatch forbidden");
+  }
+  for (const key of ["repository", "head_repository"]) assert.equal(run[key]?.full_name, repository, "Foreign recovery run");
+  assert.ok(Date.parse(run.created_at) >= Date.parse(authority.firstGrantAt), "Recovery dispatch predates actual grant/proof cycle");
+  assert.ok(Number.isSafeInteger(listing.total_count) && listing.total_count <= 100
+    && listing.total_count === listing.workflow_runs?.length, "Incomplete recovery native dispatch inventory");
+  for (const r of listing.workflow_runs) {
+    assert.ok(r.head_sha === current.sha && r.event === "workflow_dispatch" && r.path === orderedWorkflow
+      && Number.isFinite(Date.parse(r.created_at)), "Foreign/incomplete recovery dispatch history");
+  }
+  // The closed v1 history covers no earlier dispatch on this recovery source.
+  // A newer comment cannot erase a failed cycle or authorize an automatic retry.
+  const uses = listing.workflow_runs;
+  assert.equal(uses.length, 1, "Consent already used/ambiguous; no second dispatch or automatic renewal");
+  for (const key of ["id", "run_attempt", "head_sha", "head_branch", "event", "path", "created_at"]) {
+    assert.equal(uses[0][key], run[key], `Recovery current native run/history ${key} drift`);
+  }
+}
 function orderedControls() {
   const current = assertOrderedNativeContext();
   const branch = github("branches/main");
   assert.equal(branch.protected, true, "Protected main required");
   assert.equal(branch.commit?.sha, current.sha, "Latest main moved; new operation required");
+  const context = decodeStageContext(process.env.STAGE_CONTEXT);
+  const recovery = authenticateAccessRecovery(context,
+    { commitSha: current.sha, sourceSha256: foundationSource().sha256 });
+  if (recovery) assertAccessRecoveryNativeRun(context.continuationAuthority,
+    github(`actions/runs/${current.runId}/attempts/${current.runAttempt}`),
+    github(`actions/workflows/company-development-foundation-apply.yml/runs?head_sha=${current.sha}&event=workflow_dispatch&per_page=100`), current);
   quality();
   return current;
 }

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { assertNoSecretPayload, assertVerificationSources, assertWhatIfCollections, bootstrapInventory, continuationInventory, destination, securityInventory } from "./company-development.mjs";
 export { continuationInventory } from "./company-development.mjs";
-import { armGuid, assertHumanGrantAssignments, readBootstrapState, recoveryOrigin } from "./company-development-apply.mjs";
+import { armGuid, assertHumanGrantAssignments, assertOrderedNativeContext, readBootstrapState, recoveryOrigin } from "./company-development-apply.mjs";
 import { projectResources, assertCompletionBasis, historicalAuditGrants } from "./company-development-completion-validation.mjs";
 export { projectResources } from "./company-development-completion-validation.mjs";
 
@@ -110,6 +110,118 @@ function assertAssignment(actual, expected) {
   assert.equal(actual.principalType, expected.principalType, "Wrong assignment principalType");
   assert.ok(!actual.condition && !actual.conditionVersion, "Conditional continuation/scanner assignment forbidden");
 }
+const accessRecoveryMode = "reviewed-access-setup-recovery";
+const syntheticAssignmentId = `${bootstrapInventory().find((r) => r.type.endsWith("/containers")).id}/providers/Microsoft.Authorization/roleAssignments/16d6d244-a6ae-590d-b73d-d547d49ca16e`;
+const temporaryIds = [...continuationAssignments.map((r) => r.id), syntheticAssignmentId];
+function assertAbsence(rows, ids = temporaryIds) {
+  assert.ok(Array.isArray(rows) && rows.length === ids.length, "Complete exact temporary absence required");
+  exactSet(rows.map((r) => r.assignmentId), ids, "temporary absence IDs");
+  for (const row of rows) {
+    exactKeys(row, ["assignmentId", "result"], "temporary absence");
+    assert.equal(row.result, "RoleAssignmentNotFound", "Unknown/present temporary assignment");
+  }
+}
+// This version covers the specifically reviewed closed failure and ALL known
+// intervening manual grants. It is not a generic retry/renewal policy. Further
+// history or a continuation PUT requires separate review, never a hidden append.
+function assertAccessRecovery(a, selection, now) {
+  const r = a.attempt.recovery;
+  exactKeys(r, ["version", "kind", "operationId", "authorization", "history", "beforeGrant"], "access recovery");
+  assert.equal(r.version, 1, "Unknown access recovery version");
+  assert.equal(r.kind, "companydev-reviewed-access-setup-recovery", "Unknown access recovery kind");
+  assert.match(r.operationId ?? "", uuid, "Missing distinct recovery operation ID");
+  exactKeys(r.authorization, ["reference", "authorizedAt"], "recovery authorization");
+  accessRecoveryCommentId(a, selection.source);
+  const authorized = utc(r.authorization.authorizedAt, "recovery authorizedAt");
+  const start = utc(a.firstGrantAt, "recovery first grant");
+  assert.ok(authorized <= start && start - authorized <= 3600000 && authorized <= now, "Fresh human recovery authorization required before first grant");
+  const h = r.history;
+  exactKeys(h, ["original", "intervening", "securityDrift", "evidenceReference"], "closed access history");
+  assertReference(h.evidenceReference, "closed history evidence");
+  const old = h.original;
+  exactKeys(old, ["source", "firstGrantAt", "deadline", "failure", "continuationArmOutcome", "closedAt", "absence"], "original closed cycle");
+  exactKeys(old.source, ["commitSha", "sourceSha256"], "original cycle source");
+  assert.equal(old.source.commitSha, "06992846a7e0cfc8be9592171884707d875a4a16", "Original failed source is immutable");
+  assert.equal(old.source.sourceSha256, "a1156045db1d69c84bc7542868f3542ef442f7efeddc8bedb527b12c7fcfc904", "Original failed committed-source digest is immutable");
+  assert.equal(old.firstGrantAt, "2026-10-27T02:35:36.3715841Z", "Original first grant is immutable");
+  assert.equal(old.deadline, "2026-10-27T03:35:33.151Z", "Original deadline is immutable");
+  assert.deepEqual(old.failure, { assignmentId: temporaryIds[2], outcome: "role-put-timeout-resolved-created-then-removed",
+    createdOn: "2026-10-27T02:35:51.0090819Z" }, "Unresolved/changed setup failure history");
+  assert.equal(old.continuationArmOutcome, "not-submitted", "Uncertain/post-ARM failure requires execution checkpoint re-entry");
+  assert.equal(old.closedAt, "2026-10-27T02:48:27.556532+00:00", "Original final closure is immutable");
+  assertAbsence(old.absence);
+  assert.equal(h.intervening?.length, 2, "All intervening manual grant history required");
+  const diagnostic = h.intervening[0], manual = h.intervening[1];
+  exactKeys(diagnostic, ["kind", "grants", "reportedAbsentAt", "absence"], "human-reported diagnostic");
+  assert.equal(diagnostic.kind, "human-reported-diagnostic");
+  assert.deepEqual(diagnostic.grants, [{ assignmentId: temporaryIds[2], createdOn: "2026-10-27T02:51:01.0381877Z" }], "Diagnostic grant history changed");
+  assert.equal(diagnostic.reportedAbsentAt, "2026-10-27T02:52:09.193Z", "Human report is not an invented agent GET");
+  assertAbsence(diagnostic.absence, [temporaryIds[2]]);
+  exactKeys(manual, ["kind", "grants", "closedAt", "absence"], "manual access setup");
+  assert.equal(manual.kind, "manual-access-setup");
+  assert.deepEqual(manual.grants, continuationAssignments.map((r, i) => ({ assignmentId: r.id, createdOn: [
+    "2026-10-27T02:56:08.9011507Z", "2026-10-27T02:56:17.1472710Z", "2026-10-27T02:56:23.0528924Z",
+    "2026-10-27T02:56:26.7774403Z", "2026-10-27T02:56:29.3949404Z", "2026-10-27T02:56:33.0850001Z"][i] })), "Manual grant creation history changed");
+  assert.equal(manual.closedAt, "2026-10-27T03:05:28.463560+00:00", "Manual closure is immutable");
+  assertAbsence(manual.absence);
+  assert.deepEqual(h.securityDrift, {
+    beforeSha256: "f26a79fd21c88c65e04585a35e70be951599529a8d23db433598915040ac7961",
+    afterSha256: "823587e13b491368bfad51824231480d1e9fe7e17807929826c67eb8db40555a", cause: "UNKNOWN",
+  }, "Historical raw security drift must remain unresolved and unnormalized");
+  assert.ok(authorized > utc(manual.closedAt, "manual closure") && start > utc(old.deadline, "original deadline"), "Separate reviewed cycle required; no reused clock");
+  const b = r.beforeGrant;
+  exactKeys(b, ["observedAt", "absence", "inventories", "baseline"], "pre-grant closure proof");
+  const observed = utc(b.observedAt, "pre-grant observation");
+  assert.ok(authorized <= observed && observed < start, "Fresh seven-absence proof required before ANY new grant");
+  assertAbsence(b.absence);
+  assert.ok(Array.isArray(b.baseline) && b.baseline.length > 0, "Complete pre-grant baseline required");
+  assert.deepEqual(b.baseline, selection.baseline, "Recovery baseline binding mismatch");
+  assert.ok(!b.baseline.some((v) => continuationInventory().some((e) => sameId(e.id, v.id))), "Post-ARM resources require execution checkpoint re-entry");
+  assert.equal(b.inventories?.length, 3, "Complete pre-grant authority inventories required");
+  for (const current of a.collection.inventories) {
+    const matches = b.inventories.filter((v) => sameId(v.scope, current.scope));
+    assert.equal(matches.length, 1, "Missing/duplicate pre-grant authority scope");
+    // Raw byte/value comparison except the explicitly expected new six C rows.
+    // No timestamp/security normalization and no unexplained authority delta.
+    assert.deepEqual(matches[0], { ...current, assignments: current.assignments.filter((v) => !continuationAssignments.some((r) => sameId(r.id, v.id))) },
+      "Pre-grant authority drift beyond exact C assignments");
+    assert.ok(!matches[0].assignments.some((v) => temporaryIds.some((id) => sameId(id, v.id))), "Temporary access was present before new clock");
+  }
+  return r;
+}
+export function accessRecoveryCommentId(a, source) {
+  assert.equal(a?.attempt?.mode, accessRecoveryMode, "Not a reviewed access recovery operation");
+  const reference = a.attempt.recovery?.authorization?.reference;
+  const match = /^https:\/\/github\.com\/keyforta\/keyforta-property\/commit\/([a-f0-9]{40})#commitcomment-([1-9]\d*)$/.exec(reference ?? "");
+  assert.ok(match && match[1] === source?.commitSha, "Recovery consent must reference an exact-source native commit comment");
+  return match[2];
+}
+// Caller supplies an ACTUAL GitHub API comment, never operator JSON as consent.
+// The existing contents:read permission suffices; no issue/PR availability,
+// new token scope, comment-ID pin or issue approval fetch is involved.
+export function assertAccessRecoveryAuthorization(a, comment, source, now = Date.now()) {
+  accessRecoveryCommentId(a, source);
+  const r = a.attempt.recovery;
+  assert.deepEqual(a.source, source, "Recovery authorization source mismatch");
+  assert.equal(comment?.html_url, r.authorization.reference, "Wrong native consent reference");
+  assert.equal(comment.commit_id, source.commitSha, "Wrong native consent source");
+  assert.equal(comment.user?.login, "cmbuyamba", "Actual human owner consent required");
+  assert.equal(comment.user.type, "User", "Agent/bot cannot authorize recovery");
+  assert.equal(comment.created_at, r.authorization.authorizedAt, "Native consent timestamp mismatch");
+  assert.equal(comment.updated_at, comment.created_at, "Edited recovery consent requires new human authorization");
+  const authorized = utc(comment.created_at, "native recovery consent");
+  const start = utc(a.firstGrantAt, "authorized recovery first grant");
+  assert.ok(authorized <= now && authorized <= start && start - authorized <= 3600000
+    && now < utc(a.deadline, "authorized recovery deadline"), "Native recovery consent stale/future; no automatic renewal");
+  assert.ok(typeof comment.body === "string" && Buffer.byteLength(comment.body) <= 8192, "Bounded native consent JSON required");
+  const body = JSON.parse(comment.body);
+  assert.equal(JSON.stringify(body), comment.body.trim(), "Ambiguous/noncanonical native consent JSON");
+  assert.deepEqual(body, { version: 1, kind: "companydev-reviewed-access-recovery-authorization", authorizer: "cmbuyamba",
+    operationId: r.operationId, destination, source, historySha256: stateHash(r.history), permissionMode: boundedMode, maximumWindowMinutes: 60 },
+  "Native consent must bind this exact operation, source, closed history and unchanged scope");
+  return { reference: comment.html_url, operationId: r.operationId, authorizedAt: comment.created_at,
+    authentication: "live GitHub commit comment by human owner; not operator JSON; native dispatch/source/environment/artifact checks remain required" };
+}
 // Pure validation of an OPERATOR observation, not authentication of consent or
 // a claim that workflow tokens can freshly enumerate assignments at the scanner.
 function assertContinuationRecord(selection, phase, now) {
@@ -128,8 +240,12 @@ function assertContinuationRecord(selection, phase, now) {
   assert.match(a.source.commitSha ?? "", /^[a-f0-9]{40}$/);
   assert.match(a.source.sourceSha256 ?? "", /^[a-f0-9]{64}$/);
   assert.deepEqual(a.source, selection.source, "Bounded source mismatch");
-  exactKeys(a.attempt, ["mode", "completionBasis"], "bounded attempt");
-  assert.equal(a.attempt.mode, "single-initial-attempt", "No bounded renewal/second attempt");
+  const recovery = a.attempt?.mode === accessRecoveryMode;
+  // Only the ordered route's native guards authenticate recovery consent and
+  // dispatch history. Standalone previews must not consume this selector.
+  if (recovery && phase === "preview") assertOrderedNativeContext();
+  exactKeys(a.attempt, ["mode", "completionBasis", ...(recovery ? ["recovery"] : [])], "bounded attempt");
+  assert.ok(recovery || a.attempt.mode === "single-initial-attempt", "No bounded renewal/second attempt");
   assert.deepEqual(a.attempt.completionBasis, selection.completionBasis, "Wrong bounded predecessor run/artifact binding");
   for (const key of ["runId", "runAttempt", "artifactId"]) assert.match(a.attempt.completionBasis?.[key] ?? "", /^[1-9]\d*$/, `Missing bounded predecessor ${key}`);
   assert.match(selection.run?.runId ?? "", /^[1-9]\d*$/, "Missing actual bounded workflow run");
@@ -201,6 +317,7 @@ function assertContinuationRecord(selection, phase, now) {
     assert.ok(historical, "Unexplained extra workflow authority; bootstrap role must remain absent");
     assertAssignment(r, { ...historical, id: historical.assignmentId, name: historical.assignmentId.split("/").at(-1), principalType: "ServicePrincipal" });
   }
+  if (recovery) assertAccessRecovery(a, selection, now);
   return a;
 }
 export function readContinuationAuthority(read, selection, phase, now = Date.now()) {
@@ -216,6 +333,8 @@ export function readContinuationAuthority(read, selection, phase, now = Date.now
     return actual;
   });
   return { version: 1, mode: boundedMode, authoritySha256: stateHash(a), definitions, workflowRun: selection.run,
+    ...(a.attempt.mode === accessRecoveryMode ? { attemptMode: accessRecoveryMode,
+      authorizationAuthentication: "live exact-source human commit consent required by ordered native guards; operator observations are NOT authenticated consent" } : {}),
     assignmentReadProof: "operator-collected complete S/G/D inventories; NOT fresh workflow assignment GETs; native evidence review required",
     permissionProof: "independent current caller effective permissions still required; ACA minimum remains EXTERNAL_REQUIRED",
     cleanup: "human operator must remove six assignments immediately after attempt including verification/checkpoint, or failure/deadline; helpers never remove or attest cleanup" };
@@ -224,7 +343,8 @@ export function continuationSelection(plan, execution = { runId: process.env.GIT
   if (plan.inputs.stageContext?.continuationAuthority === undefined) return undefined;
   return { stage: plan.inputs.stage, authority: plan.inputs.stageContext.continuationAuthority,
     source: { commitSha: plan.evidence.commitSha, sourceSha256: plan.evidence.sourceSha256 },
-    completionBasis: plan.inputs.stageContext.predecessor, run: execution.run ?? execution };
+    completionBasis: plan.inputs.stageContext.predecessor, run: execution.run ?? execution,
+    ...(plan.inputs.stageContext.continuationAuthority.attempt?.mode === accessRecoveryMode ? { baseline: plan.inputs.stageContext.baseline } : {}) };
 }
 export function assertContinuationLifetime(selection, phase = "apply", now = Date.now()) {
   if (selection !== undefined) assertContinuationRecord(selection, phase, now);
@@ -688,6 +808,15 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
     selection.phase = phase;
     assert.equal(plan.inputs.mode, "initial", "Bounded authority cannot renew/retry through re-entry");
     readContinuationAuthority(read, selection, phase, now);
+    if (selection.authority.attempt.mode === accessRecoveryMode) {
+      // Current independent reads are mandatory too: a declarative "not
+      // submitted" history alone can never admit post/uncertain continuation ARM.
+      const history = read(["deployment", "group", "list", "--resource-group", destination.resourceGroup]);
+      assert.ok(Array.isArray(history) && history.every((r) => typeof r.name === "string"), "Missing complete recovery deployment history");
+      assert.ok(!history.some((r) => r.name.startsWith("companydev-continuation-")), "Existing/uncertain continuation ARM requires execution checkpoint re-entry");
+      assert.equal(inspectDeployment(read, `companydev-continuation-${selection.authority.attempt.recovery.history.original.source.commitSha.slice(0, 12)}`),
+        null, "Old cycle continuation ARM outcome is not absent");
+    }
   }
   if (predecessor?.kind === "bootstrap-completion-basis") return assessReceiptContinuation(read, plan, predecessor, now, phase);
   const { inputs } = plan, context = inputs.stageContext;

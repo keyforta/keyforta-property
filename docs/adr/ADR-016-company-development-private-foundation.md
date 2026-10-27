@@ -7,6 +7,68 @@
 **Owners/reviewers required:** Platform, Network, Security, Finance, repository maintainers
 **Scope:** New empty company DEVELOPMENT foundation only; never production
 
+## Approved reviewed access-setup recovery decision — 2026-10-27
+
+The human comment by **cmbuyamba**, verified **2026-10-27T03:43:11Z**,
+authorizes the minimal reviewed operational recovery fix and lifts the no-code
+restriction **only for this fix**. The
+[historical comment](https://github.com/keyforta/keyforta-property/issues/159#issuecomment-6433195968)
+is provenance, **not merge or deployment approval**. The subsequent direction,
+**“I do not want to depend on that issue 159”**, means runtime authorization
+must not depend on issue #159, a hardcoded issue/comment ID or that issue's availability.
+Preserve old records and citations; neither an issue assertion nor agent
+self-approval substitutes for genuine per-run human execution authorization
+or external GitHub controls.
+
+**Narrow exception:** a new, explicit, separately reviewed recovery cycle may
+follow **access-setup failure before any continuation ARM submission**, only
+with actual evidence of all seven temporary assignments' cleanup, current
+authority, baseline and source. This does not renew or retry the old cycle,
+relabel it as a new initial attempt, or manufacture a checkpoint. Preserve
+the prior first-grant `2026-10-27T02:35:36.3715841Z`, recorded deadline
+`2026-10-27T03:35:33.151Z`, manual cycles and diagnostic evidence immutably;
+do not recompute or repair their historical values.
+
+Each new cycle requires fresh real per-run human execution authorization,
+a single executor and genuinely available cleanup fallback. Preserve the same
+narrow C/B permissions, identities, source/finance gates and exact ABAC semantics.
+The new cycle's absolute lifetime is **at most 60 minutes from its first ANY
+temporary grant**; no automatic renewal, reset, retry or additional authority.
+Actual cleanup/readback remains mandatory, with cleanup failure leaving the
+overall result unverified. Reported removal of all seven prior assignments
+does not replace the new cycle's actual absence/current-authority evidence.
+
+Ambiguous ARM submission or any post-ARM outcome must use the existing reviewed
+checkpoint-recovery contract, **not this exception**. Initial contracts,
+historical pins, completed/failed checkpoints and the old cycle's no-second-
+attempt rule remain unchanged. Preserve raw platform metadata: do not normalize
+or ignore drift to pass a guard. This decision adds no remote-change authority,
+resource deletion, bootstrap/security regrant or app deployment; all company-dev
+services remain the overall endpoint, but this fix concerns foundation recovery.
+The [operational runbook](../../infra/README.md#reviewed-access-setup-recovery--2026-10-27)
+owns collection/order requirements without duplicating this approval record.
+
+**Implemented consent boundary:** the recovery selector is distinct from legacy
+`single-initial-attempt`; existing outer versions/workflows and scope approval
+remain unchanged. Fresh per-operation consent is a manually human-authored,
+unedited **GitHub commit comment on the exact merged source**, authenticated
+by native GET and bound to the operation, source and closed historical digest.
+It is not issue-based consent or agent-created approval. Native single-dispatch,
+human actor, exact-source and attempt-1 checks remain mandatory; missing consent
+visibility blocks. The runbook owns exact selection/comment shapes and existing
+CLI usage. Original history, raw drift and initial contracts are not rewritten.
+The user's renewed **“try again” at 2026-10-27T12:45:20.684Z** does not supply
+this future exact-source per-run record or authorize future PR merge/deployment;
+the minimal fix's implementation approval remains the actual 03:43:11Z decision.
+
+**Owners:** accountable Azure technical/risk owner and authorized single executor
+own per-cycle authorization, evidence and cleanup; maintainers own implementation
+alignment. **Review triggers:** missing cleanup or baseline/source/authority
+proof, uncertain submission, raw metadata drift, expired authorization/window,
+executor/fallback change or new authority requirement: stop and preserve evidence.
+No new scope-approval loop is required for this already-approved minimal fix;
+PR-specific human merge/deploy consent and native GitHub controls remain separate.
+
 ## Approved three-change access decision — 2026-10-27
 
 **Approved scope amendment, not full ADR acceptance or activation.** The human
