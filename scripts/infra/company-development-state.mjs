@@ -104,6 +104,60 @@ function assertDefinition(actual, { id, actions, scopes, type = "CustomRole", da
   assert.deepEqual(p.notActions, [], "Role NotActions forbidden");
   assert.deepEqual(p.notDataActions, [], "Role NotDataActions forbidden");
 }
+const scannerDefinitionSpec = {
+  id: roleId("cd50fd1f-0421-46f2-8cce-afc587dbcc77"), type: "BuiltInRole", scopes: ["/"],
+  actions: ["Microsoft.Storage/storageAccounts/blobServices/containers/read", "Microsoft.Storage/storageAccounts/fileServices/shares/read"],
+  dataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/write",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/read", "Microsoft.Storage/storageAccounts/fileServices/fileshares/files/read",
+    "Microsoft.Storage/storageAccounts/fileServices/readFileBackupSemantics/action", "Microsoft.EventGrid/events/send/action"],
+};
+function assertSecurityComparison(profile) {
+  exactKeys(profile, ["version", "mode"], "security comparison profile");
+  assert.equal(profile.version, 1, "Unknown security comparison version");
+  assert.equal(profile.mode, "defender-scanner-role-metadata", "Unknown security comparison mode");
+}
+// Derived permission state ONLY. Never a replacement for raw response/snapshot,
+// source/history/audit hashes or assignment/access-window comparison.
+export function scannerRolePermissionState(definition, profile) {
+  assertSecurityComparison(profile);
+  assertDefinition(definition, scannerDefinitionSpec);
+  const projected = canonical(definition);
+  delete projected.properties.createdOn;
+  delete projected.properties.updatedOn;
+  return projected; // Unknown fields, arrays, names and every other value survive.
+}
+export function readableSecurityPermissionState(security, profile) {
+  if (profile === undefined) return canonical(security); // Immutable legacy semantics.
+  assertSecurityComparison(profile);
+  assert.deepEqual(security?.destination, destination, "Wrong permission-state destination");
+  assert.ok(sameId(security.scanner?.id, actualScanner), "Wrong permission-state scanner");
+  assert.deepEqual(security.scanner.accessProfile, { version: 1, mode: "defender-storage-malware-data-scanner" }, "Exact least-privileged scanner profile required");
+  const projected = canonical(security);
+  projected.scanner.roleDefinition = scannerRolePermissionState(security.scanner.roleDefinition, profile);
+  return projected;
+}
+export function compareReadableSecurity(before, after, profile) {
+  assertSecurityComparison(profile);
+  const expected = readableSecurityPermissionState(before, profile), actual = readableSecurityPermissionState(after, profile);
+  assert.deepEqual(actual, expected, "Permission-state security drift beyond approved scanner metadata");
+  const rawSha256 = [stateHash(before), stateHash(after)];
+  return { ...profile, permissionStateSha256: stateHash(actual), rawSha256, rawEqual: rawSha256[0] === rawSha256[1],
+    cause: rawSha256[0] === rawSha256[1] ? "NOT_OBSERVED" : "UNKNOWN",
+    metadata: [before, after].map((v) => {
+      const { createdOn, updatedOn } = v.scanner.roleDefinition.properties;
+      return canonical({ createdOn, updatedOn });
+    }) };
+}
+// Only this exact full-readable-security path is projected. Everything else in
+// the stage decision (including derived proof/source/authority hashes) is strict.
+export function assertStageStateEqual(before, after, profile, label = "Pre-submission actual state/security/permissions drift") {
+  if (profile === undefined) { assert.deepEqual(after, before, label); return undefined; }
+  const comparison = compareReadableSecurity(before.readableSecurity, after.readableSecurity, profile);
+  assert.deepEqual({ ...after, readableSecurity: readableSecurityPermissionState(after.readableSecurity, profile) },
+    { ...before, readableSecurity: readableSecurityPermissionState(before.readableSecurity, profile) }, label);
+  return { comparison, before: { snapshot: before.readableSecurity, sha256: stateHash(before.readableSecurity) },
+    final: { snapshot: after.readableSecurity, sha256: stateHash(after.readableSecurity) } };
+}
 function assertAssignment(actual, expected) {
   assert.ok(actual, "Missing observed assignment");
   for (const key of ["id", "name", "scope", "roleDefinitionId", "principalId"]) assert.ok(sameId(actual[key], expected[key]), `Wrong assignment ${key}`);
@@ -445,11 +499,7 @@ export function readSecurity(read, context, predecessor) {
       && rules[0].tenantId === destination.tenantId, "Missing/extra/foreign Storage scanner resource access rule");
     exactKeys(rules[0], ["resourceId", "tenantId"], "scanner resource access rule");
     scannerDefinition = get(read, `${dataOwner.roleDefinitionId}?api-version=2022-04-01`);
-    assertDefinition(scannerDefinition, { id: roleId("cd50fd1f-0421-46f2-8cce-afc587dbcc77"), type: "BuiltInRole", scopes: ["/"],
-      actions: ["Microsoft.Storage/storageAccounts/blobServices/containers/read", "Microsoft.Storage/storageAccounts/fileServices/shares/read"],
-      dataActions: ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/write",
-        "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/read", "Microsoft.Storage/storageAccounts/fileServices/fileshares/files/read",
-        "Microsoft.Storage/storageAccounts/fileServices/readFileBackupSemantics/action", "Microsoft.EventGrid/events/send/action"] });
+    assertDefinition(scannerDefinition, scannerDefinitionSpec);
   }
   const other = rows.filter((r) => !workload.includes(r) && !scannerRows.includes(r));
   assert.ok(!rows.some((r) => sameId(r.roleDefinitionId, roleId("bb60fd06-bbaa-56a9-a35c-a6a246597d9e"))
@@ -482,6 +532,11 @@ export function validateFunctionalTest(test, security, now = Date.now(), selecti
   const version = test.version === undefined ? 1 : test.version;
   assert.ok([1, 2].includes(version), "Unknown functional record version");
   const bounded = selection !== undefined;
+  const comparison = test.securityComparison;
+  if (comparison !== undefined) {
+    assertSecurityComparison(comparison);
+    assert.ok(version === 2 && bounded, "Security comparison requires bounded functional v2 proof");
+  }
   if (bounded) assert.equal(version, 2, "Bounded access requires NEW functional v2 evidence");
   else assert.ok(!test.machineEvidence?.accessEvidence, "Transient access evidence requires explicit bounded selection");
   if (version === 1) {
@@ -494,7 +549,11 @@ export function validateFunctionalTest(test, security, now = Date.now(), selecti
   assert.match(test.testId ?? "", uuid, "Missing unique synthetic test ID");
   assert.equal(test.storageId, security.storageId, "Functional test wrong Storage");
   assert.equal(test.containerId, security.containerId, "Functional test wrong container");
-  assert.equal(test.readableSecuritySha256, stateHash(security), "Functional test current readable security/grant correlation mismatch");
+  if (comparison === undefined) assert.equal(test.readableSecuritySha256, stateHash(security), "Functional test current readable security/grant correlation mismatch");
+  else {
+    assert.ok(test.machineEvidence?.accessEvidence?.s1?.snapshot, "Actual RAW S1 snapshot required");
+    assert.equal(test.readableSecuritySha256, stateHash(test.machineEvidence.accessEvidence.s1.snapshot), "Functional record must bind actual RAW S1, not a permission fingerprint");
+  }
   assert.equal(test.result, "No threats found", "Synthetic scan failed/error/not-scanned/missing");
   assert.equal(test.blob?.name, `synthetic-${test.testId}.txt`, "Wrong unique harmless synthetic blob identity");
   assert.ok((typeof test.blob.versionId === "string" && test.blob.versionId.length > 0) || (typeof test.blob.etag === "string" && test.blob.etag.length > 0), "Missing blob version/etag");
@@ -588,8 +647,14 @@ export function assertSyntheticAccessEvidence(test, security, selection, now = D
       assert.ok(Array.isArray(snapshot.snapshot?.grants) && !snapshot.snapshot.grants.some((r) => sameId(r.id, grant.id)
         || sameId(r.roleDefinitionId, syntheticRole)), "Temporary synthetic B must be absent in S0 and S1");
     }
-    assert.deepEqual(canonical(e.s0.snapshot), canonical(e.s1.snapshot), "Canonical S0/S1 security drift");
-    assert.deepEqual(canonical(e.s1.snapshot), canonical(security), "Fresh final security differs from S1; never retag an old functional hash");
+    let permissionComparison;
+    if (test.securityComparison === undefined) {
+      assert.deepEqual(canonical(e.s0.snapshot), canonical(e.s1.snapshot), "Canonical S0/S1 security drift");
+      assert.deepEqual(canonical(e.s1.snapshot), canonical(security), "Fresh final security differs from S1; never retag an old functional hash");
+    } else {
+      permissionComparison = compareReadableSecurity(e.s0.snapshot, e.s1.snapshot, test.securityComparison);
+      compareReadableSecurity(e.s1.snapshot, security, test.securityComparison);
+    }
     for (const assignment of a.assignments.filter((r) => sameId(r.scope, group) || sameId(r.scope, subscription))) {
       assert.deepEqual(security.grants.find((r) => sameId(r.id, assignment.id)), assignment, "Current available workflow assignment read differs from operator authority record");
     }
@@ -607,7 +672,8 @@ export function assertSyntheticAccessEvidence(test, security, selection, now = D
     for (let i = 1; i < times.length; i++) assert.ok(times[i] >= times[i - 1], "Synthetic grant/upload/removal/S0/S1 chronology mismatch");
     assert.ok(times[3] > times[2] && times[9] > times[8] && times.at(-1) <= now && times.at(-1) < utc(a.deadline, "deadline"),
       "Synthetic access outside exact active window");
-    return { version: 1, mode: e.mode, sha256: stateHash(e), temporaryAssignmentRemoved: "operator-evidence-not-workflow-cleanup",
+    return { version: 1, mode: e.mode, sha256: stateHash(e), ...(permissionComparison ? { permissionComparison } : {}),
+      temporaryAssignmentRemoved: "operator-evidence-not-workflow-cleanup",
       limitations: "native review authenticates observations; UtcNow expires data access only, metadata removal required; write can modify this one object during window, not an immutable write primitive" };
   }
 function optional(read, args, code) {
@@ -1010,7 +1076,7 @@ export function assessStage(read, plan, predecessor, now = Date.now(), phase = "
   return { action: completed ? "noop" : "submit", resources: current, inspection, targetInspection, predecessorInspection, history, functionalTest, readableSecurity, writerPermissions, permissionReadiness,
     ...(transition ? { sourceTransition: transition, originalSuccess, verifiedBootstrap, originalCheckpoint: { ...context.predecessor, completed: false, deploymentName: predecessor.deploymentName, deploymentCommitSha: predecessor.commitSha } } : {}) };
 }
-export function executeReviewedStage({ plan, predecessor, read, preview, submit, now = Date.now(), phase = "apply", execution }) {
+export function executeReviewedStage({ plan, predecessor, read, preview, submit, now = Date.now(), phase = "apply", execution, recordSecurityObservations = () => {} }) {
   const selection = continuationSelection(plan, execution);
   const before = assessStage(read, plan, predecessor, now, phase, execution);
   const fresh = preview();
@@ -1018,9 +1084,16 @@ export function executeReviewedStage({ plan, predecessor, read, preview, submit,
   validateStageChanges(fresh, plan, before.action === "noop");
   assert.equal(stateHash([...fresh.changes].sort((a, b) => a.resourceId.localeCompare(b.resourceId))), stateHash([...plan.whatIf.changes].sort((a, b) => a.resourceId.localeCompare(b.resourceId))), "Fresh canonical what-if drift");
   const final = assessStage(read, plan, predecessor, selection ? Date.now() : now, phase, execution);
-  assert.deepEqual(final, before, "Pre-submission actual state/security/permissions drift");
-  if (before.action === "noop") return { ...before, action: "noop" };
+  const profile = plan.inputs.stageContext?.security?.functionalTest?.securityComparison;
+  if (profile !== undefined) recordSecurityObservations({
+    before: { snapshot: before.readableSecurity, sha256: stateHash(before.readableSecurity) },
+    final: { snapshot: final.readableSecurity, sha256: stateHash(final.readableSecurity) },
+  }); // Persist RAW observations even if the following comparison rejects drift.
+  const securityObservations = assertStageStateEqual(before, final, profile);
+  if (securityObservations) recordSecurityObservations(securityObservations);
+  const decision = securityObservations ? { ...final, securityObservations } : before;
+  if (before.action === "noop") return { ...decision, action: "noop" };
   assertContinuationLifetime(selection, phase); // real clock AFTER slow preview/reads
   submit();
-  return { ...before, action: "submitted" };
+  return { ...decision, action: "submitted" };
 }

@@ -1509,6 +1509,213 @@ async function transientFixture() {
   return f;
 }
 
+const metadataComparison = { version: 1, mode: "defender-scanner-role-metadata" };
+// Synthetic fixture, reproducing ONLY the two public metadata values observed
+// in the retained four-GET A/A/A/B investigation; no private native payload.
+const metadataA = { createdOn: "2026-03-17T16:20:57.1691548Z", updatedOn: "2026-04-17T00:43:02.5550403Z" };
+const metadataB = { createdOn: "2026-03-19T16:41:31.8353767Z", updatedOn: "2026-04-21T15:22:53.5695754Z" };
+async function metadataFixture() {
+  const f = await transientFixture();
+  f.context.security.scannerAccessProfile = { ...scannerProfile };
+  f.context.security.scannerId = f.transport.scanner.id = d;
+  f.transport.defender.properties.dataScannerResourceId = d;
+  f.transport.assignments.find((r) => r.principalId === f.transport.scanner.identity.principalId).roleDefinitionId = definitionId("cd50fd1f-0421-46f2-8cce-afc587dbcc77");
+  f.boot.find((r) => r.type.endsWith("/storageAccounts")).properties.networkAcls = {
+    resourceAccessRules: [{ resourceId: d, tenantId: input.tenantId }],
+  };
+  f.transport.scannerDefinition = observedDefinition("cd50fd1f-0421-46f2-8cce-afc587dbcc77", [...scannerActions], ["/"], "BuiltInRole", [...scannerDataActions]);
+  Object.assign(f.transport.scannerDefinition.properties, metadataB);
+  const original = f.read;
+  f.read = (a) => {
+    const url = a[a.indexOf("--url") + 1] ?? "";
+    if (url.includes("/roleDefinitions/cd50fd1f-")) return structuredClone(f.transport.scannerDefinition);
+    if (url.toLowerCase().includes("/datascanners/") && url.includes("/permissions?")) return {
+      value: [{ actions: ["Microsoft.Authorization/permissions/read"], notActions: [], dataActions: [], notDataActions: [] }],
+    };
+    if (url.toLowerCase().includes("/datascanners/") && !url.includes("/permissions?")) return f.transport.scanner;
+    return original(a);
+  };
+  f.predecessor.resources = f.context.baseline = f.state.projectResources(f.boot);
+  f.security = f.state.readSecurity(f.read, f.context.security, f.predecessor);
+  const e = f.record.machineEvidence.accessEvidence;
+  e.s0.snapshot = structuredClone(f.security); e.s1.snapshot = structuredClone(f.security);
+  Object.assign(e.s0.snapshot.scanner.roleDefinition.properties, metadataA);
+  e.s0.sha256 = f.state.stateHash(e.s0.snapshot); e.s1.sha256 = f.state.stateHash(e.s1.snapshot);
+  f.record.readableSecuritySha256 = e.s1.sha256;
+  f.record.securityComparison = { ...metadataComparison };
+  f.context.security.functionalTest = f.record;
+  f.plan.whatIf = { changes: f.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+  return f;
+}
+
+operatorTest("scanner metadata comparison accepts permission-equivalent S0/S1 while retaining both unequal raw hashes", async () => {
+  const f = await metadataFixture(), before = structuredClone(f.record);
+  const e = f.record.machineEvidence.accessEvidence;
+  assert.notEqual(e.s0.sha256, e.s1.sha256);
+  const result = f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection);
+  assert.equal(result.accessEvidence.permissionComparison.rawEqual, false);
+  assert.equal(result.accessEvidence.permissionComparison.cause, "UNKNOWN");
+  assert.deepEqual(result.accessEvidence.permissionComparison.rawSha256, [e.s0.sha256, e.s1.sha256]);
+  assert.equal(f.record.readableSecuritySha256, e.s1.sha256, "Actual RAW S1 remains bound, never a permission fingerprint");
+  assert.deepEqual(f.record, before);
+});
+
+operatorTest("scanner metadata comparison is used by fresh functional reads and pre-submit assessment without discarding raw observations", async () => {
+  const f = await metadataFixture(), oldNow = Date.now;
+  Object.assign(f.transport.scannerDefinition.properties, metadataA);
+  const current = f.state.readSecurity(f.read, f.context.security, f.predecessor);
+  assert.notEqual(f.state.stateHash(current), f.record.readableSecuritySha256);
+  f.state.validateFunctionalTest(f.record, current, f.now, f.selection);
+  Date.now = () => f.now;
+  let puts = 0;
+  try {
+    const result = f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read: f.read,
+      now: f.now, execution: f.execution,
+      preview: () => { Object.assign(f.transport.scannerDefinition.properties, metadataB); return f.plan.whatIf; },
+      submit: () => { puts++; } });
+    assert.equal(result.action, "submitted"); assert.equal(puts, 1);
+    assert.notEqual(result.securityObservations.before.sha256, result.securityObservations.final.sha256);
+    assert.deepEqual(result.securityObservations.before.snapshot.scanner.roleDefinition.properties.createdOn, metadataA.createdOn);
+    assert.deepEqual(result.securityObservations.final.snapshot.scanner.roleDefinition.properties.createdOn, metadataB.createdOn);
+    assert.deepEqual(result.readableSecurity, result.securityObservations.final.snapshot);
+  } finally { Date.now = oldNow; }
+});
+
+operatorTest("scanner metadata comparison leaves legacy raw proofs and all raw/source/history hashes strict", async () => {
+  const f = await metadataFixture();
+  delete f.record.securityComparison;
+  assert.throws(() => f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection), /S0\/S1 security drift/);
+  const e = f.record.machineEvidence.accessEvidence;
+  e.s0 = structuredClone(e.s1);
+  e.s0.observedAt = "2026-10-27T00:30:30.000Z";
+  f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection);
+  f.record.securityComparison = { ...metadataComparison };
+  e.s1.sha256 = "0".repeat(64);
+  assert.throws(() => f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection), /snapshot hash|RAW S1/);
+});
+
+operatorTest("scanner metadata comparison rejects every meaningful definition/grant/unknown-field delta", async () => {
+  const mutations = [
+    (v) => { v.scanner.roleDefinition.properties.permissions[0].actions.push("*"); },
+    (v) => { v.scanner.roleDefinition.properties.permissions[0].dataActions.pop(); },
+    (v) => { v.scanner.roleDefinition.properties.permissions[0].notActions.push("*/write"); },
+    (v) => { v.scanner.roleDefinition.properties.permissions[0].notDataActions.push("*/read"); },
+    (v) => { v.scanner.roleDefinition.properties.assignableScopes = [g]; },
+    (v) => { v.scanner.roleDefinition.properties.type = "CustomRole"; },
+    (v) => { v.scanner.roleDefinition.type = "Other"; },
+    (v) => { v.scanner.roleDefinition.name = "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"; },
+    (v) => { v.scanner.roleDefinition.id = definitionId("b7e6dc6d-f1e8-4753-8033-0f276bb0955b"); },
+    (v) => { v.scanner.roleDefinition.properties.roleName = "changed"; },
+    (v) => { v.scanner.roleDefinition.properties.description = "changed"; },
+    (v) => { v.scanner.roleDefinition.properties.createdBy = operatorPrincipal; },
+    (v) => { v.scanner.roleDefinition.properties.updatedBy = operatorPrincipal; },
+    (v) => { v.scanner.roleDefinition.properties.condition = "changed"; },
+    (v) => { v.scanner.roleDefinition.createdOn = metadataA.createdOn; },
+    (v) => { v.scanner.roleDefinition.properties.unknown = { createdOn: metadataA.createdOn }; },
+    (v) => { v.scanner.roleDefinition.unknown = true; },
+    (v) => { v.grants[0].createdOn = metadataA.createdOn; },
+    (v) => { v.grants[0].updatedOn = metadataA.updatedOn; },
+    (v) => { v.grants[0].condition = "changed"; },
+    (v) => { v.grants[0].scope = g; },
+    (v) => { v.grants[0].principalId = operatorPrincipal; },
+    (v) => { v.grants[0].principalType = "User"; },
+    (v) => { v.scanner.identity.type = "systemassigned"; },
+    (v) => { v.scanner.identity.principalId = operatorPrincipal; },
+    (v) => { v.scanner.id = d + "-other"; },
+    (v) => { v.scanner.accessProfile.mode = "legacy-storage-blob-data-owner"; },
+    (v) => { v.bootstrap[0].properties.createdOn = metadataA.createdOn; },
+    (v) => { v.settings.createdOn = metadataA.createdOn; },
+    (v) => { v.destination.subscriptionId = "0".repeat(36); },
+    (v) => { v.otherDefinition = { properties: { type: "CustomRole", createdOn: metadataA.createdOn } }; },
+  ];
+  for (const mutate of mutations) {
+    const f = await metadataFixture(), e = f.record.machineEvidence.accessEvidence;
+    mutate(e.s0.snapshot); e.s0.sha256 = f.state.stateHash(e.s0.snapshot);
+    assert.throws(() => f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection), mutate.toString());
+  }
+});
+
+operatorTest("scanner metadata comparison projection is narrow, opt-in and immutable including custom and other-role timestamps", async () => {
+  const f = await metadataFixture(), e = f.record.machineEvidence.accessEvidence;
+  const before = structuredClone([e.s0.snapshot, e.s1.snapshot]);
+  const left = f.state.readableSecurityPermissionState(e.s0.snapshot, metadataComparison);
+  const right = f.state.readableSecurityPermissionState(e.s1.snapshot, metadataComparison);
+  assert.deepEqual(left, right);
+  assert.notEqual(f.state.stateHash(e.s0.snapshot), f.state.stateHash(e.s1.snapshot));
+  assert.notDeepEqual(f.state.readableSecurityPermissionState(e.s0.snapshot), f.state.readableSecurityPermissionState(e.s1.snapshot));
+  assert.deepEqual([e.s0.snapshot, e.s1.snapshot], before);
+  left.scanner.roleDefinition.properties.roleName = "derived only";
+  assert.deepEqual([e.s0.snapshot, e.s1.snapshot], before);
+  for (const profile of [null, {}, { ...metadataComparison, version: 2 }, { ...metadataComparison, mode: "other" }, { ...metadataComparison, unknown: true }]) {
+    assert.throws(() => f.state.readableSecurityPermissionState(e.s0.snapshot, profile));
+  }
+  for (const id of ["bf872e6a-3956-5e63-a78e-32f6eac66cd8", "b7e6dc6d-f1e8-4753-8033-0f276bb0955b", "1e7ca9b1-60d1-4db8-a914-f2ca1ff27c40"]) {
+    const definition = structuredClone(e.s0.snapshot.scanner.roleDefinition);
+    definition.id = definitionId(id); definition.name = id;
+    assert.throws(() => f.state.scannerRolePermissionState(definition, metadataComparison));
+  }
+  const a = { ...e.s0.snapshot, anotherRole: observedDefinition("bf872e6a-3956-5e63-a78e-32f6eac66cd8", [], [g]) };
+  const b = structuredClone(a);
+  a.anotherRole.properties.createdOn = metadataA.createdOn;
+  b.anotherRole.properties.createdOn = metadataB.createdOn;
+  assert.throws(() => f.state.compareReadableSecurity(a, b, metadataComparison), /Permission-state/);
+  const raw = { history: metadataA, source: { createdOn: metadataA.createdOn }, createdOn: metadataA.createdOn };
+  assert.equal(f.state.stateHash(raw), hash(JSON.stringify(f.state.canonical(raw))), "Global source/history/audit hashing is unchanged");
+});
+
+operatorTest("scanner metadata comparison preserves raw-S1/source, windows, proof-schema and legacy constraints", async () => {
+  const mutations = [
+    (f, e) => { f.record.securityComparison.version = 2; },
+    (f, e) => { f.record.securityComparison.extra = true; },
+    (f, e) => { e.source.commitSha = "0".repeat(40); },
+    (f, e) => { e.source.sourceSha256 = "0".repeat(64); },
+    (f, e) => { e.authoritySha256 = "0".repeat(64); },
+    (f, e) => { e.s0.sha256 = e.s1.sha256; },
+    (f, e) => { e.s1.sha256 = e.s0.sha256; },
+    (f, e) => { f.record.readableSecuritySha256 = f.state.stateHash(f.state.readableSecurityPermissionState(e.s1.snapshot, metadataComparison)); },
+    (f, e) => { e.window.deadline = "2026-10-27T02:10:00.000Z"; },
+    (f, e) => { f.now = Date.parse(f.context.continuationAuthority.deadline); },
+    (f, e) => { f.context.continuationAuthority.firstGrantAt = "2026-10-27T00:20:00.000Z"; },
+    (f, e) => { e.extra = true; },
+    (f, e) => { e.version = 2; },
+    (f, e) => { f.record.version = 1; },
+    (f, e) => { delete e.s1.snapshot; },
+  ];
+  for (const mutate of mutations) {
+    const f = await metadataFixture(); mutate(f, f.record.machineEvidence.accessEvidence);
+    assert.throws(() => f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection), mutate.toString());
+  }
+  const f = await metadataFixture();
+  assert.throws(() => f.state.validateFunctionalTest(f.record, f.security, f.now), /bounded/);
+  const unchanged = await transientFixture();
+  unchanged.state.validateFunctionalTest(unchanged.record, unchanged.security, unchanged.now, unchanged.selection);
+});
+
+operatorTest("scanner metadata comparison keeps full stage/source/permissions strict and stops meaningful drift before PUT", async () => {
+  const f = await metadataFixture(), e = f.record.machineEvidence.accessEvidence;
+  const before = { readableSecurity: e.s0.snapshot, source: { commitSha: sha }, permissions: ["read"], unknown: { createdOn: metadataA.createdOn } };
+  const after = { ...before, readableSecurity: e.s1.snapshot };
+  const audit = f.state.assertStageStateEqual(before, after, metadataComparison);
+  assert.equal(audit.comparison.rawEqual, false);
+  assert.throws(() => f.state.assertStageStateEqual(before, after), /drift/);
+  for (const delta of [{ source: { commitSha: "0".repeat(40) } }, { permissions: ["write"] }, { unknown: { createdOn: metadataB.createdOn } }]) {
+    assert.throws(() => f.state.assertStageStateEqual(before, { ...after, ...delta }, metadataComparison), /drift/);
+  }
+  const oldNow = Date.now; Date.now = () => f.now;
+  let puts = 0;
+  try {
+    assert.throws(() => f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now, execution: f.execution,
+      preview: () => { f.transport.scannerDefinition.properties.roleName = "meaningful drift"; return f.plan.whatIf; },
+      submit: () => { puts++; } }), /Permission-state/);
+    assert.equal(puts, 0);
+  } finally { Date.now = oldNow; }
+  const previewSource = readFileSync(new URL("../../scripts/infra/company-development.mjs", import.meta.url), "utf8");
+  assert.match(previewSource, /stateEngine\.assertStageStateEqual\(before, checked, profile/);
+  const applySource = readFileSync(new URL("../../scripts/infra/company-development-apply.mjs", import.meta.url), "utf8");
+  assert.match(applySource, /recordSecurityObservations:[\s\S]*reviewed-inputs\.json/);
+  assert.match(applySource, /verificationSecurity: \{ snapshot: security, sha256: stateEngine\.stateHash\(security\) \}/);
+});
+
 operatorTest("approved transient synthetic proof validates S0/B grant/upload/removal/absence/S1 without self-reference", async () => {
   const f = await transientFixture();
   const result = f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection);

@@ -23,6 +23,99 @@ resource-group-scoped foundation deployment runs.
 
 ## Company DEVELOPMENT preparation — isolated preview and plan-bound apply
 
+### Scanner metadata comparison boundary — 2026-10-27
+
+The [approved dated decision](../docs/adr/ADR-016-company-development-private-foundation.md#approved-scanner-metadata-comparison-decision--2026-10-27)
+permits a forward derived live permission-state comparison to exclude **only**
+`properties.createdOn` and `properties.updatedOn` on the exact validated built-in
+scanner role `cd50fd1f-0421-46f2-8cce-afc587dbcc77`. Preserve **every raw response
+and raw audit hash**, including the differing timestamp values. Root cause is
+UNKNOWN; do not infer cache/routing causation from headers.
+
+Permission-equivalence is **not raw S0/S1 equality**. Historical snapshots/hashes,
+metadata drift and prior attempt records remain immutable. The raw-equality
+requirements below retain their legacy meaning; only the approved forward
+permission-state comparison has this two-property exception. No general role,
+assignment or timestamp normalization, hash retagging or hidden drift waiver.
+Every other field and existing permissions, conditions, identities/scopes,
+assignment times/T0/deadline, source/history, finance/GitHub controls and actual
+manual per-source consent remain binding. Same C/B limits, maximum 60 minutes
+and exact cleanup apply; this fix approves no grants, deployment, future PR
+merge/deploy consent, issue #159 dependency or self-approval.
+Owners and stop/review triggers are in the dated decision.
+
+#### Implemented opt-in, fingerprints and raw audit bindings
+
+Only bounded functional **version 2** evidence may select:
+
+```js
+stageContext.security.functionalTest.securityComparison = {
+  version: 1, mode: "defender-scanner-role-metadata"
+};
+```
+
+Absent `securityComparison` retains **exact legacy raw-equality semantics**.
+Unknown/missing profile keys, modes or versions fail closed. Outer evidence
+version 3, accessEvidence version 1 and authority/recovery selectors are unchanged.
+Before projection, validate the exact subscription role ID, resource type/name,
+`BuiltInRole`, `assignableScopes:["/"]`, exact two Actions/six DataActions and
+empty exclusions; full-security projection also validates destination/scanner/
+access profile. Only `scanner.roleDefinition.properties.createdOn` and
+`.updatedOn` are excluded. Unknown fields, names/descriptions, arrays, other
+definitions and every assignment field remain compared.
+
+`stateHash` is unchanged. `accessEvidence.s0`/`s1` keep complete raw snapshots,
+original verified `sha256`, `observedAt` and `reference`.
+`functionalTest.readableSecuritySha256` binds **actual raw S1**, never the
+derived fingerprint or a retagged current hash. S0/S1 and S1/fresh live security
+must be permission-equivalent, not necessarily raw-identical.
+
+Existing read-only exports in `scripts/infra/company-development-state.mjs` are
+`scannerRolePermissionState(actualRoleDefinition, profile)`,
+`readableSecurityPermissionState(actualReadableSecurity, profile)`,
+`compareReadableSecurity(beforeRawSecurity, afterRawSecurity, profile)` and
+`assertStageStateEqual(beforeAssessment, afterAssessment, profile, optionalLabel)`.
+Use complete actual readable security from the unchanged `readSecurity`
+collector for operator comparison, retaining both raw inputs. These helpers
+authenticate neither consent nor observation/effective authority and authorize no write.
+
+After asserting equivalence, `compareReadableSecurity` returns:
+
+```js
+{
+  version: 1, mode: "defender-scanner-role-metadata",
+  permissionStateSha256,
+  rawSha256: [beforeRawSha256, afterRawSha256],
+  rawEqual,
+  cause: rawEqual ? "NOT_OBSERVED" : "UNKNOWN",
+  metadata: [{createdOn, updatedOn}, {createdOn, updatedOn}]
+}
+```
+
+`permissionStateSha256` is derived, **not a raw/audit/source hash**. Metadata
+retains actual before/after values and absence. The functional validator summary
+adds this S0/S1 result at `accessEvidence.permissionComparison`.
+
+Preview post-what-if and apply pre-submit use `assertStageStateEqual`, projecting
+only `readableSecurity`; all other stage/permission/source values and hashes
+stay strict. Its `securityObservations` is
+`{comparison, before:{snapshot,sha256}, final:{snapshot,sha256}}`, with raw
+snapshots/hashes. Existing `company-dev-plan/evidence.json` and
+`company-dev-apply/reviewed-inputs.json` retain these observations for opted-in
+preview/apply. Raw before/final observations are persisted before comparison;
+a failed comparison produces no approved plan or PUT authority.
+Existing `company-dev-apply/result.json` retains post-ARM raw
+`verificationSecurity:{snapshot,sha256}` and, after validation,
+`permissionComparison` comparing raw S1 with actual verification security.
+
+No new CLI, runtime loader, artifact filename, workflow, source profile or
+historical pin is introduced. Use the existing
+[whole-context packing command](#packing-stage-context-for-native-dispatch).
+Old prepared operation/source consent must not be posted or reused after a new
+merge: genuine manually human-authored exact-new-merged-source commit consent
+and fresh after-consent proof remain required before any grant. This fix's
+implementation approval is not future PR merge/deploy authorization.
+
 ### Reviewed access-setup recovery — 2026-10-27
 
 The [dated recovery decision](../docs/adr/ADR-016-company-development-private-foundation.md#approved-reviewed-access-setup-recovery-decision--2026-10-27)
@@ -39,7 +132,8 @@ Before a separately reviewed new cycle:
 2. Obtain actual all-seven temporary-assignment absence/readback and complete
    current-authority, baseline and source evidence. Reported prior cleanup
    alone is insufficient. Preserve raw platform metadata and stop on drift;
-   never normalize differences, forge a checkpoint or rewrite historical state.
+   only the [exact forward scanner comparison](#scanner-metadata-comparison-boundary--2026-10-27)
+   may exclude its two approved properties. Never forge a checkpoint or rewrite history.
 3. Establish fresh genuine **per-run human execution authorization**, one executor
    and available cleanup fallback. Runtime authorization must not require issue
    #159, a hardcoded issue/comment ID or that issue's availability; historical citations are
@@ -133,7 +227,8 @@ unchanged local-only [packing command](#packing-stage-context-for-native-dispatc
 with the **whole full real context**, then supply the whole packed file to the
 normal protected native route, never a hash-only substitute. Do not pack invented
 future evidence or publish private operator IDs/payloads. S0/B/removal/S1,
-new functional v2, raw security/source equality, post-ARM verification and normal
+new functional v2, security/source binding (raw equality for legacy comparisons,
+with only the approved forward scanner comparison exception), post-ARM verification and normal
 checkpoint-before-immediate-C-cleanup remain mandatory.
 
 This policy does not itself assert that a recovery record or runtime execution
@@ -359,6 +454,9 @@ the exact condition; `definition` is its actual ARM custom-role GET.
 final security and excluding both B's role and assignment. Independently
 recompute both snapshot hashes; S0 equals S1 and S1 equals fresh actual security.
 The new functional v2 record hashes S1. Keep this proof outside hashed snapshots.
+These are the legacy raw-equality rules; the
+[approved forward comparison](#scanner-metadata-comparison-boundary--2026-10-27)
+must distinguish permission-equivalence from retained raw evidence/hashes.
 Bounded selection requires this proof; an unselected record cannot carry it.
 Legacy v1/v2 records without this mode retain their ordinary checks.
 
@@ -370,6 +468,8 @@ Legacy v1/v2 records without this mode retain their ordinary checks.
    operator context. Attribute actual executor/observer truthfully.
 3. Remove B and GET-verify absence. Collect fresh passing **S1**; require canonical
    **S0 == S1**. Never hide B presence in a snapshot or retag an older hash.
+   This is raw equality for legacy records; the approved forward comparison
+   may establish permission-equivalence only, never raw equality by assertion.
 4. Produce a **NEW real functional v2** record bound to hash S1 with the actual
    earlier upload/scan/observation times and existing temporal/correlation bounds.
    Carry versioned transient-access proof on

@@ -7,6 +7,47 @@
 **Owners/reviewers required:** Platform, Network, Security, Finance, repository maintainers
 **Scope:** New empty company DEVELOPMENT foundation only; never production
 
+## Approved scanner metadata comparison decision — 2026-10-27
+
+The human **“I approve” at 2026-10-27T19:19:02.562Z** authorizes only the
+exact scanner metadata-comparison fix, not future PR merge/deployment, grants
+or any actual deployment. The supplied diagnosis reports four fixed successful
+HTTP 200 role-definition samples **A/A/A/B**, differing only in
+`properties.createdOn` and `properties.updatedOn` for built-in Defender scanner
+role `cd50fd1f-0421-46f2-8cce-afc587dbcc77`; permissions and every other field
+match. Root cause remains **UNKNOWN**: routing/cache headers are not proof.
+This record does not claim a new Azure observation by the documentation author.
+
+**Approved forward comparison boundary:** only after validating that exact
+built-in scanner role may a derived live permission-state comparison exclude
+those two properties. Every raw response and raw audit hash must be preserved.
+No generic timestamp, role or assignment stripping is authorized. All other
+role fields, Actions/DataActions/exclusions, scopes/principals, conditions,
+assignment times, T0/deadline, source and history remain comparison-bound.
+Permission-equivalence is **not raw S0/S1 equality**; never retag old raw hashes,
+erase metadata drift or reinterpret prior attempts as successful/equivalent.
+Existing raw snapshots, hashes and historical pins/contracts remain immutable.
+
+**Implemented selection:** only bounded functional v2 may opt in through
+`stageContext.security.functionalTest.securityComparison`, version 1,
+mode `defender-scanner-role-metadata`; absence retains exact legacy raw equality.
+The [runbook](../../infra/README.md#implemented-opt-in-fingerprints-and-raw-audit-bindings)
+owns exact derived fingerprint, raw S1/test binding and native audit placement.
+`stateHash` remains unchanged; no derived fingerprint replaces a raw audit/source
+hash. No new CLI, outer version, workflow, source profile or historical pin.
+Fresh manual exact-new-source consent remains necessary; old prepared consent
+cannot be reused after a new merge.
+
+This narrowly qualifies earlier blanket metadata-drift/raw-equality wording
+only for the approved forward comparison; every other drift guard remains.
+Same C/B scopes, maximum 60 minutes, cleanup, genuine manually human-authored
+exact-source commit-comment consent and native GitHub controls remain required.
+No issue #159 runtime dependency, self-approval or automatic retry/renewal is
+introduced. The [runbook comparison boundary](../../infra/README.md#scanner-metadata-comparison-boundary--2026-10-27)
+owns operational handling. **Owners:** Azure technical/risk owner and repository
+maintainers. **Review triggers:** any additional differing field, wrong role,
+missing raw evidence or attempted broader exclusion: stop and preserve evidence.
+
 ## Approved reviewed access-setup recovery decision — 2026-10-27
 
 The human comment by **cmbuyamba**, verified **2026-10-27T03:43:11Z**,
@@ -42,7 +83,8 @@ Ambiguous ARM submission or any post-ARM outcome must use the existing reviewed
 checkpoint-recovery contract, **not this exception**. Initial contracts,
 historical pins, completed/failed checkpoints and the old cycle's no-second-
 attempt rule remain unchanged. Preserve raw platform metadata: do not normalize
-or ignore drift to pass a guard. This decision adds no remote-change authority,
+or ignore drift to pass a guard, subject only to the later exact scanner
+comparison decision above for forward permission-equivalence. This decision adds no remote-change authority,
 resource deletion, bootstrap/security regrant or app deployment; all company-dev
 services remain the overall endpoint, but this fix concerns foundation recovery.
 The [operational runbook](../../infra/README.md#reviewed-access-setup-recovery--2026-10-27)
