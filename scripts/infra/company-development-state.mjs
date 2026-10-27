@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { assertNoSecretPayload, assertVerificationSources, assertWhatIfCollections, bootstrapInventory, continuationInventory, destination, securityInventory } from "./company-development.mjs";
 export { continuationInventory } from "./company-development.mjs";
-import { armGuid, assertHumanGrantAssignments, readBootstrapState, recoveryOrigin } from "./company-development-apply.mjs";
+import { armGuid, assertHumanGrantAssignments, assertOrderedNativeContext, readBootstrapState, recoveryOrigin } from "./company-development-apply.mjs";
 import { projectResources, assertCompletionBasis, historicalAuditGrants } from "./company-development-completion-validation.mjs";
 export { projectResources } from "./company-development-completion-validation.mjs";
 
@@ -183,7 +183,7 @@ function assertAccessRecovery(a, selection, now) {
     assert.equal(matches.length, 1, "Missing/duplicate pre-grant authority scope");
     // Raw byte/value comparison except the explicitly expected new six C rows.
     // No timestamp/security normalization and no unexplained authority delta.
-    assert.deepEqual(matches[0], { ...current, assignments: current.assignments.filter((v) => !temporaryIds.some((id) => sameId(id, v.id))) },
+    assert.deepEqual(matches[0], { ...current, assignments: current.assignments.filter((v) => !continuationAssignments.some((r) => sameId(r.id, v.id))) },
       "Pre-grant authority drift beyond exact C assignments");
     assert.ok(!matches[0].assignments.some((v) => temporaryIds.some((id) => sameId(id, v.id))), "Temporary access was present before new clock");
   }
@@ -241,6 +241,9 @@ function assertContinuationRecord(selection, phase, now) {
   assert.match(a.source.sourceSha256 ?? "", /^[a-f0-9]{64}$/);
   assert.deepEqual(a.source, selection.source, "Bounded source mismatch");
   const recovery = a.attempt?.mode === accessRecoveryMode;
+  // Only the ordered route's native guards authenticate recovery consent and
+  // dispatch history. Standalone previews must not consume this selector.
+  if (recovery && phase === "preview") assertOrderedNativeContext();
   exactKeys(a.attempt, ["mode", "completionBasis", ...(recovery ? ["recovery"] : [])], "bounded attempt");
   assert.ok(recovery || a.attempt.mode === "single-initial-attempt", "No bounded renewal/second attempt");
   assert.deepEqual(a.attempt.completionBasis, selection.completionBasis, "Wrong bounded predecessor run/artifact binding");

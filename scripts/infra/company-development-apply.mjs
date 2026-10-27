@@ -548,7 +548,6 @@ export function authenticateAccessRecovery(context, source, read = github, now =
   return assertAccessRecoveryAuthorization(authority, read(`comments/${id}`), source, now);
 }
 export function assertAccessRecoveryNativeRun(authority, run, listing, current) {
-  const authorized = Date.parse(authority.attempt.recovery.authorization.authorizedAt);
   for (const [key, expected] of Object.entries({ id: Number(current.runId), run_attempt: 1, head_sha: current.sha,
     head_branch: "main", event: "workflow_dispatch", path: orderedWorkflow, status: "in_progress", conclusion: null })) {
     assert.equal(run[key], expected, `Recovery native run ${key} mismatch`);
@@ -566,7 +565,9 @@ export function assertAccessRecoveryNativeRun(authority, run, listing, current) 
     assert.ok(r.head_sha === current.sha && r.event === "workflow_dispatch" && r.path === orderedWorkflow
       && Number.isFinite(Date.parse(r.created_at)), "Foreign/incomplete recovery dispatch history");
   }
-  const uses = listing.workflow_runs.filter((r) => Date.parse(r.created_at) >= authorized);
+  // The closed v1 history covers no earlier dispatch on this recovery source.
+  // A newer comment cannot erase a failed cycle or authorize an automatic retry.
+  const uses = listing.workflow_runs;
   assert.equal(uses.length, 1, "Consent already used/ambiguous; no second dispatch or automatic renewal");
   for (const key of ["id", "run_attempt", "head_sha", "head_branch", "event", "path", "created_at"]) {
     assert.equal(uses[0][key], run[key], `Recovery current native run/history ${key} drift`);

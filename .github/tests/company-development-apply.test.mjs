@@ -1028,7 +1028,39 @@ operatorTest("reviewed access recovery permits one native dispatch and rejects c
   }
 });
 
-operatorTest("reviewed access recovery full consumers require fresh functional proof and stop on any continuation ARM history", async () => {
+operatorTest("reviewed access recovery cycle1 rejects failed same-source dispatch before new consent", async (t) => {
+  const f = await accessRecoveryFixture(), a = f.context.continuationAuthority;
+  const { assertAccessRecoveryNativeRun } = await controls();
+  const run = { id: 321, run_attempt: 1, head_sha: sha, head_branch: "main", event: "workflow_dispatch",
+    path: ".github/workflows/company-development-foundation-apply.yml", status: "in_progress", conclusion: null,
+    created_at: "2026-10-27T04:29:00Z", actor: { login: "cmbuyamba", type: "User" },
+    triggering_actor: { login: "cmbuyamba", type: "User" },
+    repository: { full_name: "keyforta/keyforta-property" }, head_repository: { full_name: "keyforta/keyforta-property" } };
+  const earlier = { ...structuredClone(run), id: 320, status: "completed", conclusion: "failure",
+    created_at: "2026-10-27T03:59:00Z" };
+  const listing = { total_count: 2, workflow_runs: [run, earlier] };
+  let rejected = false;
+  try { assertAccessRecoveryNativeRun(a, run, listing, { sha, runId: "321", runAttempt: "1" }); }
+  catch (error) { assert.match(error.message, /no second dispatch|closed history/); rejected = true; }
+  t.diagnostic(`earlier failed dispatch before new consent: ${rejected ? "REJECTED" : "ACCEPTED"}`);
+  assert.equal(rejected, true, "Earlier failed recovery dispatch is not in reviewed closed history");
+});
+
+operatorTest("reviewed access recovery cycle1 rejects unexpected B in post-C authority inventory", async (t) => {
+  const f = await accessRecoveryFixture(), a = f.context.continuationAuthority;
+  a.collection.inventories.find((r) => r.scope === g).assignments.push({
+    id: `${bootstrapContainer()}/providers/Microsoft.Authorization/roleAssignments/16d6d244-a6ae-590d-b73d-d547d49ca16e`,
+    scope: bootstrapContainer(), principalId: operatorPrincipal,
+    roleDefinitionId: definitionId("ba92f5b4-2d11-453d-a403-e96b0029c9fe"), principalType: "User",
+  });
+  let rejected = false;
+  try { f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now); }
+  catch (error) { assert.match(error.message, /Pre-grant authority drift beyond exact C assignments/); rejected = true; }
+  t.diagnostic(`unexpected early B authority: ${rejected ? "REJECTED" : "ACCEPTED"}`);
+  assert.equal(rejected, true, "Only C may be subtracted from the post-C authority inventory");
+});
+
+async function accessRecoveryConsumerFixture() {
   const f = await accessRecoveryFixture(), a = f.context.continuationAuthority;
   f.now = Date.parse("2026-10-27T04:40:00Z");
   f.security = f.state.readSecurity(f.read, f.context.security, f.predecessor);
@@ -1044,6 +1076,136 @@ operatorTest("reviewed access recovery full consumers require fresh functional p
   f.record.readableSecuritySha256 = f.state.stateHash(f.security);
   f.context.security.functionalTest = f.record;
   f.plan.whatIf = { changes: f.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+  return f;
+}
+
+function orderedPreviewEnvironment(revision) {
+  return { ...process.env, GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "keyforta/keyforta-property",
+    GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REF_PROTECTED: "true",
+    GITHUB_WORKFLOW_REF: "keyforta/keyforta-property/.github/workflows/company-development-foundation-apply.yml@refs/heads/main",
+    GITHUB_ACTOR: "cmbuyamba", GITHUB_TRIGGERING_ACTOR: "cmbuyamba", GITHUB_WORKFLOW_SHA: revision,
+    GITHUB_SHA: revision, GITHUB_RUN_ID: "321", GITHUB_RUN_ATTEMPT: "1" };
+}
+
+operatorTest("reviewed access recovery cycle1 rejects standalone entry with nonexistent native consent before what-if or plan evidence", async (t) => {
+  const f = await accessRecoveryConsumerFixture(), source = sourceFixture();
+  const { foundationSource, validateInputs, stageInventory, armParameters } = await import("../../scripts/infra/company-development.mjs");
+  const env = process.env;
+  try {
+    const revision = source.revision, currentSource = { commitSha: revision, sourceSha256: foundationSource({ root: source.root, revision }).sha256 };
+    const a = f.context.continuationAuthority;
+    a.source = currentSource;
+    a.attempt.recovery.authorization.reference = `https://github.com/keyforta/keyforta-property/commit/${revision}#commitcomment-999999`;
+    f.record.machineEvidence.accessEvidence.source = currentSource;
+    f.record.machineEvidence.accessEvidence.authoritySha256 = f.state.stateHash(a);
+    f.context.deploymentName = `companydev-continuation-${revision.slice(0, 12)}`;
+    delete f.context.freezeReference;
+    const checkpoint = encode(f.predecessor);
+    f.context.predecessor.checkpointSha256 = hash(checkpoint);
+    a.attempt.completionBasis = structuredClone(f.context.predecessor);
+    f.record.machineEvidence.accessEvidence.authoritySha256 = f.state.stateHash(a);
+    f.plan.evidence = { ...f.plan.evidence, ...{ commitSha: revision, sourceSha256: currentSource.sourceSha256 } };
+    f.plan.inputs.evidenceVersion = 3; delete f.plan.inputs.changeFreeze;
+    f.transport.permissions[0].actions = ["Microsoft.Authorization/permissions/read"];
+    f.transport.stagePermissions[0].actions = ["Microsoft.Resources/deployments/whatIf/action", "Microsoft.Authorization/permissions/read"];
+    const responses = {};
+    const read = (args) => {
+      try {
+        const value = args[0] === "account"
+          ? { id: subscriptionId, tenantId: input.tenantId, state: "Enabled", user: { type: "servicePrincipal", name: previewClient } }
+          : f.read(args);
+        responses[JSON.stringify(args)] = { value };
+        return value;
+      } catch (error) {
+        responses[JSON.stringify(args)] = { error: error.code };
+        throw error;
+      }
+    };
+    process.env = orderedPreviewEnvironment(revision);
+    // Record a fully valid ordered state readback, then replay only these
+    // synthetic responses through the actual standalone CLI entry point.
+    f.state.assessStage(read, f.plan, f.predecessor, f.now, "preview", { runId: "321", runAttempt: "1" });
+    process.env = env;
+    const inputs = validateInputs(f.plan.inputs, input), inventory = stageInventory(inputs);
+    const review = { repository: "keyforta/keyforta-property", revision, runId: "321", runAttempt: "1",
+      stage: "continuation", mode: "initial", evidenceVersion: 3, environment: {}, environmentSha256: hash("{}"),
+      inventorySha256: hash(JSON.stringify(inventory)) };
+    const folder = join(source.root, "company-dev-plan"); mkdirSync(folder);
+    for (const [file, value] of Object.entries({ inputs, inventory, parameters: armParameters(inputs), "review-context": review })) {
+      writeFileSync(join(folder, `${file}.json`), encode(value));
+    }
+    const ref = f.context.predecessor;
+    const run = { id: Number(ref.runId), run_attempt: 1, head_sha: ref.sha, head_branch: "main",
+      event: "workflow_dispatch", status: "completed", conclusion: "success",
+      path: ".github/workflows/company-development-foundation-apply.yml",
+      repository: { full_name: "keyforta/keyforta-property" }, head_repository: { full_name: "keyforta/keyforta-property" } };
+    const artifact = { id: Number(ref.artifactId), expired: false,
+      name: `company-dev-foundation-bootstrap-initial-v2-apply-${ref.sha}-${ref.runId}-1`,
+      workflow_run: { id: Number(ref.runId), head_sha: ref.sha } };
+    const script = resolve("scripts/infra/company-development.mjs");
+    const bootstrap = `
+import cp from "node:child_process";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import {syncBuiltinESMExports} from "node:module";
+const responses=${JSON.stringify(responses)}, actualExec=cp.execFileSync, actualHash=crypto.createHash;
+crypto.createHash=(algorithm,...options)=>{
+  const h=actualHash(algorithm,...options), update=h.update.bind(h), digest=h.digest.bind(h); let subject;
+  h.update=(value,...encoding)=>{subject=value;return update(value,...encoding)};
+  h.digest=(encoding)=>subject===${JSON.stringify(operatorPrincipal)} && encoding==="hex"
+    ?"6a0dae9369f346faf287190f74c65cbd420fea30bc3a529c972912cbecbd0280":digest(encoding);
+  return h;
+};
+cp.execFileSync=(tool,args,options)=>{
+  if(tool==="git")return actualExec(tool,args,options);
+  let value;
+  if(tool==="gh"){
+    const api=args[1];
+    if(args[0]==="run"){fs.writeFileSync(args[args.indexOf("--dir")+1]+"/checkpoint.json",${JSON.stringify(checkpoint)});return ""}
+    if(api.includes("/comments/"))throw new Error("404 nonexistent native consent");
+    if(api.includes("/attempts/"))value=${JSON.stringify(run)};
+    else if(api.includes("/artifacts?"))value={total_count:1,artifacts:[${JSON.stringify(artifact)}]};
+    else if(api.includes("/actions/artifacts/"))value=${JSON.stringify(artifact)};
+    else throw new Error("Unexpected synthetic GitHub read");
+  }else if(tool==="az"){
+    args=args.slice(0,args.indexOf("--subscription")<0?args.length:args.indexOf("--subscription"));
+    if(args[0]==="bicep")value={};
+    else if(args[0]==="provider")value={registrationState:"Registered"};
+    else if(args[0]==="group")value={id:${JSON.stringify(g)},location:"southafricanorth"};
+    else if(args.slice(0,3).join(" ")==="deployment group what-if"){console.log("MOCK_PROVIDER_WHAT_IF");value=${JSON.stringify(f.plan.whatIf)}}
+    else{
+      const response=responses[JSON.stringify(args)];
+      if(!response)throw new Error("Unrecorded synthetic Azure read "+JSON.stringify(args));
+      if(response.error)throw Object.assign(new Error(response.error),{stderr:"ERROR: ("+response.error+") synthetic absent"});
+      value=response.value;
+    }
+  }else throw new Error("Unexpected tool; no external transport allowed");
+  return JSON.stringify(value);
+};
+Date.now=()=>${f.now};
+syncBuiltinESMExports();
+process.argv=[process.execPath,${JSON.stringify(script)},"preview"];
+await import(${JSON.stringify(script)});
+`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", bootstrap], { cwd: source.root, encoding: "utf8",
+      env: { ...orderedPreviewEnvironment(revision),
+        GITHUB_WORKFLOW_REF: "keyforta/keyforta-property/.github/workflows/company-development-foundation.yml@refs/heads/main",
+        FOUNDATION_STAGE: "continuation", FOUNDATION_MODE: "initial", EVIDENCE_VERSION: "3",
+        STAGE_CONTEXT: JSON.stringify(f.context), REVIEW_CONTEXT: JSON.stringify(review), PREVIEW_CLIENT_ID: previewClient,
+        VNET_CIDR: input.vnetCidr, ACA_SUBNET_CIDR: input.acaSubnetCidr, POSTGRES_SUBNET_CIDR: input.postgresSubnetCidr,
+        NETWORK_APPROVAL: input.networkApproval, APPROVED_VNET_CIDR: input.vnetCidr,
+        APPROVED_ACA_SUBNET_CIDR: input.acaSubnetCidr, APPROVED_POSTGRES_SUBNET_CIDR: input.postgresSubnetCidr,
+        APPROVED_NETWORK_REFERENCE: input.networkApproval } });
+    const whatIf = result.stdout.includes("MOCK_PROVIDER_WHAT_IF"), evidence = existsSync(join(folder, "evidence.json"));
+    t.diagnostic(`standalone nonexistent consent: exit=${result.status}; provider what-if=${whatIf}; uploadable plan evidence=${evidence}`);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, /Ordered native GITHUB_WORKFLOW_REF mismatch/);
+    assert.equal(whatIf, false); assert.equal(evidence, false);
+  } finally { process.env = env; rmSync(source.root, { recursive: true, force: true }); }
+});
+
+operatorTest("reviewed access recovery full consumers require fresh functional proof and stop on any continuation ARM history", async () => {
+  const f = await accessRecoveryConsumerFixture();
   const oldNow = Date.now; Date.now = () => f.now;
   try {
     let puts = 0, previews = 0;
@@ -1062,7 +1224,11 @@ operatorTest("reviewed access recovery full consumers require fresh functional p
       : f.read(args);
     f.transport.permissions[0].actions = ["Microsoft.Authorization/permissions/read"];
     f.transport.stagePermissions[0].actions = ["Microsoft.Resources/deployments/whatIf/action", "Microsoft.Authorization/permissions/read"];
-    f.state.assessStage(previewRead, f.plan, f.predecessor, f.now, "preview", f.execution);
+    const env = process.env;
+    try {
+      process.env = orderedPreviewEnvironment(sha);
+      f.state.assessStage(previewRead, f.plan, f.predecessor, f.now, "preview", f.execution);
+    } finally { process.env = env; }
     f.transport.extraDeployments.push({ name: `companydev-continuation-${"f".repeat(12)}`, properties: { provisioningState: "Failed" } });
     assert.throws(() => operation(), /continuation ARM/);
     assert.equal(puts, 1); assert.equal(previews, 1);
