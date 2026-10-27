@@ -842,7 +842,10 @@ async function apply() {
     command("az", ["rest", "--method", "put", "--url", request.url, "--body", JSON.stringify(request.body), "--subscription", destination.subscriptionId, "--output", "none", "--only-show-errors"]);
   };
   if (verified.plan.inputs.stageContext) {
-    const decision = stateEngine.executeReviewedStage({ plan: verified.plan, predecessor, read: azure, preview, submit });
+    const decision = stateEngine.executeReviewedStage({ plan: verified.plan, predecessor, read: azure, preview, submit,
+      recordSecurityObservations: (securityObservations) => writeJson("company-dev-apply/reviewed-inputs.json", {
+        ...JSON.parse(readFileSync("company-dev-apply/reviewed-inputs.json", "utf8")), securityObservations,
+      }) });
     if (decision.action === "noop") {
       writeJson("company-dev-apply/fresh-what-if.json", acceptedPreview);
       checkpoint(true, decision.resources, { name: decision.inspection.name, commitSha: decision.inspection.name === predecessor.deploymentName ? (predecessor.deploymentCommitSha ?? predecessor.commitSha) : currentRun().revision }, decision.sourceTransition ? decision : null);
@@ -878,7 +881,16 @@ async function apply() {
       if (verified.plan.inputs.stage === "continuation") {
         boundedLifetime();
         const security = stateEngine.readSecurity(azure, verified.plan.inputs.stageContext.security, { resources });
+        const comparison = verified.plan.inputs.stageContext.security.functionalTest.securityComparison;
+        if (comparison !== undefined) writeJson("company-dev-apply/result.json", {
+          ...JSON.parse(readFileSync("company-dev-apply/result.json", "utf8")),
+          verificationSecurity: { snapshot: security, sha256: stateEngine.stateHash(security) },
+        });
         stateEngine.validateFunctionalTest(verified.plan.inputs.stageContext.security.functionalTest, security, Date.now(), continuation);
+        if (comparison !== undefined) writeJson("company-dev-apply/result.json", {
+          ...JSON.parse(readFileSync("company-dev-apply/result.json", "utf8")),
+          permissionComparison: stateEngine.compareReadableSecurity(verified.plan.inputs.stageContext.security.functionalTest.machineEvidence.accessEvidence.s1.snapshot, security, comparison),
+        });
         stateEngine.assertWriterRevoked(azure, predecessor, "apply", verified.plan.inputs.stageContext.security, continuation);
         stateEngine.readStagePermissionReadiness(azure, "continuation", "apply", false, continuation);
       }

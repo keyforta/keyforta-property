@@ -613,10 +613,18 @@ async function preview() {
     "--no-pretty-print",
   ]);
   if (!input.stageContext) assertBootstrapPreview(result);
-  else {
+  let securityObservations;
+  if (input.stageContext) {
     const { assessStage, validateStageChanges } = await import("./company-development-state.mjs");
     const checked = assessStage(azure, plan, predecessor, Date.now(), "preview");
-    if (before) assert.deepEqual(checked, before, "Post-preview original recovery state drift");
+    if (before) {
+      const profile = input.stageContext.security?.functionalTest?.securityComparison;
+      if (profile !== undefined) writeJson("company-dev-plan/evidence.json", { securityObservations: {
+        before: { snapshot: before.readableSecurity, sha256: stateEngine.stateHash(before.readableSecurity) },
+        final: { snapshot: checked.readableSecurity, sha256: stateEngine.stateHash(checked.readableSecurity) },
+      } }); // Failed comparison is not an approved plan; retain raw observations.
+      securityObservations = stateEngine.assertStageStateEqual(before, checked, profile, "Post-preview original recovery state drift");
+    }
     validateStageChanges(result, plan, checked.action === "noop");
   }
   // Empty RG / creates only: no existing resource keys or data are queried.
@@ -643,6 +651,7 @@ async function preview() {
     inputsSha256: digest("company-dev-plan/inputs.json"),
     reviewContextSha256: digest("company-dev-plan/review-context.json"),
     executionApproved: false,
+    ...(securityObservations ? { securityObservations } : {}),
   });
   console.log(`Version 3 ${input.stage}/${input.mode} preview validated. No CI security/Blob writes or app/data activation; internal topology UNVERIFIED.`);
 }
