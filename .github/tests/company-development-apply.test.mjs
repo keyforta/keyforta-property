@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import crypto, { createHash } from "node:crypto";
+import { syncBuiltinESMExports } from "node:module";
 import { chmodSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
@@ -201,7 +202,7 @@ test("Defender index-tag API casing does not bypass malware, discovery, cap, sta
     (f) => { f.transport.defender.properties.malwareScanning.onUpload.filters = { excludeBlobsLargerThan: 1024 }; },
     (f) => { f.transport.defender.properties.malwareScanning.operationStatus = { code: "PartialSuccess" }; },
     (f) => { f.transport.defender.properties.sensitiveDataDiscovery.operationStatus = { code: "Failed" }; },
-    (f) => { f.transport.scanner.identity.type = "systemassigned"; },
+    (f) => { f.transport.scanner.identity.type = "SYSTEMASSIGNED"; },
     (f) => { f.transport.scanner.identity.tenantId = "00000000-0000-4000-8000-000000000999"; },
     (f) => { f.transport.assignments.pop(); },
     (f) => { f.context.security.writerRemovalReference = undefined; },
@@ -752,6 +753,404 @@ function agentFunctionalRecord(f) {
   record.machineEvidence.readbackSha256 = f.state.stateHash(record.machineEvidence.readback);
   return record;
 }
+
+const boundedMode = "companydev-continuation-bounded-baseline";
+test("publication privacy keeps the exact approved human subject out of repository literals", () => {
+  const fingerprint = "6a0dae9369f346faf287190f74c65cbd420fea30bc3a529c972912cbecbd0280";
+  for (const path of ["scripts/infra/company-development-state.mjs", ".github/tests/company-development-apply.test.mjs"]) {
+    const text = readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
+    for (const [value] of text.matchAll(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi)) {
+      assert.notEqual(hash(value.toLowerCase()), fingerprint, `Private human subject literal in ${path}`);
+    }
+  }
+});
+const scannerProfile = { version: 1, mode: "defender-storage-malware-data-scanner" };
+const joins = ["networkSecurityGroups", "virtualNetworks", "privateDnsZones", "virtualNetworks/subnets"].map((t) => `Microsoft.Network/${t}/join/action`);
+const s = `/subscriptions/${subscriptionId}`, g = `${s}/resourceGroups/${resourceGroup}`;
+const d = `${s}/providers/Microsoft.Security/datascanners/StorageDataScanner`;
+const applyPrincipal = "e10f9e0f-274f-4643-8a8f-ad8f41b09c64", previewPrincipal = "be3a876f-b205-42c7-bd95-4d33bd49a4ff";
+const operatorPrincipal = "99999999-9999-4999-8999-999999999999";
+// No private human subject in fixtures. Stub only the subject-fingerprint
+// dependency for a synthetic actor; snapshots/readback/source hashes remain
+// real SHA-256. Production has no injected pin or selectable crypto dependency.
+function operatorTest(name, run) {
+  test(name, async (t) => {
+    const actualCreateHash = crypto.createHash;
+    t.mock.method(crypto, "createHash", (algorithm, ...options) => {
+      const h = actualCreateHash(algorithm, ...options), chunks = [];
+      const update = h.update.bind(h), digest = h.digest.bind(h);
+      h.update = (value, ...encoding) => { chunks.push(value); return update(value, ...encoding); };
+      h.digest = (encoding) => {
+        const actual = digest(encoding);
+        if (algorithm !== "sha256" || chunks.length !== 1 || chunks[0] !== operatorPrincipal) return actual;
+        const fingerprint = "6a0dae9369f346faf287190f74c65cbd420fea30bc3a529c972912cbecbd0280";
+        return encoding === "hex" ? fingerprint : Buffer.from(fingerprint, "hex");
+      };
+      return h;
+    });
+    syncBuiltinESMExports();
+    try { await run(t); }
+    finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
+  });
+}
+const applyClient = "63b65efc-7e8d-4d82-b13a-53b875df54f1", previewClient = "684d29f1-1055-4030-b308-872dd2781d39";
+const definitionId = (id) => `${s}/providers/Microsoft.Authorization/roleDefinitions/${id}`;
+const scannerActions = ["Microsoft.Storage/storageAccounts/blobServices/containers/read", "Microsoft.Storage/storageAccounts/fileServices/shares/read"];
+const scannerDataActions = ["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/write",
+  "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/read", "Microsoft.Storage/storageAccounts/fileServices/fileshares/files/read",
+  "Microsoft.Storage/storageAccounts/fileServices/readFileBackupSemantics/action", "Microsoft.EventGrid/events/send/action"];
+function observedDefinition(id, actions, scopes, type = "CustomRole", dataActions = []) {
+  return { id: definitionId(id), name: id, type: "Microsoft.Authorization/roleDefinitions",
+    properties: { roleName: "synthetic role metadata", type, assignableScopes: scopes,
+      permissions: [{ actions, notActions: [], dataActions, notDataActions: [] }] } };
+}
+async function boundedFixture() {
+  const f = await stagedFixture();
+  f.predecessor.applyClientId = applyClient;
+  f.now = Date.parse("2026-10-27T00:40:00.000Z");
+  const reads = ["Microsoft.Resources/subscriptions/resourceGroups/read", "Microsoft.Resources/subscriptions/resourceGroups/resources/read", "Microsoft.Resources/resources/read",
+    "Microsoft.Resources/deployments/read", "Microsoft.Resources/deployments/operations/read", "Microsoft.Resources/deployments/operationStatuses/read",
+    "Microsoft.Authorization/permissions/read", "Microsoft.Authorization/roleAssignments/read", "Microsoft.ManagedIdentity/userAssignedIdentities/read",
+    "Microsoft.ContainerRegistry/registries/read", "Microsoft.Storage/storageAccounts/read", "Microsoft.Storage/storageAccounts/blobServices/read",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/read", "Microsoft.Security/defenderForStorageSettings/read", "Microsoft.EventGrid/systemTopics/read",
+    ...f.state.continuationInventory().map((r) => `${r.type}/read`), "Microsoft.Network/virtualNetworks/subnets/read"];
+  const writes = [...f.state.continuationInventory().map((r) => `${r.type}/write`), "Microsoft.Resources/deployments/write",
+    "Microsoft.Resources/deployments/whatIf/action", "Microsoft.Resources/deployments/validate/action", "Microsoft.OperationalInsights/workspaces/sharedKeys/action", ...joins];
+  const definitions = [
+    observedDefinition("bf872e6a-3956-5e63-a78e-32f6eac66cd8", [...reads, ...writes], [g]),
+    observedDefinition("1da8e8e3-8b63-50b6-bd68-dae38dfab689", ["Microsoft.Authorization/permissions/read", "Microsoft.EventGrid/systemTopics/read"], [g]),
+    observedDefinition("c4f33b99-089a-5317-b4a7-941a276a5935", ["Microsoft.Authorization/roleDefinitions/read"], [s]),
+    observedDefinition("f8eeb9a7-a177-5a0d-b6b0-dbb01620e323", ["Microsoft.Security/datascanners/read", "Microsoft.Authorization/permissions/read"], [s]),
+  ];
+  const tuples = [
+    ["b5ac29f1-10dc-5c07-b211-25a1f2c5578e", g, 0, applyPrincipal],
+    ["53f4cca3-2794-5964-a63c-75bfde969056", g, 1, previewPrincipal],
+    ["3bbb1331-93ab-5b29-8f95-ac5778e492a0", s, 2, applyPrincipal],
+    ["ade85cfb-1c37-5851-8856-e6079eca176a", s, 2, previewPrincipal],
+    ["bf5bb09c-999b-5ab8-ba02-e8f15464c9e4", d, 3, applyPrincipal],
+    ["f99db001-99ec-548d-a682-3d3b8a4590b2", d, 3, previewPrincipal],
+  ].map(([name, scope, i, principalId]) => ({ id: `${scope}/providers/Microsoft.Authorization/roleAssignments/${name}`, name, scope,
+    roleDefinitionId: definitions[i].id, principalId, principalType: "ServicePrincipal", createdOn: "2026-10-27T00:10:00.000Z" }));
+  f.execution = { source: { commitSha: sha, sourceSha256: f.predecessor.sourceSha256 }, run: { runId: "123", runAttempt: "1" } };
+  const authority = {
+    version: 1, mode: boundedMode, destination: inputDestination(), originalIdentity: { principalId: applyPrincipal, clientId: applyClient },
+    approval: { authorizer: "cmbuyamba", approvedAt: "2026-10-27T00:09:09.558Z", reference: "session:673fdb9d-901b-4774-87a7-55f375793b45/2026-10-27T00:09:09.558Z" },
+    source: structuredClone(f.execution.source), attempt: { mode: "single-initial-attempt", completionBasis: structuredClone(f.context.predecessor) },
+    firstGrantAt: "2026-10-27T00:10:00.000Z", deadline: "2026-10-27T01:10:00.000Z",
+    removalOwner: { principalId: operatorPrincipal, fallbackAvailable: true, reference: f.context.inspectionReference },
+    providerAssumption: "Microsoft.App manages ME_keyforta_cdev_mxv24i2qhtib6; first additional authority requirement stops the attempt",
+    definitions, assignments: tuples,
+    collection: { kind: "operator-collected", principalId: operatorPrincipal, tenantId: input.tenantId, subscriptionId,
+      reference: f.context.inspectionReference, commandsSha256: "a".repeat(64), collectedAt: "2026-10-27T00:30:00.000Z",
+      inventories: [s, g, d].map((scope) => ({ scope, complete: true, nextLink: null, includeInherited: true,
+        includeDescendants: scope === g, assignments: tuples.filter((a) => a.scope === scope || scope.startsWith(`${a.scope}/`)) })) },
+  };
+  f.context.continuationAuthority = authority;
+  f.selection = { ...f.execution, stage: "continuation", authority, completionBasis: f.context.predecessor };
+  f.transport.stagePermissions[0].actions.push(...joins);
+  f.transport.permissions[0].actions.push(...joins);
+  f.transport.assignments.push(...tuples.filter((r) => [s, g].includes(r.scope)));
+  f.context.security.inheritedAssignmentReview = tuples.filter((r) => [s, g].includes(r.scope)).map((r) => ({
+    id: r.id, sha256: f.state.stateHash(r), reason: "synthetic bounded fixture", ownerReference: f.context.inspectionReference,
+  }));
+  const originalRead = f.read;
+  f.read = (a) => {
+    const url = a[a.indexOf("--url") + 1] ?? "";
+    if (url.includes("/dataScanners/") && url.includes("/permissions?")) return { value: [{ actions: ["Microsoft.Authorization/permissions/read"], notActions: [], dataActions: [], notDataActions: [] }] };
+    if (url.includes("/roleDefinitions/")) {
+      f.calls.push(a);
+      return structuredClone(f.context.continuationAuthority.definitions.find((r) => url.includes(r.id)));
+    }
+    return originalRead(a);
+  };
+  f.security = f.state.readSecurity(f.read, f.context.security, f.predecessor);
+  return f;
+}
+function inputDestination() {
+  return { tenantId: input.tenantId, subscriptionId, resourceGroup, location: input.location };
+}
+async function scannerFixture() {
+  const f = await stagedFixture();
+  f.context.security.scannerAccessProfile = scannerProfile;
+  f.transport.scanner.id = d;
+  f.context.security.scannerId = d;
+  f.transport.scanner.identity.type = "systemassigned";
+  f.transport.defender.properties.dataScannerResourceId = f.transport.scanner.id;
+  f.transport.assignments.at(-1).roleDefinitionId = definitionId("cd50fd1f-0421-46f2-8cce-afc587dbcc77");
+  f.boot.find((r) => r.type.endsWith("/storageAccounts")).properties.networkAcls = {
+    resourceAccessRules: [{ resourceId: f.transport.scanner.id, tenantId: input.tenantId }],
+  };
+  f.transport.scannerDefinition = observedDefinition("cd50fd1f-0421-46f2-8cce-afc587dbcc77", [...scannerActions], ["/"], "BuiltInRole", [...scannerDataActions]);
+  const read = f.read;
+  f.read = (a) => {
+    const url = a[a.indexOf("--url") + 1] ?? "";
+    if (url.includes("/roleDefinitions/")) return f.transport.scannerDefinition;
+    if (url.toLowerCase().includes("/datascanners/")) return f.transport.scanner;
+    return read(a);
+  };
+  return f;
+}
+
+test("approved scanner profile accepts observed least-privileged scanner and retains raw role and identity hash drift", async () => {
+  const f = await scannerFixture();
+  const value = f.state.readSecurity(f.read, f.context.security, f.predecessor);
+  assert.deepEqual(value.scanner.roleDefinition, f.transport.scannerDefinition);
+  f.transport.scanner.identity.type = "SystemAssigned";
+  const other = f.state.readSecurity(f.read, f.context.security, f.predecessor);
+  assert.notEqual(f.state.stateHash(value), f.state.stateHash(other));
+});
+
+test("approved scanner profile rejects role, capability, identity, network and unexplained-grant drift", async () => {
+  const mutations = [
+    (f) => { f.context.security.scannerAccessProfile.version = 2; },
+    (f) => { f.context.security.scannerAccessProfile.mode = "unknown"; },
+    (f) => { f.transport.assignments.at(-1).roleDefinitionId = definitionId("1e7ca9b1-60d1-4db8-a914-f2ca1ff27c40"); },
+    (f) => { f.transport.scannerDefinition.properties.permissions[0].dataActions.pop(); },
+    (f) => { f.transport.scannerDefinition.properties.permissions[0].actions.push("*"); },
+    (f) => { f.transport.scannerDefinition.properties.permissions[0].notActions.push("*/write"); },
+    (f) => { f.transport.scanner.identity.type = "SystemAssigned, UserAssigned"; },
+    (f) => { f.transport.scanner.identity.type = " systemassigned"; },
+    (f) => { f.transport.scanner.identity.type = "Systemassigned"; },
+    (f) => { f.transport.scanner.identity.tenantId = "foreign"; },
+    (f) => { f.transport.defender.properties.dataScannerResourceId = d + "-foreign"; },
+    (f) => { f.transport.assignments.at(-1).principalId = operatorPrincipal; },
+    (f) => { f.transport.assignments.at(-1).scope = g; },
+    (f) => { f.transport.assignments.push({ ...f.transport.assignments.at(-1), id: "extra" }); },
+    (f) => { f.boot.find((r) => r.type.endsWith("/storageAccounts")).properties.networkAcls.resourceAccessRules[0].tenantId = "foreign"; },
+    (f) => { f.boot.find((r) => r.type.endsWith("/storageAccounts")).properties.networkAcls.resourceAccessRules.push({ resourceId: "extra" }); },
+  ];
+  for (const mutate of mutations) {
+    const f = await scannerFixture(); f.context.security.scannerAccessProfile = { ...scannerProfile }; mutate(f);
+    assert.throws(() => f.state.readSecurity(f.read, f.context.security, f.predecessor), mutate.toString());
+  }
+});
+
+operatorTest("approved bounded authority requires all four joins in BOTH guards without claiming minimum permission proof", async () => {
+  const f = await boundedFixture();
+  const proof = f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now);
+  assert.equal(proof.mode, boundedMode);
+  assert.match(proof.assignmentReadProof, /operator.*not.*workflow/i);
+  const readiness = f.state.readStagePermissionReadiness(f.read, "continuation", "apply", true, f.selection, f.now);
+  assert.equal(readiness.acaMinimumPermissionProof, "EXTERNAL_REQUIRED");
+  assert.equal(readiness.continuationPermissionMode, "BOUNDED_BASELINE");
+  f.state.assertWriterRevoked(f.read, f.predecessor, "apply", f.context.security, f.selection, f.now);
+  for (const join of joins) {
+    f.transport.stagePermissions[0].actions = f.transport.stagePermissions[0].actions.filter((a) => a !== join);
+    assert.throws(() => f.state.readStagePermissionReadiness(f.read, "continuation", "apply", false, f.selection, f.now), /Missing declared stage operation/);
+    f.transport.stagePermissions[0].actions.push(join);
+    f.transport.permissions[0].actions = f.transport.permissions[0].actions.filter((a) => a !== join);
+    assert.throws(() => f.state.assertWriterRevoked(f.read, f.predecessor, "apply", f.context.security, f.selection, f.now), /Missing bounded join/);
+    f.transport.permissions[0].actions.push(join);
+  }
+});
+
+operatorTest("approved bounded authority rejects unknown, expanded, incomplete, stale or foreign records and caller", async () => {
+  const mutations = [
+    (f) => { f.selection.stage = "bootstrap"; },
+    (f) => { f.context.continuationAuthority.version = 2; },
+    (f) => { f.context.continuationAuthority.mode = "skip"; },
+    (f) => { f.context.continuationAuthority.approval.approvedAt = "2026-10-26T22:23:46.734Z"; },
+    (f) => { f.context.continuationAuthority.source.commitSha = "f".repeat(40); f.selection.source = { ...f.execution.source, commitSha: sha }; },
+    (f) => { f.selection.run = { ...f.execution.run, runAttempt: "2" }; },
+    (f) => { f.context.continuationAuthority.attempt.mode = "renew"; },
+    (f) => { f.context.continuationAuthority.attempt.completionBasis.runId = "456"; },
+    (f) => { f.context.continuationAuthority.deadline = "2026-10-27T01:10:01.000Z"; },
+    (f) => { f.context.continuationAuthority.firstGrantAt = "2026-10-27T00:11:00.000Z"; },
+    (f) => { f.context.continuationAuthority.removalOwner.fallbackAvailable = false; },
+    (f) => { f.context.continuationAuthority.definitions[0].properties.permissions[0].actions.push("*"); },
+    (f) => { f.context.continuationAuthority.definitions[0].properties.permissions[0].actions.push("Microsoft.Storage/storageAccounts/write"); },
+    (f) => { f.context.continuationAuthority.definitions[0].properties.permissions[0].notActions.push("*/write"); },
+    (f) => { f.context.continuationAuthority.definitions[0].properties.permissions[0].dataActions.push("*/read"); },
+    (f) => { f.context.continuationAuthority.definitions[0].properties.permissions[0].actions.push(joins[0]); },
+    (f) => { f.context.continuationAuthority.definitions[0].properties.assignableScopes = [s]; },
+    (f) => { f.context.continuationAuthority.assignments[0].principalId = previewPrincipal; },
+    (f) => { f.context.continuationAuthority.assignments[0].scope = s; },
+    (f) => { f.context.continuationAuthority.assignments[0].condition = "true"; },
+    (f) => { f.context.continuationAuthority.assignments.pop(); },
+    (f) => { f.context.continuationAuthority.collection.kind = "workflow-fresh"; },
+    (f) => { f.context.continuationAuthority.collection.inventories[2].complete = false; },
+    (f) => { f.context.continuationAuthority.collection.inventories[2].nextLink = "more"; },
+    (f) => { f.context.continuationAuthority.collection.inventories[2].assignments.pop(); },
+    (f) => { f.predecessor.applyClientId = previewClient; },
+  ];
+  for (const mutate of mutations) {
+    const f = await boundedFixture(); mutate(f);
+    assert.throws(() => f.state.assertWriterRevoked(f.read, f.predecessor, "apply", f.context.security, f.selection, f.now), mutate.toString());
+  }
+  const f = await boundedFixture();
+  assert.throws(() => f.state.readContinuationAuthority(f.read, f.selection, "unknown", f.now));
+  assert.throws(() => f.state.readContinuationAuthority(f.read, f.selection, "apply", Date.parse(f.context.continuationAuthority.deadline)), /deadline|expired/);
+});
+
+test("approved joins stay forbidden without selection, in bootstrap and for preview", async () => {
+  for (const join of joins) {
+    const f = await stagedFixture();
+    f.transport.permissions[0].actions.push(join); f.transport.stagePermissions[0].actions.push(join);
+    assert.throws(() => f.state.readStagePermissionReadiness(f.read, "continuation", "apply"));
+    assert.throws(() => f.state.readStagePermissionReadiness(f.read, "bootstrap", "apply"));
+    assert.throws(() => f.state.readStagePermissionReadiness(f.read, "continuation", "preview"));
+    assert.throws(() => f.state.assertWriterRevoked(f.read, f.predecessor, "apply", f.context.security));
+    assert.throws(() => f.state.assertWriterRevoked(f.read, f.predecessor, "preview", f.context.security));
+  }
+});
+
+function syntheticCondition(path, start, end) {
+  return `(!(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read'} AND SubOperationMatches{'Blob.List'})) AND (@Resource[Microsoft.Storage/storageAccounts/blobServices/containers/blobs:path] StringEquals '${path}') AND (@Environment[UtcNow] DateTimeGreaterThan '${start}') AND (@Environment[UtcNow] DateTimeLessThan '${end}')`;
+}
+async function transientFixture() {
+  const f = await boundedFixture(), a = f.context.continuationAuthority;
+  const record = agentFunctionalRecord(f);
+  record.testId = "c06587c9-df56-5258-a9ca-dc29608a4167";
+  record.readableSecuritySha256 = f.state.stateHash(f.security);
+  record.blob.name = `synthetic-${record.testId}.txt`;
+  record.operator.principalId = operatorPrincipal;
+  Object.assign(record.authorization, { operatorPrincipalId: operatorPrincipal, testId: record.testId, authorizedAt: a.approval.approvedAt });
+  Object.assign(record, { enabledAt: "2026-10-27T00:10:00.000Z", startedAt: "2026-10-27T00:32:00.000Z",
+    uploadedAt: "2026-10-27T00:33:00.000Z", scanTime: "2026-10-27T00:34:00.000Z", observedAt: "2026-10-27T00:35:00.000Z" });
+  record.machineEvidence.readback = { storageId: record.storageId, containerId: record.containerId, blob: structuredClone(record.blob),
+    operatorPrincipalId: operatorPrincipal, observedAt: record.observedAt,
+    tags: { "Malware scanning scan result": record.result, "Malware scanning scan time": record.scanTime } };
+  record.machineEvidence.readbackSha256 = f.state.stateHash(record.machineEvidence.readback);
+  const scope = record.containerId, name = "16d6d244-a6ae-590d-b73d-d547d49ca16e";
+  const grant = { id: `${scope}/providers/Microsoft.Authorization/roleAssignments/${name}`, name, scope, principalId: operatorPrincipal,
+    principalType: "User", roleDefinitionId: definitionId("bb60fd06-bbaa-56a9-a35c-a6a246597d9e"),
+    conditionVersion: "2.0", condition: syntheticCondition(record.blob.name, a.firstGrantAt, a.deadline), createdOn: "2026-10-27T00:31:00.000Z" };
+  record.machineEvidence.accessEvidence = {
+    version: 1, mode: "companydev-synthetic-transient-access", source: structuredClone(a.source), authoritySha256: f.state.stateHash(a),
+    testId: record.testId, window: { firstGrantAt: a.firstGrantAt, deadline: a.deadline }, grant,
+    definition: observedDefinition("bb60fd06-bbaa-56a9-a35c-a6a246597d9e", [], [g], "CustomRole", [
+      "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write", "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
+      "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/read"]),
+    s0: { snapshot: structuredClone(f.security), sha256: f.state.stateHash(f.security), observedAt: "2026-10-27T00:30:30.000Z", reference: record.observationReference },
+    s1: { snapshot: structuredClone(f.security), sha256: f.state.stateHash(f.security), observedAt: "2026-10-27T00:38:00.000Z", reference: record.observationReference },
+    grantReadbackAt: "2026-10-27T00:31:30.000Z", removedAt: "2026-10-27T00:36:00.000Z",
+    absence: { assignmentId: grant.id, observedAt: "2026-10-27T00:37:00.000Z", reference: record.observationReference,
+      result: "RoleAssignmentNotFound", scope, complete: true, nextLink: null, assignments: f.security.grants.filter((r) => r.scope === scope) },
+    upload: { ifNoneMatch: "*", path: record.blob.name, contentSha256: record.blob.contentSha256,
+      contentLength: record.blob.contentLength, commandsSha256: record.machineEvidence.commandsSha256 },
+  };
+  f.record = record;
+  return f;
+}
+
+operatorTest("approved transient synthetic proof validates S0/B grant/upload/removal/absence/S1 without self-reference", async () => {
+  const f = await transientFixture();
+  const result = f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection);
+  assert.equal(result.accessEvidence.mode, "companydev-synthetic-transient-access");
+  assert.equal(result.accessEvidence.temporaryAssignmentRemoved, "operator-evidence-not-workflow-cleanup");
+  assert.ok(!JSON.stringify(f.security).includes("accessEvidence"));
+  assert.throws(() => f.state.validateFunctionalTest(f.record, f.security, f.now), /bounded|selection/);
+});
+
+operatorTest("approved transient synthetic proof rejects old hash, drift, listing, residual B, bad chronology and unknown versions", async () => {
+  const mutations = [
+    (f, e) => { e.version = 2; },
+    (f, e) => { e.mode = "skip"; },
+    (f, e) => { e.source.commitSha = "0".repeat(40); },
+    (f, e) => { e.authoritySha256 = "0".repeat(64); },
+    (f, e) => { e.s0.sha256 = "0".repeat(64); },
+    (f, e) => { e.s0.snapshot.scanner.identity.type = "foreign"; e.s0.sha256 = f.state.stateHash(e.s0.snapshot); },
+    (f, e) => { e.s1.snapshot.grants.push(e.grant); e.s1.sha256 = f.state.stateHash(e.s1.snapshot); },
+    (f, e) => { e.s0.snapshot.grants.push(e.grant); e.s0.sha256 = f.state.stateHash(e.s0.snapshot); },
+    (f, e) => { e.absence.assignments.push(e.grant); },
+    (f, e) => { e.absence.complete = false; },
+    (f, e) => { e.absence.result = "UNKNOWN"; },
+    (f, e) => { e.removedAt = f.record.uploadedAt; },
+    (f, e) => { e.grantReadbackAt = e.s0.observedAt; },
+    (f, e) => { e.s1.observedAt = e.removedAt; },
+    (f, e) => { e.window.deadline = "2026-10-27T02:10:00.000Z"; },
+    (f, e) => { e.definition.properties.permissions[0].dataActions.push("Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/write"); },
+    (f, e) => { e.grant.condition = e.grant.condition.replace(" AND SubOperationMatches{'Blob.List'}", ""); },
+    (f, e) => { e.grant.principalId = applyPrincipal; },
+    (f, e) => { e.grant.scope = f.record.storageId; },
+    (f, e) => { e.grant.condition = e.grant.condition.replace("synthetic-c065", "folder/synthetic-c065"); },
+    (f, e) => { e.upload.ifNoneMatch = undefined; },
+    (f, e) => { e.testId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"; },
+    (f) => { f.record.blob.name = "folder/" + f.record.blob.name; },
+    (f) => { f.record.readableSecuritySha256 = "0".repeat(64); },
+    (f) => { delete f.record.machineEvidence.accessEvidence; },
+  ];
+  for (const mutate of mutations) {
+    const f = await transientFixture(); mutate(f, f.record.machineEvidence.accessEvidence);
+    assert.throws(() => f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection), mutate.toString());
+  }
+});
+
+operatorTest("approved bounded execution stops after slow preview expiry without PUT and preserves completed verification route", async () => {
+  const f = await boundedFixture();
+  const start = f.now, oldNow = Date.now;
+  Date.now = () => start;
+  try {
+    // The full stage assessment must propagate selection; no short-circuiting
+    // the actual independent security/functional/permission checks.
+    const t = await transientFixture();
+    f.context.security.functionalTest = t.record;
+    f.plan.whatIf = { changes: f.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+    let puts = 0, previews = 0;
+    assert.throws(() => f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now, execution: f.execution,
+      preview: () => { previews++; Date.now = () => Date.parse(f.context.continuationAuthority.deadline); return f.plan.whatIf; },
+      submit: () => { puts++; } }), /deadline|expired/);
+    assert.equal(previews, 1); assert.equal(puts, 0);
+    Date.now = () => start;
+    const submitted = f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now, execution: f.execution,
+      preview: () => f.plan.whatIf, submit: () => { puts++; } });
+    assert.equal(submitted.action, "submitted"); assert.equal(puts, 1);
+  } finally { Date.now = oldNow; }
+});
+
+operatorTest("approved bounded preview uses the existing preview client and rejects every join even with valid selection", async () => {
+  const f = await boundedFixture(), read = f.read;
+  f.read = (a) => a[0] === "account" ? { id: subscriptionId, tenantId: input.tenantId, user: { type: "servicePrincipal", name: previewClient } } : read(a);
+  f.transport.stagePermissions[0].actions = ["Microsoft.Resources/deployments/whatIf/action", "Microsoft.Authorization/permissions/read"];
+  f.transport.permissions[0].actions = ["Microsoft.Authorization/permissions/read"];
+  f.state.readStagePermissionReadiness(f.read, "continuation", "preview", true, f.selection, f.now);
+  f.state.assertWriterRevoked(f.read, f.predecessor, "preview", f.context.security, f.selection, f.now);
+  for (const join of joins) {
+    f.transport.stagePermissions[0].actions.push(join); f.transport.permissions[0].actions.push(join);
+    assert.throws(() => f.state.readStagePermissionReadiness(f.read, "continuation", "preview", true, f.selection, f.now));
+    assert.throws(() => f.state.assertWriterRevoked(f.read, f.predecessor, "preview", f.context.security, f.selection, f.now));
+    f.transport.stagePermissions[0].actions.pop(); f.transport.permissions[0].actions.pop();
+  }
+});
+
+operatorTest("approved role observations compare exact known operation sets case-insensitively but retain bytes and freshly reject drift", async () => {
+  const f = await boundedFixture();
+  f.context.continuationAuthority.definitions[0].properties.permissions[0].actions.reverse();
+  f.context.continuationAuthority.definitions[0].properties.permissions[0].actions[0] = joins.at(-1).toLowerCase();
+  f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now);
+  const read = f.read;
+  f.read = (args) => {
+    const r = read(args);
+    if ((args[args.indexOf("--url") + 1] ?? "").includes("/roleDefinitions/")) r.properties.permissions[0].actions.push("Microsoft.Authorization/roleAssignments/write");
+    return r;
+  };
+  assert.throws(() => f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now));
+  const extra = await boundedFixture();
+  extra.context.continuationAuthority.collection.inventories[1].assignments.push({
+    ...extra.context.continuationAuthority.assignments[0], id: `${g}/providers/Microsoft.Authorization/roleAssignments/00000000-0000-4000-8000-000000000000`,
+    roleDefinitionId: definitionId("6240c808-cbc1-5878-bd33-8a3dbe3972fc"),
+  });
+  assert.throws(() => extra.state.readContinuationAuthority(extra.read, extra.selection, "apply", extra.now), /Unexplained extra/);
+});
+
+operatorTest("approved authority preserves native ARM timestamp precision and completion remains historical before external cleanup", async () => {
+  const f = await boundedFixture(), a = f.context.continuationAuthority;
+  a.firstGrantAt = "2026-10-27T00:10:00.1234567Z";
+  for (const assignment of a.assignments) assignment.createdOn = a.firstGrantAt;
+  // Inventories retain these same actual objects; no timestamp normalization.
+  f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now);
+  assert.equal(a.assignments[0].createdOn, "2026-10-27T00:10:00.1234567Z");
+  const source = readFileSync(new URL("../../scripts/infra/company-development-apply.mjs", import.meta.url), "utf8");
+  assert.ok(source.indexOf("boundedLifetime(); // real clock immediately before PUT") < source.indexOf('command("az", ["rest", "--method", "put"'));
+  assert.match(source, /boundedLifetime\(\); \/\/ includes post-ARM verification[\s\S]*checkpoint\(true, resources\)/);
+  assert.match(source, /completed checkpoint is historical, not replay-ready/);
+  assert.match(source, /overall operation UNVERIFIED/);
+});
+
+test("real subject fingerprint rejects synthetic or substituted human authority without any test dependency stub", async () => {
+  const f = await boundedFixture();
+  assert.throws(() => f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now), /Wrong approved removal operator/);
+});
 
 test("agent functional v2 distinguishes authorizer from actual local executor and observer", async () => {
   const f = await stagedFixture();

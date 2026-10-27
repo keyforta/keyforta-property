@@ -31,6 +31,11 @@ export function assertImplementedStage(input) {
   }
   assert.ok(["bootstrap", "continuation"].includes(input.stage), "Unknown foundation stage");
   assert.ok(["initial", "reviewed-reentry"].includes(input.mode), "Unknown stage mode");
+  if (input.stageContext?.continuationAuthority !== undefined) {
+    assert.ok(input.stage === "continuation" && input.mode === "initial", "Bounded authority is continuation initial only; no renewal/re-entry");
+    assert.equal(input.stageContext.continuationAuthority?.version, 1, "Unknown continuation authority version");
+    assert.equal(input.stageContext.continuationAuthority.mode, "companydev-continuation-bounded-baseline", "Unknown continuation authority mode");
+  }
   if (input.stageContext?.sourceTransition) assert.ok(input.stage === "bootstrap" && input.mode === "reviewed-reentry", "Source transition is verification-only bootstrap re-entry");
 }
 
@@ -531,7 +536,7 @@ async function preview() {
     evidence: { commitSha: process.env.GITHUB_SHA, sourceManifestVersion: 5, sourceSha256: foundationSource().sha256, sourceFiles: foundationSource().files,
       templateSha256: digest("company-dev-plan/template.json"), parametersSha256: createHash("sha256").update(consumedParameters).digest("hex") } };
   // The new route must stop BEFORE provider what-if on any origin/state mismatch.
-  const before = input.stageContext?.sourceTransition || predecessor?.kind === "bootstrap-completion-basis"
+  const before = input.stageContext?.sourceTransition || input.stageContext?.continuationAuthority || predecessor?.kind === "bootstrap-completion-basis"
     ? stateEngine.assessStage(azure, plan, predecessor, Date.now(), "preview") : null;
   const result = azure([
     "deployment", "group", "what-if",

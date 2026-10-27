@@ -7,6 +7,115 @@
 **Owners/reviewers required:** Platform, Network, Security, Finance, repository maintainers
 **Scope:** New empty company DEVELOPMENT foundation only; never production
 
+## Approved three-change access decision — 2026-10-27
+
+**Approved scope amendment, not full ADR acceptance or activation.** The human
+replied **“I approve” at 2026-10-27T00:09:09.558Z** to the specialist's
+three-part recommendation: accept Azure's existing narrow scanner role; permit
+one-hour, single-blob synthetic verification then remove temporary access; and
+permit narrow company-dev continuation roles, removed after the attempt, stopping
+if Azure requires additional authority. This scope needs no repeated approval.
+One reviewed PR and subsequent **PR-specific human merge and exact-SHA deployment
+consent** remain required. Approval does not attest package checksum bytes,
+unseen field records, native operational observations, completed tests or readiness.
+Pre-implementation main was `e38d2ba…`; no future revision is authorized by name here.
+
+**Decision and supersession:** only the historical mandatory scanner Data Owner
+requirement and exhaustive-minimum-permission activation prerequisite are amended
+for this new mode. Preserve the legacy actual approved Owner profile and all
+historical records. The existing bounded PIM/current-authority policy below
+is unchanged. The [operational runbook](../../infra/README.md#approved-three-change-company-dev-runbook--2026-10-27)
+owns exact scanner permission sets/correlation, access tuples, proof ordering,
+common clock, cleanup and evidence collection, including final implemented
+`stageContext.security.scannerAccessProfile`,
+`stageContext.continuationAuthority` and
+`stageContext.security.functionalTest.machineEvidence.accessEvidence` shapes.
+No new runtime module, outer schema/source-profile version or workflow is added.
+
+- **A:** explicitly accept actual BuiltInRole
+  `cd50fd1f-0421-46f2-8cce-afc587dbcc77`, with its exact observed two Actions
+  and six DataActions and empty exclusions, as **scan/tag capability**, not
+  Data Owner equivalence. No manual Owner grant. Actual readable correlation
+  and genuine `No threats found` remain mandatory; mutable tags alone prove
+  neither admission safety nor hidden topology, which remains **UNVERIFIED**.
+- **B:** permit only the existing authorized operator's three exact Blob
+  write/read/tag-read DataActions on one root object in `tenant-applications`,
+  with exact-path, no-list and real-time ABAC bounds. Conditional creation is
+  operational protection, not an immutable-object primitive: write authority
+  can mutate that one object during the window. Keep the synthetic blob under
+  existing retention; remove the temporary assignment and verify absence.
+- **C:** `companydev-continuation-bounded-baseline` is an explicit nested,
+  versioned authority selection for the original apply identity, continuation
+  only. Accept the qualified four-role/six-assignment, 44-distinct-management-
+  Action baseline, including four dependency-selected Network joins.
+  `acaMinimumPermissionProof=EXTERNAL_REQUIRED` remains true; record bounded
+  baseline qualification separately as `BOUNDED_BASELINE`, never PROVEN or `allowUnknown`.
+  This is not a universal necessary-and-sufficient backend permission proof.
+  Both permission guards use validated authority mode and live effective
+  permissions. No joins for bootstrap,
+  preview or unselected mode; preview receives metadata reads only.
+
+**Consequences and limits:** RG-scoped type permissions are not resource-name
+restrictions. The workspace shared-key management action is secret-bearing,
+not an innocuous read; never separately retrieve/log keys. The ACA managed group
+`ME_keyforta_cdev_mxv24i2qhtib6` is RP-created inventory scope only, with no
+caller grants, precreation, adoption, repair or deletion. Scanner-scope assignment
+tuples are operator-observed proof where workflow GET visibility is absent;
+actual workflow role-definition/current-effective-permission checks remain
+required, not fictitious independent live tuple proof or new read rights.
+
+The immutable common **T0..T0+60 minutes** starts with the first ANY new temporary
+grant. No extension, renewal or second attempt. An attempt includes existing
+post-ARM resource/security/functional verification and a completed checkpoint
+**before immediate C cleanup**, not cleanup at ARM Succeeded. Failure,
+cancellation or absolute deadline still requires immediate removal. B has an
+ABAC data-access clock; C management grants have **no automatic expiry**.
+Exact cleanup and GET-verified absence are operator responsibilities, never
+workflow RBAC/Blob writes. Available human cleanup fallback is an operational
+precondition, not a claimed confirmation. Cleanup failure leaves the overall
+handoff unverified even if a historical checkpoint completed; revocation hash
+drift does not rewrite it or establish replay readiness.
+Implemented lifetime checks run after preview, before PUT, during polling,
+verification and completion; they do not perform cleanup. The normal completed
+checkpoint is preserved. Runtime timestamps and operator evidence must be real:
+code completion is not an operational-readiness claim.
+
+All other gates remain: $120/month before-tax planning ceiling and forecast/
+credit coverage, native CI/security/PR controls, exact-SHA authorization freshness,
+plan/source/drift binding, strict NoChange and destructive/uncertain-outcome stops.
+No new app-cost-fit claim, licence purchase, Owner/Contributor workaround,
+identity/Graph/audit authority or automatic resource/data cleanup. The original
+bootstrap assignment remains absent; never automatically restore it. Existing
+approved CIDRs and design are unchanged. The overall goal remains all company-dev
+services, but this package is foundation continuation, **not application deployment**.
+
+**Owners:** accountable Azure technical/risk owner and authorized local operator
+own execution, clock and cleanup; repository maintainers own contract alignment.
+**Review triggers:** role/action/tuple/condition/identity/scope/schema drift,
+missing visibility, additional 403, unexpected/destructive state, uncertain
+outcome or deadline/cleanup failure: stop and preserve evidence, never grant
+more authority or retry. New authority requires a separate decision, not a
+renewal of this attempt. Rollback is exact temporary-access removal and withheld
+execution; preserve resources, data and immutable history.
+
+### Prospective company-dev disposability — 2026-10-27
+
+At **2026-10-27T00:30:12.699Z**, the user directed: **“we are at the begining
+and we are not in prod. If something fails, just delete and restart”**.
+Record this as prospective company-dev-only recovery direction, not immediate
+deletion authority or an implemented reset feature. Only definitively failed
+company-dev resources may be considered, after exact ownership and no-real-data
+checks; uncertain outcomes still stop. Preserve failure evidence, historical
+checkpoints, other environments, shared resources and the Entra directory.
+The accountable Azure owner/operator must review the exact safe reset scope
+before action; any actual reset/restart uses a fresh reviewed cycle, never
+hidden replay or rewriting completed state. This does not implicitly authorize
+bootstrap/security grants or override the temporary-access deadline/cleanup.
+The existing first-error stop records failure before a separately safe reset
+decision. Automatic reset/destructive code is outside this three-change package,
+which remains the implementation priority. **Review triggers:** confirmed failure,
+ownership/data uncertainty or any proposed reset scope/authority change.
+
 ## Bounded current-authority evidence decision — 2026-10-26
 
 **Approved procedural addendum; not full ADR acceptance.** At
