@@ -4,6 +4,7 @@ import { syncBuiltinESMExports } from "node:module";
 import { chmodSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
+import { gzipSync, gunzipSync } from "node:zlib";
 import test, { after } from "node:test";
 import YAML from "yaml";
 import { completionFixture } from "./fixtures/company-completion.mjs";
@@ -13,6 +14,12 @@ import { zipFixture } from "./fixtures/company-zip.mjs";
 const controls = () => import("../../scripts/infra/company-development-apply.mjs");
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 const encode = (value) => `${JSON.stringify(value, null, 2)}\n`;
+// Independent producer for failing-first entrypoint/negative regressions.
+function contextEnvelope(bytes) {
+  bytes = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  return JSON.stringify({ version: 1, kind: "companydev-stage-context-transport", encoding: "gzip+base64",
+    uncompressedBytes: bytes.length, sha256: hash(bytes), payload: gzipSync(bytes).toString("base64") });
+}
 const sha = "a".repeat(40);
 const subscriptionId = "891e5e6e-8ae3-4455-9184-8d7606223d91";
 const resourceGroup = "rg-keyforta-companydev-san";
@@ -997,6 +1004,104 @@ test("approved joins stay forbidden without selection, in bootstrap and for prev
 function syntheticCondition(path, start, end) {
   return `(!(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read'} AND SubOperationMatches{'Blob.List'})) AND (@Resource[Microsoft.Storage/storageAccounts/blobServices/containers/blobs:path] StringEquals '${path}') AND (@Environment[UtcNow] DateTimeGreaterThan '${start}') AND (@Environment[UtcNow] DateTimeLessThan '${end}')`;
 }
+operatorTest("stage-context transport losslessly retains full bounded proof and fits whole native dispatch body", async () => {
+  const { packStageContext, decodeStageContext } = await import("../../scripts/infra/company-development.mjs");
+  assert.equal(typeof packStageContext, "function", "Missing bounded stage-context packer");
+  assert.equal(typeof decodeStageContext, "function", "Missing bounded stage-context decoder");
+  const f = await transientFixture();
+  f.context.security.functionalTest = f.record;
+  f.context.transportSyntheticPadding = "Synthetic only: café / 网络 / \"quotes\" / \\ / \n".repeat(3000);
+  const raw = encode(f.context);
+  assert.ok(Buffer.byteLength(raw) > 73753, "Exercise more than the actual observed lower bound");
+  const packed = packStageContext(raw);
+  const body = JSON.stringify({ ref: "main", inputs: { stage: "continuation", mode: "initial", evidence_version: "3",
+    stage_context: packed, vnet_cidr: input.vnetCidr, aca_subnet_cidr: input.acaSubnetCidr,
+    postgres_subnet_cidr: input.postgresSubnetCidr, network_approval: input.networkApproval } });
+  assert.ok(body.length < 65535 && Buffer.byteLength(body) < 65535, "Whole native body, not payload alone");
+  assert.deepEqual(gunzipSync(Buffer.from(JSON.parse(packed).payload, "base64")), Buffer.from(raw));
+  const decoded = decodeStageContext(packed);
+  assert.deepEqual(decoded, f.context);
+  assert.deepEqual(decodeStageContext(raw), decoded, "Legacy raw path is unchanged");
+  assert.deepEqual(f.state.validateFunctionalTest(decoded.security.functionalTest, f.security, f.now, f.selection),
+    f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection));
+  assert.equal(f.state.stateHash(decoded.continuationAuthority), f.state.stateHash(f.context.continuationAuthority));
+  assert.equal(decodeStageContext(undefined), undefined);
+  assert.equal(decodeStageContext(""), undefined);
+});
+
+test("stage-context transport rejects corrupt, ambiguous, unknown and oversized records", async () => {
+  const { packStageContext, decodeStageContext } = await import("../../scripts/infra/company-development.mjs");
+  assert.equal(typeof decodeStageContext, "function", "Missing bounded stage-context decoder");
+  const valid = JSON.parse(contextEnvelope('{"predecessor":{"kind":"bootstrap-completion-receipt-ref"},"baseline":[]}'));
+  const changes = [
+    { version: 2 }, { kind: "arbitrary-blob" }, { encoding: "deflate+base64" }, { extra: true },
+    { uncompressedBytes: 0 }, { uncompressedBytes: -1 }, { uncompressedBytes: 1.5 },
+    { uncompressedBytes: 1048577 }, { uncompressedBytes: valid.uncompressedBytes + 1 },
+    { sha256: "0".repeat(64) }, { sha256: valid.sha256.toUpperCase() },
+    { payload: "!" }, { payload: valid.payload + "\n" }, { payload: valid.payload.replace(/\//g, "_") + "-" },
+    { payload: valid.payload.slice(0, -4) }, { payload: Buffer.from("not gzip").toString("base64") },
+    { payload: "A".repeat(61440) },
+  ];
+  for (const change of changes) assert.throws(() => decodeStageContext(JSON.stringify({ ...valid, ...change })), undefined, Object.keys(change).join(","));
+  const missing = { ...valid }; delete missing.sha256;
+  assert.throws(() => decodeStageContext(JSON.stringify(missing)));
+  assert.throws(() => decodeStageContext(JSON.stringify(valid).replace('"version":1', '"version":0,"version":1')), /canonical|ambiguous/i);
+  for (const bytes of [Buffer.from([0xff, 0xfe]), Buffer.from("not JSON"), Buffer.from("null"), Buffer.from("[]"),
+    Buffer.from(contextEnvelope("{}")), Buffer.from('{"kind":"unknown-transport"}')]) {
+    assert.throws(() => decodeStageContext(contextEnvelope(bytes)));
+  }
+  const corrupted = Buffer.from(valid.payload, "base64"); corrupted[corrupted.length - 8] ^= 1;
+  assert.throws(() => decodeStageContext(JSON.stringify({ ...valid, payload: corrupted.toString("base64") })));
+  const trailing = Buffer.concat([Buffer.from(valid.payload, "base64"), Buffer.from([0])]);
+  assert.throws(() => decodeStageContext(JSON.stringify({ ...valid, payload: trailing.toString("base64") })), /trailing/i);
+  // Non-zero base64 pad bits can decode to identical bytes in permissive APIs.
+  const padded = JSON.parse(contextEnvelope("{}"));
+  assert.match(padded.payload, /==?$/);
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const position = padded.payload.indexOf("=") - 1;
+  padded.payload = padded.payload.slice(0, position) + alphabet[alphabet.indexOf(padded.payload[position]) + 1] + padded.payload.slice(position + 1);
+  assert.throws(() => decodeStageContext(JSON.stringify(padded)), /base64/i);
+  assert.throws(() => packStageContext(JSON.stringify(valid)), /nested|transport/i);
+  const invalidUnicode = '{"value":"' + String.fromCharCode(0xd800) + '"}';
+  assert.throws(() => packStageContext(invalidUnicode), /UTF8/i);
+  assert.throws(() => decodeStageContext(invalidUnicode), /UTF8/i);
+  assert.throws(() => decodeStageContext(" ".repeat(1048577)), /size|limit|large/i);
+  assert.throws(() => packStageContext('{"padding":"' + "x".repeat(1048576) + '"}'), /size|limit|large/i);
+  const bomb = JSON.parse(contextEnvelope('{"padding":"' + "x".repeat(1048576) + '"}'));
+  bomb.uncompressedBytes = 1048576;
+  assert.throws(() => decodeStageContext(JSON.stringify(bomb)), /gzip|limit|large/i);
+  const incompressible = JSON.stringify({ padding: Array.from({ length: 4096 }, (_, i) => hash(String(i))).join("") });
+  assert.throws(() => packStageContext(incompressible), /encoded|size|limit|large/i);
+  const prefix = '{"padding":"', suffix = '"}';
+  const boundary = prefix + "x".repeat(1048576 - prefix.length - suffix.length) + suffix;
+  assert.deepEqual(decodeStageContext(packStageContext(boundary)), JSON.parse(boundary));
+});
+
+test("stage-context transport packing CLI is local private exclusive-output only", async () => {
+  const { root: dir } = sourceFixture();
+  try {
+    const raw = encode({ predecessor: { kind: "bootstrap-completion-receipt-ref" }, baseline: [], synthetic: "private synthetic only\n".repeat(4000) });
+    const source = join(dir, "context.json"), output = join(dir, "context.packed.json");
+    writeFileSync(source, raw, { mode: 0o600 });
+    const script = resolve("scripts/infra/company-development.mjs");
+    const run = (...args) => spawnSync(process.execPath, [script, "pack-stage-context", "--input", source, "--output", output, ...args],
+      { cwd: dir, env: { ...process.env, GITHUB_ACTIONS: "false", PATH: "" }, encoding: "utf8" });
+    const result = run();
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stdout + result.stderr, /private synthetic only|H4sI|"payload"/);
+    const { decodeStageContext } = await import("../../scripts/infra/company-development.mjs");
+    assert.deepEqual(decodeStageContext(readFileSync(output, "utf8")), JSON.parse(raw));
+    const { statSync } = await import("node:fs");
+    assert.equal(statSync(output).mode & 0o777, 0o600);
+    assert.equal(run().status, 1, "Never overwrite an existing packed evidence file");
+    assert.equal(readFileSync(source, "utf8"), raw);
+    assert.equal(run("--unknown").status, 1);
+    const workflow = spawnSync(process.execPath, [script, "pack-stage-context", "--input", source, "--output", join(dir, "workflow.json")],
+      { env: { ...process.env, GITHUB_ACTIONS: "true", PATH: "" }, encoding: "utf8" });
+    assert.equal(workflow.status, 1, "Packing is an explicit local operator operation");
+    assert.equal(existsSync(join(dir, "workflow.json")), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 async function transientFixture() {
   const f = await boundedFixture(), a = f.context.continuationAuthority;
   const record = agentFunctionalRecord(f);
@@ -2301,7 +2406,7 @@ console.log(JSON.stringify(value));
       }
     };
     const protectedStage = (mode, previewId, applyId) => {
-      Object.assign(env, { FOUNDATION_MODE: mode, STAGE_CONTEXT: JSON.stringify(stageContext), GITHUB_RUN_ID: applyId,
+      Object.assign(env, { FOUNDATION_MODE: mode, STAGE_CONTEXT: mode === "initial" ? contextEnvelope(JSON.stringify(stageContext)) : JSON.stringify(stageContext), GITHUB_RUN_ID: applyId,
         PREVIEW_PHASE: "true", FAKE_ENVIRONMENT: JSON.stringify({ ...environment, name: "company-dev" }) });
       env.FAKE_WHAT_IF = JSON.stringify({ changes: staged.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: mode === "initial" ? "Create" : "NoChange", after: { type } })) });
       const previewScript = resolve("scripts/infra/company-development.mjs");
@@ -2324,6 +2429,7 @@ console.log(JSON.stringify(value));
         const result = previewRun(op); assert.equal(result.status, 0, `${op}: ${result.stderr}`); outputs();
       }
       const files = Object.fromEntries(Object.keys(f.files).map((name) => [name, readFileSync(join(dir, "company-dev-plan", name), "utf8")]));
+      assert.deepEqual(JSON.parse(files["inputs.json"]).stageContext, stageContext, "Actual preview must bind decoded JSON, never transport metadata");
       const planEvidence = JSON.parse(files["evidence.json"]);
       Object.assign(env, { GITHUB_RUN_ID: applyId, PREVIEW_PHASE: "false", FAKE_ENVIRONMENT: JSON.stringify(environment),
         FAKE_PREVIEW_ENVIRONMENT: JSON.stringify({ ...environment, name: "company-dev" }),
@@ -2334,6 +2440,12 @@ console.log(JSON.stringify(value));
         REVIEWED_PARAMETERS_SHA256: planEvidence.parametersSha256, REVIEWED_WHAT_IF_SHA256: planEvidence.whatIfSha256,
         REVIEWED_INVENTORY_SHA256: planEvidence.inventorySha256, REVIEWED_EVIDENCE_SHA256: hash(files["evidence.json"]) });
       bindOrdered(files, applyId, "continuation", mode);
+      env.GITHUB_JOB = "apply_guard";
+      const marker = "synthetic-private-transport-drift";
+      const altered = run("guard", { STAGE_CONTEXT: contextEnvelope(JSON.stringify({ ...stageContext, transportDrift: marker })) });
+      assert.equal(altered.status, 1, "Native decoded context must equal the authenticated plan object");
+      assert.match(altered.stderr, /Ordered decoded stage context differs from dispatch/);
+      assert.ok(!(altered.stdout + altered.stderr).includes(marker), "Do not log private payload on mismatch");
       for (const op of ["guard", "verify", "apply"]) {
         env.GITHUB_JOB = op === "guard" ? "apply_guard" : "apply";
         const result = run(op); assert.equal(result.status, 0, `${mode} ${op}: ${result.stderr}`); outputs();
