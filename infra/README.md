@@ -178,6 +178,9 @@ ANY new temporary grant, B or C; the common deadline is **T0+60 minutes**.
 Record T0 before the next grant. Implemented `firstGrantAt` is the minimum
 actual six C `createdOn` observations; B must be created later in the S0/S1
 chronology, never used to restart this clock. No extension, renewal or second attempt.
+Clock comparisons accept only UTC `Z` or Azure CLI's explicit `+00:00`, with
+up to seven fractional digits. Original timestamp strings remain unchanged in
+records, cross-read equality checks and hashes; other offsets/formats still fail.
 Workflow helpers perform no RBAC mutations or Blob writes; the authorized local
 operator/agent performs exact mutations and GET absence verification.
 
