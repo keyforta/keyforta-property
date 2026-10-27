@@ -1252,6 +1252,42 @@ operatorTest("approved authority preserves native ARM timestamp precision and co
   assert.match(source, /overall operation UNVERIFIED/);
 });
 
+operatorTest("approved authority accepts exact Azure CLI UTC assignment timestamps without rewriting evidence", async () => {
+  const f = await boundedFixture(), a = f.context.continuationAuthority;
+  // ARM retains seven fractional digits; Azure CLI's datetime serializer
+  // emits six and an explicit UTC offset. Both are actual UTC observations.
+  a.firstGrantAt = "2026-10-27T00:10:00.1234567Z";
+  for (const assignment of a.assignments) assignment.createdOn = "2026-10-27T00:10:00.123456+00:00";
+  const raw = JSON.stringify(a), before = f.state.stateHash(a);
+  f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now);
+  assert.equal(JSON.stringify(a), raw);
+  assert.equal(f.state.stateHash(a), before);
+  a.assignments[0].createdOn = "2026-10-27T00:10:00.123456Z";
+  assert.notEqual(f.state.stateHash(a), before, "Equivalent timestamp text remains bound by the raw evidence hash");
+  for (const value of [
+    "2026-10-27T00:10:00.123456+01:00", "2026-10-27T00:10:00.123456-00:00",
+    "2026-10-27T00:10:00.123456+0000", "2026-10-27T00:10:00.123456z",
+    "2026-10-27T00:10:00.12345678+00:00", "2026-10-27T00:10:00.123456+00:00 ",
+    "2026-02-30T00:10:00.123456+00:00",
+  ]) {
+    a.assignments[0].createdOn = value;
+    assert.throws(() => f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now), /Invalid UTC/);
+  }
+});
+
+operatorTest("approved authority accepts exact Azure CLI UTC timestamps in transient synthetic proof", async () => {
+  const f = await transientFixture(), e = f.record.machineEvidence.accessEvidence;
+  e.grant.createdOn = "2026-10-27T00:31:00.000000+00:00";
+  const raw = JSON.stringify(e), before = f.state.stateHash(e);
+  f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection);
+  assert.equal(JSON.stringify(e), raw);
+  assert.equal(f.state.stateHash(e), before);
+  for (const suffix of ["-00:00", "+01:00", "+0000", "z"]) {
+    e.grant.createdOn = `2026-10-27T00:31:00.000000${suffix}`;
+    assert.throws(() => f.state.validateFunctionalTest(f.record, f.security, f.now, f.selection), /Invalid UTC/);
+  }
+});
+
 test("real subject fingerprint rejects synthetic or substituted human authority without any test dependency stub", async () => {
   const f = await boundedFixture();
   assert.throws(() => f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now), /Wrong approved removal operator/);

@@ -77,10 +77,11 @@ function exactKeys(value, keys, label) {
 }
 function utc(value, label) {
   const t = Date.parse(value);
-  assert.ok(typeof value === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,7})?Z$/.test(value) && Number.isFinite(t), `Invalid UTC ${label}`);
-  // ARM assignment timestamps can carry seven fractional digits. Compare at
-  // the JS clock's millisecond precision without rewriting the retained bytes.
-  const millis = value.includes(".") ? value.replace(/\.(\d+)Z$/, (_, fraction) => `.${fraction.padEnd(3, "0").slice(0, 3)}Z`) : value.replace(/Z$/, ".000Z");
+  assert.ok(typeof value === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,7})?(?:Z|\+00:00)$/.test(value) && Number.isFinite(t), `Invalid UTC ${label}`);
+  // ARM retains up to seven fractional digits; Azure CLI emits +00:00.
+  // Normalize ONLY for clock comparison, never the retained/hashed evidence.
+  const z = value.replace(/\+00:00$/, "Z");
+  const millis = z.includes(".") ? z.replace(/\.(\d+)Z$/, (_, fraction) => `.${fraction.padEnd(3, "0").slice(0, 3)}Z`) : z.replace(/Z$/, ".000Z");
   assert.equal(new Date(t).toISOString(), millis, `Invalid UTC ${label}`);
   return t;
 }
