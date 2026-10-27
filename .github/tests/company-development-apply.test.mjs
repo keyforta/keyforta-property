@@ -873,6 +873,211 @@ async function boundedFixture() {
   f.security = f.state.readSecurity(f.read, f.context.security, f.predecessor);
   return f;
 }
+async function accessRecoveryFixture() {
+  const f = await boundedFixture(), a = f.context.continuationAuthority;
+  f.now = Date.parse("2026-10-27T04:30:00Z");
+  const reference = `https://github.com/keyforta/keyforta-property/commit/${sha}#commitcomment-12345`;
+  const absence = (ids) => ids.map((assignmentId) => ({ assignmentId, result: "RoleAssignmentNotFound" }));
+  const ids = [...a.assignments.map((r) => r.id),
+    `${bootstrapContainer()}/providers/Microsoft.Authorization/roleAssignments/16d6d244-a6ae-590d-b73d-d547d49ca16e`];
+  const oldSource = { commitSha: "06992846a7e0cfc8be9592171884707d875a4a16",
+    sourceSha256: "a1156045db1d69c84bc7542868f3542ef442f7efeddc8bedb527b12c7fcfc904" };
+  const history = {
+    original: { source: oldSource, firstGrantAt: "2026-10-27T02:35:36.3715841Z", deadline: "2026-10-27T03:35:33.151Z",
+      failure: { assignmentId: ids[2], outcome: "role-put-timeout-resolved-created-then-removed", createdOn: "2026-10-27T02:35:51.0090819Z" },
+      continuationArmOutcome: "not-submitted", closedAt: "2026-10-27T02:48:27.556532+00:00", absence: absence(ids) },
+    intervening: [
+      { kind: "human-reported-diagnostic", grants: [{ assignmentId: ids[2], createdOn: "2026-10-27T02:51:01.0381877Z" }],
+        reportedAbsentAt: "2026-10-27T02:52:09.193Z", absence: absence([ids[2]]) },
+      { kind: "manual-access-setup", grants: a.assignments.map((r, i) => ({ assignmentId: r.id, createdOn: [
+        "2026-10-27T02:56:08.9011507Z", "2026-10-27T02:56:17.1472710Z", "2026-10-27T02:56:23.0528924Z",
+        "2026-10-27T02:56:26.7774403Z", "2026-10-27T02:56:29.3949404Z", "2026-10-27T02:56:33.0850001Z"][i] })),
+        closedAt: "2026-10-27T03:05:28.463560+00:00", absence: absence(ids) },
+    ],
+    securityDrift: { beforeSha256: "f26a79fd21c88c65e04585a35e70be951599529a8d23db433598915040ac7961",
+      afterSha256: "823587e13b491368bfad51824231480d1e9fe7e17807929826c67eb8db40555a", cause: "UNKNOWN" },
+    evidenceReference: "https://github.com/keyforta/keyforta-property/pull/177",
+  };
+  a.firstGrantAt = "2026-10-27T04:10:00Z"; a.deadline = "2026-10-27T05:10:00Z";
+  a.collection.collectedAt = "2026-10-27T04:20:00Z";
+  for (const row of a.assignments) row.createdOn = a.firstGrantAt;
+  for (const review of f.context.security.inheritedAssignmentReview) {
+    review.sha256 = f.state.stateHash(a.assignments.find((r) => r.id === review.id));
+  }
+  const recovery = { version: 1, kind: "companydev-reviewed-access-setup-recovery",
+    operationId: "00000000-0000-4000-8000-000000000001",
+    authorization: { reference, authorizedAt: "2026-10-27T04:00:00Z" }, history,
+    beforeGrant: { observedAt: "2026-10-27T04:09:00Z", absence: absence(ids), baseline: structuredClone(f.context.baseline),
+      inventories: a.collection.inventories.map((r) => ({ ...structuredClone(r), assignments: [] })) } };
+  a.attempt = { mode: "reviewed-access-setup-recovery", completionBasis: structuredClone(f.context.predecessor), recovery };
+  f.selection.baseline = f.context.baseline;
+  f.comment = { html_url: reference, commit_id: sha, user: { login: "cmbuyamba", type: "User" },
+    created_at: recovery.authorization.authorizedAt, updated_at: recovery.authorization.authorizedAt,
+    body: JSON.stringify({ version: 1, kind: "companydev-reviewed-access-recovery-authorization", authorizer: "cmbuyamba",
+      operationId: recovery.operationId, destination: inputDestination(), source: a.source,
+      historySha256: f.state.stateHash(history), permissionMode: boundedMode, maximumWindowMinutes: 60 }) };
+  return f;
+}
+function bootstrapContainer() {
+  return `${g}/providers/Microsoft.Storage/storageAccounts/stakeyfortacdevmxv24i2qh/blobServices/default/containers/tenant-applications`;
+}
+
+operatorTest("reviewed access recovery admits a distinct pre-ARM cycle without changing initial mode or old clock", async () => {
+  const f = await accessRecoveryFixture();
+  const proof = f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now);
+  assert.equal(proof.attemptMode, "reviewed-access-setup-recovery");
+  assert.equal(f.context.continuationAuthority.attempt.recovery.history.original.firstGrantAt, "2026-10-27T02:35:36.3715841Z");
+  f.state.readStagePermissionReadiness(f.read, "continuation", "apply", true, f.selection, f.now);
+  f.state.assertWriterRevoked(f.read, f.predecessor, "apply", f.context.security, f.selection, f.now);
+  const initial = await boundedFixture();
+  assert.equal(initial.state.readContinuationAuthority(initial.read, initial.selection, "apply", initial.now).mode, boundedMode);
+});
+
+operatorTest("reviewed access recovery authenticates fresh per-operation native commit consent without an issue dependency", async () => {
+  const f = await accessRecoveryFixture();
+  assert.equal(typeof f.state.assertAccessRecoveryAuthorization, "function", "Missing authenticated recovery consent validator");
+  const proof = f.state.assertAccessRecoveryAuthorization(f.context.continuationAuthority, f.comment, f.selection.source, f.now);
+  assert.equal(proof.reference, f.comment.html_url);
+  for (const mutate of [
+    (c) => { c.user.login = "agent"; }, (c) => { c.user.type = "Bot"; },
+    (c) => { c.commit_id = "f".repeat(40); }, (c) => { c.updated_at = "2026-10-27T04:01:00Z"; },
+    (c) => { c.body = JSON.stringify({ approved: true }); },
+    (c) => { const body = JSON.parse(c.body); body.historySha256 = "0".repeat(64); c.body = JSON.stringify(body); },
+    (c) => { const body = JSON.parse(c.body); body.operationId = "00000000-0000-4000-8000-000000000002"; c.body = JSON.stringify(body); },
+    (c) => { c.html_url = "https://example.invalid/approval"; },
+  ]) {
+    const comment = structuredClone(f.comment); mutate(comment);
+    assert.throws(() => f.state.assertAccessRecoveryAuthorization(f.context.continuationAuthority, comment, f.selection.source, f.now), mutate.toString());
+  }
+  const { authenticateAccessRecovery } = await controls(), calls = [];
+  const result = authenticateAccessRecovery(f.context, f.selection.source, (path) => {
+    calls.push(path);
+    if (path === "comments/12345") return f.comment;
+    throw new Error("No issue/PR availability or arbitrary URL dependency permitted");
+  }, f.now);
+  assert.equal(result.reference, f.comment.html_url);
+  assert.deepEqual(calls, ["comments/12345"]);
+  assert.throws(() => authenticateAccessRecovery(f.context, f.selection.source, () => { throw new Error("403 consent unavailable"); }, f.now), /403 consent unavailable/);
+});
+
+operatorTest("reviewed access recovery rejects scope authority history cleanup source and clock substitutions", async () => {
+  const mutations = [
+    (f, r, a) => { a.destination.subscriptionId = "foreign"; },
+    (f, r, a) => { a.originalIdentity.principalId = previewPrincipal; },
+    (f, r, a) => { a.definitions[0].properties.permissions[0].actions.push("*"); },
+    (f, r, a) => { a.definitions[0].properties.permissions[0].dataActions.push("*/read"); },
+    (f, r, a) => { a.assignments[0].scope = s; },
+    (f, r, a) => { a.source.commitSha = "f".repeat(40); },
+    (f, r) => { r.version = 2; }, (f, r) => { r.kind = "renew"; }, (f, r) => { r.recovery = {}; },
+    (f, r) => { r.authorization.approved = true; },
+    (f, r) => { r.authorization.reference = "https://github.com/keyforta/keyforta-property/issues/177#issuecomment-1"; },
+    (f, r) => { r.authorization.authorizedAt = "2026-10-27T02:21:43.585Z"; },
+    (f, r) => { r.authorization.authorizedAt = "2026-10-27T04:11:00Z"; },
+    (f, r) => { r.history.original.firstGrantAt = "2026-10-27T02:56:08.9011507Z"; },
+    (f, r) => { r.history.original.deadline = "2026-10-27T04:35:33.151Z"; },
+    (f, r) => { r.history.original.failure.outcome = "unknown"; },
+    (f, r) => { r.history.original.continuationArmOutcome = "uncertain"; },
+    (f, r) => { r.history.original.source.commitSha = "f".repeat(40); },
+    (f, r) => { r.history.original.source.sourceSha256 = "f".repeat(64); },
+    (f, r) => { r.history.original.absence.pop(); },
+    (f, r) => { r.history.intervening.pop(); },
+    (f, r) => { r.history.intervening[0].grants[0].createdOn = "2026-10-27T02:56:23.0528924Z"; },
+    (f, r) => { r.history.intervening[1].grants[0].createdOn = "2026-10-27T02:57:44.7100230Z"; },
+    (f, r) => { r.history.intervening[1].absence[6].result = "unknown"; },
+    (f, r) => { r.history.securityDrift.cause = "normalized"; },
+    (f, r) => { r.beforeGrant.absence.pop(); },
+    (f, r) => { r.beforeGrant.absence[0] = r.beforeGrant.absence[1]; },
+    (f, r) => { r.beforeGrant.observedAt = "2026-10-27T03:05:28.463560Z"; },
+    (f, r) => { r.beforeGrant.inventories[0].complete = false; },
+    (f, r, a) => { r.beforeGrant.inventories[0].assignments.push(a.assignments[2]); },
+    (f, r) => { r.beforeGrant.baseline.pop(); },
+    (f, r, a) => { a.firstGrantAt = r.history.original.firstGrantAt; },
+    (f, r, a) => { a.deadline = "2026-10-27T05:10:01Z"; },
+    (f) => { f.selection.run.runAttempt = "2"; },
+  ];
+  for (const mutate of mutations) {
+    const f = await accessRecoveryFixture(), a = f.context.continuationAuthority;
+    mutate(f, a.attempt.recovery, a);
+    assert.throws(() => f.state.readContinuationAuthority(f.read, f.selection, "apply", f.now), mutate.toString());
+  }
+  const expired = await accessRecoveryFixture();
+  assert.throws(() => expired.state.readContinuationAuthority(expired.read, expired.selection, "apply",
+    Date.parse(expired.context.continuationAuthority.deadline)), /expired/);
+});
+
+operatorTest("reviewed access recovery permits one native dispatch and rejects consent reuse or a job rerun", async () => {
+  const f = await accessRecoveryFixture(), a = f.context.continuationAuthority;
+  const { assertAccessRecoveryNativeRun } = await controls();
+  const native = { sha, runId: "321", runAttempt: "1" };
+  const run = { id: 321, run_attempt: 1, head_sha: sha, head_branch: "main", event: "workflow_dispatch",
+    path: ".github/workflows/company-development-foundation-apply.yml", status: "in_progress", conclusion: null,
+    created_at: "2026-10-27T04:29:00Z", actor: { login: "cmbuyamba", type: "User" },
+    triggering_actor: { login: "cmbuyamba", type: "User" },
+    repository: { full_name: "keyforta/keyforta-property" }, head_repository: { full_name: "keyforta/keyforta-property" } };
+  const listing = { total_count: 1, workflow_runs: [structuredClone(run)] };
+  assertAccessRecoveryNativeRun(a, run, listing, native);
+  for (const mutate of [
+    (r, l, n) => { n.runAttempt = "2"; }, (r) => { r.run_attempt = 2; },
+    (r) => { r.head_sha = "f".repeat(40); }, (r) => { r.actor.login = "agent"; },
+    (r) => { r.triggering_actor.type = "Bot"; }, (r) => { r.created_at = "2026-10-27T04:09:00Z"; },
+    (r, l) => { l.total_count = 101; }, (r, l) => { l.workflow_runs.push({ ...r, id: 322 }); l.total_count++; },
+    (r, l) => { l.workflow_runs[0].created_at = "unknown"; },
+  ]) {
+    const r = structuredClone(run), l = structuredClone(listing), n = { ...native }; mutate(r, l, n);
+    assert.throws(() => assertAccessRecoveryNativeRun(a, r, l, n), mutate.toString());
+  }
+});
+
+operatorTest("reviewed access recovery full consumers require fresh functional proof and stop on any continuation ARM history", async () => {
+  const f = await accessRecoveryFixture(), a = f.context.continuationAuthority;
+  f.now = Date.parse("2026-10-27T04:40:00Z");
+  f.security = f.state.readSecurity(f.read, f.context.security, f.predecessor);
+  const t = await transientFixture();
+  f.record = JSON.parse(JSON.stringify(t.record).replaceAll("2026-10-27T00:", "2026-10-27T04:"));
+  const e = f.record.machineEvidence.accessEvidence;
+  e.authoritySha256 = f.state.stateHash(a); e.window = { firstGrantAt: a.firstGrantAt, deadline: a.deadline };
+  e.grant.condition = syntheticCondition(f.record.blob.name, a.firstGrantAt, a.deadline);
+  f.record.machineEvidence.readbackSha256 = f.state.stateHash(f.record.machineEvidence.readback);
+  // Keep the new actual observed security snapshot, including raw metadata.
+  e.s0.snapshot = structuredClone(f.security); e.s1.snapshot = structuredClone(f.security);
+  e.s0.sha256 = e.s1.sha256 = f.state.stateHash(f.security);
+  f.record.readableSecuritySha256 = f.state.stateHash(f.security);
+  f.context.security.functionalTest = f.record;
+  f.plan.whatIf = { changes: f.state.continuationInventory().map(({ id, type }) => ({ resourceId: id, changeType: "Create", after: { type } })) };
+  const oldNow = Date.now; Date.now = () => f.now;
+  try {
+    let puts = 0, previews = 0;
+    const operation = () => f.state.executeReviewedStage({ plan: f.plan, predecessor: f.predecessor, read: f.read, now: f.now, execution: f.execution,
+      preview: () => { previews++; return f.plan.whatIf; }, submit: () => { puts++; } });
+    assert.equal(operation().action, "submitted");
+    assert.equal(puts, 1); assert.equal(previews, 1);
+    // Both state/permission consumers accept the exact decoded context.
+    const { decodeStageContext, packStageContext } = await import("../../scripts/infra/company-development.mjs");
+    const decoded = decodeStageContext(packStageContext(JSON.stringify(f.context)));
+    assert.deepEqual(decoded, f.context);
+    f.plan.inputs.stageContext = decoded;
+    f.state.assessStage(f.read, f.plan, f.predecessor, f.now, "apply", f.execution);
+    const previewRead = (args) => args[0] === "account"
+      ? { id: subscriptionId, tenantId: input.tenantId, user: { type: "servicePrincipal", name: previewClient } }
+      : f.read(args);
+    f.transport.permissions[0].actions = ["Microsoft.Authorization/permissions/read"];
+    f.transport.stagePermissions[0].actions = ["Microsoft.Resources/deployments/whatIf/action", "Microsoft.Authorization/permissions/read"];
+    f.state.assessStage(previewRead, f.plan, f.predecessor, f.now, "preview", f.execution);
+    f.transport.extraDeployments.push({ name: `companydev-continuation-${"f".repeat(12)}`, properties: { provisioningState: "Failed" } });
+    assert.throws(() => operation(), /continuation ARM/);
+    assert.equal(puts, 1); assert.equal(previews, 1);
+    f.transport.extraDeployments = [];
+    const read = f.read;
+    f.read = (args) => {
+      if (args[0] === "deployment" && args[2] === "show" && args.at(-1) === "companydev-continuation-06992846a7e0") {
+        throw new Error("transport timeout; ARM outcome unknown");
+      }
+      return read(args);
+    };
+    assert.throws(() => operation(), /ARM outcome unknown/);
+    assert.equal(puts, 1); assert.equal(previews, 1);
+  } finally { Date.now = oldNow; }
+});
 function inputDestination() {
   return { tenantId: input.tenantId, subscriptionId, resourceGroup, location: input.location };
 }

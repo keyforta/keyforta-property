@@ -23,6 +23,125 @@ resource-group-scoped foundation deployment runs.
 
 ## Company DEVELOPMENT preparation — isolated preview and plan-bound apply
 
+### Reviewed access-setup recovery — 2026-10-27
+
+The [dated recovery decision](../docs/adr/ADR-016-company-development-private-foundation.md#approved-reviewed-access-setup-recovery-decision--2026-10-27)
+authorizes the minimal reviewed fix, not merge, deployment or remote changes.
+This is a bounded exception to the old cycle's no-second-attempt rule, not
+automatic renewal/reset/retry or permission to relabel an initial attempt.
+
+Before a separately reviewed new cycle:
+
+1. Preserve the failed access-setup record, original first-grant/deadline,
+   manual cycles and diagnostic bytes. Establish from actual evidence that
+   **no continuation ARM submission occurred**. Unknown/ambiguous submission
+   or post-ARM failure uses existing reviewed checkpoint recovery instead.
+2. Obtain actual all-seven temporary-assignment absence/readback and complete
+   current-authority, baseline and source evidence. Reported prior cleanup
+   alone is insufficient. Preserve raw platform metadata and stop on drift;
+   never normalize differences, forge a checkpoint or rewrite historical state.
+3. Establish fresh genuine **per-run human execution authorization**, one executor
+   and available cleanup fallback. Runtime authorization must not require issue
+   #159, a hardcoded issue/comment ID or that issue's availability; historical citations are
+   provenance only, never substitutive authorization or per-run self-approval.
+4. Retain the same narrow C/B roles, identities, ABAC, source/finance and native
+   GitHub controls. Start an immutable new window at the first ANY new temporary
+   grant, with a maximum 60-minute deadline. No extension, additional authority
+   or automatic second cycle; perform actual cleanup and exact absence verification.
+   The existing checkpoint-before-C-cleanup order still applies if ARM proceeds.
+
+#### Implemented recovery selection and human consent
+
+Keep `evidence_version=3`, `stage=continuation`, `mode=initial` and the existing
+raw or [packed stage_context input](#packing-stage-context-for-native-dispatch).
+The outer mode is unchanged, but select this distinct nested attempt:
+
+```js
+continuationAuthority.attempt = {
+  mode: "reviewed-access-setup-recovery",
+  completionBasis: /* same authentic bootstrap predecessor reference */,
+  recovery: {
+    version: 1, kind: "companydev-reviewed-access-setup-recovery",
+    operationId: /* new UUID */,
+    authorization: {
+      reference: "https://github.com/keyforta/keyforta-property/commit/<exact merged SHA>#commitcomment-<native positive ID>",
+      authorizedAt: /* actual native comment.created_at */
+    },
+    history,
+    beforeGrant: {
+      observedAt: /* after fresh consent, before first ANY grant */,
+      absence, inventories, baseline
+    }
+  }
+}
+```
+
+This is a shape, not executable/preapproved evidence. Keep authority version 1,
+the original fixed scope approval, exact current source/identities/destination,
+four definitions, six assignments, removal owner/fallback and provider assumption.
+Legacy `single-initial-attempt` keeps exactly its original two keys and rejects
+`recovery`. The new actual `firstGrantAt` is the minimum new six C `createdOn`;
+B follows S0 and cannot restart the clock. Deadline is immutable, at most
+T0+60 minutes; actual workflow run attempt must be 1.
+
+The human **cmbuyamba** must manually author a new, unedited GitHub **commit
+comment on the exact merged source SHA**, containing only compact JSON:
+
+```text
+{"version":1,"kind":"companydev-reviewed-access-recovery-authorization","authorizer":"cmbuyamba","operationId":"<same UUID>","destination":<exact fixed destination object>,"source":{"commitSha":"<exact merged SHA>","sourceSha256":"<actual reviewed source digest>"},"historySha256":"<stateHash(history)>","permissionMode":"companydev-continuation-bounded-baseline","maximumWindowMinutes":60}
+```
+
+Replace every template placeholder with actual values; destination is the fixed
+destination **object**, not a string. No Markdown fence in the actual comment;
+its trimmed body must round-trip compact `JSON.stringify` exactly, with no
+unknown/duplicate keys. Agents must not create this human consent. Its native
+User author, URL, commit, operation, source, history hash and
+`created_at=updated_at=authorizedAt` are independently checked. The guards GET
+the selected native record using the existing read-only API shape
+`gh api repos/keyforta/keyforta-property/comments/<ID>`; missing/unavailable or
+changed data blocks, never falls back to operator JSON or `approved:true`.
+No issue #159 fetch or hardcoded comment ID is involved.
+
+Consent must follow every historical closure and precede the first grant by
+at most 60 minutes. Existing native run and complete same-source
+`workflow_dispatch` listings must prove protected main, exact workflow/source,
+human actor and triggering actor, attempt 1 and current run after the grant.
+Only one native dispatch after this consent on that source is allowed;
+prior/ambiguous dispatch or rerun fails. Pre-dispatch setup failure must be
+closed, not silently regranted under the same comment.
+
+`history` is closed version-1 content with exactly `original`, `intervening`,
+`securityDrift`, `evidenceReference`: the immutable original failure/closure,
+exactly two ordered diagnostic/manual-setup records and the retained raw drift
+hashes with cause `UNKNOWN`. Do not append, normalize, retimestamp or waive
+these records. Human-reported diagnostic absence is not an agent GET observation.
+`history.evidenceReference` uses the existing same-repository issue/PR reference
+grammar (a legitimate non-159 PR works); it is context, never fetched as consent.
+
+Each absence row is exactly `{assignmentId,result:"RoleAssignmentNotFound"}`;
+all-seven arrays contain the six exact C IDs and B ID, without duplicates.
+`beforeGrant.inventories` uses the existing complete raw S/G/D collection shape;
+post-C inventories must equal those pre-grant records after subtracting **only**
+the six exact C assignments. `beforeGrant.baseline` is the complete actual typed
+baseline equal to `stage_context.baseline`. Independent actual deployment-history
+reads must show no continuation record, GET absence of the old source's
+continuation target and no continuation resource in pre-grant/current baseline.
+Unknown submission/existing target requires genuine checkpoint reviewed re-entry.
+
+There is **no new CLI**. After actual evidence and human consent exist, use the
+unchanged local-only [packing command](#packing-stage-context-for-native-dispatch)
+with the **whole full real context**, then supply the whole packed file to the
+normal protected native route, never a hash-only substitute. Do not pack invented
+future evidence or publish private operator IDs/payloads. S0/B/removal/S1,
+new functional v2, raw security/source equality, post-ARM verification and normal
+checkpoint-before-immediate-C-cleanup remain mandatory.
+
+This policy does not itself assert that a recovery record or runtime execution
+has passed. Old initial contracts/pins and no-second-attempt history are retained.
+Owners, review triggers and separate PR-specific merge/deploy consent are in the
+dated decision. Foundation recovery does not deploy applications or authorize
+resource deletion, bootstrap/security regrants or changes to shared resources.
+
 ### Approved three-change company-dev runbook — 2026-10-27
 
 The [dated ADR decision](../docs/adr/ADR-016-company-development-private-foundation.md#approved-three-change-access-decision--2026-10-27)
