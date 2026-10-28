@@ -108,6 +108,24 @@ Existing `company-dev-apply/result.json` retains post-ARM raw
 `verificationSecurity:{snapshot,sha256}` and, after validation,
 `permissionComparison` comparing raw S1 with actual verification security.
 
+Failed inherited-assignment validation retains its acceptance predicate and
+raises `AssertionError` with message `Unexplained extra/inherited access <compact JSON>`.
+The diagnostic is version 1, kind `companydev-inherited-access-mismatch`:
+`assignmentIdSha256` is a case-folded lookup fingerprint only; `actualSha256`
+hashes the complete raw assignment. `reviewedSha256` is generated only from an
+independently hash-bound, uniquely matching raw S1 row, otherwise null.
+`reviewPresent` and `reviewReasonPresent` are booleans, not approval proof.
+`comparisonBasis` is `hash-matched-s1-row` or `unavailable`; `differingFields`
+contains only fixed allowlisted top-level labels plus `<other-fields>`, at most
+19 labels and 1024 UTF-8 bytes for the complete diagnostic. No raw values,
+private identifiers, unknown key names or nested paths are emitted. Missing,
+ambiguous, malformed, tampered or unbound comparison data yields `unavailable`
+and `[]`, **not** evidence of no drift or equivalence. Hash correlation does not
+authenticate source or human consent. These diagnostics are not remediation,
+permission proof or retry authorization; the historical mismatch's cause
+remains **UNKNOWN**. No assignment normalization, broader metadata exception,
+permission change or historical raw/source-hash change is introduced.
+
 No new CLI, runtime loader, artifact filename, workflow, source profile or
 historical pin is introduced. Use the existing
 [whole-context packing command](#packing-stage-context-for-native-dispatch).
