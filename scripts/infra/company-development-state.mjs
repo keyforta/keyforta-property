@@ -422,6 +422,47 @@ function expectedGrants(ids) {
       identityResourceId: identity.id, principalId: identity.principalId, clientId: identity.clientId, principalType: "ServicePrincipal" };
   });
 }
+const assignmentDiagnosticFields = Object.freeze([
+  "condition", "conditionVersion", "createdBy", "createdOn", "delegatedManagedIdentityResourceId",
+  "description", "id", "name", "principalId", "principalName", "principalType", "resourceGroup",
+  "roleDefinitionId", "roleDefinitionName", "scope", "type", "updatedBy", "updatedOn",
+]);
+// Diagnostics only: never an assignment projection, approval or fallback.
+// Only fixed keys/field names, booleans and generated/validated hashes leave
+// this function. Unknown input keys and every value stay out of errors/logs.
+function inheritedAccessDiagnostic(row, review, context) {
+  const diagnostic = {
+    version: 1, kind: "companydev-inherited-access-mismatch",
+    assignmentIdSha256: createHash("sha256").update(row.id.toLowerCase()).digest("hex"),
+    actualSha256: stateHash(row),
+    reviewedSha256: null,
+    reviewPresent: !!review, reviewReasonPresent: !!review?.reason,
+    comparisonBasis: "unavailable", differingFields: [],
+  };
+  try {
+    const test = context.functionalTest, s1 = test?.machineEvidence?.accessEvidence?.s1;
+    if (test?.version !== 2 || typeof review?.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(review.sha256) || !Array.isArray(s1?.snapshot?.grants)
+      || s1.sha256 !== test.readableSecuritySha256 || stateHash(s1.snapshot) !== s1.sha256) return diagnostic;
+    const matches = s1.snapshot.grants.filter((r) => sameId(r?.id, row.id));
+    if (matches.length !== 1 || stateHash(matches[0]) !== review.sha256) return diagnostic;
+    const expected = matches[0];
+    // Generate this from matched data, never echo a merely hash-shaped string.
+    diagnostic.reviewedSha256 = stateHash(expected);
+    const differs = (field) => Object.hasOwn(row, field) !== Object.hasOwn(expected, field)
+      || JSON.stringify(canonical(row[field])) !== JSON.stringify(canonical(expected[field]));
+    const fields = assignmentDiagnosticFields.filter(differs);
+    if ([...Object.keys(row), ...Object.keys(expected)].some((field) => !assignmentDiagnosticFields.includes(field) && differs(field))) {
+      fields.push("<other-fields>");
+    }
+    diagnostic.comparisonBasis = "hash-matched-s1-row";
+    diagnostic.differingFields = fields;
+  } catch {
+    // Missing/malformed comparison material cannot suppress rejection or leak
+    // nested error messages. It supplies no field-comparison evidence.
+  }
+  return diagnostic;
+}
+
 export function readSecurity(read, context, predecessor) {
   assert.ok(context, "Missing security handoff context");
   for (const field of ["ownerReviewReference", "writerRemovalReference", "permissionReviewReference"]) assertReference(context[field], field);
@@ -507,7 +548,9 @@ export function readSecurity(read, context, predecessor) {
   for (const r of other) {
     assert.ok([`/subscriptions/${destination.subscriptionId}`, `/subscriptions/${destination.subscriptionId}/resourceGroups/${destination.resourceGroup}`].some((s) => sameId(s, r.scope)), "Unexpected direct/foreign service-principal access; only reviewed inherited operator context may remain");
     const review = context.inheritedAssignmentReview?.find((v) => sameId(v.id, r.id));
-    assert.ok(review?.reason && review.sha256 === stateHash(r), "Unexplained extra/inherited access");
+    const reviewed = review?.reason && review.sha256 === stateHash(r);
+    assert.ok(reviewed, reviewed ? undefined
+      : `Unexplained extra/inherited access ${JSON.stringify(inheritedAccessDiagnostic(r, review, context))}`);
     assertReference(review.ownerReference, "inherited access");
   }
   const serviceResources = securityInventory(context).map((r) => {

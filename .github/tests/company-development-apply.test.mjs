@@ -1548,6 +1548,192 @@ async function metadataFixture() {
   return f;
 }
 
+// Synthetic reproduction of missing diagnostics, NOT the unavailable failed
+// runner's assignment. Actual incident privilege/representation cause is UNKNOWN.
+async function accessDiagnosticFixture() {
+  const f = await metadataFixture();
+  f.row = f.transport.assignments.find((r) => r.id === f.context.security.inheritedAssignmentReview[0].id);
+  f.row.principalName = "synthetic-reviewed-display";
+  f.row.createdOn = "2026-10-27T00:10:00.000Z";
+  f.review = f.context.security.inheritedAssignmentReview[0];
+  f.review.sha256 = f.state.stateHash(f.row);
+  f.security = f.state.readSecurity(f.read, f.context.security, f.predecessor);
+  const s1 = f.record.machineEvidence.accessEvidence.s1;
+  s1.snapshot = structuredClone(f.security);
+  s1.sha256 = f.record.readableSecuritySha256 = f.state.stateHash(s1.snapshot);
+  return f;
+}
+function rejectedAccess(f) {
+  let caught;
+  try { f.state.readSecurity(f.read, f.context.security, f.predecessor); } catch (error) { caught = error; }
+  assert.ok(caught, "Unexplained inherited access must still reject");
+  assert.match(caught.message, /^Unexplained extra\/inherited access/);
+  return caught;
+}
+function accessDiagnostic(error) {
+  const prefix = "Unexplained extra/inherited access ";
+  assert.ok(error.message.startsWith(prefix), "Missing bounded redacted inherited-access diagnostic");
+  assert.ok(Buffer.byteLength(error.message) <= 1024, "Diagnostic must remain bounded");
+  return JSON.parse(error.message.slice(prefix.length));
+}
+
+operatorTest("access diagnostics reproduction reports synthetic raw-row rejection, not historical root cause", async (t) => {
+  const f = await accessDiagnosticFixture();
+  f.row.principalName = "synthetic-unexpected-display";
+  const error = rejectedAccess(f);
+  t.diagnostic(`SYNTHETIC ONLY; rejected=true; diagnosticPresent=${error.message.includes('"kind"')}; message=${error.message}`);
+});
+
+operatorTest("access diagnostics emits deterministic hashes and only differing field names without changing inputs", async () => {
+  const f = await accessDiagnosticFixture(), old = structuredClone(f.row);
+  f.row.principalName = "synthetic-changed-display";
+  const before = structuredClone({ row: f.row, context: f.context });
+  const error = rejectedAccess(f), value = accessDiagnostic(error);
+  assert.deepEqual(value, { version: 1, kind: "companydev-inherited-access-mismatch",
+    assignmentIdSha256: hash(f.row.id.toLowerCase()), actualSha256: f.state.stateHash(f.row),
+    reviewedSha256: f.state.stateHash(old), reviewPresent: true, reviewReasonPresent: true,
+    comparisonBasis: "hash-matched-s1-row", differingFields: ["principalName"] });
+  assert.equal(rejectedAccess(f).message, error.message);
+  assert.deepEqual({ row: f.row, context: f.context }, before);
+});
+
+operatorTest("access diagnostics keeps extras and missing reasons rejected without inventing comparison evidence", async () => {
+  for (const change of [
+    (f) => { f.context.security.inheritedAssignmentReview = []; },
+    (f) => { delete f.review.reason; },
+    (f) => { f.review.sha256 = "synthetic-untrusted-review-secret"; },
+    (f) => { f.row.id = `${g}/providers/Microsoft.Authorization/roleAssignments/99999999-9999-4999-8999-999999999999`; },
+  ]) {
+    const f = await accessDiagnosticFixture(); change(f);
+    const value = accessDiagnostic(rejectedAccess(f));
+    assert.ok(!value.reviewPresent || !value.reviewReasonPresent || value.actualSha256 !== value.reviewedSha256);
+    assert.ok(value.reviewedSha256 === null || /^[a-f0-9]{64}$/.test(value.reviewedSha256));
+    if (!value.reviewPresent || value.reviewedSha256 === null) {
+      assert.equal(value.comparisonBasis, "unavailable");
+      assert.deepEqual(value.differingFields, []);
+    }
+  }
+});
+
+operatorTest("access diagnostics preserves rejection for principal role condition timestamps missing and unknown fields", async () => {
+  for (const [field, mutate] of [
+    ["principalId", (r) => { r.principalId = "99999999-9999-4999-8999-999999999999"; }],
+    ["roleDefinitionId", (r) => { r.roleDefinitionId = definitionId("8e3af657-a8ff-443c-a75c-2fe8c4bcb635"); }],
+    ["condition", (r) => { r.condition = "synthetic-condition-value"; }],
+    ["conditionVersion", (r) => { r.conditionVersion = "2.0"; }],
+    ["createdOn", (r) => { r.createdOn = "2026-10-27T00:10:01.000Z"; }],
+    ["updatedOn", (r) => { r.updatedOn = "2026-10-27T00:10:01.000Z"; }],
+    ["principalName", (r) => { delete r.principalName; }],
+    ["id", (r) => { r.id = r.id.toUpperCase(); }],
+    ["<other-fields>", (r) => { r["untrusted-secret-key\n\u001b[31m"] = { nested: "synthetic-private-value" }; }],
+  ]) {
+    const f = await accessDiagnosticFixture(); mutate(f.row);
+    const value = accessDiagnostic(rejectedAccess(f));
+    assert.equal(value.comparisonBasis, "hash-matched-s1-row");
+    assert.deepEqual(value.differingFields, [field]);
+    assert.equal(value.actualSha256, f.state.stateHash(f.row));
+  }
+});
+
+operatorTest("access diagnostics refuses ambiguous unbound or tampered S1 comparison rows, retaining strict rejection", async () => {
+  for (const change of [
+    (f) => { delete f.record.machineEvidence; },
+    (f) => { f.record.machineEvidence.accessEvidence.s1.sha256 = "0".repeat(64); },
+    (f) => { f.record.readableSecuritySha256 = "0".repeat(64); },
+    (f) => {
+      const s1 = f.record.machineEvidence.accessEvidence.s1;
+      s1.snapshot.grants.push(structuredClone(s1.snapshot.grants.find((r) => r.id === f.row.id)));
+      s1.sha256 = f.record.readableSecuritySha256 = f.state.stateHash(s1.snapshot);
+    },
+    (f) => {
+      const s1 = f.record.machineEvidence.accessEvidence.s1;
+      s1.snapshot.grants.find((r) => r.id === f.row.id).description = "synthetic-not-the-reviewed-row";
+      s1.sha256 = f.record.readableSecuritySha256 = f.state.stateHash(s1.snapshot);
+    },
+  ]) {
+    const f = await accessDiagnosticFixture(); change(f); f.row.principalName = "synthetic-new-display";
+    const value = accessDiagnostic(rejectedAccess(f));
+    assert.equal(value.comparisonBasis, "unavailable");
+    assert.deepEqual(value.differingFields, []);
+  }
+});
+
+operatorTest("access diagnostics never emits injected secrets UUIDs raw keys values or nested error payloads", async () => {
+  const f = await accessDiagnosticFixture();
+  const privateId = "99999999-9999-4999-8999-999999999999";
+  const secret = "SYNTHETIC_PRIVATE_ACCESS_DIAGNOSTIC_SECRET";
+  const maliciousKey = `${secret}\r\n\u001b[31m${privateId}`;
+  f.row.principalId = privateId; f.row.principalName = secret; f.row.description = secret;
+  f.row.condition = secret; f.row.roleDefinitionName = secret;
+  for (const key of [maliciousKey, "__proto__", "constructor", "toJSON"]) {
+    Object.defineProperty(f.row, key, { value: { error: { message: secret, stack: privateId }, nested: [secret] }, enumerable: true });
+  }
+  f.review.reason = { nested: secret, principal: privateId };
+  const error = rejectedAccess(f), value = accessDiagnostic(error);
+  for (const text of [error.message, String(error), error.stack, JSON.stringify(error)]) {
+    for (const forbidden of [secret, privateId, maliciousKey, f.row.id, f.row.roleDefinitionId, f.review.ownerReference]) {
+      assert.ok(!text.includes(forbidden), "Diagnostic exposed synthetic private payload");
+    }
+  }
+  assert.deepEqual(value.differingFields, ["condition", "description", "principalId", "principalName", "roleDefinitionName", "<other-fields>"]);
+  assert.equal(value.actualSha256, f.state.stateHash(f.row));
+  f.review.sha256 = maliciousKey;
+  const untrustedHash = rejectedAccess(f);
+  assert.equal(accessDiagnostic(untrustedHash).reviewedSha256, null);
+  assert.ok(!untrustedHash.message.includes(secret));
+  // A secret may itself look like a SHA256. Format checking alone must not
+  // echo it as a reviewed hash without matching the actual S1 row's hash.
+  const hexSecret = "1234abcd".repeat(8);
+  f.review.sha256 = hexSecret;
+  const forgedHash = rejectedAccess(f);
+  assert.ok(!forgedHash.message.includes(hexSecret), "Unbound hash-shaped private input was emitted");
+  assert.equal(accessDiagnostic(forgedHash).reviewedSha256, null);
+});
+
+operatorTest("access diagnostics bounds all allowed fields and thousands of malicious unknown field names", async () => {
+  const f = await accessDiagnosticFixture();
+  const fields = ["condition", "conditionVersion", "createdBy", "createdOn", "delegatedManagedIdentityResourceId",
+    "description", "name", "principalName", "resourceGroup", "roleDefinitionName", "type", "updatedBy", "updatedOn"];
+  for (const field of fields) f.row[field] = { nested: ["synthetic-sensitive-value", "\r\n\u001b[31m".repeat(100)] };
+  f.row.id = f.row.id.toUpperCase(); f.row.scope = s;
+  f.row.principalId = "99999999-9999-4999-8999-999999999999"; f.row.principalType = "User";
+  f.row.roleDefinitionId = definitionId("8e3af657-a8ff-443c-a75c-2fe8c4bcb635");
+  for (let i = 0; i < 2000; i++) f.row[`private-${i}\r\n\u001b[31m`] = { nested: "synthetic-sensitive-value" };
+  const error = rejectedAccess(f), value = accessDiagnostic(error);
+  assert.equal(value.differingFields.length, 19);
+  assert.equal(value.differingFields.at(-1), "<other-fields>");
+  assert.ok(!error.message.includes("synthetic-sensitive-value"));
+  assert.ok(!error.message.includes("\u001b"));
+});
+
+operatorTest("access diagnostics valid and legacy inputs remain accepted and duplicate/foreign scopes remain rejected", async () => {
+  const legacy = await stagedFixture();
+  assert.doesNotThrow(() => legacy.state.readSecurity(legacy.read, legacy.context.security, legacy.predecessor));
+  const f = await accessDiagnosticFixture(), before = structuredClone(f.context);
+  assert.deepEqual(f.state.readSecurity(f.read, f.context.security, f.predecessor), f.security);
+  assert.deepEqual(f.context, before);
+  const original = f.read;
+  assert.deepEqual(f.state.readSecurity((args) => {
+    const result = original(args);
+    return args[0] === "role" ? [...result, ...result] : result;
+  }, f.context.security, f.predecessor), f.security, "Identical duplicate reads remain accepted/deduplicated");
+  let count = 0;
+  assert.throws(() => f.state.readSecurity((args) => {
+    const result = original(args);
+    if (args[0] === "role" && ++count === 2) {
+      return result.map((r) => r.id === f.row.id ? { ...r, description: "synthetic-conflicting-duplicate" } : r);
+    }
+    return result;
+  }, f.context.security, f.predecessor), /Inconsistent actual grant reads/);
+  f.transport.assignments.push({ ...f.row, id: "synthetic-foreign-scope", scope: `${g}/providers/Microsoft.Storage/storageAccounts/foreign` });
+  const read = (args) => args[0] === "role" ? f.transport.assignments : original(args);
+  assert.throws(() => f.state.readSecurity(read, f.context.security, f.predecessor), /Unexpected direct\/foreign/);
+  const missing = await accessDiagnosticFixture();
+  missing.transport.assignments.shift();
+  assert.throws(() => missing.state.readSecurity(missing.read, missing.context.security, missing.predecessor),
+    undefined, "Missing required workload grant remains rejected by its existing guard");
+});
+
 operatorTest("scanner metadata comparison accepts permission-equivalent S0/S1 while retaining both unequal raw hashes", async () => {
   const f = await metadataFixture(), before = structuredClone(f.record);
   const e = f.record.machineEvidence.accessEvidence;
